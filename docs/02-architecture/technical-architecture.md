@@ -26,7 +26,7 @@ This architecture does **not** claim Raspberry Pi or other SoC support.
 - Docker: `Dockerfile` / `scripts/docker-smoke.sh` (linux/arm64-friendly; do not pin amd64)
 - GHA: `.github/workflows/smoke.yml` (`ubuntu-24.04-arm` and `ubuntu-24.04`)
 
-Source + local smoke were probed on 2026-09-08 (see the honesty ledger). CI and Docker-on-cts-ai stay Unknown until those environments run.
+Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `smoke.yml` was green on that revision (`ubuntu-24.04` and `ubuntu-24.04-arm`). Docker-on-cts-ai stays Unknown until that engine runs.
 
 ## Planned stages
 

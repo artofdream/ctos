@@ -6,12 +6,12 @@ Same branch as the AArch64 retarget (`cursor/arm64-primary-isa-8dbd`, PR #4). La
 
 ## Do next
 
-1. Watch GHA on #4 — ledger CI row stays Unknown until a run is green (or Failed).
-2. Docker-on-cts-ai / this VM: Unknown (no Docker engine here).
-3. Human or MRC review. Author does not merge (ADR-002).
-4. Next kernel work after merge: M3 (VBAR), not more sensors unless a failure repeats.
+1. Human or MRC review. Author does not merge (ADR-002).
+2. Docker-on-cts-ai still Unknown (no Docker engine on the cloud VM).
+3. Next kernel work after merge: M3 (VBAR), not more sensors unless a failure repeats.
 
 ## Honesty
 
 - `scripts/qemu-smoke.sh` on this cloud VM: **Verified** (hello + cargo test 0 + force-fail 1).
-- GHA / Docker engine: **Unknown**.
+- GHA `smoke.yml`: **Verified** (push 34285784458 + PR 34285786641 green; both `ubuntu-24.04` and `ubuntu-24.04-arm`).
+- Docker engine: **Unknown**.
