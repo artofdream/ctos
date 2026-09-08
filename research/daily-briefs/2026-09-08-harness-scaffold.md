@@ -9,6 +9,7 @@ Stood up the kernel tree (VGA hello, bootloader 0.9, custom target, `.cargo/conf
 1. Human or MRC review of the PR — author does not self-approve.
 2. Next kernel work is M2 (integration tests), not IDT, unless a human says otherwise.
 3. FR/NFR IDs are frozen in `docs/02-requirements/fr-nfr.md` (FR-01–15, NFR-01–14). New IDs need a GitHub issue + ADR/docs change.
+4. Solo era: sponsor merges; a **new** MRC agent reviews. Do not enable GitHub self-approval. Do not require 1 approval until a second GitHub identity exists.
 
 ## Honesty
 

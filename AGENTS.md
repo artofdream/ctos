@@ -33,6 +33,30 @@ The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-c
 
 One human or agent may wear a builder hat in a session. The merge/approve hat is a different job.
 
+## Solo era (sponsor is the main developer)
+
+Stay solo as long as you need. Do **not** turn on GitHub “authors can approve their own PRs,” and do **not** add a required-approval ruleset yet — with one GitHub account you would only merge via admin bypass, which is theater.
+
+**Second reviewer:** start a **new** Cursor chat or cloud agent (not the session that wrote the PR). Point it at the PR URL and the `ctos-mr-coordinator` skill. That agent writes the review (ledger vs probes, scope, no invented FR/NFR IDs).
+
+**Who clicks Merge:** you. A second agent on the same GitHub login **cannot** submit an Approve on a PR that login opened. Treat its review comments as the second pair of eyes; you are still the merge button.
+
+| Who wrote the PR | Who reviews | Who merges |
+| --- | --- | --- |
+| You | New MRC agent (or you, slowly, against the ledger) | You, after the written review |
+| Builder agent (this GitHub user) | You, optionally plus a new MRC agent | You |
+
+Copy-paste to start MRC:
+
+```
+You are ctos MR Coordinator only. Review https://github.com/artofdream/ctos/pull/<N>.
+Read AGENTS.md, docs/framework/honesty-ledger.md, docs/02-requirements/fr-nfr.md.
+Do not push code, do not approve if you authored the commits, do not merge.
+Leave a GitHub review (comment or request changes). Check claims vs probes.
+```
+
+Later, when a second GitHub identity exists (teammate, bot, or Copilot review), you can add a real required-approval ruleset. Until then, written MRC + human merge satisfies NFR-12 without locking `main`.
+
 ## Edit style
 
 - Prefer small, focused diffs. One milestone per PR.
