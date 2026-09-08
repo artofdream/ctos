@@ -11,7 +11,7 @@ ctos is a `#![no_std]` `#![no_main]` binary. There is no Rust standard library a
 
 There is no `bootloader` 0.9 crate and no VGA buffer. The x86_64 phil-opp path was deleted when this ADR landed.
 
-`.cargo/config.toml` still needs `json-target-spec = true` on rustc 1.100 nightly. The AArch64 JSON is taken from `aarch64-unknown-none-softfloat` plus `os: none` / numeric widths. Behavior is bare-metal AArch64, abort, `rust-lld`.
+`.cargo/config.toml` still needs `json-target-spec = true` on rustc 1.100 nightly. The AArch64 JSON is taken from `aarch64-unknown-none-softfloat` plus `os: none` / numeric widths. That nightly rejected the file until both `"abi": "softfloat"` and `"rustc-abi": "softfloat"` were set. Behavior is bare-metal AArch64, abort, `rust-lld`.
 
 This architecture does **not** claim Raspberry Pi or other SoC support.
 
@@ -21,7 +21,7 @@ This architecture does **not** claim Raspberry Pi or other SoC support.
 - `print!` / `println!` via `spin::Mutex`
 - `kernel_main` prints `Hello World!` then `wfe`
 
-Source is present. QEMU serial proof is a ledger row, not a README sentence.
+Source is present. QEMU serial "Hello World!" was probed on 2026-09-08 (see the honesty ledger). That probe is not CI.
 
 ## Planned stages
 

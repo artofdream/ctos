@@ -7,7 +7,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | ID | Milestone | Probe that closes it | Status |
 | --- | --- | --- | --- |
 | M0 | Kernel tree + harness scaffold on GitHub | Files on the default-target PR; ledger started | In harness PRs #2/#3 (source). Merge is a human/MRC job. |
-| M1 | QEMU `virt` boots UART "Hello World!" | `qemu-system-aarch64` serial shows the string; see honesty ledger | In this ISA-retarget PR. x86 VGA probe is historical only. |
+| M1 | QEMU `virt` boots UART "Hello World!" | `qemu-system-aarch64` serial shows the string; see honesty ledger | Verified in the 2026-09-08 cloud probe (not CI). x86 VGA probe is historical only. |
 | M2 | Integration test harness | QEMU virt exit + at least one `#[test_case]` that fails closed | Planned |
 | M3 | Exception vectors + breakpoint | Test or QEMU serial proof the handler runs | Planned |
 | M4 | Fatal exception stack | Fatal path does not silently lock the VM | Planned |

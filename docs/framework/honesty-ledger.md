@@ -8,8 +8,8 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | --- | --- | --- | --- |
 | UART hello source present (`println!("Hello World!");` + PL011 writer) | Read `src/main.rs` and `src/uart.rs` on this branch | Verified | Source inspection. Boot is a separate row. |
 | `.cargo/config.toml` present (build-std, `aarch64-ctos.json`, qemu runner, `json-target-spec`) | Read `.cargo/config.toml` | Verified | Presence. Build success is the next row. |
-| `cargo build` for `aarch64-ctos.json` | `cargo +nightly build` on this branch | Unknown | Not probed yet on this revision. |
-| QEMU aarch64 serial shows Hello World | `qemu-system-aarch64 -machine virt -cpu cortex-a57 -nographic` with the kernel ELF | Unknown | Not probed yet on this revision. |
+| `cargo build` for `aarch64-ctos.json` | `cargo +nightly build` on 2026-09-08 (`rustc` 1.100.0-nightly `cea272fa3`) | Verified | First attempt failed: `invalid aarch64 ABI combination` until the JSON had both `"abi": "softfloat"` and `"rustc-abi": "softfloat"`. Then the ELF built (`target/aarch64-ctos/debug/ctos`, AArch64, entry `0x40080000`). |
+| QEMU aarch64 serial shows Hello World | `qemu-system-aarch64` 8.2.2, `-machine virt -cpu cortex-a57 -display none -serial stdio -kernel target/aarch64-ctos/debug/ctos`; `timeout 4` | Verified | Serial printed `Hello World!` then the VM was killed (exit 124). Same string on `-machine virt,gic-version=3` and `-cpu max`. One cloud environment, not CI. Not a Raspberry Pi probe. |
 | x86_64 VGA / bootimage path | Historical probes on 2026-09-08 (PR #2) | Historical | Path **removed** by ADR-003. Those Verified rows do not apply to this tree. |
 | CI on GitHub | Workflow file exists **and** a run is green | Planned | No workflow in tree yet. |
 | Second-brain vaults (`research/`) | Paths exist; README explains Procedure / Correction / Relationship / Daily Brief | Verified | Structure present. Not a claim that vaults are richly filled. Optional Obsidian UI is structure-only (PR #3). |

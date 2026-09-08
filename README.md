@@ -22,7 +22,7 @@ cargo build          # freestanding aarch64 kernel ELF
 cargo run            # boot the ELF in qemu-system-aarch64 -machine virt
 ```
 
-The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU boot is a ledger claim. Do not treat these commands as Verified on a machine that has not run them. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
+The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU serial Hello World was probed once in the 2026-09-08 cloud run (`qemu-system-aarch64` 8.2.2, `-machine virt`). That is not CI. Other machines stay Unknown until they run the same kind of probe. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
 
 This is not a Raspberry Pi port.
 
