@@ -23,7 +23,7 @@ cargo run            # boot the image in QEMU (needs QEMU on PATH)
 cargo bootimage      # write target/x86_64-ctos/debug/bootimage-ctos.bin
 ```
 
-QEMU boot is **not** claimed Verified in this README. See the [ctos honesty ledger](docs/framework/honesty-ledger.md) for claim vs probe.
+QEMU boot was probed once in the 2026-09-08 cloud run (VGA dump at `0xb8e60` = `Hello World!`). That is not CI. Other machines stay Unknown until they run the same kind of probe. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
 
 ## Docs (document-first)
 

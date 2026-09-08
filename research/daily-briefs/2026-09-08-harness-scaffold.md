@@ -7,10 +7,11 @@ Stood up the kernel tree (VGA hello, bootloader 0.9, custom target, `.cargo/conf
 ## Do next
 
 1. Human or MRC review of the PR — author does not self-approve.
-2. Probe `cargo build` / QEMU if the environment has nightly + rust-src + QEMU; update the honesty ledger.
-3. Do not start IDT or paging until M1 (QEMU boot) has a real probe or is explicitly deferred.
+2. Next kernel work is M2 (integration tests), not IDT, unless a human says otherwise.
 
 ## Honesty
 
 - VGA source and config **presence**: Verified by file read.
-- QEMU boot: **Unknown** unless a later note in this folder says a probe ran.
+- `cargo +nightly build` and `cargo bootimage`: Verified after ratcheting `json-target-spec` + target JSON for rustc 1.100.
+- QEMU 8.2.2 VGA dump at `0xb8e60`: Verified `Hello World!` (yellow on black). Not CI.
+- CI: still Planned.

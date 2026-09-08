@@ -11,6 +11,8 @@ ctos is a `#![no_std]` `#![no_main]` binary. There is no Rust standard library a
 
 Stay on bootloader 0.9 / volatile 0.2 / spin 0.5. Do not migrate to bootloader 0.10 unless a dedicated ADR says so.
 
+The custom target started from the tutorial-era JSON. A 2026-09-08 `rustc` 1.100 nightly probe rejected that file until we ratcheted: numeric `target-pointer-width` / `target-c-int-width`, LLVM `data-layout` with p270/p271/p272 and i128, and `rustc-abi: softfloat`. `.cargo/config.toml` also needs `json-target-spec = true` on that nightly. Behavior is still bare-metal x86_64, abort, no red zone, soft-float, `rust-lld`.
+
 ## Current stage (VGA)
 
 - `Color` / `ColorCode` / `ScreenChar` / `Buffer`
@@ -18,7 +20,7 @@ Stay on bootloader 0.9 / volatile 0.2 / spin 0.5. Do not migrate to bootloader 0
 - `print!` / `println!` via `lazy_static` + `spin::Mutex`
 - Yellow on black, matching the common tutorial writer
 
-This stage is **source-present**. QEMU showing "Hello World!" is a separate claim — see the honesty ledger.
+Source is present. QEMU showing "Hello World!" was probed on 2026-09-08 (see the honesty ledger). That probe is not CI.
 
 ## Planned stages (phil-opp order)
 
