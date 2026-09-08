@@ -35,7 +35,7 @@ Agents interpret. The domain (a build, a QEMU probe, a test) decides. Do not "co
 | Sensors | QEMU boot, later `#[test_case]` + isa-debug-exit, file-presence checks that say only what they checked | Rounding "source exists" up to "it boots" |
 | Loop | One milestone → one branch → one GitHub PR | Sprawling PRs that mix VGA, paging, and docs rewrites |
 | Memory | `research/` vaults | Session amnesia; stuffing raw chat into the next prompt |
-| Permissions | MR Coordinator is not the author; no self-approve | Self-merge of unprobed claims |
+| Permissions | Author ≠ merger (`artofdream` vs `cursor[bot]`); MRC writes COMMENT; no GitHub self-APPROVE (ADR-002) | Same-login stamp counted as a second review |
 | Observability | Honesty ledger + PR text that lists probed vs Unknown | Status theater |
 
-Fail closed: if QEMU was not run, boot status is Unknown. The purchase-button analogue is "do not write Verified."
+Fail closed: if QEMU was not run, boot status is Unknown. Do not write Verified.
