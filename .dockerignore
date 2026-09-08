@@ -1,0 +1,7 @@
+target
+.git
+.obsidian
+.trash
+**/*.bin
+.idea
+.vscode

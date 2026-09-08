@@ -5,3 +5,9 @@ edition = "2021"
 
 [dependencies]
 spin = "0.5.2"
+
+[features]
+default = []
+# Panic after UART hello so sensors can prove a non-zero QEMU exit.
+# Not enabled in the default build or default `cargo test`.
+force-fail = []

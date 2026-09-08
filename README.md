@@ -24,7 +24,24 @@ cargo run            # boot the ELF in qemu-system-aarch64 -machine virt
 
 The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU serial Hello World was probed once in the 2026-09-08 cloud run (`qemu-system-aarch64` 8.2.2, `-machine virt`). That is not CI. Other machines stay Unknown until they run the same kind of probe. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
 
-This is not a Raspberry Pi port.
+```bash
+./scripts/qemu-smoke.sh   # build + require hello on serial + cargo test + force-fail
+cargo test                # two #[test_case]; QEMU exits 0 via ARM semihosting
+```
+
+### Docker (cts-ai: Windows ARM64 → linux/arm64)
+
+Do **not** pass `--platform linux/amd64`. The image is `ubuntu:24.04` (multi-arch) plus nightly Rust and `qemu-system-aarch64`.
+
+```bash
+./scripts/docker-smoke.sh
+# or
+docker build -t ctos-smoke .
+docker run --rm ctos-smoke
+# optional: docker compose run --rm smoke
+```
+
+Docker-on-cts-ai is Unknown until that engine runs it. This is not a Raspberry Pi port.
 
 ## Docs (document-first)
 

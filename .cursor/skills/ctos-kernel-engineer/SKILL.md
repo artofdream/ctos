@@ -13,7 +13,7 @@ Changing `src/`, `Cargo.toml`, the custom target, `.cargo/config.toml`, or the l
 
 - Stay on `aarch64-ctos.json` + QEMU `virt` + PL011 unless an ADR migrates.
 - One roadmap milestone per branch/PR.
-- Probe what you can (`cargo build`, `qemu-system-aarch64` serial). Leave the rest Unknown in the ledger.
+- Probe what you can (`cargo build`, `scripts/qemu-smoke.sh`, `cargo test`). Leave the rest Unknown in the ledger.
 - Keep `println!` and panic paths compiling on `no_std`.
 - Do not claim Raspberry Pi or other boards without a probe.
 

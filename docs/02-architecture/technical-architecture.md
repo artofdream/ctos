@@ -15,19 +15,24 @@ There is no `bootloader` 0.9 crate and no VGA buffer. The x86_64 phil-opp path w
 
 This architecture does **not** claim Raspberry Pi or other SoC support.
 
-## Current stage (UART hello)
+## Current stage (UART hello + M2 tests)
 
 - `Pl011` writer with TX-full wait and `\n` → `\r\n`
 - `print!` / `println!` via `spin::Mutex`
-- `kernel_main` prints `Hello World!` then `wfe`
+- `kernel_main` prints `Hello World!` then `wfe` (non-test)
+- `cargo test` uses `#![feature(custom_test_frameworks)]` and `#[test_case]`
+- QEMU exit is ARM **semihosting** `SYS_EXIT` / `hlt #0xf000` (`src/qemu.rs`), not `isa-debug-exit`. Needs `-semihosting` on the QEMU line (`scripts/qemu-aarch64.sh`).
+- Host smoke: `scripts/qemu-smoke.sh` (hello string + tests + `force-fail` must be non-zero)
+- Docker: `Dockerfile` / `scripts/docker-smoke.sh` (linux/arm64-friendly; do not pin amd64)
+- GHA: `.github/workflows/smoke.yml` (`ubuntu-24.04-arm` and `ubuntu-24.04`)
 
-Source is present. QEMU serial "Hello World!" was probed on 2026-09-08 (see the honesty ledger). That probe is not CI.
+Source + local smoke were probed on 2026-09-08 (see the honesty ledger). CI and Docker-on-cts-ai stay Unknown until those environments run.
 
 ## Planned stages
 
 | Stage | Domain work |
 | --- | --- |
-| Custom test framework | `#[test_case]`, QEMU virt exit, UART |
+| Custom test framework | Landed (M2): `#[test_case]`, semihosting exit, UART |
 | CPU exceptions | VBAR_EL1, breakpoint / fault |
 | Hardware interrupts | GIC, timer, later input |
 | Paging | page tables, frame allocator |
