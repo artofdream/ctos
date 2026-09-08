@@ -32,6 +32,7 @@ Start here before adding kernel features:
 | Doc | What it is |
 | --- | --- |
 | [Product vision](docs/01-vision/product-vision.md) | What ctos is and is not |
+| [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (do not invent extras in chat) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, bootloader 0.9, VGA stage, planned stages |
 | [ADR-001](docs/03-adr/ADR-001-honesty-harness-for-ctos.md) | Why this repo uses a honesty/harness practice |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |

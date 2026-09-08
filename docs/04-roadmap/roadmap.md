@@ -1,6 +1,6 @@
 # Roadmap
 
-Each row is **one loop unit**: one milestone, one branch, one GitHub PR. Do not stack a later stage onto an unclosed earlier PR.
+Each row is **one loop unit**: one milestone, one branch, one GitHub PR. Do not stack a later stage onto an unclosed earlier PR. Cite frozen [FR/NFR IDs](../02-requirements/fr-nfr.md) in the PR when touching behavior; do not invent new IDs in chat.
 
 Order follows the Writing an OS in Rust series (VGA → tests → exceptions → interrupts → paging → heap → tasks).
 

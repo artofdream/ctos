@@ -1,6 +1,6 @@
 # AGENTS.md — ctos session protocol
 
-This file is the source of truth for how agents work in this repo.
+This file is the source of truth for how agents work in this repo. Frozen product requirements live in [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md) (FR-01–FR-15, NFR-01–NFR-14). Do not invent new IDs in chat; add them via a GitHub issue plus an ADR/docs change.
 
 ctos is a **GitHub** project (`artofdream/ctos`). Use `gh` for issues, PRs, and reviews. Do not assume GitLab, `glab`, a GitLab wiki, or a Pages publish SOP.
 
@@ -11,8 +11,9 @@ The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-c
 1. Read the latest file in `research/daily-briefs/` (if any).
 2. Read the newest notes in `research/random-thoughts/`.
 3. Read [docs/framework/honesty-ledger.md](docs/framework/honesty-ledger.md). Treat every status word as a claim.
-4. Read this file and the skill that matches the work (see roles below).
-5. Confirm the loop unit: **one milestone → one branch → one PR**.
+4. Read [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md) when the work touches behavior; cite frozen FR/NFR IDs in the PR.
+5. Read this file and the skill that matches the work (see roles below).
+6. Confirm the loop unit: **one milestone → one branch → one PR**.
 
 ## Session end
 
@@ -38,6 +39,7 @@ One human or agent may wear a builder hat in a session. The merge/approve hat is
 - Plain English. No florist or shop metaphors.
 - Stay on `bootloader` 0.9 / `volatile` 0.2 / `spin` 0.5. Do not migrate to bootloader 0.10 in a drive-by.
 - Status words need a probe. File presence is not QEMU boot.
+- Do not mint FR-16+ or NFR-15+ in chat. Frozen set is [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md).
 
 ## Tracker
 
