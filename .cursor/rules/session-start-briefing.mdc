@@ -11,6 +11,6 @@ Before changing code or docs:
 2. Read recent files in `research/random-thoughts/`.
 3. Read `docs/framework/honesty-ledger.md` — do not contradict Unknown rows without a new probe.
 4. Read `docs/02-requirements/fr-nfr.md` when touching behavior. IDs are frozen.
-5. Read `AGENTS.md` and ADR-002 for the loop (one milestone → one branch → one GitHub PR; author ≠ merger).
+5. Read `AGENTS.md`, ADR-002 (author ≠ merger), and ADR-003 (AArch64 primary) for the loop (one milestone → one branch → one GitHub PR).
 
 Tracker is GitHub (`gh`). Do not start a GitLab or Pages workflow.
