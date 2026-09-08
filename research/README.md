@@ -5,7 +5,7 @@ Four vaults, scaled to a kernel repo. This is session memory in git — not a wi
 | Vault | Where | Job |
 | --- | --- | --- |
 | Procedure | `.cursor/skills/ctos-*/` (playbooks) | How to do a repeatable job |
-| Correction | `.cursor/rules/` + hard constraints in `AGENTS.md` | Mistakes we must not repeat |
+| Correction | `.cursor/rules/` + hard constraints in `AGENTS.md` (including PR identity: author ≠ merger) | Mistakes we must not repeat |
 | Relationship | Docs cross-links (vision → architecture → ADR → roadmap → ledger) | How pieces connect |
 | Daily Brief | `research/daily-briefs/` | Handoff: where we stopped |
 

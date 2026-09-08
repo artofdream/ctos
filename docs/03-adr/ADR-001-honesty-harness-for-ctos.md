@@ -17,7 +17,7 @@ Apply a **ctos-native** honesty/harness practice:
 2. **Document-first** — vision, architecture, ADRs, and roadmap land before more kernel features.
 3. **Second brain** — four vaults under `research/` (procedure via skills, correction via constraints/rules, relationship via doc links, daily brief / session memory).
 4. **Thin roles** — Knowledge Guardian, Coherence Guardian, Kernel Engineer, MR Coordinator (`ctos-*` skills only).
-5. **Loop** — one milestone → one branch → one GitHub PR. The author does not self-approve.
+5. **Loop** — one milestone → one branch → one GitHub PR. The author does not self-approve or merge (see [ADR-002](ADR-002-pr-identity-split.md)).
 6. **Sensors over vibes** — when a failure repeats, strengthen a sensor or gate (see [antifragility.md](../framework/antifragility.md)).
 
 Tracker and reviews stay on **GitHub** (`gh`). No GitLab workflow is part of this repo.

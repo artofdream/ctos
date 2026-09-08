@@ -35,6 +35,7 @@ Start here before adding kernel features:
 | [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (do not invent extras in chat) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, bootloader 0.9, VGA stage, planned stages |
 | [ADR-001](docs/03-adr/ADR-001-honesty-harness-for-ctos.md) | Why this repo uses a honesty/harness practice |
+| [ADR-002](docs/03-adr/ADR-002-pr-identity-split.md) | Author ≠ merger; `artofdream` vs `cursor[bot]` |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |

@@ -20,7 +20,7 @@ The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-c
 1. Update the honesty ledger if you probed something (or leave it Unknown).
 2. Write a short handoff in `research/daily-briefs/` (date in the filename).
 3. Drop raw session memory in `research/random-thoughts/` — do not stuff the PR with chat logs.
-4. Do not self-approve the PR you authored.
+4. Do not self-approve or merge the PR you authored. See [ADR-002](docs/03-adr/ADR-002-pr-identity-split.md).
 
 ## Thin roles (`ctos-*` only)
 
@@ -33,29 +33,32 @@ The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-c
 
 One human or agent may wear a builder hat in a session. The merge/approve hat is a different job.
 
-## Solo era (sponsor is the main developer)
+## Solo era — author ≠ merger (two identities)
 
-Stay solo as long as you need. Do **not** turn on GitHub “authors can approve their own PRs,” and do **not** add a required-approval ruleset yet — with one GitHub account you would only merge via admin bypass, which is theater.
+Stay solo as long as you need. **Do not** enable GitHub “authors can approve their own PRs.” Same login `APPROVE` is still self-review. Do **not** add a required-approval ruleset until a second human exists.
 
-**Second reviewer:** start a **new** Cursor chat or cloud agent (not the session that wrote the PR). Point it at the PR URL and the `ctos-mr-coordinator` skill. That agent writes the review (ledger vs probes, scope, no invented FR/NFR IDs).
+Quality is the **notation of roles** plus a **distinct merger**: who authored, who reviewed (MRC `COMMENT`), who merged. Decision: [ADR-002](docs/03-adr/ADR-002-pr-identity-split.md). Prior practice: Café Fausse `pr-coordinator` (identity split only — not the restaurant).
 
-**Who clicks Merge:** you. A second agent on the same GitHub login **cannot** submit an Approve on a PR that login opened. Treat its review comments as the second pair of eyes; you are still the merge button.
+**Second reviewer:** a **new** Cursor session with `ctos-mr-coordinator` (not the authoring session). It writes `COMMENT` / `REQUEST_CHANGES` (ledger vs probes, frozen FR/NFR). It does not merge.
 
-| Who wrote the PR | Who reviews | Who merges |
+**Who merges** — `artofdream` (owner) vs `cursor[bot]` (Cursor GitHub App):
+
+| Who opened the PR | Who writes the review | Who merges |
 | --- | --- | --- |
-| You | New MRC agent (or you, slowly, against the ledger) | You, after the written review |
-| Builder agent (this GitHub user) | You, optionally plus a new MRC agent | You |
+| `artofdream` | New MRC session (`COMMENT`) | `cursor[bot]` after this-run green checks (when CI exists) and Bugbot resolved-or-declined. Owner must not Approve or merge. |
+| `cursor[bot]` | Owner, optionally plus MRC `COMMENT` | **`artofdream`** |
+
+If `cursor[bot]` `APPROVE` returns 403, do not block a valid bot merge of an owner-authored PR. Missing Approve is not a fail. CI on ctos is still **Planned** — do not claim green checks that were not probed here.
 
 Copy-paste to start MRC:
 
 ```
 You are ctos MR Coordinator only. Review https://github.com/artofdream/ctos/pull/<N>.
-Read AGENTS.md, docs/framework/honesty-ledger.md, docs/02-requirements/fr-nfr.md.
-Do not push code, do not approve if you authored the commits, do not merge.
-Leave a GitHub review (comment or request changes). Check claims vs probes.
+Read AGENTS.md, ADR-002, docs/framework/honesty-ledger.md, docs/02-requirements/fr-nfr.md.
+Do not push code. Do not APPROVE if you authored. Do not merge.
+Leave COMMENT or REQUEST_CHANGES. Name who authored / reviewed / should merge.
+Check claims vs probes.
 ```
-
-Later, when a second GitHub identity exists (teammate, bot, or Copilot review), you can add a real required-approval ruleset. Until then, written MRC + human merge satisfies NFR-12 without locking `main`.
 
 ## Edit style
 

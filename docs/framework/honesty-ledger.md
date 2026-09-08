@@ -15,6 +15,7 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Second-brain vaults (`research/`) | Paths exist; README explains Procedure / Correction / Relationship / Daily Brief | Verified | Structure present. Not a claim that vaults are richly filled. |
 | Thin `ctos-*` roles | `AGENTS.md` + `.cursor/skills/ctos-*/SKILL.md` exist | Verified | Four roles. No `aea-*` names. |
 | Frozen FR/NFR IDs (`FR-01`–`FR-15`, `NFR-01`–`NFR-14`) | Read [docs/02-requirements/fr-nfr.md](../02-requirements/fr-nfr.md); IDs present and linked from README + `AGENTS.md` | Verified | **Frozen.** Do not invent extra FR/NFR IDs in chat. New IDs need a GitHub issue plus an ADR/docs change. File presence is not a claim that every Now row is implemented. |
+| PR identity split (author ≠ merger; `artofdream` vs `cursor[bot]`) | Read [ADR-002](../03-adr/ADR-002-pr-identity-split.md), `AGENTS.md`, `.cursor/rules/pr-identity-no-self-merge.mdc` | Verified | Docs present. Principle reused from Café Fausse `pr-coordinator` (identity only). **`cursor[bot]` merge / App APPROVE on this repo:** Unknown until probed on `artofdream/ctos`. Do not copy Café Fausse #16/#27 as a ctos probe. |
 | Integration tests / QEMU test-args | `Cargo.toml` `[package.metadata.bootimage]` test-args + a `#[test_case]` | Planned | Section is commented; args land with M2. |
 
 ## How to update

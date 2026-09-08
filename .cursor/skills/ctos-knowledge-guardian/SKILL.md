@@ -11,7 +11,7 @@ Standing up or updating docs, ADRs, `research/` vaults, or the honesty ledger. S
 
 ## Responsibilities
 
-- Keep vision / FR-NFR / architecture / ADR / roadmap / ledger consistent with the tree.
+- Keep vision / FR-NFR / architecture / ADRs (including ADR-002 identity split) / roadmap / ledger consistent with the tree.
 - Treat [docs/02-requirements/fr-nfr.md](../../../docs/02-requirements/fr-nfr.md) IDs as frozen; new IDs need a GitHub issue plus an ADR/docs change.
 - File daily briefs and session memory in the right vault.
 - Record probes (or Unknown) instead of chat assertions.

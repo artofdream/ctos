@@ -9,3 +9,4 @@
 - QEMU probe: last row blank (println newline); row 23 at `0xb8e60` is Hello World! `0x0e`. Do not look only at `0xb8f00`.
 - `bootloader` crate is unused in Rust source (bootimage reads it). Warning only; keep the dep.
 - Copilot host-std branch remains unrelated.
+- Café Fausse (`aea-interactive-design` `pr-coordinator`) identity split reused as ADR-002: author ≠ merger; `artofdream` vs `cursor[bot]`; MRC COMMENT names roles; no GitHub self-APPROVE. App APPROVE 403 on Fausse #27 is not a ctos probe.
