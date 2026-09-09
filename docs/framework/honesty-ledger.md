@@ -32,7 +32,7 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | CI on GitHub (M4 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m4-fatal-exception-stack-c8b7` | Unknown | Not a green GHA URL on the post-fix revision before merge. M4 merged as PR #7 (`180dbf2`). |
 | GICv2 init + CNTP PPI 30 tick observable (M5 / FR-08) | Hello-kernel serial `timer: tick` via `scripts/qemu-smoke.sh`; `#[test_case]` `timer_tick_is_observable` | Verified | 2026-09-09 cloud (QEMU 8.2.2, `rustc` 1.100.0-nightly `4aa1fbcf4`): after `Hello World!`, serial `timer: tick`, then M3/M4 BRK + fatal. `cargo test` `Running 9 tests` all `[ok]` including `gicd_typer_readable`, `cntfrq_is_nonzero`, `timer_tick_is_observable`. Not GICv3. Not UART input (M6). |
 | qemu-smoke requires timer tick string | `scripts/qemu-smoke.sh` hello phase greps `timer: tick` and rejects `timer: tick missed` | Verified | 2026-09-09 cloud: `qemu-smoke: timer tick string present`. Extends the M4 sensor (FR-08 / NFR-04). |
-| CI on GitHub (M5 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m5-hardware-interrupts-d5a6` | Unknown | No green GHA URL on the post-probe revision yet. |
+| CI on GitHub (M5 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m5-hardware-interrupts-d5a6` | Verified | Push/PR run [34391557761](https://github.com/artofdream/ctos/actions/runs/34391557761) success (`ubuntu-24.04` + `ubuntu-24.04-arm`) on the cloud-probe commit. Implementation commit run [34391552019](https://github.com/artofdream/ctos/actions/runs/34391552019) also success. Same `qemu-smoke.sh` (hello + tick + BRK + fatal + 9 tests + force-fail). Commit `e28e4bb`. |
 
 ## How to update
 
