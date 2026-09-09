@@ -12,6 +12,8 @@ Learning/research **AArch64 (arm64) Rust** bare-metal kernel (not a general-purp
 
 **FR-09 stage note (2026-09-09):** Stage moved Next → Now when M7 landed the EL1 identity map + bump frame allocator ([ADR-008](../03-adr/ADR-008-identity-map-frame-allocator.md)). ID unchanged. DTB parse remains staged (Unknown). Heap is M8 / FR-10.
 
+**FR-10 stage note (2026-09-09):** Stage moved Next → Now when M8 landed `GlobalAlloc` on a first-fit heap backed by identity-mapped frames ([ADR-009](../03-adr/ADR-009-first-fit-heap.md)). ID unchanged. Growing / slab heaps remain later.
+
 **Status legend:** **Now** = hello-UART / QEMU `virt` / smoke sensors · **Next** = near roadmap · **Later** = aspirational.
 
 Tracker is **GitHub** (`gh`). New IDs go through a GitHub issue plus an ADR/docs change — not chat.
@@ -37,7 +39,7 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 | **FR-07** | A fatal exception uses a dedicated stack so overflow does not silently lock the VM. | Must | Now |
 | **FR-08** | Hardware interrupts: timer via the virt GIC (M5). Input on QEMU virt is PL011 UART RX (M6). The x86-era keyboard wording is this UART path; virtio-keyboard remains later. | Should | Now |
 | **FR-09** | Kernel reads the firmware/QEMU memory map (DTB when probed) and establishes paging / virtual memory. M7: virt RAM convention + linker `__kernel_end` + EL1 identity map ([ADR-008](../03-adr/ADR-008-identity-map-frame-allocator.md)). DTB walk is staged. | Must | Now |
-| **FR-10** | `GlobalAlloc` heap so `alloc` types (`Box`, `Vec`) work in kernel. | Should | Next |
+| **FR-10** | `GlobalAlloc` heap so `alloc` types (`Box`, `Vec`) work in kernel. M8: first-fit list on a 64 KiB identity-mapped frame run ([ADR-009](../03-adr/ADR-009-first-fit-heap.md)). | Should | Now |
 | **FR-11** | Cooperative or simple round-robin task switching (threads or async tasks). | Should | Later |
 | **FR-12** | Serial remains usable for headless/CI logs (PL011 or extra earlycon), including later test-exit telemetry. | Should | Next |
 | **FR-13** | Integration tests that boot in QEMU `virt` and exit with a deterministic success/fail code (ARM semihosting SYS_EXIT, not x86 isa-debug-exit). | Must | Now |
@@ -74,6 +76,7 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 - A timer tick is observable on serial and/or `#[test_case]` via the virt GIC (FR-08 / M5) **or** the honesty ledger says Unknown until probed.
 - A received PL011 byte is observable on serial (FR-08 input / M6) **or** the honesty ledger says Unknown until probed.
 - MMU-on + allocate-frame / map-unmap is observable on serial and/or `#[test_case]` (FR-09 / M7) **or** the honesty ledger says Unknown until probed.
+- `Box` / `Vec` on the kernel heap is observable on serial and/or `#[test_case]` (FR-10 / M8) **or** the honesty ledger says Unknown until probed.
 - Panic path compiles and is reachable in principle.
 - This FR/NFR file + honesty ledger live under `docs/`.
 

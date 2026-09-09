@@ -5,7 +5,7 @@
 //! (Device-nGnRnE) and virt RAM (Normal WB), plus one L2/L3 window at
 //! `MAP_WINDOW` for a single-page map/unmap probe. See ADR-008.
 //!
-//! Not `GlobalAlloc` (M8). Not a DTB walker. Not Raspberry Pi.
+//! Heap `GlobalAlloc` is `src/heap.rs` (M8). Not a DTB walker. Not Raspberry Pi.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};

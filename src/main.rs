@@ -1,12 +1,16 @@
 #![no_std]
 #![no_main]
+#![feature(alloc_error_handler)]
 #![cfg_attr(test, feature(custom_test_frameworks))]
 #![cfg_attr(test, test_runner(crate::test_runner))]
 #![cfg_attr(test, reexport_test_harness_main = "test_main")]
 
+extern crate alloc;
+
 mod exception;
 mod frame;
 mod gic;
+mod heap;
 mod paging;
 mod qemu;
 mod timer;
@@ -44,6 +48,7 @@ pub extern "C" fn kernel_main() -> ! {
     exception::init();
     frame::init();
     paging::init();
+    heap::init();
     gic::init();
     timer::init();
     println!("Hello World!");
@@ -62,6 +67,10 @@ pub extern "C" fn kernel_main() -> ! {
         // Serial proof for qemu-smoke (FR-09 / M7): MMU on + map/unmap.
         if !paging::observe_probe() {
             uart::write_str_raw("paging: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (FR-10 / M8): Box + Vec on the heap.
+        if !heap::observe_probe() {
+            uart::write_str_raw("heap: probe missed\n");
         }
         // Serial proof for qemu-smoke (FR-08): one CNTP tick, then remask
         // so the M3/M4 probes are not interrupted.
@@ -84,6 +93,20 @@ pub extern "C" fn kernel_main() -> ! {
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
+    #[cfg(any(test, feature = "force-fail"))]
+    qemu::exit_failure();
+    #[cfg(not(any(test, feature = "force-fail")))]
+    loop {
+        unsafe {
+            core::arch::asm!("wfe", options(nomem, nostack));
+        }
+    }
+}
+
+#[alloc_error_handler]
+fn alloc_error(_layout: core::alloc::Layout) -> ! {
+    // Do not format — formatting an OOM could allocate again.
+    uart::write_str_raw("heap: oom\n");
     #[cfg(any(test, feature = "force-fail"))]
     qemu::exit_failure();
     #[cfg(not(any(test, feature = "force-fail")))]

@@ -3,8 +3,8 @@
 //! The pool is the conventional virt RAM window after `__kernel_end`
 //! (linker) up to `RAM_BASE + RAM_SIZE`. QEMU `-kernel` typically places
 //! the DTB at `0x4000_0000` (below the kernel at `0x4008_0000`); that
-//! region is never handed out. This is not a DTB memory-node parser and
-//! not `GlobalAlloc` (M8). See ADR-008.
+//! region is never handed out. This is not a DTB memory-node parser.
+//! Byte-granularity `GlobalAlloc` lives in `heap` (M8 / ADR-009). See ADR-008.
 
 use spin::Mutex;
 
@@ -70,6 +70,27 @@ pub fn pool_end() -> u64 {
 #[allow(dead_code)]
 pub fn bump_next() -> u64 {
     ALLOC.lock().as_ref().map(|a| a.next).unwrap_or(0)
+}
+
+/// Allocate `n` consecutive bump frames. Skips the free stack — recycled
+/// frames may not be adjacent. Used by the M8 heap to take one run.
+pub fn alloc_contiguous(n: usize) -> Option<u64> {
+    if n == 0 {
+        return None;
+    }
+    let mut g = ALLOC.lock();
+    let a = g.as_mut()?;
+    let n64 = n as u64;
+    let bytes = n64.saturating_mul(FRAME_SIZE);
+    if n64 != 0 && bytes / FRAME_SIZE != n64 {
+        return None;
+    }
+    if a.next.saturating_add(bytes) > a.end {
+        return None;
+    }
+    let start = a.next;
+    a.next += bytes;
+    Some(start)
 }
 
 /// Allocate one 4 KiB frame. Recycled frees first, then the bump cursor.
