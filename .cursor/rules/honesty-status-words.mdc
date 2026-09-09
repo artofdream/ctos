@@ -1,0 +1,13 @@
+---
+description: Status words are claims; Unknown until a probe exists
+alwaysApply: true
+---
+
+# Honesty — status words need probes
+
+On ctos, words like Verified, Live, Done, and "it boots" are **claims**.
+
+- A claim needs a probe: a command, a QEMU/serial capture, a `gh run` URL, or a file read that matches what the claim actually says.
+- Unprobed stays **Unknown**. Do not round Unknown up to Verified because source exists or a PR is open.
+- File presence is not QEMU boot. README instructions are not a boot probe.
+- Update `docs/framework/honesty-ledger.md` when you probe. If you cannot probe, say so.
