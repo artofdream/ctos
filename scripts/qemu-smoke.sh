@@ -1,6 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
-# timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
+# two-task sched + timer tick + injected UART RX + BRK + fatal nested
+# lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -10,6 +11,9 @@ cd "$ROOT"
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
 PAGING="${CTOS_PAGING_STRING:-paging: ok}"
 HEAP="${CTOS_HEAP_STRING:-heap: ok}"
+SCHED="${CTOS_SCHED_STRING:-sched: ok}"
+SCHED_A="${CTOS_SCHED_A_STRING:-sched: task a}"
+SCHED_B="${CTOS_SCHED_B_STRING:-sched: task b}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
@@ -71,6 +75,23 @@ if grep -q "heap: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: heap string present"
+if ! grep -q "$SCHED_A" "$log"; then
+    echo "qemu-smoke: missing '$SCHED_A' on serial (FR-11 task a, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "$SCHED_B" "$log"; then
+    echo "qemu-smoke: missing '$SCHED_B' on serial (FR-11 task b, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "$SCHED" "$log"; then
+    echo "qemu-smoke: missing '$SCHED' on serial (FR-11 scheduler path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "sched: probe missed" "$log"; then
+    echo "qemu-smoke: sched probe missed (two-task path did not run)" >&2
+    exit 1
+fi
+echo "qemu-smoke: scheduler strings present"
 if ! grep -q "$TICK" "$log"; then
     echo "qemu-smoke: missing '$TICK' on serial (FR-08 timer path, qemu exit $qemu_ec)" >&2
     exit 1
