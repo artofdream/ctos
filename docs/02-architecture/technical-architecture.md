@@ -8,6 +8,7 @@ ctos is a `#![no_std]` `#![no_main]` binary. There is no Rust standard library a
 2. `-kernel` loads the kernel ELF into virt RAM (linker base `0x40080000`).
 3. Entry is `_start` (assembly in `src/main.rs`): set SP, zero BSS, call `kernel_main`.
 4. Early output is the virt PL011 UART at `0x0900_0000` (`src/uart.rs`).
+5. `kernel_main` installs `VBAR_EL1` (`src/exception.rs`, [ADR-004](../03-adr/ADR-004-el1-vbar-brk.md)) after UART init.
 
 There is no `bootloader` 0.9 crate and no VGA buffer. The x86_64 phil-opp path was deleted when this ADR landed.
 
@@ -15,14 +16,15 @@ There is no `bootloader` 0.9 crate and no VGA buffer. The x86_64 phil-opp path w
 
 This architecture does **not** claim Raspberry Pi or other SoC support.
 
-## Current stage (UART hello + M2 tests)
+## Current stage (UART hello + M2 tests + M3 VBAR)
 
 - `Pl011` writer with TX-full wait and `\n` → `\r\n`
 - `print!` / `println!` via `spin::Mutex`
-- `kernel_main` prints `Hello World!` then `wfe` (non-test)
-- `cargo test` uses `#![feature(custom_test_frameworks)]` and `#[test_case]`
+- `kernel_main` prints `Hello World!`, fires one `BRK #0` (serial `exception: sync BRK`), then `wfe` (non-test)
+- `VBAR_EL1` vector table; current-EL / SP_ELx sync handles AArch64 `BRK` and returns; other slots park ([ADR-004](../03-adr/ADR-004-el1-vbar-brk.md))
+- `cargo test` uses `#![feature(custom_test_frameworks)]` and `#[test_case]` (including VBAR + BRK)
 - QEMU exit is ARM **semihosting** `SYS_EXIT` / `hlt #0xf000` (`src/qemu.rs`), not `isa-debug-exit`. Needs `-semihosting` on the QEMU line (`scripts/qemu-aarch64.sh`).
-- Host smoke: `scripts/qemu-smoke.sh` (hello string + tests + `force-fail` must be non-zero)
+- Host smoke: `scripts/qemu-smoke.sh` (hello string + BRK handler string + tests + `force-fail` must be non-zero)
 - Docker: `Dockerfile` / `scripts/docker-smoke.sh` (linux/arm64-friendly; do not pin amd64)
 - GHA: `.github/workflows/smoke.yml` (`ubuntu-24.04-arm` and `ubuntu-24.04`)
 
@@ -33,7 +35,7 @@ Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `sm
 | Stage | Domain work |
 | --- | --- |
 | Custom test framework | Landed (M2): `#[test_case]`, semihosting exit, UART |
-| CPU exceptions | VBAR_EL1, breakpoint / fault |
+| CPU exceptions | In tree (M3): `VBAR_EL1`, resumable `BRK`, park stubs — status in the honesty ledger |
 | Hardware interrupts | GIC, timer, later input |
 | Paging | page tables, frame allocator |
 | Heap | `alloc`, a simple allocator |

@@ -20,7 +20,11 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Primary ISA is AArch64 | Read [ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md); `x86_64-ctos.json` / `src/vga_buffer.rs` absent | Verified | Decision + file tree. QEMU boot is a separate row. |
 | Integration tests / QEMU test exit (M2) | `cargo +nightly test` → QEMU virt + `-semihosting`; two `#[test_case]`; QEMU host exit 0 | Verified | 2026-09-08 cloud: serial showed `Running 2 tests` / `[ok]`; process exit 0. |
 | Fail-closed test panic | `cargo +nightly test --features force-fail` | Verified | 2026-09-08 cloud: panic `force-fail`, QEMU/host exit 1. |
-| `scripts/qemu-smoke.sh` | Ran on this cloud VM | Verified | Hello string present (timeout 124), `cargo test` 0, force-fail 1. Not CI. Not Docker. |
+| `scripts/qemu-smoke.sh` | Ran on this cloud VM | Verified | Hello string present (timeout 124), `cargo test` 0, force-fail 1. Not CI. Not Docker. M3 extends this script to require `exception: sync BRK`; that extra string is a **new** row. |
+| `VBAR_EL1` installed at 2 KiB-aligned `exception_vectors` (M3 / FR-06) | `cargo test` `vbar_el1_points_at_table` (and `mrs` in that test) | Unknown | Source in `src/exception.rs`. Not Verified until this PR’s QEMU test probe. |
+| Current-EL sync `BRK` handler runs and returns (M3 / FR-06) | `cargo test` `breakpoint_from_current_el`; hello-kernel serial `exception: sync BRK` | Unknown | Resumable path (ELR+4). Other sync classes and lower-EL slots are parks — taking those is unprobed. |
+| qemu-smoke requires BRK handler string | `scripts/qemu-smoke.sh` hello phase greps `exception: sync BRK` | Unknown | Extends M2 sensor. Not Verified until this PR’s smoke probe. |
+| Lower-EL / IRQ / FIQ / SError stubs park | Source read of vector table | Verified | Source inspection only. **Taken** lower-EL or IRQ exception: Unknown (no EL0 / GIC yet). |
 
 ## How to update
 

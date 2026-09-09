@@ -4,6 +4,7 @@
 #![cfg_attr(test, test_runner(crate::test_runner))]
 #![cfg_attr(test, reexport_test_harness_main = "test_main")]
 
+mod exception;
 mod qemu;
 mod uart;
 
@@ -36,6 +37,7 @@ global_asm!(
 #[no_mangle]
 pub extern "C" fn kernel_main() -> ! {
     uart::UART.lock().init();
+    exception::init();
     println!("Hello World!");
 
     #[cfg(feature = "force-fail")]
@@ -48,9 +50,13 @@ pub extern "C" fn kernel_main() -> ! {
     }
 
     #[cfg(not(any(test, feature = "force-fail")))]
-    loop {
-        unsafe {
-            core::arch::asm!("wfe", options(nomem, nostack));
+    {
+        // Serial proof for qemu-smoke (FR-06): handler must print and return.
+        exception::breakpoint();
+        loop {
+            unsafe {
+                core::arch::asm!("wfe", options(nomem, nostack));
+            }
         }
     }
 }

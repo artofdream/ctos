@@ -1,12 +1,14 @@
 #!/bin/sh
-# Fail-closed host smoke: build, require UART hello, then cargo test.
-# Used by Docker and GitHub Actions. Do not treat file presence as boot.
+# Fail-closed host smoke: build, require UART hello + BRK handler line,
+# then cargo test. Used by Docker and GitHub Actions. Do not treat file
+# presence as boot.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
+BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
 TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-8}"
 
 if ! command -v qemu-system-aarch64 >/dev/null 2>&1; then
@@ -46,6 +48,11 @@ if ! grep -q "$HELLO" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: hello string present (qemu exit $qemu_ec)"
+if ! grep -q "$BRK" "$log"; then
+    echo "qemu-smoke: missing '$BRK' on serial (VBAR/BRK path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: BRK handler string present"
 
 echo "qemu-smoke: cargo test (semihosting exit)"
 # The cargo runner is scripts/qemu-aarch64.sh. Tests must exit themselves.
