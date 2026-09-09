@@ -22,4 +22,10 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
 WORKDIR /src
 COPY . .
 
-CMD ["./scripts/qemu-smoke.sh"]
+# Strip CR so a Windows-context `docker build` cannot ship `#!/bin/sh\r`.
+# `.gitattributes` (`*.sh text eol=lf`) is the checkout ratchet; this is
+# the image ratchet. `bash file` also ignores a broken shebang.
+RUN find scripts -name '*.sh' -exec sed -i 's/\r$//' {} + \
+    && chmod +x scripts/*.sh
+
+CMD ["bash", "./scripts/qemu-smoke.sh"]
