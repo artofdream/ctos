@@ -8,4 +8,4 @@ Landed option B: `src/perf.rs` CNTPCT delta around a 10k `black_box` add loop; s
 
 NFR IDs frozen. Text only under ADR-011: NFR-05 Must/Now, NFR-07 Should/Now, NFR-10 stub + claim gate.
 
-Do not self-merge. Do not mint FR-16+ / NFR-15+.
+Do not self-merge. Do not mint FR-16+ / NFR-15+. GitHub author of #17 is `artofdream`; merge hat is `cursor[bot]` (ADR-002). MRC COMMENT noted #16 ledger collision — fold M9 GHA URLs rather than leave that row Unknown.
