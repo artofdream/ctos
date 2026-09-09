@@ -14,6 +14,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # qemu-efi-aarch64 + ipxe-qemu: `--no-install-recommends` skipped Ubuntu
 # noble Recommends. cts-ai then failed: romfile "efi-virtio.rom" missing
 # (ipxe-qemu ships /usr/lib/ipxe/qemu/efi-virtio.rom).
+# python3: qemu-smoke injects one PL011 RX byte (QEMU 8.2 has no UART LBE).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
@@ -21,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         qemu-system-arm \
         qemu-efi-aarch64 \
         ipxe-qemu \
+        python3 \
     && rm -rf /var/lib/apt/lists/* \
     && test -e /usr/lib/ipxe/qemu/efi-virtio.rom
 
@@ -35,7 +37,7 @@ COPY . .
 # Strip CR so a Windows-context `docker build` cannot ship `#!/bin/sh\r`.
 # `.gitattributes` (`*.sh text eol=lf`) is the checkout ratchet; this is
 # the image ratchet. `bash file` also ignores a broken shebang.
-RUN find scripts -name '*.sh' -exec sed -i 's/\r$//' {} + \
-    && chmod +x scripts/*.sh
+RUN find scripts \( -name '*.sh' -o -name '*.py' \) -exec sed -i 's/\r$//' {} + \
+    && chmod +x scripts/*.sh scripts/*.py
 
 CMD ["bash", "./scripts/qemu-smoke.sh"]

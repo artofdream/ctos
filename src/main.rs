@@ -60,6 +60,12 @@ pub extern "C" fn kernel_main() -> ! {
         if !timer::observe_ticks(1) {
             uart::write_str_raw("timer: tick missed\n");
         }
+        // Serial proof for qemu-smoke (FR-08 input / M6): host-injected RX.
+        // QEMU 8.2 has no PL011 LBE; scripts/qemu-smoke.sh writes PROBE_BYTE
+        // after Hello World! DAIF.I stays masked (timer already remasked).
+        if !uart::observe_probe_byte() {
+            uart::write_str_raw("input: rx missed\n");
+        }
         // Serial proof for qemu-smoke (FR-06): handler must print and return.
         exception::breakpoint();
         // FR-07: near-empty thread SP + nested BRK → fatal stack + marker.

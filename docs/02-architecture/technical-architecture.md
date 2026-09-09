@@ -8,7 +8,7 @@ ctos is a `#![no_std]` `#![no_main]` binary. There is no Rust standard library a
 2. `-kernel` loads the kernel ELF into virt RAM (linker base `0x40080000`).
 3. Entry is `_start` (assembly in `src/main.rs`): set SP, zero BSS, call `kernel_main`.
 4. Early output is the virt PL011 UART at `0x0900_0000` (`src/uart.rs`).
-5. `kernel_main` installs `VBAR_EL1` (`src/exception.rs`, [ADR-004](../03-adr/ADR-004-el1-vbar-brk.md)) after UART init, then GICv2 + CNTP ([ADR-006](../03-adr/ADR-006-gicv2-generic-timer.md)).
+5. `kernel_main` installs `VBAR_EL1` (`src/exception.rs`, [ADR-004](../03-adr/ADR-004-el1-vbar-brk.md)) after UART init, then GICv2 + CNTP ([ADR-006](../03-adr/ADR-006-gicv2-generic-timer.md)). After one timer tick it polls PL011 RX ([ADR-007](../03-adr/ADR-007-pl011-uart-rx.md)).
 
 There is no `bootloader` 0.9 crate and no VGA buffer. The x86_64 phil-opp path was deleted when this ADR landed.
 
@@ -16,15 +16,15 @@ There is no `bootloader` 0.9 crate and no VGA buffer. The x86_64 phil-opp path w
 
 This architecture does **not** claim Raspberry Pi or other SoC support.
 
-## Current stage (UART hello + M2 tests + M3 VBAR + M4 fatal stack + M5 timer)
+## Current stage (UART hello + M2 tests + M3 VBAR + M4 fatal stack + M5 timer + M6 UART RX)
 
-- `Pl011` writer with TX-full wait and `\n` → `\r\n`
+- `Pl011` writer with TX-full wait and `\n` → `\r\n`; `try_recv` on `UARTFR.RXFE` / `UARTDR`
 - `print!` / `println!` via `spin::Mutex`; fatal / unhandled / IRQ paths write the PL011 without the mutex
-- `kernel_main` prints `Hello World!`, observes one CNTP tick (serial `timer: tick`), fires one healthy-stack `BRK #0` (serial `exception: sync BRK`), then the FR-07 nest probe (serial `exception: fatal nested`)
-- `VBAR_EL1` vector table; kernel runs on `SP_EL0`; first-level current-EL sync (SP_EL0 bank) handles AArch64 `BRK` and returns; first-level IRQ handles GICv2 PPI 30; nested current-EL (SP_ELx bank) switches to the fatal stack ([ADR-004](../03-adr/ADR-004-el1-vbar-brk.md), [ADR-005](../03-adr/ADR-005-fatal-exception-stack.md), [ADR-006](../03-adr/ADR-006-gicv2-generic-timer.md))
-- `cargo test` uses `#![feature(custom_test_frameworks)]` and `#[test_case]` (including VBAR, BRK, SPSel, stack ranges, GIC TYPER, CNTFRQ, timer tick)
+- `kernel_main` prints `Hello World!`, observes one CNTP tick (serial `timer: tick`), polls one host-injected RX byte (serial `input: rx 0x41`), fires one healthy-stack `BRK #0` (serial `exception: sync BRK`), then the FR-07 nest probe (serial `exception: fatal nested`)
+- `VBAR_EL1` vector table; kernel runs on `SP_EL0`; first-level current-EL sync (SP_EL0 bank) handles AArch64 `BRK` and returns; first-level IRQ handles GICv2 PPI 30; nested current-EL (SP_ELx bank) switches to the fatal stack ([ADR-004](../03-adr/ADR-004-el1-vbar-brk.md), [ADR-005](../03-adr/ADR-005-fatal-exception-stack.md), [ADR-006](../03-adr/ADR-006-gicv2-generic-timer.md), [ADR-007](../03-adr/ADR-007-pl011-uart-rx.md))
+- `cargo test` uses `#![feature(custom_test_frameworks)]` and `#[test_case]` (including VBAR, BRK, SPSel, stack ranges, GIC TYPER, CNTFRQ, timer tick, empty UART RX FIFO)
 - QEMU exit is ARM **semihosting** `SYS_EXIT` / `hlt #0xf000` (`src/qemu.rs`), not `isa-debug-exit`. Needs `-semihosting` on the QEMU line (`scripts/qemu-aarch64.sh`).
-- Host smoke: `scripts/qemu-smoke.sh` (hello + timer tick + BRK + fatal nested strings + tests + `force-fail` must be non-zero)
+- Host smoke: `scripts/qemu-smoke.sh` (hello + timer tick + injected UART RX + BRK + fatal nested strings + tests + `force-fail` must be non-zero)
 - Docker: `Dockerfile` / `scripts/docker-smoke.sh` (linux/arm64-friendly; do not pin amd64)
 - GHA: `.github/workflows/smoke.yml` (`ubuntu-24.04-arm` and `ubuntu-24.04`)
 
@@ -36,7 +36,7 @@ Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `sm
 | --- | --- |
 | Custom test framework | Landed (M2): `#[test_case]`, semihosting exit, UART |
 | CPU exceptions | M3: `VBAR_EL1`, resumable `BRK`. M4: dedicated exception + fatal stacks (FR-07) — cloud `qemu-smoke` Verified (honesty ledger); GHA Unknown until a run URL |
-| Hardware interrupts | M5: GICv2 + CNTP tick (FR-08) — cloud `qemu-smoke` + GHA Verified (honesty ledger). UART input is M6 |
+| Hardware interrupts | M5: GICv2 + CNTP tick (FR-08) — cloud `qemu-smoke` + GHA Verified (honesty ledger). M6: PL011 UART RX (FR-08 input / ADR-007) |
 | Paging | page tables, frame allocator |
 | Heap | `alloc`, a simple allocator |
 | Scheduler | cooperative or round-robin tasks |
