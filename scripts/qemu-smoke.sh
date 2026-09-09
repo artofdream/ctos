@@ -1,7 +1,7 @@
 #!/bin/sh
-# Fail-closed host smoke: build, require UART hello + BRK handler line,
-# then cargo test. Used by Docker and GitHub Actions. Do not treat file
-# presence as boot.
+# Fail-closed host smoke: build, require UART hello + BRK + fatal nested
+# lines, then cargo test. Used by Docker and GitHub Actions. Do not
+# treat file presence as boot.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -9,6 +9,7 @@ cd "$ROOT"
 
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
+FATAL="${CTOS_FATAL_STRING:-exception: fatal nested}"
 TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-8}"
 
 if ! command -v qemu-system-aarch64 >/dev/null 2>&1; then
@@ -53,6 +54,15 @@ if ! grep -q "$BRK" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: BRK handler string present"
+if ! grep -q "$FATAL" "$log"; then
+    echo "qemu-smoke: missing '$FATAL' on serial (FR-07 fatal path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "exception: fatal probe missed" "$log"; then
+    echo "qemu-smoke: fatal probe missed (nested path did not run)" >&2
+    exit 1
+fi
+echo "qemu-smoke: fatal nested string present"
 
 echo "qemu-smoke: cargo test (semihosting exit)"
 # The cargo runner is scripts/qemu-aarch64.sh. Tests must exit themselves.

@@ -75,6 +75,16 @@ impl fmt::Write for Pl011 {
     }
 }
 
+/// Direct PL011, no `spin::Mutex`. Fatal / nested paths must not wait on
+/// a lock the interrupted context may already hold (ADR-004 / ADR-005).
+pub fn raw() -> Pl011 {
+    Pl011 { base: UART0_BASE }
+}
+
+pub fn write_str_raw(s: &str) {
+    raw().write_string(s);
+}
+
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::uart::_print(format_args!($($arg)*)));

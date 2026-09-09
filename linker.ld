@@ -35,4 +35,16 @@ SECTIONS
     __stack_bottom = .;
     . += 64K;
     __stack_top = .;
+
+    /* Dedicated current-EL exception stack (SP_EL1). Not the thread stack. */
+    . = ALIGN(16);
+    __exc_stack_bottom = .;
+    . += 16K;
+    __exc_stack_top = .;
+
+    /* Nested / fatal path only. Switched in asm before any frame stores. */
+    . = ALIGN(16);
+    __fatal_stack_bottom = .;
+    . += 8K;
+    __fatal_stack_top = .;
 }

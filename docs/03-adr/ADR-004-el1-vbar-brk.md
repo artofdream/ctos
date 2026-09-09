@@ -20,5 +20,5 @@ QEMU `virt` `-kernel` usually starts the guest at EL1. `-machine virt,virtualiza
 
 - `#[test_case]` can execute `brk #0` and continue. The hello kernel fires one `BRK` so `scripts/qemu-smoke.sh` can require the handler string on serial.
 - Lower-EL and IRQ/FIQ/SError stubs are parks. They are not a syscall ABI or a timer (M5).
-- A nested fault while `println!` holds the UART mutex can deadlock. M4 may add a raw UART write for fatal paths.
+- A nested fault while `println!` holds the UART mutex can deadlock. [ADR-005](ADR-005-fatal-exception-stack.md) (M4 / FR-07) splits `SP_EL0` / `SP_EL1`, adds a fatal stack, and uses a raw UART write on that path.
 - This ADR does not claim Raspberry Pi, EL0, or a taken lower-EL exception.
