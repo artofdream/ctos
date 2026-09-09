@@ -49,6 +49,7 @@ unsafe extern "C" {
     static __fatal_stack_top: u8;
     fn exception_vectors();
     fn ensure_el1();
+    #[allow(dead_code)] // hello kernel only; tests must not nest.
     fn trigger_fatal_nested_asm();
 }
 
@@ -296,6 +297,7 @@ pub fn breakpoint() {
 }
 
 /// Hello-kernel FR-07 probe: nest a `BRK` from a near-empty thread stack.
+#[allow(dead_code)] // hello kernel only; tests must not nest.
 pub fn trigger_fatal_nested() -> ! {
     NEST_FATAL.store(true, Ordering::SeqCst);
     unsafe {
@@ -341,13 +343,17 @@ pub fn init() {
         println!("exception: stack range invalid");
         park();
     }
+    // SP_EL1 is not an MRS/MSR-accessible register at EL1 (UNDEF).
+    // While SPSel is still 1, SP is SP_EL1: save the thread pointer to
+    // SP_EL0 (that register is legal at EL1), then `mov sp` to the
+    // exception stack, then SPSel = 0.
     unsafe {
         core::arch::asm!(
             "msr vbar_el1, {v}",
             "isb",
-            "msr sp_el1, {exc}",
             "mov {tmp}, sp",
             "msr sp_el0, {tmp}",
+            "mov sp, {exc}",
             "msr spsel, #0",
             "isb",
             v = in(reg) vbar,

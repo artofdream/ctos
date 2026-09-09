@@ -13,7 +13,7 @@ A data abort to an unused physical hole is QEMU-map-dependent. A nested `BRK` fr
 
 ## Decision
 
-1. **Thread stack on `SP_EL0`.** After `VBAR_EL1` is installed, copy the `_start` stack into `SP_EL0`, load `SP_EL1` from `__exc_stack_top`, and `msr spsel, #0`. Normal kernel code uses the 64 KiB thread stack.
+1. **Thread stack on `SP_EL0`.** After `VBAR_EL1` is installed, copy the `_start` stack into `SP_EL0` (`MSR SP_EL0` is legal at EL1), write `__exc_stack_top` into `SP` while `SPSel` is still 1 (that *is* `SP_EL1` — `MSR SP_EL1` at EL1 is UNDEF), then `msr spsel, #0`. Normal kernel code uses the 64 KiB thread stack.
 2. **Exception stack on `SP_EL1`.** First-level current-EL exceptions (vector bank “Current EL, SP_EL0”) use the 16 KiB `__exc_stack_*` region automatically. The live sync slot moves from offset `0x200` (M3 / SP_ELx) to `0x000`.
 3. **Fatal stack before any nested store.** Current-EL / SP_ELx slots (`0x200`–`0x380`) load `SP` from `__fatal_stack_top` (8 KiB) in asm, then call `handle_fatal_exception`. Do not push a frame on the exception stack that may already be exhausted.
 4. **Raw UART on fatal / unhandled paths.** Write the PL011 without `spin::Mutex` so a nest during `println!` still produces serial.
