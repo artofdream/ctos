@@ -25,8 +25,8 @@ cargo run            # boot the ELF in qemu-system-aarch64 -machine virt
 The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU serial Hello World was probed once in the 2026-09-08 cloud run (`qemu-system-aarch64` 8.2.2, `-machine virt`). That is not CI. Other machines stay Unknown until they run the same kind of probe. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
 
 ```bash
-./scripts/qemu-smoke.sh   # build + hello + timer tick + injected UART RX + BRK + fatal nested serial + cargo test + force-fail
-cargo test                # #[test_case] including VBAR/BRK/stacks/timer/empty RX; QEMU exits 0 via ARM semihosting
+./scripts/qemu-smoke.sh   # build + hello + paging + timer tick + injected UART RX + BRK + fatal nested serial + cargo test + force-fail
+cargo test                # #[test_case] including VBAR/BRK/stacks/timer/empty RX/MMU/frames; QEMU exits 0 via ARM semihosting
 ```
 
 ### Docker (cts-ai: Windows ARM64 → linux/arm64)
@@ -59,6 +59,7 @@ Start here before adding kernel features:
 | [ADR-005](docs/03-adr/ADR-005-fatal-exception-stack.md) | Dedicated exception + fatal stacks (FR-07) |
 | [ADR-006](docs/03-adr/ADR-006-gicv2-generic-timer.md) | GICv2 + EL1 physical timer (FR-08) |
 | [ADR-007](docs/03-adr/ADR-007-pl011-uart-rx.md) | PL011 UART RX as virt input (FR-08 / M6) |
+| [ADR-008](docs/03-adr/ADR-008-identity-map-frame-allocator.md) | Identity map + bump frame allocator (FR-09 / M7) |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |

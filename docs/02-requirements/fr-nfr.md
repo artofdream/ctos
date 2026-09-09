@@ -10,6 +10,8 @@ Learning/research **AArch64 (arm64) Rust** bare-metal kernel (not a general-purp
 
 **FR-08 stage note (2026-09-09):** Stage moved Next → Now when M5 landed GICv2 + the EL1 physical timer ([ADR-006](../03-adr/ADR-006-gicv2-generic-timer.md)). ID unchanged. FR-08 “later input” is M6 / [ADR-007](../03-adr/ADR-007-pl011-uart-rx.md) (PL011 RX on virt). No new FR ID.
 
+**FR-09 stage note (2026-09-09):** Stage moved Next → Now when M7 landed the EL1 identity map + bump frame allocator ([ADR-008](../03-adr/ADR-008-identity-map-frame-allocator.md)). ID unchanged. DTB parse remains staged (Unknown). Heap is M8 / FR-10.
+
 **Status legend:** **Now** = hello-UART / QEMU `virt` / smoke sensors · **Next** = near roadmap · **Later** = aspirational.
 
 Tracker is **GitHub** (`gh`). New IDs go through a GitHub issue plus an ADR/docs change — not chat.
@@ -34,7 +36,7 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 | **FR-06** | Synchronous exceptions are handled via VBAR_EL1 vectors (at least a breakpoint / fault path). | Must | Now |
 | **FR-07** | A fatal exception uses a dedicated stack so overflow does not silently lock the VM. | Must | Now |
 | **FR-08** | Hardware interrupts: timer via the virt GIC (M5). Input on QEMU virt is PL011 UART RX (M6). The x86-era keyboard wording is this UART path; virtio-keyboard remains later. | Should | Now |
-| **FR-09** | Kernel reads the firmware/QEMU memory map (DTB when probed) and establishes paging / virtual memory. | Must | Next |
+| **FR-09** | Kernel reads the firmware/QEMU memory map (DTB when probed) and establishes paging / virtual memory. M7: virt RAM convention + linker `__kernel_end` + EL1 identity map ([ADR-008](../03-adr/ADR-008-identity-map-frame-allocator.md)). DTB walk is staged. | Must | Now |
 | **FR-10** | `GlobalAlloc` heap so `alloc` types (`Box`, `Vec`) work in kernel. | Should | Next |
 | **FR-11** | Cooperative or simple round-robin task switching (threads or async tasks). | Should | Later |
 | **FR-12** | Serial remains usable for headless/CI logs (PL011 or extra earlycon), including later test-exit telemetry. | Should | Next |
@@ -71,6 +73,7 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 - Nested / fatal exception prints a serial marker from a dedicated stack (FR-07) **or** the honesty ledger says Unknown until probed.
 - A timer tick is observable on serial and/or `#[test_case]` via the virt GIC (FR-08 / M5) **or** the honesty ledger says Unknown until probed.
 - A received PL011 byte is observable on serial (FR-08 input / M6) **or** the honesty ledger says Unknown until probed.
+- MMU-on + allocate-frame / map-unmap is observable on serial and/or `#[test_case]` (FR-09 / M7) **or** the honesty ledger says Unknown until probed.
 - Panic path compiles and is reachable in principle.
 - This FR/NFR file + honesty ledger live under `docs/`.
 

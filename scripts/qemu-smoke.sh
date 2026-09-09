@@ -1,13 +1,14 @@
 #!/bin/sh
-# Fail-closed host smoke: build, require UART hello + timer tick +
-# injected UART RX + BRK + fatal nested lines, then cargo test. Used
-# by Docker and GitHub Actions. Do not treat file presence as boot.
+# Fail-closed host smoke: build, require UART hello + paging + timer
+# tick + injected UART RX + BRK + fatal nested lines, then cargo test.
+# Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
 
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
+PAGING="${CTOS_PAGING_STRING:-paging: ok}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
@@ -51,6 +52,15 @@ if ! grep -q "$HELLO" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: hello string present (qemu exit $qemu_ec)"
+if ! grep -q "$PAGING" "$log"; then
+    echo "qemu-smoke: missing '$PAGING' on serial (FR-09 paging path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "paging: probe missed" "$log"; then
+    echo "qemu-smoke: paging probe missed (MMU / map-unmap path did not run)" >&2
+    exit 1
+fi
+echo "qemu-smoke: paging string present"
 if ! grep -q "$TICK" "$log"; then
     echo "qemu-smoke: missing '$TICK' on serial (FR-08 timer path, qemu exit $qemu_ec)" >&2
     exit 1

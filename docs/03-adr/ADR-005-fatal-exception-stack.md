@@ -7,7 +7,7 @@
 
 [FR-07](../02-requirements/fr-nfr.md) requires a fatal exception to use a dedicated stack so overflow does not silently lock the VM. Roadmap M4 is that path. [ADR-004](ADR-004-el1-vbar-brk.md) already notes that a nested fault while `println!` holds the UART mutex can deadlock.
 
-M3 ran the kernel and first-level current-EL exceptions on the same `SP_EL1` (SPSel = 1). A nested sync exception would store another 272-byte frame on that stack. Without paging (M7) a downward overflow is not a hardware fault on QEMU `virt` — it smashes `.bss` / code with no serial evidence.
+M3 ran the kernel and first-level current-EL exceptions on the same `SP_EL1` (SPSel = 1). A nested sync exception would store another 272-byte frame on that stack. Without paging a downward overflow is not a hardware fault on QEMU `virt` — it smashes `.bss` / code with no serial evidence. M7 identity-maps RAM as one Normal block, so this is still true (no guard pages).
 
 A data abort to an unused physical hole is QEMU-map-dependent. A nested `BRK` from the first-level handler is a real current-EL exception we already know how to take (FR-06).
 

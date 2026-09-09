@@ -11,10 +11,11 @@
 //! drops `SP_EL0` near the thread-stack floor and fires another `BRK` so
 //! the first-level handler can nest — serial proof for FR-07.
 //!
-//! Without paging (M7) a stack overflow is not a hardware fault; it would
-//! smash BSS. The dedicated stacks are the mitigation. The probe is a
-//! nested `BRK` after a near-empty thread SP — honest for virt, not an
-//! MMU guard-page claim. Context format and EL choice: ADR-004, ADR-005.
+//! M7 identity-maps virt RAM as a 1 GiB Normal block, so a downward
+//! stack overflow is still not a hardware fault — it would smash BSS.
+//! Dedicated stacks remain the mitigation. The probe is a nested `BRK`
+//! after a near-empty thread SP — honest for virt, not an MMU guard-page
+//! claim. Context format and EL choice: ADR-004, ADR-005.
 
 use core::arch::global_asm;
 use core::fmt::Write;
