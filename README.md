@@ -41,7 +41,7 @@ docker run --rm ctos-smoke
 # optional: docker compose run --rm smoke
 ```
 
-cts-ai `docker build` (linux/arm64, 2026-09-09) is Verified. `docker run` Failed (CRLF shebang, then missing `cc`, then missing `efi-virtio.rom`). Full smoke is Unknown until re-probed after the ROM packages. This is not a Raspberry Pi port.
+cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) is **Verified** after the LF / `build-essential` / ROM ratchets (see the honesty ledger). This is not a Raspberry Pi port.
 
 ## Docs (document-first)
 
