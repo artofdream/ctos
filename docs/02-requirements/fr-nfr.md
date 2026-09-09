@@ -16,13 +16,15 @@ Learning/research **AArch64 (arm64) Rust** bare-metal kernel (not a general-purp
 
 **FR-11 stage note (2026-09-09):** Stage moved Later → Now when M9 landed cooperative round-robin yield on EL1 ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md)). ID unchanged. Preemption / SMP / EL0 remain later.
 
+**NFR pillars note (2026-09-09):** [ADR-011](../03-adr/ADR-011-three-pillars.md) revises **NFR-05**, **NFR-07**, and **NFR-10** text in place (antifragility, performance, security as first-class pillars). IDs unchanged. Do not mint NFR-15+.
+
 **Status legend:** **Now** = hello-UART / QEMU `virt` / smoke sensors · **Next** = near roadmap · **Later** = aspirational.
 
 Tracker is **GitHub** (`gh`). New IDs go through a GitHub issue plus an ADR/docs change — not chat.
 
 ## Scope
 
-**In:** freestanding `no_std` Rust, QEMU `-kernel` → `_start`, UART/earlycon output, exceptions/interrupts, paging, heap, basic multitasking, reproducible build/QEMU probes, docs-first harness (honesty, antifragility, second brain, thin multi-agent).
+**In:** freestanding `no_std` Rust, QEMU `-kernel` → `_start`, UART/earlycon output, exceptions/interrupts, paging, heap, basic multitasking, reproducible build/QEMU probes, docs-first harness (honesty, three pillars — antifragility / security / performance — second brain, thin multi-agent).
 
 **Out (for now):** userspace processes, POSIX, networking stack, GPU, SMP, real-hardware certification, secure-boot productization, Raspberry Pi or other board bring-up (unprobed), x86_64 as a primary path.
 
@@ -56,12 +58,12 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 | **NFR-02 Reproducibility** | Toolchain pinned (`rust-toolchain.toml`); target JSON + `.cargo/config.toml` checked in. | Must | Now |
 | **NFR-03 Portability (dev)** | Build+QEMU path works on Windows/macOS/Linux (host tools); kernel target remains freestanding AArch64. | Must | Now |
 | **NFR-04 CI / sensors** | PR gate runs `scripts/qemu-smoke.sh` (build + UART hello string + `cargo test` exit codes). GitHub Actions + optional Docker. | Should | Now |
-| **NFR-05 Antifragility** | Repeated failures become ratchets (Dockerfile pin, CI check, guide) — not README-only fixes. | Should | Next |
+| **NFR-05 Antifragility** | First-class pillar ([ADR-011](../03-adr/ADR-011-three-pillars.md)). Repeated failures become ratchets (`#[test_case]`, `scripts/qemu-smoke.sh` grep, Dockerfile pin, GHA) — not README-only fixes. Fail-closed sensors stay on the strongest layer. | Must | Now |
 | **NFR-06 Honesty** | Status words in docs/PRs need a probe; unprobed stays Unknown; no self-merge as “verified.” | Must | Now |
-| **NFR-07 Performance** | Early stages: correct boot + interrupt latency good enough for learning; no fake bench claims. | Could | Later |
+| **NFR-07 Performance** | First-class pillar ([ADR-011](../03-adr/ADR-011-three-pillars.md)). Performance claims need a measurable probe (CNTPCT delta around a known path; later timer-tick jitter). No fake benches. Optimize only after a probe shows a cost. Not a hard latency budget. | Should | Now |
 | **NFR-08 Footprint** | Debug image size and boot time tracked once measurable; no premature optimization. | Could | Later |
 | **NFR-09 Maintainability** | Clear module layout; ADRs for boot-path, console, or allocator choices. | Must | Now |
-| **NFR-10 Security** | No secrets in repo; don’t claim “secure OS” until threat model + probes exist. | Must | Now |
+| **NFR-10 Security** | First-class pillar ([ADR-011](../03-adr/ADR-011-three-pillars.md)). No secrets in repo. Do not claim “secure OS” / “hardened” / “W^X” without a written threat model **and** a probe. Prefer minimize `unsafe` (NFR-01). W^X / NX heap+stacks when paging allows (Planned on the current executable L1 RAM block). No execute-from-writable heap by default once maps can mark NX. Least privilege on IRQ paths. EL0 isolation is Planned. | Must | Now |
 | **NFR-11 Observability** | QEMU UART + explicit test exit codes are first telemetry; host Grafana out of scope. | Should | Next |
 | **NFR-12 Multi-agent** | Thin roles (engineer / knowledge / coherence / MRC); implementer ≠ merge approver. | Should | Now |
 | **NFR-13 Document-first** | Written milestone acceptance criteria match what code/CI actually prove. | Must | Now |
@@ -80,6 +82,8 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 - MMU-on + allocate-frame / map-unmap is observable on serial and/or `#[test_case]` (FR-09 / M7) **or** the honesty ledger says Unknown until probed.
 - `Box` / `Vec` on the kernel heap is observable on serial and/or `#[test_case]` (FR-10 / M8) **or** the honesty ledger says Unknown until probed.
 - Two cooperative tasks are observable on serial and/or `#[test_case]` (FR-11 / M9) **or** the honesty ledger says Unknown until probed.
+- A CNTPCT baseline delta is observable on serial and/or `#[test_case]` (NFR-07) **or** the honesty ledger says Unknown / Planned until probed.
+- Threat-model stub exists under `docs/framework/`; “secure OS” stays unclaimed until model + probes exist (NFR-10).
 - Panic path compiles and is reachable in principle.
 - This FR/NFR file + honesty ledger live under `docs/`.
 

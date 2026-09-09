@@ -16,6 +16,8 @@ The session's reviewable model of intent and state:
 
 If a claim is only in chat, it is not shared understanding.
 
+After M9, shared understanding also names the [three pillars](pillars.md) (antifragility, security, performance). A “secure” or “faster” sentence without a ledger row is not shared understanding.
+
 ## Domain
 
 The thing that is allowed to decide what is true about the machine:

@@ -30,7 +30,8 @@ fn cntfrq() -> u64 {
     freq
 }
 
-fn cntpct() -> u64 {
+#[allow(dead_code)] // hello + `#[test_case]` + `src/perf.rs`.
+pub fn cntpct() -> u64 {
     let t: u64;
     unsafe {
         core::arch::asm!("mrs {t}, cntpct_el0", t = out(reg) t);

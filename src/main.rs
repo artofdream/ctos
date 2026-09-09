@@ -12,6 +12,7 @@ mod frame;
 mod gic;
 mod heap;
 mod paging;
+mod perf;
 mod qemu;
 mod sched;
 mod timer;
@@ -77,6 +78,10 @@ pub extern "C" fn kernel_main() -> ! {
         // Serial proof for qemu-smoke (FR-11 / M9): two cooperative tasks.
         if !sched::observe_probe() {
             uart::write_str_raw("sched: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
+        if !perf::observe_probe() {
+            uart::write_str_raw("perf: probe missed\n");
         }
         // Serial proof for qemu-smoke (FR-08): one CNTP tick, then remask
         // so the M3/M4 probes are not interrupted.

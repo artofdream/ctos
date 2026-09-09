@@ -1,5 +1,7 @@
 # Antifragility SOP
 
+First-class pillar ([ADR-011](../03-adr/ADR-011-three-pillars.md), [NFR-05](../02-requirements/fr-nfr.md)). Hub: [pillars.md](pillars.md).
+
 When the same failure happens twice, **strengthen the strongest layer** (a sensor or a gate), not another paragraph of advice.
 
 ## Fail closed

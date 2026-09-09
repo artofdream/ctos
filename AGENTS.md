@@ -4,7 +4,7 @@ This file is the source of truth for how agents work in this repo. Frozen produc
 
 ctos is a **GitHub** project (`artofdream/ctos`). Use `gh` for issues, PRs, and reviews. Do not assume GitLab, `glab`, a GitLab wiki, or a Pages publish SOP.
 
-The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-closed sensors, document-first, a four-vault second brain, and no self-merge. It is *inspired by* harness-engineering / honesty practices ([architecture.artof.link](https://architecture.artof.link/) as prior art). ctos is its own OS-kernel project with its own vocabulary. Do not import florist platform, 14-hat maps, or AEA role names.
+The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-closed sensors, document-first, a four-vault second brain, and no self-merge. After M9 the same weight sits on **three pillars** — antifragility, security, performance ([ADR-011](docs/03-adr/ADR-011-three-pillars.md), [pillars.md](docs/framework/pillars.md)). It is *inspired by* harness-engineering / honesty practices ([architecture.artof.link](https://architecture.artof.link/) as prior art). ctos is its own OS-kernel project with its own vocabulary. Do not import florist platform, 14-hat maps, or AEA role names.
 
 ## Session start
 
@@ -65,8 +65,9 @@ Check claims vs probes.
 - Prefer small, focused diffs. One milestone per PR.
 - Plain English. No florist or shop metaphors.
 - Stay on the AArch64 QEMU `virt` / PL011 path ([ADR-003](docs/03-adr/ADR-003-primary-isa-aarch64.md)). Do not restore `bootloader` 0.9 or VGA as primary.
-- Status words need a probe. File presence is not QEMU boot.
-- Do not mint FR-16+ or NFR-15+ in chat. Frozen set is [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md).
+- Status words need a probe. File presence is not QEMU boot. File presence is not a “secure OS” or a bench.
+- Do not mint FR-16+ or NFR-15+ in chat. Frozen set is [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md). NFR-05 / NFR-07 / NFR-10 text was revised under [ADR-011](docs/03-adr/ADR-011-three-pillars.md).
+- Optimize only with a probe. Do not claim W^X while the identity L1 RAM block is executable.
 
 ## Tracker
 
