@@ -41,6 +41,9 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Frame alloc + map/unmap window (M7 / FR-09) | `#[test_case]` `frame_alloc_aligned_and_distinct` + `map_unmap_roundtrip`; serial marker from `paging::observe_probe` | Verified | 2026-09-09 cloud: both `[ok]`. Write-through window VA `0x8000_0000` matches identity PA. |
 | qemu-smoke requires paging string | `scripts/qemu-smoke.sh` hello phase greps `paging: ok` and rejects `paging: probe missed` | Verified | 2026-09-09 cloud: `qemu-smoke: paging string present`. Extends the M6 sensor (FR-09 / NFR-04). |
 | CI on GitHub (M7 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m7-paging-frame-allocator-b567` | Unknown | No green GHA URL on the cloud-probe commit yet. |
+| `GlobalAlloc` + `Box`/`Vec` on identity-mapped frames (M8 / FR-10) | Hello-kernel serial `heap: ok` via `scripts/qemu-smoke.sh`; `#[test_case]` `box_alloc_roundtrip` + `vec_grows` + `heap_lives_in_frame_pool` | Verified | 2026-09-09 cloud (QEMU 8.2.2, `rustc` 1.100.0-nightly `4aa1fbcf4`): after `paging: ok`, serial `heap: ok`, then M5/M6/M3/M4 markers. `cargo test` `Running 17 tests` all `[ok]`. First-fit + coalesce ([ADR-009](../03-adr/ADR-009-first-fit-heap.md)). Not a growing heap. Not M9. |
+| qemu-smoke requires heap string | `scripts/qemu-smoke.sh` hello phase greps `heap: ok` and rejects `heap: probe missed` | Verified | 2026-09-09 cloud: `qemu-smoke: heap string present`. Extends the M7 sensor (FR-10 / NFR-04). |
+| CI on GitHub (M8 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m8-heap-globalalloc-0ee8` | Verified | Push run [34394697056](https://github.com/artofdream/ctos/actions/runs/34394697056) success (`ubuntu-24.04-arm` 59s, `ubuntu-24.04` 1m36s) on the cloud-probe commit `ba6096a`. Same `qemu-smoke.sh` (hello + paging + heap + tick + RX + BRK + fatal + 17 tests + force-fail). |
 
 ## How to update
 

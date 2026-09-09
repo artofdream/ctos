@@ -1,6 +1,6 @@
 #!/bin/sh
-# Fail-closed host smoke: build, require UART hello + paging + timer
-# tick + injected UART RX + BRK + fatal nested lines, then cargo test.
+# Fail-closed host smoke: build, require UART hello + paging + heap +
+# timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -9,6 +9,7 @@ cd "$ROOT"
 
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
 PAGING="${CTOS_PAGING_STRING:-paging: ok}"
+HEAP="${CTOS_HEAP_STRING:-heap: ok}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
@@ -61,6 +62,15 @@ if grep -q "paging: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: paging string present"
+if ! grep -q "$HEAP" "$log"; then
+    echo "qemu-smoke: missing '$HEAP' on serial (FR-10 heap path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "heap: probe missed" "$log"; then
+    echo "qemu-smoke: heap probe missed (Box/Vec path did not run)" >&2
+    exit 1
+fi
+echo "qemu-smoke: heap string present"
 if ! grep -q "$TICK" "$log"; then
     echo "qemu-smoke: missing '$TICK' on serial (FR-08 timer path, qemu exit $qemu_ec)" >&2
     exit 1
