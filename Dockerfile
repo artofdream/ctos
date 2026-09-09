@@ -11,12 +11,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # build-essential: nightly `build-std` compiles compiler_builtins with a
 # host `cc` even for the freestanding aarch64 target. cts-ai 2026-09-09:
 # `docker run` failed with: linker `cc` not found.
+# qemu-efi-aarch64 + ipxe-qemu: `--no-install-recommends` skipped Ubuntu
+# noble Recommends. cts-ai then failed: romfile "efi-virtio.rom" missing
+# (ipxe-qemu ships /usr/lib/ipxe/qemu/efi-virtio.rom).
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         build-essential \
         qemu-system-arm \
-    && rm -rf /var/lib/apt/lists/*
+        qemu-efi-aarch64 \
+        ipxe-qemu \
+    && rm -rf /var/lib/apt/lists/* \
+    && test -e /usr/lib/ipxe/qemu/efi-virtio.rom
 
 # rust-toolchain.toml selects nightly; install it here so `docker run` is offline-ish.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \

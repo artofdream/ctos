@@ -1,3 +1,3 @@
-# Session memory — 2026-09-09 (Docker CRLF + missing cc)
+# Session memory — 2026-09-09 (Docker CRLF + cc + ROM)
 
-cts-ai: `docker build -t ctos-smoke .` on Docker Desktop linux/arm64 succeeded. First `docker run` failed: `exec ./scripts/qemu-smoke.sh: no such file or directory` (`#!/bin/sh\r`). After LF, second `docker run` failed: `linker \`cc\` not found` compiling `compiler_builtins` (nightly build-std). Ratchets: `.gitattributes` eol=lf; image `sed` + `CMD bash`; `build-essential`. Full smoke after both still unprobed here.
+cts-ai linux/arm64 `docker build` succeeded. `docker run` failed: (1) `#!/bin/sh\r` (2) `linker cc not found` on `compiler_builtins` (3) after `cargo build`, `failed to find romfile "efi-virtio.rom"` (`--no-install-recommends` skipped `ipxe-qemu`). File lives at `/usr/lib/ipxe/qemu/efi-virtio.rom` (`dpkg -L ipxe-qemu`). Ratchets: `.gitattributes` eol=lf; `build-essential`; `qemu-efi-aarch64` + `ipxe-qemu` + image `test -e` that ROM. Full smoke still unprobed here.

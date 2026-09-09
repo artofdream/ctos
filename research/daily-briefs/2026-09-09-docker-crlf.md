@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-PR #4. cts-ai `docker build` linux/arm64 Verified. `docker run` Failed twice: CRLF shebang, then `linker cc not found` on `compiler_builtins`. LF + `.gitattributes` + `build-essential` landed. Full image smoke after both ratchets is Unknown until re-probe.
+PR #4. cts-ai `docker build` linux/arm64 Verified. `docker run` Failed three times: CRLF shebang, missing host `cc`, then missing `efi-virtio.rom`. LF + `.gitattributes` + `build-essential` + `ipxe-qemu`/`qemu-efi-aarch64` landed. Full image smoke after all three ratchets is Unknown until re-probe.
 
 ## Do next
 
