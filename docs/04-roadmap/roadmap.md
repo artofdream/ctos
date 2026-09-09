@@ -11,10 +11,10 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M2 | Integration test harness | QEMU virt ARM semihosting exit + `#[test_case]`; `scripts/qemu-smoke.sh` fail-closed | Verified in the 2026-09-08 cloud probe (not CI). Sponsor stacked this on the ISA PR. |
 | M3 | Exception vectors + breakpoint | Test or QEMU serial proof the handler runs | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M4 | Fatal exception stack | Fatal path does not silently lock the VM | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
-| M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | Planned |
+| M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | In this PR (probe pending) |
 | M6 | Input | UART or virtio input path prints or tests a key | Planned |
 | M7 | Paging + frame allocator | Map/unmap or allocator test | Planned |
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Planned |
 | M9 | Cooperative scheduler | Two tasks observed to run | Planned |
 
-M0–M3 are on `main`. This PR is **M4 only** (fatal exception stack, FR-07). Sponsor: GIC + timer is a later PR (roadmap **M5** / FR-08). Merge is still a human/MRC job (ADR-002).
+M0–M4 are on `main` (M4 = merge of PR #7 / FR-07). This PR is **M5 only** (GICv2 + CNTP, FR-08). UART input is a later PR (roadmap **M6**). Merge is still a human/MRC job (ADR-002).

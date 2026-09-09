@@ -5,7 +5,9 @@
 #![cfg_attr(test, reexport_test_harness_main = "test_main")]
 
 mod exception;
+mod gic;
 mod qemu;
+mod timer;
 mod uart;
 
 use core::arch::global_asm;
@@ -38,6 +40,8 @@ global_asm!(
 pub extern "C" fn kernel_main() -> ! {
     uart::UART.lock().init();
     exception::init();
+    gic::init();
+    timer::init();
     println!("Hello World!");
 
     #[cfg(feature = "force-fail")]
@@ -51,6 +55,11 @@ pub extern "C" fn kernel_main() -> ! {
 
     #[cfg(not(any(test, feature = "force-fail")))]
     {
+        // Serial proof for qemu-smoke (FR-08): one CNTP tick, then remask
+        // so the M3/M4 probes are not interrupted.
+        if !timer::observe_ticks(1) {
+            uart::write_str_raw("timer: tick missed\n");
+        }
         // Serial proof for qemu-smoke (FR-06): handler must print and return.
         exception::breakpoint();
         // FR-07: near-empty thread SP + nested BRK → fatal stack + marker.
