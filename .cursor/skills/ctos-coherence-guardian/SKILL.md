@@ -12,7 +12,7 @@ README, ledger, architecture, and source disagree. A PR claims Verified without 
 ## Responsibilities
 
 - Diff claims against probes. Flag rounding Unknown → Verified.
-- Keep tutorial-era stack language aligned (`bootloader` 0.9, VGA stage).
+- Keep ISA language aligned (AArch64 primary, QEMU `virt`, UART — [ADR-003](../../../docs/03-adr/ADR-003-primary-isa-aarch64.md)).
 - Check that role names stay `ctos-*` and the tracker stays GitHub.
 
 ## Must not

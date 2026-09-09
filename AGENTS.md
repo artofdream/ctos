@@ -28,7 +28,7 @@ The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-c
 | --- | --- | --- |
 | Knowledge Guardian | `.cursor/skills/ctos-knowledge-guardian/` | Keep vision, ADRs, ledger, and second-brain vaults accurate |
 | Coherence Guardian | `.cursor/skills/ctos-coherence-guardian/` | Docs, code, and claims stay consistent; no status inflation |
-| Kernel Engineer | `.cursor/skills/ctos-kernel-engineer/` | `no_std` kernel work on the tutorial-era stack |
+| Kernel Engineer | `.cursor/skills/ctos-kernel-engineer/` | `no_std` AArch64 kernel work (QEMU `virt`, UART) |
 | MR Coordinator | `.cursor/skills/ctos-mr-coordinator/` | Independent review gate; **never** self-approve |
 
 One human or agent may wear a builder hat in a session. The merge/approve hat is a different job.
@@ -64,7 +64,7 @@ Check claims vs probes.
 
 - Prefer small, focused diffs. One milestone per PR.
 - Plain English. No florist or shop metaphors.
-- Stay on `bootloader` 0.9 / `volatile` 0.2 / `spin` 0.5. Do not migrate to bootloader 0.10 in a drive-by.
+- Stay on the AArch64 QEMU `virt` / PL011 path ([ADR-003](docs/03-adr/ADR-003-primary-isa-aarch64.md)). Do not restore `bootloader` 0.9 or VGA as primary.
 - Status words need a probe. File presence is not QEMU boot.
 - Do not mint FR-16+ or NFR-15+ in chat. Frozen set is [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md).
 

@@ -1,39 +1,47 @@
 # Technical architecture
 
-ctos is a `#![no_std]` `#![no_main]` binary. There is no Rust standard library and no OS underneath. The crate builds for a **custom target** (`x86_64-ctos.json`): `os: none`, panic abort, red zone off, SIMD off, soft-float.
+ctos is a `#![no_std]` `#![no_main]` binary. There is no Rust standard library and no OS underneath. The crate builds for a **custom target** (`aarch64-ctos.json`): `os: none`, panic abort, red zone off, static relocation, soft-float (no early SIMD/FP). See [ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md).
 
 ## Boot path
 
-1. Firmware (BIOS path via the `bootloader` **0.9** crate).
-2. `bootimage` wraps the kernel ELF into a disk image.
-3. Entry is `_start` in `src/main.rs`.
-4. Early output is VGA text at `0xb8000` (`src/vga_buffer.rs`).
+1. `qemu-system-aarch64 -machine virt -cpu cortex-a57` (or `max`; `gic-version=3` is allowed).
+2. `-kernel` loads the kernel ELF into virt RAM (linker base `0x40080000`).
+3. Entry is `_start` (assembly in `src/main.rs`): set SP, zero BSS, call `kernel_main`.
+4. Early output is the virt PL011 UART at `0x0900_0000` (`src/uart.rs`).
 
-Stay on bootloader 0.9 / volatile 0.2 / spin 0.5. Do not migrate to bootloader 0.10 unless a dedicated ADR says so.
+There is no `bootloader` 0.9 crate and no VGA buffer. The x86_64 phil-opp path was deleted when this ADR landed.
 
-The custom target started from the tutorial-era JSON. A 2026-09-08 `rustc` 1.100 nightly probe rejected that file until we ratcheted: numeric `target-pointer-width` / `target-c-int-width`, LLVM `data-layout` with p270/p271/p272 and i128, and `rustc-abi: softfloat`. `.cargo/config.toml` also needs `json-target-spec = true` on that nightly. Behavior is still bare-metal x86_64, abort, no red zone, soft-float, `rust-lld`.
+`.cargo/config.toml` still needs `json-target-spec = true` on rustc 1.100 nightly. The AArch64 JSON is taken from `aarch64-unknown-none-softfloat` plus `os: none` / numeric widths. That nightly rejected the file until both `"abi": "softfloat"` and `"rustc-abi": "softfloat"` were set. Behavior is bare-metal AArch64, abort, `rust-lld`.
 
-## Current stage (VGA)
+This architecture does **not** claim Raspberry Pi or other SoC support.
 
-- `Color` / `ColorCode` / `ScreenChar` / `Buffer`
-- `Writer` with wrap + scroll
-- `print!` / `println!` via `lazy_static` + `spin::Mutex`
-- Yellow on black, matching the common tutorial writer
+## Current stage (UART hello + M2 tests)
 
-Source is present. QEMU showing "Hello World!" was probed on 2026-09-08 (see the honesty ledger). That probe is not CI.
+- `Pl011` writer with TX-full wait and `\n` → `\r\n`
+- `print!` / `println!` via `spin::Mutex`
+- `kernel_main` prints `Hello World!` then `wfe` (non-test)
+- `cargo test` uses `#![feature(custom_test_frameworks)]` and `#[test_case]`
+- QEMU exit is ARM **semihosting** `SYS_EXIT` / `hlt #0xf000` (`src/qemu.rs`), not `isa-debug-exit`. Needs `-semihosting` on the QEMU line (`scripts/qemu-aarch64.sh`).
+- Host smoke: `scripts/qemu-smoke.sh` (hello string + tests + `force-fail` must be non-zero)
+- Docker: `Dockerfile` / `scripts/docker-smoke.sh` (linux/arm64-friendly; do not pin amd64)
+- GHA: `.github/workflows/smoke.yml` (`ubuntu-24.04-arm` and `ubuntu-24.04`)
 
-## Planned stages (phil-opp order)
+Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `smoke.yml` was green on that revision (`ubuntu-24.04` and `ubuntu-24.04-arm`). cts-ai Docker Desktop linux/arm64 `docker run --rm ctos-smoke` was Verified on 2026-09-09 after the LF / `cc` / ROM ratchets.
+
+## Planned stages
 
 | Stage | Domain work |
 | --- | --- |
-| Custom test framework | `#[test_case]`, QEMU isa-debug-exit, serial |
-| CPU exceptions | IDT, breakpoint, double-fault IST |
-| Hardware interrupts | PIC, timer, keyboard |
+| Custom test framework | Landed (M2): `#[test_case]`, semihosting exit, UART |
+| CPU exceptions | VBAR_EL1, breakpoint / fault |
+| Hardware interrupts | GIC, timer, later input |
 | Paging | page tables, frame allocator |
 | Heap | `alloc`, a simple allocator |
 | Scheduler | cooperative or round-robin tasks |
 
 Each stage is one loop unit on the [roadmap](../04-roadmap/roadmap.md).
+
+x86_64 remains a possible **future secondary** ISA. It is not a current tree.
 
 ## Harness mapping (short)
 

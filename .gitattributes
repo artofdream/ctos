@@ -1,0 +1,5 @@
+# Windows `core.autocrlf` must not rewrite shebangs to CRLF.
+# cts-ai 2026-09-09: `docker run` failed with
+# `exec ./scripts/qemu-smoke.sh: no such file or directory`.
+*.sh text eol=lf
+Dockerfile text eol=lf
