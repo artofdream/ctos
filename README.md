@@ -31,7 +31,7 @@ cargo test                # two #[test_case]; QEMU exits 0 via ARM semihosting
 
 ### Docker (cts-ai: Windows ARM64 → linux/arm64)
 
-Do **not** pass `--platform linux/amd64`. The image is `ubuntu:24.04` (multi-arch) plus nightly Rust and `qemu-system-aarch64`. Shell scripts are LF-only (`.gitattributes`); a CRLF shebang makes `docker run` fail with `no such file or directory`.
+Do **not** pass `--platform linux/amd64`. The image is `ubuntu:24.04` (multi-arch) plus nightly Rust, `build-essential` (host `cc` for `compiler_builtins` / build-std), and `qemu-system-aarch64`. Shell scripts are LF-only (`.gitattributes`); a CRLF shebang makes `docker run` fail with `no such file or directory`.
 
 ```bash
 ./scripts/docker-smoke.sh
@@ -41,7 +41,7 @@ docker run --rm ctos-smoke
 # optional: docker compose run --rm smoke
 ```
 
-cts-ai `docker build` (linux/arm64, 2026-09-09) is Verified. Full `docker run` smoke is Unknown until re-probed after the CRLF ratchet. This is not a Raspberry Pi port.
+cts-ai `docker build` (linux/arm64, 2026-09-09) is Verified. `docker run` Failed (CRLF shebang, then missing `cc`). Full smoke is Unknown until re-probed after `build-essential`. This is not a Raspberry Pi port.
 
 ## Docs (document-first)
 
