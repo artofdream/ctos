@@ -13,8 +13,8 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M4 | Fatal exception stack | Fatal path does not silently lock the VM | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
 | M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M6 | Input | Injected PL011 RX byte observable on serial (or test) | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
-| M7 | Paging + frame allocator | Map/unmap or allocator test | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
+| M7 | Paging + frame allocator | Map/unmap or allocator test | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Planned |
 | M9 | Cooperative scheduler | Two tasks observed to run | Planned |
 
-M0–M6 are on `main` (M6 = merge of PR #10 / FR-08 input). This PR is **M7 only** (identity map + frame allocator, FR-09 / [ADR-008](../03-adr/ADR-008-identity-map-frame-allocator.md)). Heap is a later PR (roadmap **M8**). Merge is still a human/MRC job (ADR-002).
+M0–M7 are on `main` (M7 = merge of PR #12 / FR-09 paging). This PR is **docs only** — GHA URL for M7. Heap is a later PR (roadmap **M8**). Merge is still a human/MRC job (ADR-002).

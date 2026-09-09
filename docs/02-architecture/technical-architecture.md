@@ -38,7 +38,7 @@ Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `sm
 | Custom test framework | Landed (M2): `#[test_case]`, semihosting exit, UART |
 | CPU exceptions | M3: `VBAR_EL1`, resumable `BRK`. M4: dedicated exception + fatal stacks (FR-07) — cloud `qemu-smoke` Verified (honesty ledger); GHA Unknown until a run URL |
 | Hardware interrupts | M5: GICv2 + CNTP tick (FR-08) — cloud `qemu-smoke` + GHA Verified (honesty ledger). M6: PL011 UART RX (FR-08 input / ADR-007) |
-| Paging | M7: EL1 identity map + bump frames (FR-09 / ADR-008) — probe status in the honesty ledger. DTB walk staged. |
+| Paging | M7: EL1 identity map + bump frames (FR-09 / ADR-008) — cloud `qemu-smoke` + GHA Verified (honesty ledger). DTB walk staged. |
 | Heap | `alloc`, a simple allocator |
 | Scheduler | cooperative or round-robin tasks |
 
