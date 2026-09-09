@@ -36,7 +36,7 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | PL011 RX of injected `0x41` observable (M6 / FR-08 input) | Hello-kernel serial `input: rx 0x41` via `scripts/qemu-smoke.sh` + `qemu-serial-inject.py` | Verified | 2026-09-09 cloud (QEMU 8.2.2, `rustc` 1.100.0-nightly `4aa1fbcf4`): after `Hello World!` and `timer: tick`, serial `input: rx 0x41`, then M3/M4 BRK + fatal. Not virtio-keyboard. Not QEMU LBE (unimplemented on 8.2). |
 | qemu-smoke requires UART RX string | `scripts/qemu-smoke.sh` hello phase greps `input: rx 0x41` and rejects `input: rx missed` | Verified | 2026-09-09 cloud: `qemu-smoke: UART RX string present`. Extends the M5 sensor (FR-08 input / NFR-04). |
 | Empty RX FIFO under `cargo test` (M6) | `#[test_case] uart_rx_fifo_empty_without_host_byte` | Verified | 2026-09-09 cloud: `cargo test` `Running 10 tests` all `[ok]`. Character proof is the serial row. |
-| CI on GitHub (M6 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m6-uart-rx-input-7ef6` | Unknown | No green GHA URL on the cloud-probe commit yet. |
+| CI on GitHub (M6 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m6-uart-rx-input-7ef6` | Verified | Push [34392594155](https://github.com/artofdream/ctos/actions/runs/34392594155) and PR [34392595957](https://github.com/artofdream/ctos/actions/runs/34392595957) success (`ubuntu-24.04` + `ubuntu-24.04-arm`) on the cloud-probe commit. Implementation commit runs [34392461126](https://github.com/artofdream/ctos/actions/runs/34392461126) / [34392501154](https://github.com/artofdream/ctos/actions/runs/34392501154) also success. Same `qemu-smoke.sh` (hello + tick + RX + BRK + fatal + 10 tests + force-fail). Commit `284d7d4`. |
 
 ## How to update
 
