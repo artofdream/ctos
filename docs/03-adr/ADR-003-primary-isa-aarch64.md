@@ -27,5 +27,5 @@ x86_64 may be noted later as a **secondary** target. It is **not** implemented i
 - `.cargo/config.toml` default target is `aarch64-ctos.json`. `json-target-spec` stays for current nightly.
 - Roadmap M0/M1 probes are UART + `qemu-system-aarch64`, not a VGA dump at `0xb8e60`.
 - FR-01, FR-02, FR-03, FR-05 (and other x86-specific wording) are revised in place. No new FR/NFR IDs.
-- Later exception/interrupt work is VBAR / GIC, not IDT / PIC / TSS.
+- Later exception/interrupt work is VBAR / GIC, not IDT / PIC / TSS. M3 / [ADR-004](ADR-004-el1-vbar-brk.md) is the `VBAR_EL1` + `BRK` path.
 - Honesty ledger rows for the x86 VGA path are historical. They do not verify the AArch64 path.

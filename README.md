@@ -25,8 +25,8 @@ cargo run            # boot the ELF in qemu-system-aarch64 -machine virt
 The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU serial Hello World was probed once in the 2026-09-08 cloud run (`qemu-system-aarch64` 8.2.2, `-machine virt`). That is not CI. Other machines stay Unknown until they run the same kind of probe. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
 
 ```bash
-./scripts/qemu-smoke.sh   # build + require hello on serial + cargo test + force-fail
-cargo test                # two #[test_case]; QEMU exits 0 via ARM semihosting
+./scripts/qemu-smoke.sh   # build + hello + BRK serial + cargo test + force-fail
+cargo test                # #[test_case] including VBAR/BRK; QEMU exits 0 via ARM semihosting
 ```
 
 ### Docker (cts-ai: Windows ARM64 → linux/arm64)
@@ -55,6 +55,7 @@ Start here before adding kernel features:
 | [ADR-001](docs/03-adr/ADR-001-honesty-harness-for-ctos.md) | Why this repo uses a honesty/harness practice |
 | [ADR-002](docs/03-adr/ADR-002-pr-identity-split.md) | Author ≠ merger; `artofdream` vs `cursor[bot]` |
 | [ADR-003](docs/03-adr/ADR-003-primary-isa-aarch64.md) | Primary ISA is AArch64 |
+| [ADR-004](docs/03-adr/ADR-004-el1-vbar-brk.md) | EL1 `VBAR_EL1` + resumable `BRK` |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |
