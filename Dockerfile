@@ -10,7 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # build-essential: nightly `build-std` compiles compiler_builtins with a
 # host `cc` even for the freestanding aarch64 target. cts-ai 2026-09-09:
-# `docker run` failed with `linker \`cc\` not found`.
+# `docker run` failed with: linker `cc` not found.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
