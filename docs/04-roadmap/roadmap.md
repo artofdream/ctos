@@ -11,7 +11,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M2 | Integration test harness | QEMU virt ARM semihosting exit + `#[test_case]`; `scripts/qemu-smoke.sh` fail-closed | Verified in the 2026-09-08 cloud probe (not CI). Sponsor stacked this on the ISA PR. |
 | M3 | Exception vectors + breakpoint | Test or QEMU serial proof the handler runs | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M4 | Fatal exception stack | Fatal path does not silently lock the VM | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
-| M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | In this PR (probe pending) |
+| M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
 | M6 | Input | UART or virtio input path prints or tests a key | Planned |
 | M7 | Paging + frame allocator | Map/unmap or allocator test | Planned |
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Planned |

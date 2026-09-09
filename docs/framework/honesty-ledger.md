@@ -30,9 +30,9 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Nested current-EL exception uses fatal stack and is observable (M4 / FR-07) | Hello-kernel serial `exception: fatal nested` via `scripts/qemu-smoke.sh` | Verified | 2026-09-09 cloud: after two `exception: sync BRK` lines, serial `exception: fatal nested` then `exception: fatal esr=0xf2000000 elr=0x400816cc kind=0x200`. Nested AArch64 `BRK` after near-empty thread SP ([ADR-005](../03-adr/ADR-005-fatal-exception-stack.md)). Not an MMU overflow fault. Not GIC (M5). |
 | qemu-smoke requires fatal nested string | `scripts/qemu-smoke.sh` hello phase greps `exception: fatal nested` and rejects `fatal probe missed` | Verified | 2026-09-09 cloud: `qemu-smoke: fatal nested string present`. Extends the M3 sensor (FR-07 / NFR-04). |
 | CI on GitHub (M4 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m4-fatal-exception-stack-c8b7` | Unknown | Not a green GHA URL on the post-fix revision before merge. M4 merged as PR #7 (`180dbf2`). |
-| GICv2 init + CNTP PPI 30 tick observable (M5 / FR-08) | Hello-kernel serial `timer: tick` via `scripts/qemu-smoke.sh`; `#[test_case]` `timer_tick_is_observable` | Unknown | Implemented on this branch. Not Verified until a QEMU probe on this revision. Not GICv3. Not UART input (M6). |
-| qemu-smoke requires timer tick string | `scripts/qemu-smoke.sh` hello phase greps `timer: tick` and rejects `timer: tick missed` | Unknown | Sensor extended; probe pending. |
-| CI on GitHub (M5 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m5-hardware-interrupts-d5a6` | Unknown | No run URL yet. |
+| GICv2 init + CNTP PPI 30 tick observable (M5 / FR-08) | Hello-kernel serial `timer: tick` via `scripts/qemu-smoke.sh`; `#[test_case]` `timer_tick_is_observable` | Verified | 2026-09-09 cloud (QEMU 8.2.2, `rustc` 1.100.0-nightly `4aa1fbcf4`): after `Hello World!`, serial `timer: tick`, then M3/M4 BRK + fatal. `cargo test` `Running 9 tests` all `[ok]` including `gicd_typer_readable`, `cntfrq_is_nonzero`, `timer_tick_is_observable`. Not GICv3. Not UART input (M6). |
+| qemu-smoke requires timer tick string | `scripts/qemu-smoke.sh` hello phase greps `timer: tick` and rejects `timer: tick missed` | Verified | 2026-09-09 cloud: `qemu-smoke: timer tick string present`. Extends the M4 sensor (FR-08 / NFR-04). |
+| CI on GitHub (M5 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m5-hardware-interrupts-d5a6` | Unknown | No green GHA URL on the post-probe revision yet. |
 
 ## How to update
 
