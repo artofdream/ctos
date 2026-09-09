@@ -6,7 +6,9 @@ Learning/research **AArch64 (arm64) Rust** bare-metal kernel (not a general-purp
 
 **FR-06 stage note (2026-09-09):** Stage moved Next → Now when M3 landed `VBAR_EL1` + resumable `BRK` ([ADR-004](../03-adr/ADR-004-el1-vbar-brk.md)). ID unchanged.
 
-**FR-07 stage note (2026-09-09):** Stage moved Next → Now when M4 landed the dedicated exception / fatal stacks ([ADR-005](../03-adr/ADR-005-fatal-exception-stack.md)). ID unchanged. FR-08 (GIC + timer) stays Next.
+**FR-07 stage note (2026-09-09):** Stage moved Next → Now when M4 landed the dedicated exception / fatal stacks ([ADR-005](../03-adr/ADR-005-fatal-exception-stack.md)). ID unchanged.
+
+**FR-08 stage note (2026-09-09):** Stage moved Next → Now when M5 landed GICv2 + the EL1 physical timer ([ADR-006](../03-adr/ADR-006-gicv2-generic-timer.md)). ID unchanged. FR-08 “later input” stays M6.
 
 **Status legend:** **Now** = hello-UART / QEMU `virt` / smoke sensors · **Next** = near roadmap · **Later** = aspirational.
 
@@ -31,7 +33,7 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 | **FR-05** | Developer can produce a runnable AArch64 kernel ELF and boot it under `qemu-system-aarch64` (`-machine virt`). | Must | Now |
 | **FR-06** | Synchronous exceptions are handled via VBAR_EL1 vectors (at least a breakpoint / fault path). | Must | Now |
 | **FR-07** | A fatal exception uses a dedicated stack so overflow does not silently lock the VM. | Must | Now |
-| **FR-08** | Hardware interrupts: timer (and later input) via the virt GIC. | Should | Next |
+| **FR-08** | Hardware interrupts: timer (and later input) via the virt GIC. | Should | Now |
 | **FR-09** | Kernel reads the firmware/QEMU memory map (DTB when probed) and establishes paging / virtual memory. | Must | Next |
 | **FR-10** | `GlobalAlloc` heap so `alloc` types (`Box`, `Vec`) work in kernel. | Should | Next |
 | **FR-11** | Cooperative or simple round-robin task switching (threads or async tasks). | Should | Later |
@@ -67,6 +69,7 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 - `cargo test` uses ARM semihosting so QEMU exits 0 on pass and 1 on panic (`force-fail`).
 - Current-EL `BRK` is handled via `VBAR_EL1` (serial string and/or `#[test_case]`) **or** the honesty ledger says Unknown until probed.
 - Nested / fatal exception prints a serial marker from a dedicated stack (FR-07) **or** the honesty ledger says Unknown until probed.
+- A timer tick is observable on serial and/or `#[test_case]` via the virt GIC (FR-08) **or** the honesty ledger says Unknown until probed.
 - Panic path compiles and is reachable in principle.
 - This FR/NFR file + honesty ledger live under `docs/`.
 
