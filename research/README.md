@@ -12,3 +12,17 @@ Four vaults, scaled to a kernel repo. This is session memory in git — not a wi
 Session scratch goes in `research/random-thoughts/`. Do not treat scratch as the honesty ledger.
 
 Tracker is GitHub. These folders are the memory; `gh` is the work queue.
+
+## Further reading / landscape
+
+Correction/Relationship notes (what to look for and against — not a status ledger):
+
+- [Rust OS landscape lessons](random-thoughts/2026-09-09-rust-os-landscape-lessons.md) — Redox, Asterinas, Theseus, Tock, Hubris, phil-opp; stall patterns. No Verified claims about those projects.
+
+## Obsidian (optional)
+
+Git remains the source of truth. Obsidian is an optional local UI over the same markdown — not required for agents or CI.
+
+- How to open the folder as a vault: [obsidian.md](obsidian.md)
+- Fleeting captures awaiting triage: [inbox/](inbox/)
+

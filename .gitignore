@@ -2,3 +2,8 @@
 **/*.bin
 .idea/
 .vscode/
+
+# Obsidian local vault state (optional UI over git markdown).
+# Gitignored for portability — not a security ban. Do not ignore research/ or docs/.
+.obsidian/
+.trash/
