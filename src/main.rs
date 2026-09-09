@@ -5,7 +5,9 @@
 #![cfg_attr(test, reexport_test_harness_main = "test_main")]
 
 mod exception;
+mod frame;
 mod gic;
+mod paging;
 mod qemu;
 mod timer;
 mod uart;
@@ -40,6 +42,8 @@ global_asm!(
 pub extern "C" fn kernel_main() -> ! {
     uart::UART.lock().init();
     exception::init();
+    frame::init();
+    paging::init();
     gic::init();
     timer::init();
     println!("Hello World!");
@@ -55,6 +59,10 @@ pub extern "C" fn kernel_main() -> ! {
 
     #[cfg(not(any(test, feature = "force-fail")))]
     {
+        // Serial proof for qemu-smoke (FR-09 / M7): MMU on + map/unmap.
+        if !paging::observe_probe() {
+            uart::write_str_raw("paging: probe missed\n");
+        }
         // Serial proof for qemu-smoke (FR-08): one CNTP tick, then remask
         // so the M3/M4 probes are not interrupted.
         if !timer::observe_ticks(1) {

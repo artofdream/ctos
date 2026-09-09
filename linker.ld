@@ -47,4 +47,9 @@ SECTIONS
     __fatal_stack_bottom = .;
     . += 8K;
     __fatal_stack_top = .;
+
+    /* First allocatable frame is the next 4 KiB after image + stacks.
+       QEMU virt DTB sits at RAM base (0x40000000), below this image. */
+    . = ALIGN(4096);
+    __kernel_end = .;
 }

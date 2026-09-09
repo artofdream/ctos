@@ -29,6 +29,8 @@ def main() -> int:
         "virt",
         "-cpu",
         "cortex-a57",
+        "-m",
+        "128M",
         "-display",
         "none",
         "-serial",

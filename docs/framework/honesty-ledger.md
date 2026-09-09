@@ -37,6 +37,10 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | qemu-smoke requires UART RX string | `scripts/qemu-smoke.sh` hello phase greps `input: rx 0x41` and rejects `input: rx missed` | Verified | 2026-09-09 cloud: `qemu-smoke: UART RX string present`. Extends the M5 sensor (FR-08 input / NFR-04). |
 | Empty RX FIFO under `cargo test` (M6) | `#[test_case] uart_rx_fifo_empty_without_host_byte` | Verified | 2026-09-09 cloud: `cargo test` `Running 10 tests` all `[ok]`. Character proof is the serial row. |
 | CI on GitHub (M6 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m6-uart-rx-input-7ef6` | Unknown | No green GHA URL on the cloud-probe commit yet. |
+| EL1 identity map + MMU on (M7 / FR-09) | Hello-kernel serial `paging: ok` via `scripts/qemu-smoke.sh`; `#[test_case]` `mmu_is_enabled` | Unknown | Not probed on this revision yet. Identity 1 GiB blocks ([ADR-008](../03-adr/ADR-008-identity-map-frame-allocator.md)). Not a DTB walk. |
+| Frame alloc + map/unmap window (M7 / FR-09) | `#[test_case]` `frame_alloc_aligned_and_distinct` + `map_unmap_roundtrip`; serial marker from `paging::observe_probe` | Unknown | Not probed on this revision yet. |
+| qemu-smoke requires paging string | `scripts/qemu-smoke.sh` hello phase greps `paging: ok` and rejects `paging: probe missed` | Unknown | Sensor added; not run on this revision yet. |
+| CI on GitHub (M7 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m7-paging-frame-allocator-b567` | Unknown | No run URL yet. |
 
 ## How to update
 
