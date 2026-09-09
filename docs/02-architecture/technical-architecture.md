@@ -35,7 +35,7 @@ Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `sm
 | Stage | Domain work |
 | --- | --- |
 | Custom test framework | Landed (M2): `#[test_case]`, semihosting exit, UART |
-| CPU exceptions | In tree (M3): `VBAR_EL1`, resumable `BRK`, park stubs — status in the honesty ledger |
+| CPU exceptions | M3: `VBAR_EL1`, resumable `BRK`, park stubs — cloud + GHA smoke Verified (honesty ledger) |
 | Hardware interrupts | GIC, timer, later input |
 | Paging | page tables, frame allocator |
 | Heap | `alloc`, a simple allocator |

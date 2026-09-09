@@ -208,6 +208,7 @@ pub fn breakpoint() {
 fn park() -> ! {
     #[cfg(any(test, feature = "force-fail"))]
     crate::qemu::exit_failure();
+    #[cfg(not(any(test, feature = "force-fail")))]
     loop {
         unsafe {
             core::arch::asm!("wfe", options(nomem, nostack));
