@@ -34,6 +34,8 @@ struct Task {
     stack_lo: u64,
     stack_hi: u64,
     entry: Option<fn()>,
+    /// Owns the worker bytes that `sp` / `stack_lo` point into.
+    #[allow(dead_code)]
     stack: Option<Vec<u8>>,
 }
 
@@ -81,7 +83,7 @@ impl Scheduler {
             return None;
         }
         unsafe {
-            write_initial_frame(frame, task_trampoline as u64);
+            write_initial_frame(frame, task_trampoline as *const () as u64);
         }
         self.tasks[slot] = Task {
             sp: frame,
@@ -208,7 +210,8 @@ unsafe fn write_initial_frame(frame: u64, trampoline: u64) {
 extern "C" fn task_trampoline() {
     let entry = {
         let mut s = SCHED.lock();
-        s.tasks[s.current].entry.take()
+        let cur = s.current;
+        s.tasks[cur].entry.take()
     };
     if let Some(entry) = entry {
         entry();
