@@ -23,5 +23,5 @@ The ARM generic timer is already in the core (`CNTP_*_EL0` / `CNTV_*_EL0`). No e
 
 - `scripts/qemu-smoke.sh` requires `timer: tick` and rejects `timer: tick missed`, then still requires the M3/M4 strings.
 - `#[test_case]` can wait for a tick with IRQs unmasked and continue.
-- FIQ, SError, lower-EL, and unexpected IRQ IDs stay parks / raw markers. UART input is M6.
+- FIQ, SError, lower-EL, and unexpected IRQ IDs stay parks / raw markers. UART input is M6 / [ADR-007](ADR-007-pl011-uart-rx.md).
 - This ADR does not claim Raspberry Pi, GICv3, virtualization=on as the primary path, or a taken FIQ.

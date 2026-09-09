@@ -1,7 +1,7 @@
 #!/bin/sh
-# Fail-closed host smoke: build, require UART hello + timer tick + BRK
-# + fatal nested lines, then cargo test. Used by Docker and GitHub
-# Actions. Do not treat file presence as boot.
+# Fail-closed host smoke: build, require UART hello + timer tick +
+# injected UART RX + BRK + fatal nested lines, then cargo test. Used
+# by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -9,6 +9,7 @@ cd "$ROOT"
 
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
+INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
 FATAL="${CTOS_FATAL_STRING:-exception: fatal nested}"
 TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-8}"
@@ -30,15 +31,15 @@ fi
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
 
-echo "qemu-smoke: QEMU virt serial (timeout ${TIMEOUT_SECS}s)"
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "qemu-smoke: python3 not on PATH (needed to inject UART RX)" >&2
+    exit 1
+fi
+
+echo "qemu-smoke: QEMU virt serial + RX inject (timeout ${TIMEOUT_SECS}s)"
 set +e
-timeout "$TIMEOUT_SECS" qemu-system-aarch64 \
-    -machine virt \
-    -cpu cortex-a57 \
-    -display none \
-    -serial stdio \
-    -semihosting \
-    -kernel "$elf" >"$log" 2>&1
+CTOS_QEMU_TIMEOUT="$TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
+    "$elf" >"$log" 2>&1
 qemu_ec=$?
 set -e
 
@@ -59,6 +60,19 @@ if grep -q "timer: tick missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: timer tick string present"
+if ! grep -q "$INPUT" "$log"; then
+    echo "qemu-smoke: missing '$INPUT' on serial (FR-08 UART RX path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "input: rx missed" "$log"; then
+    echo "qemu-smoke: UART RX missed (injected byte did not arrive)" >&2
+    exit 1
+fi
+if grep -q "input: rx .*unexpected" "$log"; then
+    echo "qemu-smoke: UART RX byte was not the injected probe" >&2
+    exit 1
+fi
+echo "qemu-smoke: UART RX string present"
 if ! grep -q "$BRK" "$log"; then
     echo "qemu-smoke: missing '$BRK' on serial (VBAR/BRK path, qemu exit $qemu_ec)" >&2
     exit 1
