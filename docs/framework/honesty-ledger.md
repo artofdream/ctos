@@ -26,6 +26,10 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | qemu-smoke requires BRK handler string | `scripts/qemu-smoke.sh` hello phase greps `exception: sync BRK` | Verified | 2026-09-09 cloud: `qemu-smoke: BRK handler string present`. Extends the M2 sensor (FR-06 / NFR-04). |
 | Lower-EL / IRQ / FIQ / SError stubs park | Source read of vector table | Verified | Source inspection only. **Taken** lower-EL or IRQ exception: Unknown (no EL0 / GIC yet). |
 | CI on GitHub (M3 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m3-vbar-el1-exceptions-bd73` | Verified | Push [34389110709](https://github.com/artofdream/ctos/actions/runs/34389110709) success (`ubuntu-24.04` + `ubuntu-24.04-arm`). PR [34389132580](https://github.com/artofdream/ctos/actions/runs/34389132580) success. Same `qemu-smoke.sh` as the cloud probe (hello + BRK string + 4 tests + force-fail). Commit `72ecd37`. |
+| Dedicated `SP_EL1` exception stack + `SPSel=0` thread stack (M4 / FR-07) | `cargo +nightly test` `spsel_uses_thread_stack` + `stacks_are_distinct_and_aligned` | Unknown | Source on this branch. Probe after qemu-smoke / `cargo test` on this cloud VM. |
+| Nested current-EL exception uses fatal stack and is observable (M4 / FR-07) | Hello-kernel serial `exception: fatal nested` via `scripts/qemu-smoke.sh` | Unknown | Deliberate nested `BRK` after a near-empty thread SP ([ADR-005](../03-adr/ADR-005-fatal-exception-stack.md)). Not an MMU overflow fault. Not GIC (M5). |
+| qemu-smoke requires fatal nested string | `scripts/qemu-smoke.sh` hello phase greps `exception: fatal nested` and rejects `fatal probe missed` | Unknown | Extends the M3 sensor (FR-07 / NFR-04). |
+| CI on GitHub (M4 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m4-fatal-exception-stack-c8b7` | Unknown | Not probed until a GHA run on this branch. |
 
 ## How to update
 

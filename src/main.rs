@@ -53,11 +53,8 @@ pub extern "C" fn kernel_main() -> ! {
     {
         // Serial proof for qemu-smoke (FR-06): handler must print and return.
         exception::breakpoint();
-        loop {
-            unsafe {
-                core::arch::asm!("wfe", options(nomem, nostack));
-            }
-        }
+        // FR-07: near-empty thread SP + nested BRK → fatal stack + marker.
+        exception::trigger_fatal_nested();
     }
 }
 
