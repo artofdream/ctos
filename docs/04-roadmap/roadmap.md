@@ -14,7 +14,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M6 | Input | Injected PL011 RX byte observable on serial (or test) | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
 | M7 | Paging + frame allocator | Map/unmap or allocator test | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
-| M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
+| M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Planned |
 
 M0–M7 are on `main` (M7 = merge of PR #12 / FR-09). This PR is **M8 only** (first-fit `GlobalAlloc` on identity-mapped frames, FR-10 / [ADR-009](../03-adr/ADR-009-first-fit-heap.md)). The scheduler is a later PR (roadmap **M9**). Merge is still a human/MRC job (ADR-002).
