@@ -68,14 +68,17 @@ impl Heap {
         self.base != 0
     }
 
-    fn header_pad(align: usize) -> usize {
-        align_up(HEADER_SIZE, align.max(ALIGN))
+    /// Distance from this free-block start to an `align`-aligned payload.
+    /// Must use `h`, not a fixed pad: leftover nodes sit at `h + need` of a
+    /// prior split and need not be aligned to a later `layout.align()`.
+    fn header_pad(h: usize, align: usize) -> usize {
+        align_up(h + HEADER_SIZE, align.max(ALIGN)) - h
     }
 
-    fn need(layout: Layout) -> (usize, usize) {
+    fn need(h: usize, layout: Layout) -> (usize, usize) {
         let align = layout.align().max(ALIGN);
         let payload = align_up(layout.size().max(1), align);
-        let pad = Self::header_pad(align);
+        let pad = Self::header_pad(h, align);
         (pad + payload, pad)
     }
 
@@ -83,13 +86,13 @@ impl Heap {
         if !self.ready() {
             return ptr::null_mut();
         }
-        let (need, pad) = Self::need(layout);
         let mut prev: Option<NonNull<Header>> = None;
         let mut cur = self.free;
         while let Some(node) = cur {
             let h = node.as_ptr();
             let size = unsafe { (*h).size };
             let next = unsafe { (*h).next };
+            let (need, pad) = Self::need(h as usize, layout);
             if size >= need {
                 let leftover = size - need;
                 if leftover >= HEADER_SIZE + ALIGN {
@@ -109,7 +112,12 @@ impl Heap {
                     }
                     self.unlink(prev, next);
                 }
-                return (h as usize + pad) as *mut u8;
+                let payload = h as usize + pad;
+                // `pad` depends on `h`; stash it so dealloc can recover the header.
+                unsafe {
+                    ((payload - core::mem::size_of::<usize>()) as *mut usize).write(pad);
+                }
+                return payload as *mut u8;
             }
             prev = Some(node);
             cur = next;
@@ -124,11 +132,13 @@ impl Heap {
         }
     }
 
-    fn dealloc(&mut self, payload: *mut u8, layout: Layout) {
+    fn dealloc(&mut self, payload: *mut u8, _layout: Layout) {
         if payload.is_null() || !self.ready() {
             return;
         }
-        let (_, pad) = Self::need(layout);
+        let pad = unsafe {
+            ((payload as usize).wrapping_sub(core::mem::size_of::<usize>()) as *const usize).read()
+        };
         let h = (payload as usize).wrapping_sub(pad) as *mut Header;
         let addr = h as usize;
         if addr < self.base || addr >= self.end {
@@ -309,4 +319,29 @@ fn vec_grows() {
     let addr = v.as_ptr() as u64;
     assert!(addr >= heap_base());
     assert!(addr < heap_end());
+}
+
+/// Split leftover is 16-aligned, not 32. `GlobalAlloc` still owes `align`.
+#[cfg(test)]
+#[test_case]
+fn alloc_honors_align_after_split() {
+    let small = Layout::from_size_align(24, 16).unwrap();
+    let p1 = unsafe { ALLOCATOR.alloc(small) };
+    assert!(!p1.is_null());
+
+    let a32 = Layout::from_size_align(8, 32).unwrap();
+    let p2 = unsafe { ALLOCATOR.alloc(a32) };
+    assert!(!p2.is_null());
+    assert_eq!(p2 as usize & 31, 0);
+
+    let a64 = Layout::from_size_align(8, 64).unwrap();
+    let p3 = unsafe { ALLOCATOR.alloc(a64) };
+    assert!(!p3.is_null());
+    assert_eq!(p3 as usize & 63, 0);
+
+    unsafe {
+        ALLOCATOR.dealloc(p3, a64);
+        ALLOCATOR.dealloc(p2, a32);
+        ALLOCATOR.dealloc(p1, small);
+    }
 }
