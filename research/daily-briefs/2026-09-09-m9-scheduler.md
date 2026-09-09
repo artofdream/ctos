@@ -8,12 +8,12 @@ Preemption / SMP / EL0 are not this PR.
 
 Cloud `scripts/qemu-smoke.sh` **Verified** (2026-09-09, QEMU 8.2.2): `Hello World!`, `paging: ok`, `heap: ok`, `sched: task a`, `sched: task b`, `sched: ok`, `timer: tick`, `input: rx 0x41`, two `exception: sync BRK`, `exception: fatal nested` / `kind=0x200`, `Running 19 tests` all `[ok]`, force-fail exit 1.
 
-GHA `smoke.yml`: **Unknown** until a run URL on the cloud-probe commit.
+GHA `smoke.yml` **Verified** on the cloud-probe commit `88a9305`: push [34395786658](https://github.com/artofdream/ctos/actions/runs/34395786658) and PR [34395791288](https://github.com/artofdream/ctos/actions/runs/34395791288) (`ubuntu-24.04-arm` + `ubuntu-24.04`).
 
 ## Do next
 
-1. Wait for GHA; record Verified or leave Unknown.
-2. Human or MRC review. Author does not merge (ADR-002).
+1. Human or MRC review. Author does not merge (ADR-002).
+2. Bugbot on this SHA was still in progress when GHA went green — wait until resolved-or-declined before merge.
 
 ## Honesty
 
