@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
-# two-task sched + timer tick + injected UART RX + BRK + fatal nested
-# lines, then cargo test.
+# two-task sched + CNTPCT baseline + timer tick + injected UART RX +
+# BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -14,6 +14,7 @@ HEAP="${CTOS_HEAP_STRING:-heap: ok}"
 SCHED="${CTOS_SCHED_STRING:-sched: ok}"
 SCHED_A="${CTOS_SCHED_A_STRING:-sched: task a}"
 SCHED_B="${CTOS_SCHED_B_STRING:-sched: task b}"
+PERF="${CTOS_PERF_STRING:-perf: cntpct}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
@@ -92,6 +93,15 @@ if grep -q "sched: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: scheduler strings present"
+if ! grep -q "$PERF" "$log"; then
+    echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "perf: probe missed" "$log"; then
+    echo "qemu-smoke: perf probe missed (CNTPCT loop did not advance)" >&2
+    exit 1
+fi
+echo "qemu-smoke: CNTPCT perf string present"
 if ! grep -q "$TICK" "$log"; then
     echo "qemu-smoke: missing '$TICK' on serial (FR-08 timer path, qemu exit $qemu_ec)" >&2
     exit 1

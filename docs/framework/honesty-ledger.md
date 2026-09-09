@@ -47,6 +47,11 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Cooperative two-task yield (M9 / FR-11) | Hello-kernel serial `sched: task a` / `sched: task b` / `sched: ok` via `scripts/qemu-smoke.sh`; `#[test_case]` `two_tasks_run_on_distinct_heap_stacks` + `yield_round_robin_resumes_both` | Verified | 2026-09-09 cloud (QEMU 8.2.2, `rustc` 1.100.0-nightly `4aa1fbcf4`): after `heap: ok`, serial `sched: task a`, `sched: task b`, `sched: ok`, then M5/M6/M3/M4 markers. `cargo test` `Running 19 tests` all `[ok]`. Cooperative EL1 yield ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md)). Not preemptive. Not SMP. |
 | qemu-smoke requires scheduler strings | `scripts/qemu-smoke.sh` hello phase greps `sched: ok` and both task markers; rejects `sched: probe missed` | Verified | 2026-09-09 cloud: `qemu-smoke: scheduler strings present`. Extends the M8 sensor (FR-11 / NFR-04). |
 | CI on GitHub (M9 PR / this branch) | `.github/workflows/smoke.yml` on `cursor/m9-cooperative-scheduler-7da9` | Unknown | No green GHA URL on the cloud-probe commit yet. |
+| Three pillars accepted (ADR-011); NFR-05 / NFR-07 / NFR-10 text revised in place | Read [ADR-011](../03-adr/ADR-011-three-pillars.md) and [fr-nfr.md](../02-requirements/fr-nfr.md); IDs still `NFR-05`/`NFR-07`/`NFR-10` | Verified | Document inspection. Not a kernel boot claim. |
+| Threat-model stub exists (NFR-10) | Read [security.md](security.md) | Verified | Stub file present. **Complete threat model:** Planned. **“Secure OS”:** unclaimed. |
+| W^X / NX heap + stacks | Page-table flags or execute-from-heap fault under QEMU | Planned | Identity L1 RAM block (`0x4000_0000`–`0x7FFF_FFFF`) is executable. Heap and coop stacks live there. Device MMIO L1 is already XN. |
+| Baseline CNTPCT loop probe (NFR-07) | Hello-kernel serial `perf: cntpct` via `scripts/qemu-smoke.sh` and/or `#[test_case]` | Unknown | Source on this branch (`src/perf.rs`). Status stays Unknown until this environment runs the probe. Not a published bench. |
+| CI on GitHub (pillars PR / this branch) | `.github/workflows/smoke.yml` on `cursor/pillars-adr-011-325f` | Unknown | No green GHA URL on this revision yet. |
 
 ## How to update
 
