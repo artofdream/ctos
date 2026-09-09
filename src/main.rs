@@ -13,6 +13,7 @@ mod gic;
 mod heap;
 mod paging;
 mod qemu;
+mod sched;
 mod timer;
 mod uart;
 
@@ -49,6 +50,7 @@ pub extern "C" fn kernel_main() -> ! {
     frame::init();
     paging::init();
     heap::init();
+    sched::init();
     gic::init();
     timer::init();
     println!("Hello World!");
@@ -71,6 +73,10 @@ pub extern "C" fn kernel_main() -> ! {
         // Serial proof for qemu-smoke (FR-10 / M8): Box + Vec on the heap.
         if !heap::observe_probe() {
             uart::write_str_raw("heap: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (FR-11 / M9): two cooperative tasks.
+        if !sched::observe_probe() {
+            uart::write_str_raw("sched: probe missed\n");
         }
         // Serial proof for qemu-smoke (FR-08): one CNTP tick, then remask
         // so the M3/M4 probes are not interrupted.
