@@ -27,7 +27,7 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | --- | --- | --- | --- |
 | P-SEC-1 | Threat-model stub (NFR-10) | Read [security.md](../framework/security.md); no “secure OS” claim | Stub in this PR (file read). Complete model **Planned**. |
 | P-SEC-2 | W^X / NX heap + stacks | Page-table flags NX on the heap/stack region, or an execute-from-heap fault probe | **Planned.** Current identity L1 RAM block is executable ([ADR-008](../03-adr/ADR-008-identity-map-frame-allocator.md)). Needs an L2/L3 split. |
-| P-PERF-1 | Baseline CNTPCT probe (NFR-07) | Serial `perf: cntpct` and/or `#[test_case]`; not a published bench | This PR if the small ratchet lands and a QEMU probe is recorded. Otherwise **Planned**. |
+| P-PERF-1 | Baseline CNTPCT probe (NFR-07) | Serial `perf: cntpct` and/or `#[test_case]`; not a published bench | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on the cloud-probe commit (see honesty ledger). |
 | P-SEC-3 | EL0 isolation | Later ADR + probe that a lower-EL map cannot execute kernel data | **Planned** (vision Out until then). |
 
 Hub: [pillars.md](../framework/pillars.md).
