@@ -34,7 +34,8 @@ struct FrameAlloc {
 
 static ALLOC: Mutex<Option<FrameAlloc>> = Mutex::new(None);
 
-fn kernel_end() -> u64 {
+/// First byte after the image + linker stacks. Frame pool starts here.
+pub fn kernel_end() -> u64 {
     core::ptr::addr_of!(__kernel_end) as usize as u64
 }
 

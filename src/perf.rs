@@ -1,8 +1,9 @@
-//! Baseline CNTPCT probe (NFR-07 / ADR-011).
+//! CNTPCT probes (NFR-07 / ADR-011): loop baseline + IRQ-to-handler delta.
 //!
-//! Proves the EL1 physical counter is readable and advances across a
-//! fixed trivial loop. Not a published bench, not interrupt latency,
-//! not a comparison to other kernels. See `docs/framework/performance.md`.
+//! The loop probe proves the physical counter is readable and advances.
+//! The IRQ probe records CNTPCT−CVAL when the timer handler runs (min /
+//! max / spread). Neither is a published bench or a latency budget.
+//! See `docs/framework/performance.md`.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -42,6 +43,24 @@ fn loop_delta() -> Option<u64> {
     } else {
         Some(delta)
     }
+}
+
+/// Serial proof: IRQ-to-handler CNTPCT−CVAL min/max/spread after ticks.
+///
+/// Call after `timer::observe_ticks` so samples already exist. Does not
+/// start a second IRQ window (the timer is stopped after observe).
+#[allow(dead_code)] // hello kernel only; cargo test uses the timer case.
+pub fn observe_irq_delta() -> bool {
+    let Some((min, max, n)) = timer::irq_delta_stats() else {
+        return false;
+    };
+    if n == 0 || max < min {
+        return false;
+    }
+    let spread = max - min;
+    let mut w = uart::raw();
+    let _ = writeln!(w, "perf: irq-delta min={min} max={max} spread={spread} n={n}");
+    true
 }
 
 #[cfg(test)]

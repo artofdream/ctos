@@ -9,7 +9,7 @@ In Obsidian: **Open folder as vault**, then pick either:
 - the repo root (`ctos`) — sees `research/`, `docs/`, `AGENTS.md`
 - `ctos/research` — second-brain notes only
 
-Both are valid. The four vaults live in git either way; see [README.md](README.md).
+Both are valid. The four vaults live in git either way; see [README.md](README.md). Step-by-step: [obsidian-checklist.md](obsidian-checklist.md).
 
 ## Why `.obsidian/` is gitignored
 

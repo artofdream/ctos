@@ -7,6 +7,7 @@
 
 extern crate alloc;
 
+mod el0;
 mod exception;
 mod frame;
 mod gic;
@@ -17,6 +18,7 @@ mod qemu;
 mod sched;
 mod timer;
 mod uart;
+mod wx;
 
 use core::arch::global_asm;
 use core::panic::PanicInfo;
@@ -79,14 +81,22 @@ pub extern "C" fn kernel_main() -> ! {
         if !sched::observe_probe() {
             uart::write_str_raw("sched: probe missed\n");
         }
+        // Serial proof for qemu-smoke (NFR-10 / ADR-012): heap PXN + IABORT.
+        if !wx::observe_probe() {
+            uart::write_str_raw("wx: probe missed\n");
+        }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
         if !perf::observe_probe() {
             uart::write_str_raw("perf: probe missed\n");
         }
-        // Serial proof for qemu-smoke (FR-08): one CNTP tick, then remask
-        // so the M3/M4 probes are not interrupted.
-        if !timer::observe_ticks(1) {
+        // Serial proof for qemu-smoke (FR-08): several CNTP ticks, then remask
+        // so the M3/M4 probes are not interrupted. First tick still prints
+        // `timer: tick`. Samples feed the IRQ-to-handler CNTPCT probe.
+        if !timer::observe_ticks(8) {
             uart::write_str_raw("timer: tick missed\n");
+        }
+        if !perf::observe_irq_delta() {
+            uart::write_str_raw("perf: irq-delta missed\n");
         }
         // Serial proof for qemu-smoke (FR-08 input / M6): host-injected RX.
         // QEMU 8.2 has no PL011 LBE; scripts/qemu-smoke.sh writes PROBE_BYTE

@@ -35,7 +35,7 @@ This ADR does **not** clone florist / AEA vocabulary. The three pillars are ctos
 
 4. **One small code ratchet may land with this docs PR.** This change lands a baseline `CNTPCT` loop delta (serial `perf: cntpct` + `#[test_case]`). It does **not** split the L1 RAM block to fake W^X. Honesty over heroics.
 
-5. **Post-M9 work is a pillars section**, not a second bring-up stack on an open PR. Threat-model v1, W^X / NX heap+stacks, and further perf probes each get their own loop unit after this ADR.
+5. **Post-M9 work is a pillars section**, not a second bring-up stack on an open PR. Threat-model v1, W^X / NX heap+stacks, and further perf probes were listed as later loop units. The sponsor later asked for one coherent follow-up ([ADR-012](ADR-012-wx-nx-heap-stacks.md), [ADR-013](ADR-013-el0-isolation-direction.md), irq-delta) rather than conflicting parallel branches.
 
 ## Consequences
 
