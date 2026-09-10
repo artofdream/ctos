@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
-# two-task sched + CNTPCT baseline + timer tick + injected UART RX +
-# BRK + fatal nested lines, then cargo test.
+# two-task sched + W^X + CNTPCT baseline + IRQ-to-handler delta +
+# timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -15,6 +15,8 @@ SCHED="${CTOS_SCHED_STRING:-sched: ok}"
 SCHED_A="${CTOS_SCHED_A_STRING:-sched: task a}"
 SCHED_B="${CTOS_SCHED_B_STRING:-sched: task b}"
 PERF="${CTOS_PERF_STRING:-perf: cntpct}"
+IRQDELTA="${CTOS_IRQDELTA_STRING:-perf: irq-delta}"
+WX="${CTOS_WX_STRING:-wx: ok}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
@@ -93,6 +95,15 @@ if grep -q "sched: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: scheduler strings present"
+if ! grep -q "$WX" "$log"; then
+    echo "qemu-smoke: missing '$WX' on serial (NFR-10 W^X path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "wx: probe missed" "$log"; then
+    echo "qemu-smoke: wx probe missed (heap PXN / execute-from-heap did not run)" >&2
+    exit 1
+fi
+echo "qemu-smoke: W^X string present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1
@@ -102,6 +113,15 @@ if grep -q "perf: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: CNTPCT perf string present"
+if ! grep -q "$IRQDELTA" "$log"; then
+    echo "qemu-smoke: missing '$IRQDELTA' on serial (NFR-07 IRQ-delta path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "perf: irq-delta missed" "$log"; then
+    echo "qemu-smoke: irq-delta probe missed (no CNTPCT−CVAL samples)" >&2
+    exit 1
+fi
+echo "qemu-smoke: IRQ-delta perf string present"
 if ! grep -q "$TICK" "$log"; then
     echo "qemu-smoke: missing '$TICK' on serial (FR-08 timer path, qemu exit $qemu_ec)" >&2
     exit 1

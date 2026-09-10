@@ -17,9 +17,17 @@ Performance is a first-class pillar, not a Later learning-only note. That does *
 
 That probe proves the physical counter is readable and moves. It does **not** claim a microsecond budget, interrupt latency, or a comparison to other kernels.
 
+## IRQ-to-handler probe (this tree)
+
+When CNTP fires, the handler records `CNTPCT − CNTP_CVAL` before rearm. After several ticks the hello kernel prints:
+
+- Serial marker `perf: irq-delta min=<a> max=<b> spread=<b-a> n=<n>` (fail closed on `perf: irq-delta missed`).
+- `#[test_case]` asserts samples exist and `max >= min`.
+
+That is a **spread of IRQ-to-handler counter deltas on this QEMU virt guest**. It is not a latency budget, not “faster than X,” and not a published bench. QEMU TCG jitter is one environment.
+
 ## Later probes (Planned)
 
-- Timer-tick jitter (spread of CNTPCT deltas between CNTP firings).
 - Debug image size / boot time (NFR-08) once someone actually measures them.
 
 Do not add a host `criterion` crate or a “bench.yml” that prints invented numbers.

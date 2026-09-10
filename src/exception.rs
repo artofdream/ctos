@@ -11,11 +11,13 @@
 //! drops `SP_EL0` near the thread-stack floor and fires another `BRK` so
 //! the first-level handler can nest — serial proof for FR-07.
 //!
-//! M7 identity-maps virt RAM as a 1 GiB Normal block, so a downward
-//! stack overflow is still not a hardware fault — it would smash BSS.
-//! Dedicated stacks remain the mitigation. The probe is a nested `BRK`
-//! after a near-empty thread SP — honest for virt, not an MMU guard-page
-//! claim. Context format and EL choice: ADR-004, ADR-005.
+//! M7/ADR-012 identity-maps virt RAM with kernel-image pages executable
+//! and `__kernel_end`…RAM-end PXN. A downward overflow of the *linker*
+//! thread stack is still not a translation fault (those stacks sit in
+//! the executable image). Dedicated stacks remain the mitigation. The
+//! probe is a nested `BRK` after a near-empty thread SP — honest for
+//! virt, not an MMU guard-page claim. Context format and EL choice:
+//! ADR-004, ADR-005. Execute-from-heap is caught here (ESR IABORT).
 
 use core::arch::global_asm;
 use core::fmt::Write;
@@ -26,9 +28,16 @@ use crate::uart;
 
 /// ESR_EL1.EC: BRK instruction in AArch64 state (ARM ARM).
 const ESR_EC_BRK_A64: u64 = 0x3C;
+/// Instruction Abort, same exception level (PXN / translation).
+const ESR_EC_IABORT_CURRENT: u64 = 0x21;
+const ESR_IFSC_PERM_L1: u64 = 0x0D;
+const ESR_IFSC_PERM_L2: u64 = 0x0E;
+const ESR_IFSC_PERM_L3: u64 = 0x0F;
 
 static BRK_COUNT: AtomicU64 = AtomicU64::new(0);
 static NEST_FATAL: AtomicBool = AtomicBool::new(false);
+static EXPECT_NX: AtomicBool = AtomicBool::new(false);
+static NX_CAUGHT: AtomicBool = AtomicBool::new(false);
 
 /// GPR + exception-register frame for the first-level current-EL sync path.
 /// Layout must match `sync_current_el` in the vector asm.
@@ -343,6 +352,25 @@ pub fn brk_count() -> u64 {
     BRK_COUNT.load(Ordering::SeqCst)
 }
 
+/// Arm the W^X probe: the next current-EL permission IABORT resumes at LR.
+pub fn arm_nx_probe() {
+    NX_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_NX.store(true, Ordering::SeqCst);
+}
+
+/// True if a permission IABORT was taken while the W^X probe was armed.
+pub fn nx_probe_caught() -> bool {
+    EXPECT_NX.store(false, Ordering::SeqCst);
+    NX_CAUGHT.load(Ordering::SeqCst)
+}
+
+fn is_perm_iabort(esr: u64) -> bool {
+    let ec = (esr >> 26) & 0x3f;
+    let ifsc = esr & 0x3f;
+    ec == ESR_EC_IABORT_CURRENT
+        && (ifsc == ESR_IFSC_PERM_L1 || ifsc == ESR_IFSC_PERM_L2 || ifsc == ESR_IFSC_PERM_L3)
+}
+
 /// Execute `BRK #0`. The first-level current-EL sync handler skips the instruction.
 pub fn breakpoint() {
     unsafe {
@@ -419,6 +447,13 @@ pub fn init() {
 
 #[no_mangle]
 pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
+    if is_perm_iabort(ctx.esr) && EXPECT_NX.swap(false, Ordering::SeqCst) {
+        NX_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("wx: nx heap\n");
+        // Resume as if the `blr` to the NX payload returned.
+        ctx.elr = ctx.lr;
+        return;
+    }
     let ec = (ctx.esr >> 26) & 0x3f;
     if ec == ESR_EC_BRK_A64 {
         BRK_COUNT.fetch_add(1, Ordering::SeqCst);

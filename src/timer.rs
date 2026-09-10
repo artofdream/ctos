@@ -22,6 +22,11 @@ const INTERVAL_MIN: u64 = 1000;
 static TICKS: AtomicU64 = AtomicU64::new(0);
 static INTERVAL: AtomicU64 = AtomicU64::new(INTERVAL_MIN);
 
+/// IRQ-to-handler CNTPCT−CVAL samples (NFR-07). Not a latency budget.
+const IRQ_DELTA_CAP: usize = 16;
+static IRQ_DELTAS: [AtomicU64; IRQ_DELTA_CAP] = [const { AtomicU64::new(0) }; IRQ_DELTA_CAP];
+static IRQ_DELTA_N: AtomicU64 = AtomicU64::new(0);
+
 fn cntfrq() -> u64 {
     let freq: u64;
     unsafe {
@@ -59,6 +64,45 @@ fn write_tval(value: u64) {
     }
 }
 
+fn cntp_cval() -> u64 {
+    let v: u64;
+    unsafe {
+        core::arch::asm!("mrs {v}, cntp_cval_el0", v = out(reg) v);
+    }
+    v
+}
+
+fn reset_irq_deltas() {
+    IRQ_DELTA_N.store(0, Ordering::SeqCst);
+    for d in IRQ_DELTAS.iter() {
+        d.store(0, Ordering::SeqCst);
+    }
+}
+
+fn record_irq_delta(delta: u64) {
+    let n = IRQ_DELTA_N.fetch_add(1, Ordering::SeqCst);
+    if (n as usize) < IRQ_DELTA_CAP {
+        IRQ_DELTAS[n as usize].store(delta, Ordering::SeqCst);
+    }
+}
+
+/// `(min, max, n)` of CNTPCT−CVAL samples captured in `on_interrupt`.
+#[allow(dead_code)] // hello perf probe + `#[test_case]`.
+pub fn irq_delta_stats() -> Option<(u64, u64, u64)> {
+    let n = IRQ_DELTA_N.load(Ordering::SeqCst).min(IRQ_DELTA_CAP as u64);
+    if n == 0 {
+        return None;
+    }
+    let mut min = u64::MAX;
+    let mut max = 0u64;
+    for i in 0..n as usize {
+        let d = IRQ_DELTAS[i].load(Ordering::SeqCst);
+        min = min.min(d);
+        max = max.max(d);
+    }
+    Some((min, max, n))
+}
+
 fn interval() -> u64 {
     INTERVAL.load(Ordering::Relaxed)
 }
@@ -87,7 +131,12 @@ pub fn tick_count() -> u64 {
 }
 
 /// Rearm and count. First tick is the serial marker for qemu-smoke.
+/// Records CNTPCT−CVAL before rearm (IRQ-to-handler delta).
 pub fn on_interrupt() {
+    let now = cntpct();
+    let cval = cntp_cval();
+    let delta = if now >= cval { now - cval } else { 0 };
+    record_irq_delta(delta);
     write_tval(interval());
     let n = TICKS.fetch_add(1, Ordering::SeqCst);
     if n == 0 {
@@ -97,6 +146,10 @@ pub fn on_interrupt() {
 
 /// Unmask IRQs until `n` ticks arrive or the physical counter times out.
 pub fn observe_ticks(n: u64) -> bool {
+    reset_irq_deltas();
+    write_ctl(0);
+    write_tval(interval());
+    write_ctl(1);
     let start = tick_count();
     let freq = cntfrq();
     let timeout = if freq == 0 {
@@ -138,4 +191,13 @@ fn timer_tick_is_observable() {
     let before = tick_count();
     assert!(observe_ticks(1), "CNTP PPI 30 did not fire");
     assert!(tick_count() > before);
+}
+
+#[cfg(test)]
+#[test_case]
+fn irq_delta_samples_recorded() {
+    assert!(observe_ticks(4), "need several CNTP firings for irq-delta");
+    let (min, max, n) = irq_delta_stats().expect("no IRQ-to-handler samples");
+    assert!(n >= 4, "expected at least 4 samples, got {n}");
+    assert!(max >= min);
 }

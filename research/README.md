@@ -24,5 +24,6 @@ Correction/Relationship notes (what to look for and against — not a status led
 Git remains the source of truth. Obsidian is an optional local UI over the same markdown — not required for agents or CI.
 
 - How to open the folder as a vault: [obsidian.md](obsidian.md)
+- One-page open-vault checklist: [obsidian-checklist.md](obsidian-checklist.md)
 - Fleeting captures awaiting triage: [inbox/](inbox/)
 

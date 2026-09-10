@@ -1,11 +1,15 @@
-//! Identity map + EL1 MMU + 4 KiB map/unmap window (FR-09 / M7).
+//! Identity map + EL1 MMU + 4 KiB map/unmap window (FR-09 / M7)
+//! and W^X split for heap / frame-pool RAM (NFR-10 / ADR-012).
 //!
 //! After `exception::init` the CPU is at EL1. This module installs a
-//! 39-bit / 4 KiB / three-level TTBR0 table: 1 GiB L1 blocks for MMIO
-//! (Device-nGnRnE) and virt RAM (Normal WB), plus one L2/L3 window at
-//! `MAP_WINDOW` for a single-page map/unmap probe. See ADR-008.
+//! 39-bit / 4 KiB / three-level TTBR0 table: a 1 GiB L1 Device-nGnRnE + XN
+//! block for MMIO, an L2 (and one straddling L3) identity of virt RAM so
+//! kernel-image pages stay executable while `__kernel_end`…RAM-end is PXN,
+//! plus one L2/L3 window at `MAP_WINDOW` for a single-page map/unmap probe.
+//! See ADR-008 and ADR-012.
 //!
 //! Heap `GlobalAlloc` is `src/heap.rs` (M8). Not a DTB walker. Not Raspberry Pi.
+//! Linker SP_EL0 / SP_EL1 / fatal stacks stay in the executable image.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -16,8 +20,11 @@ use crate::uart;
 
 /// Dedicated VA window for 4 KiB map/unmap. Third GiB — not identity RAM.
 pub const MAP_WINDOW: u64 = 0x8000_0000;
+/// Linker / `-kernel` TEXT_OFFSET on virt (`0x4008_0000`).
+pub const KERNEL_TEXT: u64 = 0x4008_0000;
 const WINDOW_PAGES: u64 = 512;
 const PAGE: u64 = 4096;
+const L2_BLOCK: u64 = 1 << 21;
 
 const DESC_VALID: u64 = 1 << 0;
 const DESC_TABLE: u64 = 1 << 1;
@@ -57,6 +64,10 @@ struct Table {
 static mut L1: Table = Table { entries: [0; 512] };
 static mut L2: Table = Table { entries: [0; 512] };
 static mut L3: Table = Table { entries: [0; 512] };
+/// L2 for the RAM GiB (`0x4000_0000`). Replaces the M7 executable L1 block.
+static mut L2_RAM: Table = Table { entries: [0; 512] };
+/// L3 for the single 2 MiB that straddles `__kernel_end` (X vs PXN).
+static mut L3_RAM: Table = Table { entries: [0; 512] };
 static TABLES: Mutex<()> = Mutex::new(());
 
 fn l1_pa() -> u64 {
@@ -71,6 +82,14 @@ fn l3_pa() -> u64 {
     addr_of!(L3) as usize as u64
 }
 
+fn l2_ram_pa() -> u64 {
+    addr_of!(L2_RAM) as usize as u64
+}
+
+fn l3_ram_pa() -> u64 {
+    addr_of!(L3_RAM) as usize as u64
+}
+
 unsafe fn l1_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L1.entries).cast::<u64>().add(i)
 }
@@ -81,6 +100,14 @@ unsafe fn l2_slot(i: usize) -> *mut u64 {
 
 unsafe fn l3_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L3.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l2_ram_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L2_RAM.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l3_ram_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L3_RAM.entries).cast::<u64>().add(i)
 }
 
 fn l1_block(pa: u64, attr: u64, exec: bool) -> u64 {
@@ -100,13 +127,102 @@ fn table_desc(pa: u64) -> u64 {
     (pa & !0xfff) | DESC_VALID | DESC_TABLE
 }
 
-fn l3_page(pa: u64) -> u64 {
-    (pa & !0xfff)
+/// 2 MiB L2 Normal block. `exec` clears PXN so EL1 can fetch (kernel image).
+fn l2_block(pa: u64, exec: bool) -> u64 {
+    let mut d = (pa & !(L2_BLOCK - 1))
+        | DESC_VALID
+        | (ATTR_NORMAL << 2)
+        | DESC_AF
+        | DESC_SH_INNER
+        | DESC_UXN;
+    if !exec {
+        d |= DESC_PXN;
+    }
+    d
+}
+
+fn l3_page_flags(pa: u64, exec: bool) -> u64 {
+    let mut d = (pa & !0xfff)
         | DESC_VALID
         | DESC_TABLE
         | (ATTR_NORMAL << 2)
         | DESC_SH_INNER
         | DESC_AF
+        | DESC_UXN;
+    if !exec {
+        d |= DESC_PXN;
+    }
+    d
+}
+
+/// Map-window pages are data-only (PXN). Not the heap — see `l3_page_flags`.
+fn l3_page(pa: u64) -> u64 {
+    l3_page_flags(pa, false)
+}
+
+fn align_up(addr: u64, align: u64) -> u64 {
+    (addr + align - 1) & !(align - 1)
+}
+
+unsafe fn desc_at(table_pa: u64, index: usize) -> u64 {
+    core::ptr::read((table_pa as *const u64).add(index))
+}
+
+/// Walk TTBR0. `Some(true)` = PXN set (EL1 must not execute).
+#[allow(dead_code)] // hello W^X probe + `#[test_case]`.
+pub fn pxn_for(va: u64) -> Option<bool> {
+    let _g = TABLES.lock();
+    let l1i = ((va >> 30) & 0x1ff) as usize;
+    let l1e = unsafe { l1_slot(l1i).read() };
+    if l1e & DESC_VALID == 0 {
+        return None;
+    }
+    if l1e & DESC_TABLE == 0 {
+        return Some(l1e & DESC_PXN != 0);
+    }
+    let l2e = unsafe { desc_at(l1e & !0xfff, ((va >> 21) & 0x1ff) as usize) };
+    if l2e & DESC_VALID == 0 {
+        return None;
+    }
+    if l2e & DESC_TABLE == 0 {
+        return Some(l2e & DESC_PXN != 0);
+    }
+    let l3e = unsafe { desc_at(l2e & !0xfff, ((va >> 12) & 0x1ff) as usize) };
+    if l3e & DESC_VALID == 0 {
+        return None;
+    }
+    Some(l3e & DESC_PXN != 0)
+}
+
+#[allow(dead_code)]
+pub fn is_executable(va: u64) -> bool {
+    matches!(pxn_for(va), Some(false))
+}
+
+/// Fill L2 (and one L3) so `[KERNEL_TEXT, kernel_end)` is executable and
+/// `[kernel_end, RAM end)` is PXN. Only the 128 MiB guest is mapped.
+unsafe fn fill_ram_wx() {
+    let kend = align_up(frame::kernel_end(), PAGE);
+    let ram_lo = frame::VIRT_RAM_BASE;
+    let ram_hi = ram_lo + frame::VIRT_RAM_SIZE;
+    let mut va = ram_lo;
+    while va < ram_hi {
+        let next = va + L2_BLOCK;
+        let i = ((va >> 21) & 0x1ff) as usize;
+        if next <= kend {
+            l2_ram_slot(i).write(l2_block(va, true));
+        } else if va >= kend {
+            l2_ram_slot(i).write(l2_block(va, false));
+        } else {
+            for p in 0..512 {
+                let page_va = va + p as u64 * PAGE;
+                let exec = page_va >= KERNEL_TEXT && page_va < kend;
+                l3_ram_slot(p).write(l3_page_flags(page_va, exec));
+            }
+            l2_ram_slot(i).write(table_desc(l3_ram_pa()));
+        }
+        va = next;
+    }
 }
 
 fn dsb_ish() {
@@ -160,10 +276,13 @@ pub fn init() {
         addr_of_mut!(L1.entries).write([0; 512]);
         addr_of_mut!(L2.entries).write([0; 512]);
         addr_of_mut!(L3.entries).write([0; 512]);
+        addr_of_mut!(L2_RAM.entries).write([0; 512]);
+        addr_of_mut!(L3_RAM.entries).write([0; 512]);
         // 0x0000_0000–0x3FFF_FFFF: virt MMIO (UART, GIC, flash).
         l1_slot(0).write(l1_block(0x0000_0000, ATTR_DEVICE, false));
-        // 0x4000_0000–0x7FFF_FFFF: virt RAM (kernel + frame pool).
-        l1_slot(1).write(l1_block(0x4000_0000, ATTR_NORMAL, true));
+        // 0x4000_0000–0x7FFF_FFFF: L2 RAM (kernel X, heap/frames PXN).
+        l1_slot(1).write(table_desc(l2_ram_pa()));
+        fill_ram_wx();
         // 0x8000_0000–0xBFFF_FFFF: L2/L3 window for 4 KiB maps.
         l1_slot(2).write(table_desc(l2_pa()));
         l2_slot(0).write(table_desc(l3_pa()));
@@ -337,7 +456,25 @@ fn map_unmap_roundtrip() {
         assert_eq!(core::ptr::read_volatile(pa as *const u64), PROBE_MAGIC);
     }
     assert!(l3_entry(va).unwrap() & DESC_VALID != 0);
+    assert!(l3_entry(va).unwrap() & DESC_PXN != 0, "map window must be PXN");
     assert!(unmap_page(va));
     assert_eq!(l3_entry(va), Some(0));
     frame::free(pa);
+}
+
+#[cfg(test)]
+#[test_case]
+fn kernel_text_is_executable() {
+    assert!(is_executable(KERNEL_TEXT), "kernel TEXT_OFFSET must be PXN-clear");
+    assert!(is_executable(crate::exception::vector_table_addr()));
+}
+
+#[cfg(test)]
+#[test_case]
+fn heap_and_mmio_are_pxn() {
+    assert_eq!(pxn_for(crate::heap::heap_base()), Some(true));
+    assert_eq!(pxn_for(crate::heap::heap_end() - 1), Some(true));
+    assert_eq!(pxn_for(frame::kernel_end()), Some(true));
+    // PL011 is in the Device L1 block (already XN from M7).
+    assert_eq!(pxn_for(0x0900_0000), Some(true));
 }
