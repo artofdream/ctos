@@ -61,7 +61,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | --- | --- | --- |
 | Threat-model v1 written | Read this file | Verified (file + review). Still no “secure OS”. |
 | Device MMIO XN (L1 block 0) | `pxn_for(0x0900_0000) == Some(true)` | Covered by the W^X tests when they run. |
-| Heap + coop stacks PXN | Serial `wx: ok`; `#[test_case]` flags + execute-from-heap IABORT | Verified only after QEMU. Until then Unknown. |
+| Heap + coop stacks PXN | Serial `wx: ok`; `#[test_case]` flags + execute-from-heap IABORT | Verified: 2026-09-10 cloud `qemu-smoke` (honesty ledger). |
 | Kernel text still executable | `is_executable(0x4008_0000)` | Same W^X probe. |
 | Execute-from-writable heap forbidden | Armed permission IABORT → `wx: nx heap` then `wx: ok` | Fail-closed in `scripts/qemu-smoke.sh`. |
 | Minimize `unsafe` | Review (NFR-01). Count is not a proof. | Policy. |

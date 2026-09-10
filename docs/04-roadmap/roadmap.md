@@ -26,9 +26,9 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
 | P-SEC-1 | Threat-model v1 (NFR-10) | Read [security.md](../framework/security.md); no “secure OS” claim | **Verified** (file + review). v1 replaces the ADR-011 stub. |
-| P-SEC-2 | W^X / NX heap + coop stacks | Page-table PXN on heap + caught execute-from-heap IABORT (`wx: ok`) | **Unknown** until QEMU on this revision. Map: [ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md). Linker stacks still X. |
+| P-SEC-2 | W^X / NX heap + coop stacks | Page-table PXN on heap + caught execute-from-heap IABORT (`wx: ok`) | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). Map: [ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md). Linker stacks still X. |
 | P-PERF-1 | Baseline CNTPCT probe (NFR-07) | Serial `perf: cntpct` and/or `#[test_case]`; not a published bench | Verified: 2026-09-09 cloud `qemu-smoke` + GHA (see honesty ledger). |
-| P-PERF-2 | IRQ-to-handler CNTPCT delta | Serial `perf: irq-delta` + samples `max >= min`; not a latency budget | **Unknown** until QEMU on this revision. |
+| P-PERF-2 | IRQ-to-handler CNTPCT delta | Serial `perf: irq-delta` + samples `max >= min`; not a latency budget | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). |
 | P-SEC-3 | EL0 isolation (scaffold) | Later: lower-EL cannot execute kernel data | **Planned.** Direction: [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md). Stub only. |
 
 Hub: [pillars.md](../framework/pillars.md).
