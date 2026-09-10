@@ -34,6 +34,8 @@ const DESC_TABLE: u64 = 1 << 1;
 const DESC_AF: u64 = 1 << 10;
 const DESC_SH_INNER: u64 = 0b11 << 8;
 const DESC_SH_OUTER: u64 = 0b10 << 8;
+/// AP[2:1] = 01: EL1/EL0 read-write. An EL0 instruction fetch is an unprivileged read.
+const DESC_AP_EL0: u64 = 0b01 << 6;
 const DESC_UXN: u64 = 1 << 54;
 const DESC_PXN: u64 = 1 << 53;
 
@@ -228,7 +230,7 @@ pub fn is_mapped(va: u64) -> bool {
     pxn_for(va).is_some()
 }
 
-/// EL0-executable, EL1-NX page (UXN clear, PXN set). Used for the first mile.
+/// EL0-executable, EL1-NX page (UXN clear, PXN set, AP[2:1]=01). Used for the first mile.
 fn l3_page_el0_exec(pa: u64) -> u64 {
     (pa & !0xfff)
         | DESC_VALID
@@ -237,6 +239,7 @@ fn l3_page_el0_exec(pa: u64) -> u64 {
         | DESC_SH_INNER
         | DESC_AF
         | DESC_PXN
+        | DESC_AP_EL0
 }
 
 /// Split an L2 block into L3 so a single 4 KiB slot can be invalidated.
