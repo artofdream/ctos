@@ -27,10 +27,10 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | --- | --- | --- | --- |
 | P-SEC-1 | Threat-model v1.1 slice (NFR-10) | Read [security.md](../framework/security.md); no “secure OS” claim | **Verified** (file + review). v1.1 adds linker stacks, guards, EL0 first mile, remaining W^X gaps. |
 | P-SEC-2 | W^X / NX heap + coop stacks | Page-table PXN on heap + caught execute-from-heap IABORT (`wx: ok`) | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). Map: [ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md). Linker stack **pages** still X. |
-| P-SEC-2b | Linker-stack guard pages | Unmapped 4 KiB holes; store faults (`guard: ok`) | This PR — [ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md). Status in the honesty ledger. Not kernel W^X. |
+| P-SEC-2b | Linker-stack guard pages | Unmapped 4 KiB holes; store faults (`guard: ok`) | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). [ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md). Not kernel W^X. |
 | P-PERF-1 | Baseline CNTPCT probe (NFR-07) | Serial `perf: cntpct` and/or `#[test_case]`; not a published bench | Verified: 2026-09-09 cloud `qemu-smoke` + GHA (see honesty ledger). |
 | P-PERF-2 | IRQ-to-handler CNTPCT delta | Serial `perf: irq-delta` + samples `max >= min`; not a latency budget | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). |
-| P-PERF-3 | Host debug ELF size (NFR-08) | Host marker `perf: elf-size bytes=<n>`; not a budget | This PR — status in the honesty ledger. |
-| P-SEC-3 | EL0 first mile | `el0: svc` + `el0: nx kernel` + `el0: ok` | First mile in this PR ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). Isolation (separate map / PAN / ASID) stays **Planned**. |
+| P-PERF-3 | Host debug ELF size (NFR-08) | Host marker `perf: elf-size bytes=<n>`; not a budget | **Verified:** 2026-09-10 cloud `qemu-smoke` host print (see honesty ledger). |
+| P-SEC-3 | EL0 first mile | `el0: svc` + `el0: nx kernel` + `el0: ok` | **First mile Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). Isolation (separate map / PAN / ASID) stays **Planned** ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
 
 Hub: [pillars.md](../framework/pillars.md).

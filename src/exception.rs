@@ -521,6 +521,9 @@ pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
         "str {ksp}, [{kslot}]",
         "str {cont}, [{cslot}]",
         "dsb sy",
+        // SPSel=0 makes `msr SP_EL0` UNDEF (current SP *is* SP_EL0).
+        // Switch to SP_EL1 so the user SP_EL0 write is legal, then ERET.
+        "msr spsel, #1",
         "msr elr_el1, {upc}",
         "msr spsr_el1, {spsr}",
         "msr sp_el0, {usp}",
@@ -683,12 +686,11 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         ctx.elr = ctx.lr;
         return;
     }
-    if is_trans_dabort(ctx.esr)
-        && EXPECT_GUARD.swap(false, Ordering::SeqCst)
-        && va_in_guard(far_el1())
-    {
+    if is_trans_dabort(ctx.esr) && EXPECT_GUARD.load(Ordering::SeqCst) && va_in_guard(far_el1()) {
         crate::guard::note_fault();
-        ctx.elr = ctx.lr;
+        // Skip the faulting store. Unlike the heap NX `blr`, LR is the
+        // caller — jumping there would abandon the callee stack frame.
+        ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }
     let ec = (ctx.esr >> 26) & 0x3f;

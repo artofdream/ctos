@@ -39,9 +39,15 @@ fn guards_unmapped() -> bool {
 fn store_to_thread_guard_caught() -> bool {
     FAULT_CAUGHT.store(false, Ordering::SeqCst);
     exception::arm_guard_probe();
-    let p = exception::thread_stack_guard() as *mut u64;
+    let p = black_box(exception::thread_stack_guard());
+    let val = black_box(0x4755_4152u64);
     unsafe {
-        core::ptr::write_volatile(black_box(p), black_box(0x4755_4152));
+        core::arch::asm!(
+            "str {val}, [{ptr}]",
+            ptr = in(reg) p,
+            val = in(reg) val,
+            options(nostack),
+        );
     }
     exception::disarm_guard_probe();
     FAULT_CAUGHT.load(Ordering::SeqCst)

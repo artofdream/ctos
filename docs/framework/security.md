@@ -70,13 +70,13 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Heap + coop stacks PXN | Serial `wx: ok`; `#[test_case]` flags + execute-from-heap IABORT | Verified: 2026-09-10 cloud `qemu-smoke` (honesty ledger). |
 | Kernel text still executable | `is_executable(0x4008_0000)` | Same W^X probe. |
 | Execute-from-writable heap forbidden | Armed permission IABORT → `wx: nx heap` then `wx: ok` | Fail-closed in `scripts/qemu-smoke.sh`. |
-| Linker-stack guard holes | Serial `guard: fault` / `guard: ok`; store to `__stack_guard` | This PR — status in the honesty ledger. |
+| Linker-stack guard holes | Serial `guard: fault` / `guard: ok`; store to `__stack_guard` | Verified: 2026-09-10 cloud `qemu-smoke` (honesty ledger). |
 | Minimize `unsafe` | Review (NFR-01). Count is not a proof. | Policy. |
 | Fail-closed smoke | `scripts/qemu-smoke.sh` greps + `force-fail` exit ≠ 0 | NFR-04 / NFR-05. |
 | No secrets in repo | Policy + `.gitignore` (including `.obsidian/`) | Host control. |
 | IRQ least privilege | IRQ path does not allocate or `yield_now` | Convention. Ratchet if it fails twice. |
-| EL0 entered and returned | Serial `el0: svc` / `el0: ok`; `#[test_case]` | First mile — not isolation. |
-| EL0 cannot execute kernel data | Serial `el0: nx kernel`; lower-EL UXN IABORT | First mile. Isolation (separate map) stays **Planned**. |
+| EL0 entered and returned | Serial `el0: svc` / `el0: ok`; `#[test_case]` | Verified first mile — not isolation. |
+| EL0 cannot execute kernel data | Serial `el0: nx kernel`; lower-EL UXN IABORT | Verified first mile. Isolation (separate map) stays **Planned**. |
 
 ## Claim gate
 
