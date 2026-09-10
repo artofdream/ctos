@@ -11,6 +11,7 @@ mod el0;
 mod exception;
 mod frame;
 mod gic;
+mod guard;
 mod heap;
 mod paging;
 mod perf;
@@ -84,6 +85,14 @@ pub extern "C" fn kernel_main() -> ! {
         // Serial proof for qemu-smoke (NFR-10 / ADR-012): heap PXN + IABORT.
         if !wx::observe_probe() {
             uart::write_str_raw("wx: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-10 / ADR-014): linker-stack guards.
+        if !guard::observe_probe() {
+            uart::write_str_raw("guard: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-10 / ADR-013): EL0 first mile.
+        if !el0::observe_probe() {
+            uart::write_str_raw("el0: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
         if !perf::observe_probe() {

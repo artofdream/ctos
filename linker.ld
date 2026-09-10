@@ -31,19 +31,28 @@ SECTIONS
         __bss_end = .;
     }
 
-    . = ALIGN(16);
+    /* 4 KiB unmapped holes (ADR-014). Punched after the MMU tables are
+       filled so a downward overflow becomes a translation fault. The
+       stack pages themselves stay in the executable image — not W^X. */
+    . = ALIGN(4096);
+    __stack_guard = .;
+    . += 4096;
     __stack_bottom = .;
     . += 64K;
     __stack_top = .;
 
     /* Dedicated current-EL exception stack (SP_EL1). Not the thread stack. */
-    . = ALIGN(16);
+    . = ALIGN(4096);
+    __exc_stack_guard = .;
+    . += 4096;
     __exc_stack_bottom = .;
     . += 16K;
     __exc_stack_top = .;
 
     /* Nested / fatal path only. Switched in asm before any frame stores. */
-    . = ALIGN(16);
+    . = ALIGN(4096);
+    __fatal_stack_guard = .;
+    . += 4096;
     __fatal_stack_bottom = .;
     . += 8K;
     __fatal_stack_top = .;

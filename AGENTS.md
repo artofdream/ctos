@@ -67,7 +67,7 @@ Check claims vs probes.
 - Stay on the AArch64 QEMU `virt` / PL011 path ([ADR-003](docs/03-adr/ADR-003-primary-isa-aarch64.md)). Do not restore `bootloader` 0.9 or VGA as primary.
 - Status words need a probe. File presence is not QEMU boot. File presence is not a “secure OS” or a bench.
 - Do not mint FR-16+ or NFR-15+ in chat. Frozen set is [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md). NFR-05 / NFR-07 / NFR-10 text was revised under [ADR-011](docs/03-adr/ADR-011-three-pillars.md).
-- Optimize only with a probe. Do not claim “the kernel is W^X”: heap + coop stacks may be PXN ([ADR-012](docs/03-adr/ADR-012-wx-nx-heap-stacks.md)) while linker stacks stay executable. File presence is not that probe.
+- Optimize only with a probe. Do not claim “the kernel is W^X”: heap + coop stacks may be PXN ([ADR-012](docs/03-adr/ADR-012-wx-nx-heap-stacks.md)) while linker stack **pages** stay executable. Guard holes are [ADR-014](docs/03-adr/ADR-014-linker-stack-guard-pages.md). File presence is not that probe.
 
 ## Tracker
 

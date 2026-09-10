@@ -25,5 +25,7 @@ Git remains the source of truth. Obsidian is an optional local UI over the same 
 
 - How to open the folder as a vault: [obsidian.md](obsidian.md)
 - One-page open-vault checklist: [obsidian-checklist.md](obsidian-checklist.md)
+- Map of content: [moc.md](moc.md)
+- Templates: [templates/inbox-note.md](templates/inbox-note.md), [templates/daily-brief.md](templates/daily-brief.md), [templates/session-memory.md](templates/session-memory.md)
 - Fleeting captures awaiting triage: [inbox/](inbox/)
 

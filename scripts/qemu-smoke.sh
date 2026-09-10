@@ -1,7 +1,8 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
-# two-task sched + W^X + CNTPCT baseline + IRQ-to-handler delta +
-# timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
+# two-task sched + W^X + stack guards + EL0 first mile + CNTPCT baseline +
+# IRQ-to-handler delta + host ELF size + timer tick + injected UART RX +
+# BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -17,6 +18,9 @@ SCHED_B="${CTOS_SCHED_B_STRING:-sched: task b}"
 PERF="${CTOS_PERF_STRING:-perf: cntpct}"
 IRQDELTA="${CTOS_IRQDELTA_STRING:-perf: irq-delta}"
 WX="${CTOS_WX_STRING:-wx: ok}"
+GUARD="${CTOS_GUARD_STRING:-guard: ok}"
+EL0="${CTOS_EL0_STRING:-el0: ok}"
+ELFSIZE="${CTOS_ELFSIZE_STRING:-perf: elf-size}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
@@ -36,6 +40,15 @@ if [ ! -x "$elf" ]; then
     echo "qemu-smoke: missing $elf" >&2
     exit 1
 fi
+
+# NFR-08 host probe: debug ELF byte size. Not a budget, not a bench.
+elf_bytes=$(wc -c < "$elf" | tr -d ' ')
+echo "$ELFSIZE bytes=$elf_bytes"
+if [ -z "$elf_bytes" ] || [ "$elf_bytes" -lt 4096 ]; then
+    echo "qemu-smoke: elf-size implausibly small ($elf_bytes)" >&2
+    exit 1
+fi
+echo "qemu-smoke: host ELF size present ($elf_bytes bytes)"
 
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
@@ -104,6 +117,32 @@ if grep -q "wx: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: W^X string present"
+if ! grep -q "$GUARD" "$log"; then
+    echo "qemu-smoke: missing '$GUARD' on serial (NFR-10 guard-page path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "guard: probe missed" "$log"; then
+    echo "qemu-smoke: guard probe missed (linker-stack guard store did not fault)" >&2
+    exit 1
+fi
+echo "qemu-smoke: stack-guard string present"
+if ! grep -q "$EL0" "$log"; then
+    echo "qemu-smoke: missing '$EL0' on serial (NFR-10 EL0 first-mile path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "el0: probe missed" "$log"; then
+    echo "qemu-smoke: el0 probe missed (SVC round-trip or UXN IABORT did not run)" >&2
+    exit 1
+fi
+if ! grep -q "el0: svc" "$log"; then
+    echo "qemu-smoke: missing 'el0: svc' on serial (lower-EL SVC slot, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "el0: nx kernel" "$log"; then
+    echo "qemu-smoke: missing 'el0: nx kernel' on serial (EL0 UXN IABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: EL0 first-mile strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1

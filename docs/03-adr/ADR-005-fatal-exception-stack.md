@@ -24,4 +24,4 @@ A data abort to an unused physical hole is QEMU-map-dependent. A nested `BRK` fr
 - `#[test_case]` can still `brk #0` and return. Tests do not set the nest flag.
 - `scripts/qemu-smoke.sh` requires the fatal marker in addition to hello + BRK. A `fatal probe missed` line is fail-closed.
 - Lower-EL and first-level FIQ/SError stubs still park. First-level IRQ is M5 / [ADR-006](ADR-006-gicv2-generic-timer.md). Nested IRQ/FIQ/SError still use the fatal stack. Taking a nested IRQ remains unprobed.
-- This ADR does not claim Raspberry Pi, paging guard pages, or x86.
+- This ADR does not claim Raspberry Pi or x86. Unmapped linker-stack guard pages are [ADR-014](ADR-014-linker-stack-guard-pages.md) (a later cut; the nested-`BRK` probe here still stands).
