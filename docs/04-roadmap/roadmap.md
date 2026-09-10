@@ -17,18 +17,20 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 
-M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). ADR-011 pillars text is on `main` (merge of PR #17). This PR is the post-ADR-011 pillars follow-up (P-SEC-1 v1, P-SEC-2 W^X, P-PERF irq-delta, P-SEC-3 EL0 scaffold, Obsidian checklist). Merge is still a human/MRC job (ADR-002).
+M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). ADR-011 / #17 and the first pillars follow-up (#18: threat-model v1, heap NX, irq-delta, EL0 stub) are on `main`. This PR deepens loops 2–6. Merge is still a human/MRC job (ADR-002).
 
 ## Pillars (post-M9)
 
-Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the three pillars. Sponsor asked for one coherent follow-up PR rather than conflicting parallel branches.
+Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the three pillars.
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
-| P-SEC-1 | Threat-model v1 (NFR-10) | Read [security.md](../framework/security.md); no “secure OS” claim | **Verified** (file + review). v1 replaces the ADR-011 stub. |
-| P-SEC-2 | W^X / NX heap + coop stacks | Page-table PXN on heap + caught execute-from-heap IABORT (`wx: ok`) | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). Map: [ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md). Linker stacks still X. |
+| P-SEC-1 | Threat-model v1.1 slice (NFR-10) | Read [security.md](../framework/security.md); no “secure OS” claim | **Verified** (file + review). v1.1 adds linker stacks, guards, EL0 first mile, remaining W^X gaps. |
+| P-SEC-2 | W^X / NX heap + coop stacks | Page-table PXN on heap + caught execute-from-heap IABORT (`wx: ok`) | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). Map: [ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md). Linker stack **pages** still X. |
+| P-SEC-2b | Linker-stack guard pages | Unmapped 4 KiB holes; store faults (`guard: ok`) | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). [ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md). Not kernel W^X. |
 | P-PERF-1 | Baseline CNTPCT probe (NFR-07) | Serial `perf: cntpct` and/or `#[test_case]`; not a published bench | Verified: 2026-09-09 cloud `qemu-smoke` + GHA (see honesty ledger). |
 | P-PERF-2 | IRQ-to-handler CNTPCT delta | Serial `perf: irq-delta` + samples `max >= min`; not a latency budget | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). |
-| P-SEC-3 | EL0 isolation (scaffold) | Later: lower-EL cannot execute kernel data | **Planned.** Direction: [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md). Stub only. |
+| P-PERF-3 | Host debug ELF size (NFR-08) | Host marker `perf: elf-size bytes=<n>`; not a budget | **Verified:** 2026-09-10 cloud `qemu-smoke` host print (see honesty ledger). |
+| P-SEC-3 | EL0 first mile | `el0: svc` + `el0: nx kernel` + `el0: ok` | **First mile Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). Isolation (separate map / PAN / ASID) stays **Planned** ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
 
 Hub: [pillars.md](../framework/pillars.md).

@@ -40,6 +40,6 @@ Options:
 
 - `scripts/qemu-smoke.sh` requires `paging: ok` and rejects `paging: probe missed`, then still requires M2–M6 strings.
 - `#[test_case]` can assert `SCTLR_EL1.M`, distinct aligned frames, and a map/unmap write-through.
-- Stack overflow is still not a translation fault: RAM is one Normal block. Guard pages are not this milestone.
+- Stack overflow was not a translation fault in M7 (RAM was one Normal block). Guard pages are [ADR-014](ADR-014-linker-stack-guard-pages.md), not this milestone.
 - A later DTB walker or higher-half map needs a new ADR; it is not M8’s heap.
 - This ADR does not claim Raspberry Pi, GICv3, EL0 user maps, or ASID isolation. Heap NX is [ADR-012](ADR-012-wx-nx-heap-stacks.md), not M7.

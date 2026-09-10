@@ -5,8 +5,8 @@ After M9, ctos treats **antifragility**, **security**, and **performance** as fi
 | Pillar | Frozen ID | Home | What “done” looks like |
 | --- | --- | --- | --- |
 | Antifragility | [NFR-05](../02-requirements/fr-nfr.md) | [antifragility.md](antifragility.md) | Repeated failures become sensors/gates, not extra README advice |
-| Security | [NFR-10](../02-requirements/fr-nfr.md) | [security.md](security.md) | Threat-model v1 + probes before any “secure OS” claim. EL0: [el0.md](el0.md) (Planned) |
-| Performance | [NFR-07](../02-requirements/fr-nfr.md) | [performance.md](performance.md) | Measurable CNTPCT + IRQ-to-handler delta; optimize only with a probe |
+| Security | [NFR-10](../02-requirements/fr-nfr.md) | [security.md](security.md) | Threat-model v1.1 + probes before any “secure OS” claim. EL0 first mile: [el0.md](el0.md) (isolation Planned) |
+| Performance | [NFR-07](../02-requirements/fr-nfr.md) | [performance.md](performance.md) | Measurable CNTPCT + IRQ-to-handler delta + host ELF size; optimize only with a probe |
 
 Bring-up M0–M9 stays on the [roadmap](../04-roadmap/roadmap.md). Pillar work after M9 is listed there as a separate section so a docs PR does not pretend to close paging or a scheduler.
 

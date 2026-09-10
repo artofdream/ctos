@@ -9,7 +9,7 @@ In Obsidian: **Open folder as vault**, then pick either:
 - the repo root (`ctos`) — sees `research/`, `docs/`, `AGENTS.md`
 - `ctos/research` — second-brain notes only
 
-Both are valid. The four vaults live in git either way; see [README.md](README.md). Step-by-step: [obsidian-checklist.md](obsidian-checklist.md).
+Both are valid. The four vaults live in git either way; see [README.md](README.md). Step-by-step: [obsidian-checklist.md](obsidian-checklist.md). Index: [moc.md](moc.md).
 
 ## Why `.obsidian/` is gitignored
 
@@ -21,4 +21,4 @@ Inbox, random-thoughts, daily briefs, and docs are committed. No tokens, keys, o
 
 ## Honesty
 
-This change is **structure only**: an inbox folder, a thin template, and this how-to. It does not claim that Obsidian is installed, synced, or used in CI.
+This change is **structure only**: an inbox folder, templates, a map of content, and this how-to. It does not claim that Obsidian is installed, synced, or used in CI. Do not commit `.obsidian/` or `.trash/`.

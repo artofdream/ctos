@@ -12,12 +12,13 @@
 //! the first-level handler can nest — serial proof for FR-07.
 //!
 //! M7/ADR-012 identity-maps virt RAM with kernel-image pages executable
-//! and `__kernel_end`…RAM-end PXN. A downward overflow of the *linker*
-//! thread stack is still not a translation fault (those stacks sit in
-//! the executable image). Dedicated stacks remain the mitigation. The
-//! probe is a nested `BRK` after a near-empty thread SP — honest for
-//! virt, not an MMU guard-page claim. Context format and EL choice:
-//! ADR-004, ADR-005. Execute-from-heap is caught here (ESR IABORT).
+//! and `__kernel_end`…RAM-end PXN. [ADR-014] unmaps a 4 KiB hole under
+//! each linker stack so a downward overflow is a translation data abort.
+//! The live stack pages stay executable. Dedicated stacks + the nested
+//! `BRK` probe remain (ADR-005). Context format and EL choice: ADR-004,
+//! ADR-005. Execute-from-heap is caught here (ESR IABORT). Lower-EL
+//! AArch64 sync is live for the EL0 first mile (ADR-013): SVC return
+//! and a permission IABORT. Other lower-EL slots still park.
 
 use core::arch::global_asm;
 use core::fmt::Write;
@@ -30,14 +31,32 @@ use crate::uart;
 const ESR_EC_BRK_A64: u64 = 0x3C;
 /// Instruction Abort, same exception level (PXN / translation).
 const ESR_EC_IABORT_CURRENT: u64 = 0x21;
+/// Instruction Abort from lower EL (EL0 UXN / translation).
+const ESR_EC_IABORT_LOWER: u64 = 0x20;
+/// Data Abort, same exception level (guard-page translation).
+const ESR_EC_DABORT_CURRENT: u64 = 0x25;
+/// SVC instruction from AArch64 (EL0 first mile).
+const ESR_EC_SVC_A64: u64 = 0x15;
 const ESR_IFSC_PERM_L1: u64 = 0x0D;
 const ESR_IFSC_PERM_L2: u64 = 0x0E;
 const ESR_IFSC_PERM_L3: u64 = 0x0F;
+const ESR_DFSC_TRANS_L1: u64 = 0x05;
+const ESR_DFSC_TRANS_L2: u64 = 0x06;
+const ESR_DFSC_TRANS_L3: u64 = 0x07;
+/// SPSR: DAIF masked, AArch64 EL1t (return from EL0 to SPSel=0).
+const SPSR_EL1T_MASKED: u64 = 0x3C4;
 
 static BRK_COUNT: AtomicU64 = AtomicU64::new(0);
 static NEST_FATAL: AtomicBool = AtomicBool::new(false);
 static EXPECT_NX: AtomicBool = AtomicBool::new(false);
 static NX_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_GUARD: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_SVC: AtomicBool = AtomicBool::new(false);
+static EL0_SVC_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_IABORT: AtomicBool = AtomicBool::new(false);
+static EL0_IABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EL0_CONT: AtomicU64 = AtomicU64::new(0);
+static EL0_KSP: AtomicU64 = AtomicU64::new(0);
 
 /// GPR + exception-register frame for the first-level current-EL sync path.
 /// Layout must match `sync_current_el` in the vector asm.
@@ -52,10 +71,13 @@ pub struct ExceptionContext {
 }
 
 unsafe extern "C" {
+    static __stack_guard: u8;
     static __stack_bottom: u8;
     static __stack_top: u8;
+    static __exc_stack_guard: u8;
     static __exc_stack_bottom: u8;
     static __exc_stack_top: u8;
+    static __fatal_stack_guard: u8;
     static __fatal_stack_bottom: u8;
     static __fatal_stack_top: u8;
     fn exception_vectors();
@@ -96,10 +118,9 @@ exception_vectors:
     mov x0, #0x380
     b fatal_enter
 
-    // Lower EL, AArch64 — park until we have EL0
+    // Lower EL, AArch64 — sync is live for the EL0 first mile (SVC / IABORT)
     .align 7
-    mov x0, #0x400
-    b handle_unhandled_exception
+    b sync_lower_el
     .align 7
     mov x0, #0x480
     b handle_unhandled_exception
@@ -225,6 +246,56 @@ sync_current_el:
     add sp, sp, #272
     eret
 
+    // Lower EL AArch64 sync: same frame as current-EL; taken on SP_EL1.
+    sync_lower_el:
+    sub sp, sp, #272
+    stp x0, x1, [sp, #0]
+    stp x2, x3, [sp, #16]
+    stp x4, x5, [sp, #32]
+    stp x6, x7, [sp, #48]
+    stp x8, x9, [sp, #64]
+    stp x10, x11, [sp, #80]
+    stp x12, x13, [sp, #96]
+    stp x14, x15, [sp, #112]
+    stp x16, x17, [sp, #128]
+    stp x18, x19, [sp, #144]
+    stp x20, x21, [sp, #160]
+    stp x22, x23, [sp, #176]
+    stp x24, x25, [sp, #192]
+    stp x26, x27, [sp, #208]
+    stp x28, x29, [sp, #224]
+    str x30, [sp, #240]
+    mrs x0, elr_el1
+    str x0, [sp, #248]
+    mrs x0, spsr_el1
+    str x0, [sp, #256]
+    mrs x0, esr_el1
+    str x0, [sp, #264]
+    mov x0, sp
+    bl handle_sync_lower_el
+    ldr x0, [sp, #248]
+    msr elr_el1, x0
+    ldr x0, [sp, #256]
+    msr spsr_el1, x0
+    ldr x30, [sp, #240]
+    ldp x28, x29, [sp, #224]
+    ldp x26, x27, [sp, #208]
+    ldp x24, x25, [sp, #192]
+    ldp x22, x23, [sp, #176]
+    ldp x20, x21, [sp, #160]
+    ldp x18, x19, [sp, #144]
+    ldp x16, x17, [sp, #128]
+    ldp x14, x15, [sp, #112]
+    ldp x12, x13, [sp, #96]
+    ldp x10, x11, [sp, #80]
+    ldp x8, x9, [sp, #64]
+    ldp x6, x7, [sp, #48]
+    ldp x4, x5, [sp, #32]
+    ldp x2, x3, [sp, #16]
+    ldp x0, x1, [sp, #0]
+    add sp, sp, #272
+    eret
+
     // x0 = vector kind. Switch SP before any further stores.
     .global fatal_enter
 fatal_enter:
@@ -284,12 +355,20 @@ fn linker_sym(sym: *const u8) -> u64 {
     sym as usize as u64
 }
 
+pub fn thread_stack_guard() -> u64 {
+    linker_sym(core::ptr::addr_of!(__stack_guard))
+}
+
 pub fn thread_stack_bottom() -> u64 {
     linker_sym(core::ptr::addr_of!(__stack_bottom))
 }
 
 pub fn thread_stack_top() -> u64 {
     linker_sym(core::ptr::addr_of!(__stack_top))
+}
+
+pub fn exc_stack_guard() -> u64 {
+    linker_sym(core::ptr::addr_of!(__exc_stack_guard))
 }
 
 pub fn exc_stack_bottom() -> u64 {
@@ -300,8 +379,34 @@ pub fn exc_stack_top() -> u64 {
     linker_sym(core::ptr::addr_of!(__exc_stack_top))
 }
 
+pub fn fatal_stack_guard() -> u64 {
+    linker_sym(core::ptr::addr_of!(__fatal_stack_guard))
+}
+
 pub fn fatal_stack_bottom() -> u64 {
     linker_sym(core::ptr::addr_of!(__fatal_stack_bottom))
+}
+
+/// 4 KiB holes punched under each linker stack (ADR-014).
+pub fn stack_guards() -> [u64; 3] {
+    [
+        thread_stack_guard(),
+        exc_stack_guard(),
+        fatal_stack_guard(),
+    ]
+}
+
+fn far_el1() -> u64 {
+    let v: u64;
+    unsafe {
+        core::arch::asm!("mrs {v}, far_el1", v = out(reg) v);
+    }
+    v
+}
+
+fn va_in_guard(va: u64) -> bool {
+    let page = va & !0xfff;
+    stack_guards().iter().any(|g| *g == page)
 }
 
 pub fn fatal_stack_top() -> u64 {
@@ -364,11 +469,138 @@ pub fn nx_probe_caught() -> bool {
     NX_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm the ADR-014 probe: the next translation DABORT on a guard resumes at LR.
+pub fn arm_guard_probe() {
+    EXPECT_GUARD.store(true, Ordering::SeqCst);
+}
+
+pub fn disarm_guard_probe() {
+    EXPECT_GUARD.store(false, Ordering::SeqCst);
+}
+
+/// Arm the EL0 SVC round-trip. Continuation / SP_EL0 are stored in `eret_to_el0`.
+pub fn arm_el0_svc() {
+    EL0_SVC_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_EL0_SVC.store(true, Ordering::SeqCst);
+}
+
+pub fn el0_svc_caught() -> bool {
+    EXPECT_EL0_SVC.store(false, Ordering::SeqCst);
+    EL0_SVC_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// Arm the EL0 UXN / kernel-data fetch probe.
+pub fn arm_el0_iabort() {
+    EL0_IABORT_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_EL0_IABORT.store(true, Ordering::SeqCst);
+}
+
+pub fn el0_iabort_caught() -> bool {
+    EXPECT_EL0_IABORT.store(false, Ordering::SeqCst);
+    EL0_IABORT_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// `ERET` to EL0 at `user_pc` with `x0 = user_arg` and `SP_EL0 = user_sp`.
+/// Returns after the lower-EL handler sends us back to EL1t.
+///
+/// Caller must arm `arm_el0_svc` / `arm_el0_iabort` first. Callee-saved
+/// GPRs are saved on the kernel thread stack across the trip.
+#[allow(dead_code)] // hello + `#[test_case]` via `src/el0.rs`.
+pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
+    let kslot = EL0_KSP.as_ptr() as u64;
+    let cslot = EL0_CONT.as_ptr() as u64;
+    core::arch::asm!(
+        "stp x19, x20, [sp, #-16]!",
+        "stp x21, x22, [sp, #-16]!",
+        "stp x23, x24, [sp, #-16]!",
+        "stp x25, x26, [sp, #-16]!",
+        "stp x27, x28, [sp, #-16]!",
+        "stp x29, x30, [sp, #-16]!",
+        "mov {ksp}, sp",
+        "adr {cont}, 2f",
+        "str {ksp}, [{kslot}]",
+        "str {cont}, [{cslot}]",
+        "dsb sy",
+        // SPSel=0 makes `msr SP_EL0` UNDEF (current SP *is* SP_EL0).
+        // Switch to SP_EL1 so the user SP_EL0 write is legal, then ERET.
+        "msr spsel, #1",
+        "msr elr_el1, {upc}",
+        "msr spsr_el1, {spsr}",
+        "msr sp_el0, {usp}",
+        "mov x0, {uarg}",
+        "isb",
+        "eret",
+        "2:",
+        "ldp x29, x30, [sp], #16",
+        "ldp x27, x28, [sp], #16",
+        "ldp x25, x26, [sp], #16",
+        "ldp x23, x24, [sp], #16",
+        "ldp x21, x22, [sp], #16",
+        "ldp x19, x20, [sp], #16",
+        ksp = out(reg) _,
+        cont = out(reg) _,
+        kslot = in(reg) kslot,
+        cslot = in(reg) cslot,
+        upc = in(reg) user_pc,
+        spsr = in(reg) 0x3c0u64,
+        usp = in(reg) user_sp,
+        uarg = in(reg) user_arg,
+        lateout("x0") _,
+        lateout("x1") _,
+        lateout("x2") _,
+        lateout("x3") _,
+        lateout("x4") _,
+        lateout("x5") _,
+        lateout("x6") _,
+        lateout("x7") _,
+        lateout("x8") _,
+        lateout("x9") _,
+        lateout("x10") _,
+        lateout("x11") _,
+        lateout("x12") _,
+        lateout("x13") _,
+        lateout("x14") _,
+        lateout("x15") _,
+        lateout("x16") _,
+        lateout("x17") _,
+        lateout("x18") _,
+        options(preserves_flags),
+    );
+}
+
+fn return_from_el0(ctx: &mut ExceptionContext) {
+    let ksp = EL0_KSP.load(Ordering::SeqCst);
+    unsafe {
+        core::arch::asm!(
+            "msr sp_el0, {sp}",
+            "isb",
+            sp = in(reg) ksp,
+            options(nostack, preserves_flags),
+        );
+    }
+    ctx.elr = EL0_CONT.load(Ordering::SeqCst);
+    ctx.spsr = SPSR_EL1T_MASKED;
+}
+
 fn is_perm_iabort(esr: u64) -> bool {
     let ec = (esr >> 26) & 0x3f;
     let ifsc = esr & 0x3f;
     ec == ESR_EC_IABORT_CURRENT
         && (ifsc == ESR_IFSC_PERM_L1 || ifsc == ESR_IFSC_PERM_L2 || ifsc == ESR_IFSC_PERM_L3)
+}
+
+fn is_perm_iabort_lower(esr: u64) -> bool {
+    let ec = (esr >> 26) & 0x3f;
+    let ifsc = esr & 0x3f;
+    ec == ESR_EC_IABORT_LOWER
+        && (ifsc == ESR_IFSC_PERM_L1 || ifsc == ESR_IFSC_PERM_L2 || ifsc == ESR_IFSC_PERM_L3)
+}
+
+fn is_trans_dabort(esr: u64) -> bool {
+    let ec = (esr >> 26) & 0x3f;
+    let dfsc = esr & 0x3f;
+    ec == ESR_EC_DABORT_CURRENT
+        && (dfsc == ESR_DFSC_TRANS_L1 || dfsc == ESR_DFSC_TRANS_L2 || dfsc == ESR_DFSC_TRANS_L3)
 }
 
 /// Execute `BRK #0`. The first-level current-EL sync handler skips the instruction.
@@ -454,6 +686,13 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         ctx.elr = ctx.lr;
         return;
     }
+    if is_trans_dabort(ctx.esr) && EXPECT_GUARD.load(Ordering::SeqCst) && va_in_guard(far_el1()) {
+        crate::guard::note_fault();
+        // Skip the faulting store. Unlike the heap NX `blr`, LR is the
+        // caller — jumping there would abandon the callee stack frame.
+        ctx.elr = ctx.elr.wrapping_add(4);
+        return;
+    }
     let ec = (ctx.esr >> 26) & 0x3f;
     if ec == ESR_EC_BRK_A64 {
         BRK_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -473,6 +712,31 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
     uart::write_str_raw("exception: unhandled sync\n");
     let mut u = uart::raw();
     let _ = writeln!(u, "exception: unhandled sync esr={:#x} elr={:#x}", ctx.esr, ctx.elr);
+    park();
+}
+
+#[no_mangle]
+pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
+    let ec = (ctx.esr >> 26) & 0x3f;
+    if ec == ESR_EC_SVC_A64 && EXPECT_EL0_SVC.swap(false, Ordering::SeqCst) {
+        EL0_SVC_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("el0: svc\n");
+        return_from_el0(ctx);
+        return;
+    }
+    if is_perm_iabort_lower(ctx.esr) && EXPECT_EL0_IABORT.swap(false, Ordering::SeqCst) {
+        EL0_IABORT_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("el0: nx kernel\n");
+        return_from_el0(ctx);
+        return;
+    }
+    uart::write_str_raw("exception: unhandled lower sync\n");
+    let mut u = uart::raw();
+    let _ = writeln!(
+        u,
+        "exception: unhandled lower sync esr={:#x} elr={:#x}",
+        ctx.esr, ctx.elr
+    );
     park();
 }
 

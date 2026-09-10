@@ -18,7 +18,7 @@ Learning/research **AArch64 (arm64) Rust** bare-metal kernel (not a general-purp
 
 **NFR pillars note (2026-09-09):** [ADR-011](../03-adr/ADR-011-three-pillars.md) revises **NFR-05**, **NFR-07**, and **NFR-10** text in place (antifragility, performance, security as first-class pillars). IDs unchanged. Do not mint NFR-15+.
 
-**NFR-10 W^X note (2026-09-10):** [ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md) revises NFR-10 text in place for the heap / coop-stack NX cut. [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md) records EL0 direction only. IDs unchanged.
+**NFR-10 W^X note (2026-09-10):** [ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md) revises NFR-10 text in place for the heap / coop-stack NX cut. [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md) records EL0 direction; the first mile is enter/return + UXN fetch, not isolation. [ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md) adds unmapped linker-stack guards. IDs unchanged.
 
 **Status legend:** **Now** = hello-UART / QEMU `virt` / smoke sensors · **Next** = near roadmap · **Later** = aspirational.
 
@@ -65,7 +65,7 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 | **NFR-07 Performance** | First-class pillar ([ADR-011](../03-adr/ADR-011-three-pillars.md)). Performance claims need a measurable probe (CNTPCT delta around a known path; IRQ-to-handler CNTPCT−CVAL min/max/spread). No fake benches and no “faster than X.” Optimize only after a probe shows a cost. Not a hard latency budget. | Should | Now |
 | **NFR-08 Footprint** | Debug image size and boot time tracked once measurable; no premature optimization. | Could | Later |
 | **NFR-09 Maintainability** | Clear module layout; ADRs for boot-path, console, or allocator choices. | Must | Now |
-| **NFR-10 Security** | First-class pillar ([ADR-011](../03-adr/ADR-011-three-pillars.md)). No secrets in repo. Do not claim “secure OS” / “hardened” / “the kernel is W^X” without a written threat model **and** a probe. Prefer minimize `unsafe` (NFR-01). Heap and heap-backed cooperative stacks are PXN ([ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md)); kernel-image pages (including linker stacks) stay executable. Device MMIO XN. Least privilege on IRQ paths. EL0 isolation is Planned ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). | Must | Now |
+| **NFR-10 Security** | First-class pillar ([ADR-011](../03-adr/ADR-011-three-pillars.md)). No secrets in repo. Do not claim “secure OS” / “hardened” / “the kernel is W^X” without a written threat model **and** a probe. Prefer minimize `unsafe` (NFR-01). Heap and heap-backed cooperative stacks are PXN ([ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md)). Linker-stack downward overflow hits an unmapped 4 KiB guard ([ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md)); the live stack pages stay executable with the image. Device MMIO XN. Least privilege on IRQ paths. EL0 first mile (enter/return + cannot execute kernel data) is a probe; isolation stays Planned ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). | Must | Now |
 | **NFR-11 Observability** | QEMU UART + explicit test exit codes are first telemetry; host Grafana out of scope. | Should | Next |
 | **NFR-12 Multi-agent** | Thin roles (engineer / knowledge / coherence / MRC); implementer ≠ merge approver. | Should | Now |
 | **NFR-13 Document-first** | Written milestone acceptance criteria match what code/CI actually prove. | Must | Now |
@@ -86,8 +86,11 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 - Two cooperative tasks are observable on serial and/or `#[test_case]` (FR-11 / M9) **or** the honesty ledger says Unknown until probed.
 - A CNTPCT baseline delta is observable on serial and/or `#[test_case]` (NFR-07) **or** the honesty ledger says Unknown / Planned until probed.
 - An IRQ-to-handler CNTPCT delta (min/max/spread) is observable on serial and/or `#[test_case]` (NFR-07) **or** the honesty ledger says Unknown until probed.
-- Threat-model v1 exists under `docs/framework/security.md`; “secure OS” stays unclaimed (NFR-10).
+- Threat-model v1.1 exists under `docs/framework/security.md`; “secure OS” stays unclaimed (NFR-10).
 - Heap NX / execute-from-heap caught is observable on serial and/or `#[test_case]` (NFR-10 / ADR-012) **or** the honesty ledger says Unknown until probed.
+- Linker-stack guard store faults observably (NFR-10 / ADR-014) **or** the honesty ledger says Unknown until probed.
+- EL0 first mile (SVC return and/or UXN IABORT) is observable on serial and/or `#[test_case]` (NFR-10 / ADR-013) **or** the honesty ledger says Unknown / Planned until probed.
+- Host debug ELF size is printed by `scripts/qemu-smoke.sh` (NFR-08) **or** the honesty ledger says Unknown until probed.
 - Panic path compiles and is reachable in principle.
 - This FR/NFR file + honesty ledger live under `docs/`.
 

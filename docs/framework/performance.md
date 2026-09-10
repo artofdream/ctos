@@ -26,8 +26,17 @@ When CNTP fires, the handler records `CNTPCT − CNTP_CVAL` before rearm. After 
 
 That is a **spread of IRQ-to-handler counter deltas on this QEMU virt guest**. It is not a latency budget, not “faster than X,” and not a published bench. QEMU TCG jitter is one environment.
 
+## Host debug ELF size (NFR-08, this tree)
+
+`scripts/qemu-smoke.sh` prints the host byte size of `target/aarch64-ctos/debug/ctos` after `cargo build`:
+
+- Host marker `perf: elf-size bytes=<n>` (fail closed if missing or `< 4096`).
+- This is a **measurement**, not a size budget and not a “smaller is better” claim.
+
+It does not time QEMU boot. Boot-time CNTPCT remains unprobed (still Planned if someone wants it).
+
 ## Later probes (Planned)
 
-- Debug image size / boot time (NFR-08) once someone actually measures them.
+- Guest boot-to-ready CNTPCT (NFR-08 boot time) once someone actually measures it.
 
 Do not add a host `criterion` crate or a “bench.yml” that prints invented numbers.

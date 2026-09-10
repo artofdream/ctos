@@ -42,4 +42,4 @@ This ADR does **not** clone florist / AEA vocabulary. The three pillars are ctos
 - README, `AGENTS.md`, the roadmap, and the honesty ledger point at [pillars.md](../framework/pillars.md).
 - A PR that says “secure” or “faster” without a ledger row is a coherence fail (NFR-06 / NFR-13).
 - The CNTPCT probe (when landed) is a **baseline that the counter advances**. It is not a published benchmark and not a comparison to other kernels.
-- EL0, ASID, stack guard pages, and preemption remain later ADRs.
+- ASID, PAN, a standing EL0 context, RO+NX text/data, and preemption remain later ADRs. Stack guard pages are [ADR-014](ADR-014-linker-stack-guard-pages.md). EL0 first mile is [ADR-013](ADR-013-el0-isolation-direction.md) (isolation still Planned).
