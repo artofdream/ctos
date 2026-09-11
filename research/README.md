@@ -13,7 +13,7 @@ Session scratch goes in `research/random-thoughts/`. Do not treat scratch as the
 
 Tracker is GitHub. These folders are the memory; `gh` is the work queue. Notes stay in this tree. A Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists; HTTPS serving the book is **Verified** (2026-09-11 after #30).
 
-Idle tip on 2026-09-11: `main` = `f86785b` (Merge PR #30). Latest handoff: [daily-briefs/2026-09-11-pages-live-verified.md](daily-briefs/2026-09-11-pages-live-verified.md). Prior: [rebase onto #30](daily-briefs/2026-09-11-rebase-after-30.md).
+Idle tip on 2026-09-11: `main` = `6c34e4a` (Merge PR #51). Latest handoff: [daily-briefs/2026-09-11-rebase-after-51.md](daily-briefs/2026-09-11-rebase-after-51.md). Prior: [live site Verified](daily-briefs/2026-09-11-pages-live-verified.md).
 
 ## Further reading / landscape
 

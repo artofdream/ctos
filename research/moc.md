@@ -4,8 +4,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
-- Latest idle tip (`main` = `f86785b`, live site Verified): [daily-briefs/2026-09-11-pages-live-verified.md](daily-briefs/2026-09-11-pages-live-verified.md)
-- Prior (rebase onto #30): [daily-briefs/2026-09-11-rebase-after-30.md](daily-briefs/2026-09-11-rebase-after-30.md)
+- Latest idle tip (`main` = `6c34e4a`, #51): [daily-briefs/2026-09-11-rebase-after-51.md](daily-briefs/2026-09-11-rebase-after-51.md)
+- Prior (live site Verified): [daily-briefs/2026-09-11-pages-live-verified.md](daily-briefs/2026-09-11-pages-live-verified.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
@@ -36,6 +36,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Daily Brief / scratch
 
+- Live site Verified: [daily-briefs/2026-09-11-pages-live-verified.md](daily-briefs/2026-09-11-pages-live-verified.md)
+- Live-site scratch: [random-thoughts/2026-09-11-session-memory-pages-live.md](random-thoughts/2026-09-11-session-memory-pages-live.md)
 - Rebase onto #30: [daily-briefs/2026-09-11-rebase-after-30.md](daily-briefs/2026-09-11-rebase-after-30.md)
 - Rebase scratch: [random-thoughts/2026-09-11-session-memory-rebase-30.md](random-thoughts/2026-09-11-session-memory-rebase-30.md)
 - Latest samples/porting handoff: [daily-briefs/2026-09-11-apps-today-porting.md](daily-briefs/2026-09-11-apps-today-porting.md)
