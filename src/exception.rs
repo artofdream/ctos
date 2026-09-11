@@ -11,14 +11,14 @@
 //! drops `SP_EL0` near the thread-stack floor and fires another `BRK` so
 //! the first-level handler can nest — serial proof for FR-07.
 //!
-//! M7/ADR-012 identity-maps virt RAM with kernel-image pages executable
-//! and `__kernel_end`…RAM-end PXN. [ADR-014] unmaps a 4 KiB hole under
-//! each linker stack so a downward overflow is a translation data abort.
-//! The live stack pages stay executable. Dedicated stacks + the nested
-//! `BRK` probe remain (ADR-005). Context format and EL choice: ADR-004,
-//! ADR-005. Execute-from-heap is caught here (ESR IABORT). Lower-EL
-//! AArch64 sync is live for the EL0 first mile (ADR-013): SVC return
-//! and a permission IABORT. Other lower-EL slots still park.
+//! M7/ADR-012 identity-maps virt RAM with heap/frames PXN. [ADR-014]
+//! unmaps a 4 KiB hole under each linker stack. [ADR-015] maps
+//! `.text`/`.rodata` RO+X and `.data`/`.bss`/live linker stacks RW+NX.
+//! Dedicated stacks + the nested `BRK` probe remain (ADR-005).
+//! Execute-from-heap / execute-from-`.data` / write-to-RO-text are
+//! caught here. Lower-EL AArch64 sync is live for the EL0 first mile
+//! and the user-TTBR0 read mile (ADR-013): SVC, IABORT, DABORT.
+//! Other lower-EL slots still park.
 
 use core::arch::global_asm;
 use core::fmt::Write;
@@ -33,8 +33,10 @@ const ESR_EC_BRK_A64: u64 = 0x3C;
 const ESR_EC_IABORT_CURRENT: u64 = 0x21;
 /// Instruction Abort from lower EL (EL0 UXN / translation).
 const ESR_EC_IABORT_LOWER: u64 = 0x20;
-/// Data Abort, same exception level (guard-page translation).
+/// Data Abort, same exception level (guard-page translation / RO store).
 const ESR_EC_DABORT_CURRENT: u64 = 0x25;
+/// Data Abort from lower EL (EL0 read of kernel data).
+const ESR_EC_DABORT_LOWER: u64 = 0x24;
 /// SVC instruction from AArch64 (EL0 first mile).
 const ESR_EC_SVC_A64: u64 = 0x15;
 const ESR_IFSC_PERM_L1: u64 = 0x0D;
@@ -43,6 +45,12 @@ const ESR_IFSC_PERM_L3: u64 = 0x0F;
 const ESR_DFSC_TRANS_L1: u64 = 0x05;
 const ESR_DFSC_TRANS_L2: u64 = 0x06;
 const ESR_DFSC_TRANS_L3: u64 = 0x07;
+const ESR_DFSC_PERM_L1: u64 = 0x0D;
+const ESR_DFSC_PERM_L2: u64 = 0x0E;
+const ESR_DFSC_PERM_L3: u64 = 0x0F;
+const ESR_IFSC_TRANS_L1: u64 = 0x05;
+const ESR_IFSC_TRANS_L2: u64 = 0x06;
+const ESR_IFSC_TRANS_L3: u64 = 0x07;
 /// SPSR: DAIF masked, AArch64 EL1t (return from EL0 to SPSel=0).
 const SPSR_EL1T_MASKED: u64 = 0x3C4;
 
@@ -55,6 +63,12 @@ static EXPECT_EL0_SVC: AtomicBool = AtomicBool::new(false);
 static EL0_SVC_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_EL0_IABORT: AtomicBool = AtomicBool::new(false);
 static EL0_IABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_RO_NX: AtomicBool = AtomicBool::new(false);
+static RO_NX_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_RO_WRITE: AtomicBool = AtomicBool::new(false);
+static RO_WRITE_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_DABORT: AtomicBool = AtomicBool::new(false);
+static EL0_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
 static EL0_KSP: AtomicU64 = AtomicU64::new(0);
 
@@ -247,10 +261,19 @@ sync_current_el:
     eret
 
     // Lower EL AArch64 sync: same frame as current-EL; taken on SP_EL1.
+    // Restore kernel TTBR0 before any .data/.bss access (user map omits them).
     sync_lower_el:
     sub sp, sp, #272
     stp x0, x1, [sp, #0]
     stp x2, x3, [sp, #16]
+    mrs x2, tpidr_el1
+    cbz x2, 1f
+    msr ttbr0_el1, x2
+    isb
+    tlbi vmalle1
+    dsb ish
+    isb
+1:
     stp x4, x5, [sp, #32]
     stp x6, x7, [sp, #48]
     stp x8, x9, [sp, #64]
@@ -500,6 +523,39 @@ pub fn el0_iabort_caught() -> bool {
     EL0_IABORT_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm execute-from-`.data` (ADR-015): current-EL permission IABORT resumes at LR.
+pub fn arm_ro_nx_probe() {
+    RO_NX_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_RO_NX.store(true, Ordering::SeqCst);
+}
+
+pub fn ro_nx_probe_caught() -> bool {
+    EXPECT_RO_NX.store(false, Ordering::SeqCst);
+    RO_NX_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// Arm write-to-RO-text (ADR-015): skip the faulting store.
+pub fn arm_ro_write_probe() {
+    RO_WRITE_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_RO_WRITE.store(true, Ordering::SeqCst);
+}
+
+pub fn ro_write_probe_caught() -> bool {
+    EXPECT_RO_WRITE.store(false, Ordering::SeqCst);
+    RO_WRITE_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// Arm the EL0 read-of-kernel-data probe (user TTBR0 / AP).
+pub fn arm_el0_dabort() {
+    EL0_DABORT_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_EL0_DABORT.store(true, Ordering::SeqCst);
+}
+
+pub fn el0_dabort_caught() -> bool {
+    EXPECT_EL0_DABORT.store(false, Ordering::SeqCst);
+    EL0_DABORT_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// `ERET` to EL0 at `user_pc` with `x0 = user_arg` and `SP_EL0 = user_sp`.
 /// Returns after the lower-EL handler sends us back to EL1t.
 ///
@@ -528,6 +584,10 @@ pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
         "msr spsr_el1, {spsr}",
         "msr sp_el0, {usp}",
         "mov x0, {uarg}",
+        "msr ttbr0_el1, {uttbr}",
+        "isb",
+        "tlbi vmalle1",
+        "dsb ish",
         "isb",
         "eret",
         "2:",
@@ -545,6 +605,7 @@ pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
         spsr = in(reg) 0x3c0u64,
         usp = in(reg) user_sp,
         uarg = in(reg) user_arg,
+        uttbr = in(reg) crate::paging::user_ttbr0(),
         lateout("x0") _,
         lateout("x1") _,
         lateout("x2") _,
@@ -596,11 +657,43 @@ fn is_perm_iabort_lower(esr: u64) -> bool {
         && (ifsc == ESR_IFSC_PERM_L1 || ifsc == ESR_IFSC_PERM_L2 || ifsc == ESR_IFSC_PERM_L3)
 }
 
+fn is_trans_iabort_lower(esr: u64) -> bool {
+    let ec = (esr >> 26) & 0x3f;
+    let ifsc = esr & 0x3f;
+    ec == ESR_EC_IABORT_LOWER
+        && (ifsc == ESR_IFSC_TRANS_L1 || ifsc == ESR_IFSC_TRANS_L2 || ifsc == ESR_IFSC_TRANS_L3)
+}
+
+fn is_el0_kernel_fetch(esr: u64) -> bool {
+    is_perm_iabort_lower(esr) || is_trans_iabort_lower(esr)
+}
+
 fn is_trans_dabort(esr: u64) -> bool {
     let ec = (esr >> 26) & 0x3f;
     let dfsc = esr & 0x3f;
     ec == ESR_EC_DABORT_CURRENT
         && (dfsc == ESR_DFSC_TRANS_L1 || dfsc == ESR_DFSC_TRANS_L2 || dfsc == ESR_DFSC_TRANS_L3)
+}
+
+fn is_perm_dabort(esr: u64) -> bool {
+    let ec = (esr >> 26) & 0x3f;
+    let dfsc = esr & 0x3f;
+    ec == ESR_EC_DABORT_CURRENT
+        && (dfsc == ESR_DFSC_PERM_L1 || dfsc == ESR_DFSC_PERM_L2 || dfsc == ESR_DFSC_PERM_L3)
+}
+
+fn is_el0_kernel_read(esr: u64) -> bool {
+    let ec = (esr >> 26) & 0x3f;
+    let dfsc = esr & 0x3f;
+    if ec != ESR_EC_DABORT_LOWER {
+        return false;
+    }
+    dfsc == ESR_DFSC_TRANS_L1
+        || dfsc == ESR_DFSC_TRANS_L2
+        || dfsc == ESR_DFSC_TRANS_L3
+        || dfsc == ESR_DFSC_PERM_L1
+        || dfsc == ESR_DFSC_PERM_L2
+        || dfsc == ESR_DFSC_PERM_L3
 }
 
 /// Execute `BRK #0`. The first-level current-EL sync handler skips the instruction.
@@ -686,6 +779,18 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         ctx.elr = ctx.lr;
         return;
     }
+    if is_perm_iabort(ctx.esr) && EXPECT_RO_NX.swap(false, Ordering::SeqCst) {
+        RO_NX_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("ro: nx data\n");
+        ctx.elr = ctx.lr;
+        return;
+    }
+    if is_perm_dabort(ctx.esr) && EXPECT_RO_WRITE.swap(false, Ordering::SeqCst) {
+        RO_WRITE_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("ro: write fault\n");
+        ctx.elr = ctx.elr.wrapping_add(4);
+        return;
+    }
     if is_trans_dabort(ctx.esr) && EXPECT_GUARD.load(Ordering::SeqCst) && va_in_guard(far_el1()) {
         crate::guard::note_fault();
         // Skip the faulting store. Unlike the heap NX `blr`, LR is the
@@ -724,9 +829,15 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
         return_from_el0(ctx);
         return;
     }
-    if is_perm_iabort_lower(ctx.esr) && EXPECT_EL0_IABORT.swap(false, Ordering::SeqCst) {
+    if is_el0_kernel_fetch(ctx.esr) && EXPECT_EL0_IABORT.swap(false, Ordering::SeqCst) {
         EL0_IABORT_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("el0: nx kernel\n");
+        return_from_el0(ctx);
+        return;
+    }
+    if is_el0_kernel_read(ctx.esr) && EXPECT_EL0_DABORT.swap(false, Ordering::SeqCst) {
+        EL0_DABORT_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("el0: no kernel read\n");
         return_from_el0(ctx);
         return;
     }

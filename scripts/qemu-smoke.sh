@@ -1,8 +1,9 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
-# two-task sched + W^X + stack guards + EL0 first mile + CNTPCT baseline +
-# IRQ-to-handler delta + host ELF size + timer tick + injected UART RX +
-# BRK + fatal nested lines, then cargo test.
+# two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
+# EL0 no-kernel-read + CNTPCT baseline + boot-delta + IRQ-to-handler delta +
+# host ELF size + timer tick + injected UART RX + BRK + fatal nested lines,
+# then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -19,7 +20,9 @@ PERF="${CTOS_PERF_STRING:-perf: cntpct}"
 IRQDELTA="${CTOS_IRQDELTA_STRING:-perf: irq-delta}"
 WX="${CTOS_WX_STRING:-wx: ok}"
 GUARD="${CTOS_GUARD_STRING:-guard: ok}"
+RO="${CTOS_RO_STRING:-ro: ok}"
 EL0="${CTOS_EL0_STRING:-el0: ok}"
+BOOTDELTA="${CTOS_BOOTDELTA_STRING:-perf: boot-delta}"
 ELFSIZE="${CTOS_ELFSIZE_STRING:-perf: elf-size}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
@@ -126,6 +129,23 @@ if grep -q "guard: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: stack-guard string present"
+if ! grep -q "$RO" "$log"; then
+    echo "qemu-smoke: missing '$RO' on serial (NFR-10 RO+NX path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "ro: probe missed" "$log"; then
+    echo "qemu-smoke: ro probe missed (execute-from-.data or write-to-RO-text did not run)" >&2
+    exit 1
+fi
+if ! grep -q "ro: nx data" "$log"; then
+    echo "qemu-smoke: missing 'ro: nx data' on serial (execute-from-.data, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ro: write fault" "$log"; then
+    echo "qemu-smoke: missing 'ro: write fault' on serial (write-to-RO-text, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: RO+NX string present"
 if ! grep -q "$EL0" "$log"; then
     echo "qemu-smoke: missing '$EL0' on serial (NFR-10 EL0 first-mile path, qemu exit $qemu_ec)" >&2
     exit 1
@@ -142,7 +162,11 @@ if ! grep -q "el0: nx kernel" "$log"; then
     echo "qemu-smoke: missing 'el0: nx kernel' on serial (EL0 UXN IABORT, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile strings present"
+if ! grep -q "el0: no kernel read" "$log"; then
+    echo "qemu-smoke: missing 'el0: no kernel read' on serial (EL0 kernel-data load, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: EL0 first-mile + read-mile strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1
@@ -152,6 +176,15 @@ if grep -q "perf: probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: CNTPCT perf string present"
+if ! grep -q "$BOOTDELTA" "$log"; then
+    echo "qemu-smoke: missing '$BOOTDELTA' on serial (NFR-08 boot-delta path, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "perf: boot-delta missed" "$log"; then
+    echo "qemu-smoke: boot-delta probe missed (CNTPCT did not advance from early to ready)" >&2
+    exit 1
+fi
+echo "qemu-smoke: boot-delta perf string present"
 if ! grep -q "$IRQDELTA" "$log"; then
     echo "qemu-smoke: missing '$IRQDELTA' on serial (NFR-07 IRQ-delta path, qemu exit $qemu_ec)" >&2
     exit 1

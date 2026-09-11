@@ -19,7 +19,7 @@ Options:
 
 1. **Option 1.** Insert a 4 KiB linker hole below the thread, exception, and fatal stacks (`__stack_guard`, `__exc_stack_guard`, `__fatal_stack_guard`). After `fill_ram_wx`, split any 2 MiB L2 block that contains a guard into L3 and **clear that L3 slot** (invalid). Identity VA == PA is unchanged.
 2. **Fail-closed probe:** arm a current-EL translation data-abort catch, store to the thread-stack guard, resume at LR. Serial `guard: fault` + `guard: ok`. `scripts/qemu-smoke.sh` greps `guard: ok` and rejects `guard: probe missed`.
-3. **Do not claim linker-stack NX or “the kernel is W^X.”** Guard pages are holes. The live stack pages stay executable with text / `.data` / `.bss`. A later RO+NX split or `SCTLR.WXN` needs another ADR.
+3. **Guard pages are holes, not NX stacks.** This ADR does not by itself make live stack pages NX. [ADR-015](ADR-015-ro-nx-text-data.md) maps those live pages RW+NX with `.data`. Do not claim “the kernel is W^X” from guard holes alone.
 4. **NFR-10 text** is revised in place (ID unchanged): mention the guard-page overflow cut. Do not mint NFR-15+.
 5. The ADR-005 nested-`BRK` fatal probe stays. It does not write below `__stack_bottom`.
 
