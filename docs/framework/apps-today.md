@@ -105,7 +105,8 @@ Explicit **no**. Do not paper over these with a “porting guide.”
 | Network / sockets / HTTP | No virtio-net, no stack, no sockets. |
 | Filesystem (open/read/write files) | No VFS, no block device, no FAT/memfs. **Planned** order: memfs → virtio-blk → FAT or xv6-like. Stance: [filesystem.md](filesystem.md). |
 | SMP / a second CPU / preemptive threads | M9 is cooperative EL1 on one vCPU. |
-| Isolated userspace / “an app you compile and exec” | Standing EL0 is a stub. PAN + `.rodata`/`.data`/heap tear + umbrella isolation stay **Planned**. |
+| Isolated userspace / “an app you compile and exec” | Standing EL0 is a stub. PAN + `.rodata`/`.data`/heap tear + umbrella isolation stay **Planned**. Gaps: [host-apps.md](host-apps.md). |
+| OCI / Docker / k8s **in the guest** | **No.** Host `docker-smoke.sh` only builds the kernel. |
 | Raspberry Pi or any board other than QEMU `virt` | Unprobed. Do not copy virt Verified onto hardware. |
 | GPU / desktop / windowing / virtio devices | Out of scope on this horizon. |
 

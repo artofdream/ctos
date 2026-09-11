@@ -65,7 +65,7 @@ Until those probes exist, “write a user program for ctos” is **Planned**. Th
 
 ## Do not invent
 
-- A porting guide that assumes POSIX, a shell, Python, or containers
+- A porting guide that assumes POSIX, a shell, Python, or containers ([host-apps.md](host-apps.md): containers are **no**)
 - A claim that https://ctos.artof.link is a live docs site
 - “Secure OS,” “the kernel moved,” or “EL0 isolated”
 

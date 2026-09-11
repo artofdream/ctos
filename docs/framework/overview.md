@@ -37,7 +37,7 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
 - **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
-- **Cannot run:** Linux ELF, shell, Python, network, filesystem, SMP, isolated userspace. Isolation / PAN / `.rodata`/`.data`/heap tear stay **Planned**. Filesystem stance: [filesystem.md](filesystem.md) (memfs → virtio-blk → FAT/xv6-like; none today).
+- **Cannot run:** Linux ELF, shell, Python, network, filesystem, SMP, isolated userspace. Isolation / PAN / `.rodata`/`.data`/heap tear stay **Planned**. Filesystem stance: [filesystem.md](filesystem.md) (memfs → virtio-blk → FAT/xv6-like; none today). Gaps to host apps + **containers: no**: [host-apps.md](host-apps.md).
 
 ## Building or porting
 
@@ -67,7 +67,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 ## Drawbacks
 
 - QEMU `virt` only. No Raspberry Pi or board claim
-- Not POSIX, not multi-tenant, not a product runtime. No filesystem today ([filesystem.md](filesystem.md)).
+- Not POSIX, not multi-tenant, not a product runtime. No filesystem today ([filesystem.md](filesystem.md)). Not a container host ([host-apps.md](host-apps.md)); host `docker-smoke` ≠ guest Docker.
 - Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); `.rodata`/`.data`/heap stay
 - Performance numbers are guest counter deltas, not a latency budget
 - Docs website / custom domain is **Planned** (CNAME exists; Pages publish is a separate PR)

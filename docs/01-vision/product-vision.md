@@ -9,7 +9,7 @@ It exists so we can study kernel mechanics with a document-first harness: claims
 ## What ctos is not
 
 - Not a production operating system, desktop, or app runtime. Probed guest samples: [apps-today.md](../framework/apps-today.md).
-- Not a Linux distro, not POSIX, not a container host. Porting stance: [building-or-porting.md](../framework/building-or-porting.md). No filesystem today: [filesystem.md](../framework/filesystem.md).
+- Not a Linux distro, not POSIX, not a container host. Porting stance: [building-or-porting.md](../framework/building-or-porting.md). No filesystem today: [filesystem.md](../framework/filesystem.md). Gaps to host apps: [host-apps.md](../framework/host-apps.md).
 - Not a florist / commerce platform and not a clone of any shop case study.
 - Not a Raspberry Pi (or other board) port until a board probe exists.
 - Not a claim that QEMU boot, CI, hardware bring-up, a “secure OS,” or a published bench is finished until a probe says so.
@@ -17,4 +17,4 @@ It exists so we can study kernel mechanics with a document-first harness: claims
 
 ## Success (current horizon)
 
-A new session can read the vision, [overview](../framework/overview.md), [what can run today](../framework/apps-today.md), [building or porting](../framework/building-or-porting.md), architecture, honesty ledger, and latest daily brief, then take **one** roadmap milestone to a GitHub PR without inventing status.
+A new session can read the vision, [overview](../framework/overview.md), [what can run today](../framework/apps-today.md), [building or porting](../framework/building-or-porting.md), [host-app gaps](../framework/host-apps.md), architecture, honesty ledger, and latest daily brief, then take **one** roadmap milestone to a GitHub PR without inventing status.
