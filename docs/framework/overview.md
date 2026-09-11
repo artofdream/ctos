@@ -2,7 +2,7 @@
 
 ctos is a **learning** AArch64 kernel for QEMU `virt`. It is not a desktop, not POSIX, and not a “secure OS.” Status words need a probe in the [honesty ledger](honesty-ledger.md). This note does **not** invent latency, size, or “faster than” numbers. Measured markers live in the ledger; they are one environment each.
 
-Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md).
+Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md).
 
 A docs website at https://ctos.artof.link is **Planned**. A Route 53 CNAME exists; this tree does not publish Pages. Do not claim that URL works.
 
@@ -34,35 +34,18 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 
 ### Application-support scope
 
-Do not say “applications run on ctos.” These are the **probed examples** of what the guest can do today. Each needs a matching ledger row.
+Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
-#### What can run today
-
-- **Cooperative UART tasks.** Two EL1 heap-backed workers yield to each other and print `sched: task a` / `sched: task b` / `sched: ok`. Cooperative only — not preemptive, not SMP.
-- **UART echo (one injected byte).** Host injects `0x41`; the guest polls PL011 RX and prints `input: rx 0x41`. That is the M6 input mile, not a line-oriented shell and not virtio-keyboard.
-- **Standing EL0 stub.** Bounded dual-SVC on the user TTBR0: `el0: standing` then a user `MOVZ`, then `el0: restored`. `is_active()` is true only for that lifetime. Not POSIX, not a user process, not isolation.
-- Also probed on the same hello path: UART `Hello World!`, `Box`/`Vec` on the first-fit heap, timer tick, BRK + fatal nested.
-
-#### What cannot run (today)
-
-- A POSIX / libc binary, a shell, or “an app you compile and exec”
-- Interactive line echo, files, sockets, HTTP, or a package manager
-- Preemptive threads, SMP, or a second CPU
-- Isolated userspace (PAN, full identity teardown, and umbrella EL0 isolation stay **Planned**)
-- Raspberry Pi or any board other than QEMU `virt`
-- GPU / desktop / windowing; virtio devices; networking stack
-
-Isolation, PAN, and tearing identity `.rodata`/`.data`/heap stay **Planned**.
+- **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
+- **Cannot run:** Linux ELF, shell, Python, network, filesystem, SMP, isolated userspace. Isolation / PAN / `.rodata`/`.data`/heap tear stay **Planned**.
 
 ## Building or porting
 
-Honesty first: there is **no** userspace ABI to compile against, and no libc.
+First-class page: [building-or-porting.md](building-or-porting.md). Short honesty:
 
-- **Easiest path.** Add an in-tree `no_std` cooperative EL1 task next to `src/sched.rs` (same yield, UART, heap). That is how `sched: task a` / `task b` work today. One milestone → one PR.
-- **POSIX port.** Not easy, and not started. No `exec`, no filesystem, no signals, no sockets. Do not claim a Linux or musl binary will run.
-- **SVC ABI / user programs.** Later **Planned**. Standing EL0 is a dual-SVC *stub* (`SVC #1` / `#2`), not a syscall table. A stable SVC ABI is a later ADR, after isolation miles, not a silent add-on.
-
-Do not invent a “porting guide” that skips those gaps.
+- **Easiest** = in-tree `no_std` coop EL1 on `aarch64-ctos.json`, proven with `cargo` / `qemu-smoke` / `docker-smoke`.
+- **POSIX / glibc** = not easy, not started.
+- **SVC ABI + `libctos`** for freestanding EL0 = later **Planned** (standing dual-SVC is a stub, not a syscall table).
 
 ## Prerequisites
 

@@ -10,7 +10,7 @@ What we corrected on the rebase:
 - Still Planned: `.rodata`/`.data`/heap tear, PAN, umbrella isolation.
 - Pages: CNAME `ctos.artof.link` → `artofdream.github.io.` in `Z1178AFMV41RWP` / `737290977112` is real DNS config. Reachability stays Planned. This PR does not publish Pages.
 
-Follow-up: added `docs/framework/overview.md` (KPIs / prerequisites / advantages / drawbacks). Named can-run examples: cooperative UART tasks, one-byte UART echo, standing EL0 stub — plus a cannot-run list. Building or porting: easiest is in-tree `no_std` coop task; POSIX port is not easy; SVC ABI later Planned. No invented numbers. Linked from README. Pages still a separate PR.
+Follow-up: added `docs/framework/overview.md` (KPIs / prerequisites / advantages / drawbacks). Named can-run examples, then promoted them to first-class pages (`apps-today.md`, `building-or-porting.md`). See [2026-09-11-session-memory-apps-today-porting.md](2026-09-11-session-memory-apps-today-porting.md).
 
 Did not touch `src/`, `linker.ld`, or smoke scripts. Did not stage `.obsidian/` or `.trash/`.
 

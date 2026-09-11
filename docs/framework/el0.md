@@ -1,6 +1,6 @@
 # EL0 isolation (P-SEC-3 / ADR-013)
 
-**Isolation: Planned.** A first mile, a user-TTBR0 read mile, an ASID TLB mile, a standing EL0 context, a TTBR1 private-page first cut, an EL1 high-VA fetch mile, an identity-tear first cut, an identity `.text` range tear, and a live identity `.text` tear after a high-VA vtable rewrite exist. Do not claim userspace or “EL0 isolated.”
+**Isolation: Planned.** A first mile, a user-TTBR0 read mile, an ASID TLB mile, a standing EL0 context, a TTBR1 private-page first cut, an EL1 high-VA fetch mile, an identity-tear first cut, an identity `.text` range tear, and a live identity `.text` tear after a high-VA vtable rewrite exist. Do not claim userspace or “EL0 isolated.” Standing enter/leave as a guest sample: [apps-today.md](apps-today.md). A stable SVC ABI / `libctos` is later **Planned**: [building-or-porting.md](building-or-porting.md).
 
 Direction: [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md). TTBR1 first cut: [ADR-016](../03-adr/ADR-016-ttbr1-private-page.md). EL1 fetch mile: [ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md). Identity-tear first cut: [ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md). Identity `.text` range tear: [ADR-019](../03-adr/ADR-019-identity-text-range-tear.md). Live `.text` tear: [ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md). Threat model: [security.md](security.md). Code: `src/el0.rs`, `src/asid.rs`, `src/ttbr1.rs`, `src/teardown.rs`.
 
