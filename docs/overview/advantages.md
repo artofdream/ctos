@@ -26,4 +26,12 @@ After M9, antifragility, security, and performance are first-class ([ADR-011](..
 
 `scripts/qemu-smoke.sh` and `force-fail` are meant to break when a marker disappears. Repeated host misses become ratchets, not extra paragraphs of advice ([antifragility.md](../framework/antifragility.md)).
 
-Limits of this shape: [Limits](limits.md).
+## Immutability
+
+**Scoped yes. Absolute no.**
+
+We already have probed, **scoped** cuts: identity-image RO+NX (`ro: ok`, [ADR-015](../03-adr/ADR-015-ro-nx-text-data.md)) and identity `.text` tear after a high-VA rewrite (`ident: range` / `ident: live`, [ADR-019](../03-adr/ADR-019-identity-text-range-tear.md), [ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). Those are page-table facts on this QEMU `virt` guest.
+
+They are **not** “the kernel is immutable,” “W^X everywhere,” or a secure-boot product. `.rodata` / `.data` / heap can still be identity-mapped. Future mappings are not automatically covered. Say a narrower sentence only when the [honesty ledger](../framework/honesty-ledger.md) has a matching probe.
+
+Limits of this shape: [Drawbacks / limits](limits.md).

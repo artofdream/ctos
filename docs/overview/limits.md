@@ -26,6 +26,10 @@ Standing EL0 is a mile, not an application runtime. No ELF loader for third-part
 
 The Route 53 CNAME for `ctos.artof.link` can be in place while GitHub Pages is still off. **Do not** claim `https://ctos.artof.link` serves these docs until Pages is enabled, a `main` deploy is green, and HTTPS fetches the book. Custom-domain reachability stays **Planned** until that probe. Details: [Docs website + DNS](../website.md).
 
+## Immutability is not absolute
+
+RO+NX and a torn identity `.text` range are **scoped** probes. Do not upgrade them to “immutable kernel” or “the kernel is W^X.” Details: [Advantages — Immutability](advantages.md#immutability).
+
 ## Other honest gaps
 
 - Umbrella EL0 isolation: **Planned** (PAN + full identity teardown still missing).

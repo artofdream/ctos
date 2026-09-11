@@ -38,6 +38,10 @@ Gaps before a real app host: stable SVC ABI, ELF/user loader, standing EL0 as no
 
 **Containers: no.** OCI/Docker need Linux features ctos does not have and is not aiming at soon. Today Docker hosts the ctos smoke image, not the reverse. Container support is not Planned here.
 
+## Immutability
+
+**Scoped yes. Absolute no.** Probed today: RO+NX text/data and identity `.text` tear. That is not “the image can never change.” Claim only with a ledger probe. See [Advantages](overview/advantages.md#immutability).
+
 ## KPIs, prerequisites, advantages, drawbacks
 
 | Dedicated page | What it is |
