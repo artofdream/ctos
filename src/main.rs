@@ -52,11 +52,12 @@ global_asm!(
 pub extern "C" fn kernel_main() -> ! {
     uart::UART.lock().init();
     exception::init();
-    frame::init();
     paging::init();
     // After MMU + D-cache (SCTLR.C). A pre-MMU store to .bss can be
-    // invisible to later cached reads on the larger test image.
+    // invisible to later cached reads (PR #20 test image; cts-ai Docker
+    // hello lost `frame::ALLOC` / `USER_MAP_OK` the same way).
     perf::mark_early();
+    frame::init();
     heap::init();
     sched::init();
     gic::init();
