@@ -37,4 +37,4 @@ Say “the post-MMU continuation ran at a high VA” or “a 16 KiB dedicated id
 
 - `paging::jump_high` / `tear_identity_text_range` own the cut. `src/teardown.rs` extends the serial probe.
 - [ADR-018](ADR-018-identity-teardown-first-cut.md) remains the split-tables + first dedicated page cut.
-- A later ADR may unmap live `.text` once `println!` no longer `BLR`s identity. That work is not this cut.
+- [ADR-020](ADR-020-identity-fnptr-reloc.md) rewrites rustc vtables to high aliases and unmaps live identity `.text` after the boot stub. `.rodata` / `.data` / heap stay.

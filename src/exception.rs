@@ -23,9 +23,9 @@
 //! DABORT: SVC, IABORT, DABORT.
 //! Other lower-EL slots still park. After paging::init, `VBAR_EL1` is
 //! the high alias of this table. Identity `_start` stays at `0x4008_0000`.
-//! One dedicated identity text page plus identity `.text` after the
-//! boot stub are unmapped; `.rodata` / `.data` / heap stay. Not
-//! “the kernel moved.”
+//! A dedicated identity text range plus live identity `.text` after the
+//! boot stub are unmapped (ADR-019 / ADR-020); `.rodata` / `.data` /
+//! heap stay. Not “the kernel moved.”
 
 use core::arch::global_asm;
 use core::fmt::Write;

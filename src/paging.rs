@@ -26,10 +26,12 @@
 //! from TTBR0 (kernel + user). After a high-VA jump of the post-MMU
 //! continuation, the rest of that dedicated identity text *range*
 //! (16 KiB) is unmapped too ([ADR-019](../docs/03-adr/ADR-019-identity-text-range-tear.md)).
-//! Live `.text` / `.rodata` / `.data` / heap stay identity-mapped:
-//! rustc `dyn Write` vtables still `BLR` identity fn pointers.
-//! `_start` and the QEMU `-kernel` load stay at `0x4008_0000`. Full
-//! identity teardown is still Planned. Not a DTB walker. Not
+//! [ADR-020](../docs/03-adr/ADR-020-identity-fnptr-reloc.md) then
+//! rewrites rustc vtable / fn-pointer words in `.rodata` to TTBR1
+//! aliases and unmaps live identity `.text` after the `_start` page.
+//! `.rodata` / `.data` / heap stay identity-mapped. `_start` and the
+//! QEMU `-kernel` load stay at `0x4008_0000`. Full identity teardown
+//! (`.rodata`/`.data`/heap) is still Planned. Not a DTB walker. Not
 //! Raspberry Pi. Not “EL0 isolated.” Not “the kernel moved.”
 
 use core::fmt::Write;
@@ -158,19 +160,52 @@ static IDENTITY_TEAR_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static IDENTITY_RANGE_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
+static IDENTITY_RELOC_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+static IDENTITY_LIVE_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 static TORN_TEXT_PAGES: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static TORN_LIVE_PAGES: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static RELOC_COUNT: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TABLES: Mutex<()> = Mutex::new(());
 
 unsafe extern "C" {
+    static __text_end: u8;
+    static __rodata_start: u8;
+    static __rodata_end: u8;
     static __data_start: u8;
+    static __data_end: u8;
     static __ident_tear_start: u8;
     static __ident_tear_end: u8;
+}
+
+/// First byte past `.text` (page-aligned). Live identity tear stops here.
+pub fn text_end() -> u64 {
+    identity_pa(core::ptr::addr_of!(__text_end) as usize as u64)
+}
+
+/// First byte of `.rodata` (page-aligned; equals `text_end` after ADR-020).
+pub fn rodata_start() -> u64 {
+    identity_pa(core::ptr::addr_of!(__rodata_start) as usize as u64)
+}
+
+/// First byte past the explicit `.rodata` section (not page-aligned).
+#[allow(dead_code)]
+pub fn rodata_end() -> u64 {
+    identity_pa(core::ptr::addr_of!(__rodata_end) as usize as u64)
 }
 
 /// First byte of `.data` (page-aligned). `.text`/`.rodata` end here.
 pub fn data_start() -> u64 {
     identity_pa(core::ptr::addr_of!(__data_start) as usize as u64)
+}
+
+/// First byte past `.data`.
+pub fn data_end() -> u64 {
+    identity_pa(core::ptr::addr_of!(__data_end) as usize as u64)
 }
 
 /// Dedicated identity text page unmapped after high VBAR (ADR-018).
@@ -210,17 +245,23 @@ pub fn pc_is_high() -> bool {
     is_high_va(current_pc())
 }
 
-/// Identity VA is in the torn `.text` range or the dedicated tear page.
+/// Identity VA is in the torn live `.text` range or the dedicated tear pages.
 #[allow(dead_code)]
 pub fn is_torn_identity_va(va: u64) -> bool {
     let ia = identity_pa(va);
     let page = ia & !0xfff;
-    if page == ident_tear_page() {
-        return true;
+    if page == KERNEL_TEXT {
+        return false;
     }
     let lo = ident_tear_page();
     let hi = ident_tear_end();
-    page >= lo && page < hi
+    if page >= lo && page < hi {
+        return true;
+    }
+    if load_flag(&IDENTITY_LIVE_OK) {
+        return page >= boot_stub_end() && page < text_end();
+    }
+    false
 }
 
 /// How many identity `.text` pages after the boot stub were unmapped.
@@ -600,10 +641,34 @@ pub fn identity_tear_ready() -> bool {
     load_flag(&IDENTITY_TEAR_OK)
 }
 
-/// Dedicated 16 KiB identity text range unmapped (ADR-019). Live `.text` stays.
+/// Dedicated 16 KiB identity text range unmapped (ADR-019).
 #[allow(dead_code)]
 pub fn identity_range_ready() -> bool {
     load_flag(&IDENTITY_RANGE_OK)
+}
+
+/// rustc vtable / fn-pointer words rewritten to high aliases (ADR-020).
+#[allow(dead_code)]
+pub fn identity_reloc_ready() -> bool {
+    load_flag(&IDENTITY_RELOC_OK)
+}
+
+/// Live identity `.text` after the boot stub unmapped (ADR-020).
+#[allow(dead_code)]
+pub fn identity_live_ready() -> bool {
+    load_flag(&IDENTITY_LIVE_OK)
+}
+
+/// How many `.rodata`/`.data` words were rewritten to a high alias.
+#[allow(dead_code)]
+pub fn reloc_count() -> u64 {
+    load_u64_flag(&RELOC_COUNT)
+}
+
+/// How many live identity `.text` pages after the boot stub were unmapped.
+#[allow(dead_code)]
+pub fn torn_live_pages() -> u64 {
+    load_u64_flag(&TORN_LIVE_PAGES)
 }
 
 #[allow(dead_code)]
@@ -1148,10 +1213,9 @@ pub fn tear_identity_probe_page() -> bool {
 
 /// Unmap the dedicated identity text *range* (ADR-019).
 ///
-/// Live `.text` stays mapped: rustc `dyn Write` / fmt vtables still
-/// `BLR` identity fn pointers (first `println!` after a full `.text`
-/// yank is an unhandled IABORT). This only tears `__ident_tear_*`
-/// (16 KiB). Must run after the high-VA jump. Boot stub stays.
+/// This only tears `__ident_tear_*` (16 KiB). Live `.text` is a
+/// separate ADR-020 cut (`tear_live_identity_text`) after the
+/// fn-pointer rewrite. Must run after the high-VA jump. Boot stub stays.
 #[allow(dead_code)]
 pub fn tear_identity_text_range() -> bool {
     if !high_split_ready() || !pc_is_high() {
@@ -1208,6 +1272,211 @@ pub fn tear_identity_text_range() -> bool {
     let _ = writeln!(
         w,
         "ident: range lo={:#x} hi={:#x} pages={}",
+        lo, hi, pages
+    );
+    true
+}
+
+/// True when `w` is an identity address in live `.text` or `__ident_tear_*`.
+fn is_identity_exec_ptr(w: u64) -> bool {
+    if is_high_va(w) || w & 3 != 0 {
+        return false;
+    }
+    let p = identity_pa(w);
+    if p >= KERNEL_TEXT && p < text_end() {
+        return true;
+    }
+    p >= ident_tear_page() && p < ident_tear_end()
+}
+
+/// Temporarily clear/set AP[2] on one identity RAM page. High twin stays RO.
+fn set_identity_page_writable(va: u64, writable: bool) -> bool {
+    if va & (PAGE - 1) != 0 {
+        return false;
+    }
+    let _g = TABLES.lock();
+    let ok = unsafe { set_identity_l3_writable(va, writable) };
+    if ok {
+        dsb_ish();
+        tlbi_va(va);
+    }
+    ok
+}
+
+unsafe fn set_identity_l3_writable(va: u64, writable: bool) -> bool {
+    let l2i = ((va >> 21) & 0x1ff) as usize;
+    let Some(l3_pa) = l3_pa_for_ram_block(l2i) else {
+        return false;
+    };
+    let l3i = ((va >> 12) & 0x1ff) as usize;
+    let d = desc_at(l3_pa, l3i);
+    if d & DESC_VALID == 0 {
+        return false;
+    }
+    let new = if writable {
+        d & !DESC_AP_RO
+    } else {
+        d | DESC_AP_RO
+    };
+    l3_write(l3_pa, l3i, new);
+    true
+}
+
+/// Rewrite 8-byte identity `.text` pointers in `[lo, hi)` to high aliases.
+///
+/// `make_writable` is for RO `.rodata`. `.data` is already RW.
+fn rewrite_ptr_range(lo: u64, hi: u64, make_writable: bool) -> u64 {
+    if hi <= lo {
+        return 0;
+    }
+    let mut n = 0u64;
+    let mut page = lo & !(PAGE - 1);
+    while page < hi {
+        if !is_mapped(page) {
+            page += PAGE;
+            continue;
+        }
+        if make_writable && !set_identity_page_writable(page, true) {
+            page += PAGE;
+            continue;
+        }
+        let start = core::cmp::max(lo, page);
+        let stop = core::cmp::min(hi, page + PAGE);
+        let mut p = (start + 7) & !7;
+        while p + 8 <= stop {
+            let word = unsafe { core::ptr::read_volatile(p as *const u64) };
+            if is_identity_exec_ptr(word) {
+                unsafe {
+                    core::ptr::write_volatile(p as *mut u64, to_high_va(word));
+                }
+                n += 1;
+            }
+            p += 8;
+        }
+        dcache_civac(page);
+        dcache_civac(to_high_va(page));
+        if make_writable {
+            let _ = set_identity_page_writable(page, false);
+        }
+        page += PAGE;
+    }
+    dsb_ish();
+    isb();
+    n
+}
+
+/// rustc `dyn Write` vtable is drop / size / align / write_str / …
+const WRITE_VTABLE_WRITE_STR: usize = 3;
+
+/// Read `Pl011 as dyn Write` write_str from the fat pointer (no method call).
+fn write_vtable_write_str() -> u64 {
+    let mut w = uart::raw();
+    let dyn_w: &mut dyn Write = &mut w;
+    let fat: [*const usize; 2] =
+        unsafe { core::mem::transmute_copy(&(dyn_w as *mut dyn Write)) };
+    unsafe { *fat[1].add(WRITE_VTABLE_WRITE_STR) as u64 }
+}
+
+/// After the high-VA jump: rewrite rustc vtable / fn-pointer tables so
+/// `dyn` / fmt `BLR`s the TTBR1 alias (ADR-020). Must run before the
+/// first `println!` that would otherwise `BLR` identity `.text`.
+#[allow(dead_code)]
+pub fn rewrite_identity_fn_ptrs() -> bool {
+    if !high_split_ready() || !pc_is_high() {
+        return false;
+    }
+    let ro_lo = rodata_start();
+    let ro_hi = ident_tear_page();
+    if ro_lo < KERNEL_TEXT || ro_hi <= ro_lo || ro_hi > data_start() {
+        return false;
+    }
+    let mut n = rewrite_ptr_range(ro_lo, ro_hi, true);
+    let dlo = data_start();
+    let dhi = data_end();
+    if dhi > dlo {
+        n += rewrite_ptr_range(dlo, dhi, false);
+    }
+    if n == 0 {
+        return false;
+    }
+    let write_str = write_vtable_write_str();
+    if !is_high_va(write_str) || !high_is_executable(write_str) {
+        return false;
+    }
+    publish_u64(&RELOC_COUNT, n);
+    publish_flag(&IDENTITY_RELOC_OK, true);
+    let mut w = uart::raw();
+    let _ = writeln!(w, "ident: reloc n={}", n);
+    true
+}
+
+/// Unmap live identity `.text` after the `_start` / vectors page (ADR-020).
+///
+/// Requires the fn-pointer rewrite so `println!` / `dyn Write` stay
+/// high-only. `.rodata` / `.data` / heap / the boot stub stay mapped.
+/// Must run after the high-VA jump.
+#[allow(dead_code)]
+pub fn tear_live_identity_text() -> bool {
+    if !high_split_ready() || !pc_is_high() || !identity_reloc_ready() {
+        return false;
+    }
+    let lo = boot_stub_end();
+    let hi = text_end();
+    if lo & (PAGE - 1) != 0 || hi & (PAGE - 1) != 0 {
+        return false;
+    }
+    if lo <= KERNEL_TEXT || hi <= lo || hi > rodata_start() {
+        return false;
+    }
+    if hi != rodata_start() {
+        return false;
+    }
+    let pages = (hi - lo) / PAGE;
+    if pages < 8 {
+        return false;
+    }
+    {
+        let _g = TABLES.lock();
+        let mut va = lo;
+        unsafe {
+            while va < hi {
+                if !unmap_identity_page(va) {
+                    return false;
+                }
+                if !unmap_user_ram_page(va) {
+                    return false;
+                }
+                va += PAGE;
+            }
+        }
+        dsb_ish();
+    }
+    let mut va = lo;
+    while va < hi {
+        tlbi_va(va);
+        va += PAGE;
+    }
+    if is_mapped(lo) || user_mapped(lo) || is_mapped(hi - PAGE) {
+        return false;
+    }
+    if !is_mapped(KERNEL_TEXT) || !is_executable(KERNEL_TEXT) {
+        return false;
+    }
+    if is_mapped(boot_stub_end()) {
+        return false;
+    }
+    if !is_mapped(rodata_start()) || !is_readonly(rodata_start()) {
+        return false;
+    }
+    if !high_mapped(to_high_va(lo)) || !high_is_executable(to_high_va(lo)) {
+        return false;
+    }
+    publish_u64(&TORN_LIVE_PAGES, pages);
+    publish_flag(&IDENTITY_LIVE_OK, true);
+    let mut w = uart::raw();
+    let _ = writeln!(
+        w,
+        "ident: live lo={:#x} hi={:#x} pages={}",
         lo, hi, pages
     );
     true
@@ -1725,8 +1994,8 @@ fn identity_text_range_unmapped_boot_stub_stays() {
     assert!(is_mapped(KERNEL_TEXT), "boot stub stays identity-mapped");
     assert!(is_executable(KERNEL_TEXT));
     assert!(
-        is_mapped(boot_stub_end()),
-        "live .text after the stub stays mapped (rustc fmt vtables)"
+        is_mapped(rodata_start()),
+        ".rodata stays identity-mapped (fmt strings / rewritten vtables)"
     );
     assert!(
         is_executable(crate::exception::vector_table_addr()),
@@ -1739,5 +2008,42 @@ fn identity_text_range_unmapped_boot_stub_stays() {
         !is_torn_identity_va(KERNEL_TEXT),
         "boot stub is not in the torn set"
     );
+    assert!(is_torn_identity_va(lo));
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_fn_ptrs_rewritten_high() {
+    assert!(pc_is_high(), "reloc runs after the high-VA jump");
+    assert!(identity_reloc_ready(), "vtable / fn-pointer rewrite must publish");
+    assert!(reloc_count() >= 1, "at least the dyn Write vtable methods");
+    let write_str = write_vtable_write_str();
+    assert!(is_high_va(write_str), "Write::write_str must be a high alias");
+    assert!(high_is_executable(write_str));
+    assert!(!is_mapped(identity_pa(write_str)) || identity_pa(write_str) < boot_stub_end());
+}
+
+#[cfg(test)]
+#[test_case]
+fn live_identity_text_unmapped_boot_stub_stays() {
+    assert!(pc_is_high());
+    assert!(identity_live_ready(), "live identity .text after the stub must unmap");
+    let lo = boot_stub_end();
+    let hi = text_end();
+    assert_eq!(lo & 0xfff, 0);
+    assert_eq!(hi & 0xfff, 0);
+    assert_eq!(hi, rodata_start(), ".text and .rodata must not share a page");
+    assert!(torn_live_pages() >= 8, "more live .text torn than a stub page");
+    assert!(!is_mapped(lo), "first live .text page must be absent from TTBR0");
+    assert!(!user_mapped(lo), "user TTBR0 must omit live .text");
+    assert!(!is_mapped(hi - PAGE), "last live .text page must be absent");
+    assert!(is_mapped(KERNEL_TEXT), "boot stub stays identity-mapped");
+    assert!(is_executable(KERNEL_TEXT));
+    assert!(is_mapped(rodata_start()), ".rodata stays for fmt strings");
+    assert!(is_readonly(rodata_start()));
+    let high = to_high_va(lo);
+    assert!(high_mapped(high), "high twin of live .text must stay");
+    assert!(high_is_executable(high));
+    assert!(!is_torn_identity_va(KERNEL_TEXT));
     assert!(is_torn_identity_va(lo));
 }
