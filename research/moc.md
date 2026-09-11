@@ -4,7 +4,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
-- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-apps-today-porting.md](daily-briefs/2026-09-11-apps-today-porting.md)
+- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-filesystem-stance.md](daily-briefs/2026-09-11-filesystem-stance.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
