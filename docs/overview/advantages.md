@@ -36,4 +36,6 @@ After M9, antifragility, security, and performance are first-class ([ADR-011](..
 
 This is **not** containers, and **not** OTA / A-B firmware updates. Those are later and unclaimed. Do not say “immutable OS updates” until an OS-slot/app-slot probe exists.
 
+Runtime cost vs neutral is **unmeasured**. Measure first; no invented numbers. [KPIs — OS slot vs app slot](measure.md#os-slot-vs-app-slot-performance).
+
 Limits of this shape: [Drawbacks / limits](limits.md).

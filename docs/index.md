@@ -46,7 +46,7 @@ Gaps before a real app host: stable SVC ABI, ELF/user loader, standing EL0 as no
 
 | Dedicated page | What it is |
 | --- | --- |
-| [KPIs / how we measure](overview/measure.md) | CNTPCT, IRQ-delta, boot-delta, ELF size; fail-closed smoke; not SPEC / not a latency budget |
+| [KPIs / how we measure](overview/measure.md) | CNTPCT, IRQ-delta, boot-delta, ELF size; OS/app-slot cost vs neutral is unmeasured; not SPEC |
 | [Prerequisites](overview/prerequisites.md) | Nightly Rust + QEMU `virt`; Pages not required for kernel work |
 | [Advantages](overview/advantages.md) | Document-first, probed claims, QEMU virt scope, pillars as NFRs |
 | [Drawbacks / limits](overview/limits.md) | Learning kernel; identity stub at `0x4008_0000`; PAN unclaimed; no net/DMA |

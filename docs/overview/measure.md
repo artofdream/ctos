@@ -17,6 +17,18 @@ What we measure **today** on QEMU `virt` (serial markers + `#[test_case]`, fail-
 
 QEMU `virt` / TCG (or the host’s QEMU) is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
+### OS slot vs app slot (performance)
+
+Direction only — Track A is **not built**. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.”
+
+| Kind | Honest guess (unmeasured) | What would make it a claim |
+| --- | --- | --- |
+| Possible **cost** | Extra `ERET` / `SVC`, a TTBR0 switch, mapping an app slot — vs today’s in-tree function call | CNTPCT (or irq-delta) around a real load + enter/leave once Track A exists |
+| Possible **neutral** | Steady-state UART print / yield after the app is mapped, if the hot path stays similar | Same probes on the new path vs the in-tree workers; no win claimed without a delta |
+| Build-time, not a bench | Kernel ELF no longer contains the “app”; you rebuild slots separately | `perf: elf-size` is still one image’s byte count, not “smaller is better” |
+
+**Measure first** ([NFR-07](../02-requirements/fr-nfr.md)). Do not tune the loader “for speed” on a hunch. Do not copy QEMU TCG ticks into a product slide.
+
 ## Stability / antifragility
 
 We do not publish an uptime KPI. We measure whether **sensors stay fail-closed** and whether a repeated miss becomes a ratchet ([NFR-05](../02-requirements/fr-nfr.md), [antifragility.md](../framework/antifragility.md)).

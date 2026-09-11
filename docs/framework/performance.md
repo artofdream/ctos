@@ -47,5 +47,6 @@ That is **kernel_main-entry to after-init** on this QEMU virt guest. It is not a
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
+- If Track A (OS slot vs app slot) lands: CNTPCT around load + `ERET`/`SVC`, compared to in-tree workers. Cost vs neutral is unknown until that probe. Do not invent a percent. Overview: [KPIs — OS slot vs app slot](../overview/measure.md#os-slot-vs-app-slot-performance).
 
 Do not add a host `criterion` crate or a “bench.yml” that prints invented numbers.
