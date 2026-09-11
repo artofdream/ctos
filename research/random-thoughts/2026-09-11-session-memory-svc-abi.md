@@ -8,4 +8,4 @@ Payload on `EL0_PAGE`: SVC #18, MOVZ/MOVK user ptr, SVC #17, SVC #16. User buffe
 
 53 tests. qemu-smoke ok on `79afb57`. Track A incomplete.
 
-Do not self-merge. GitHub author of #49 is expected `cursor[bot]`; merge hat is `artofdream`.
+Do not self-merge. GitHub author of #49 is `artofdream`; merge hat is `cursor[bot]`. This session does not merge.
