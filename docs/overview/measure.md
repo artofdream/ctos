@@ -32,20 +32,6 @@ A green GitHub Actions run is one pair of runners. It is not “every host.” D
 
 ## Application support
 
-What this **learning kernel** can honestly claim today, versus what it does not run.
+Scope only — not a new FR/NFR ID. Concrete examples and the cannot-run list: [What can run today](what-can-run.md).
 
-**Can claim (probed on QEMU `virt`):**
-
-- Cooperative EL1 tasks — two heap-backed workers yield; serial `sched: ok` ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md)). Not preemptive. Not SMP.
-- Standing EL0 mile — enter / stay / leave on a user TTBR0 (`el0: standing` / `el0: restored`). Not a user process. Isolation stays **Planned** ([el0.md](../framework/el0.md)).
-- UART I/O — PL011 TX (`println!`) and injected RX (`input: rx 0x41`). Not a terminal stack. Not virtio-keyboard.
-
-**Does not support** (do not imply otherwise):
-
-- POSIX, Linux ABIs, or a shell that runs third-party binaries
-- SMP, GPU, networking, disk, or DMA
-- Real userspace applications (no loader, no libc, no packages)
-- Certified security, a “secure OS,” or “EL0 isolated”
-- Raspberry Pi or other boards until a board probe exists
-
-Security work is real and probed (heap NX, stack guards, RO+NX text/data, EL0 miles) — that is **not** a product security KPI. See [security.md](../framework/security.md). Do not say “production ready.”
+Security work is probed (heap NX, stack guards, RO+NX, EL0 miles) — that is **not** a product security KPI. See [security.md](../framework/security.md). Do not say “production ready.”

@@ -20,7 +20,7 @@ There is no NIC driver, no virtio-net, no block device, and no DMA API. Input on
 
 ## No real userspace apps
 
-Standing EL0 is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no SMP, no GPU. [Application support](measure.md#application-support).
+Standing EL0 is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no SMP, no GPU. Concrete examples: [What can run today](what-can-run.md).
 
 ## Docs URL may lag the repo
 
