@@ -44,6 +44,7 @@ Source + local smoke were first probed on 2026-09-08 (see the honesty ledger). C
 | Heap | M8: first-fit `GlobalAlloc` on identity-mapped frames (FR-10 / ADR-009) — probe status in the honesty ledger. |
 | Scheduler | M9: cooperative EL1 yield (FR-11 / ADR-010) — probe status in the honesty ledger. Not preemptive. |
 | Pillars | [ADR-011](../03-adr/ADR-011-three-pillars.md): antifragility / security / performance. Threat-model v1.8 ([security.md](../framework/security.md)). Heap NX ([ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md)). Linker-stack guards ([ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md)). EL0 first mile + standing + ASID TLB mile; TTBR1 first cut ([ADR-016](../03-adr/ADR-016-ttbr1-private-page.md)); EL1 high-VA fetch ([ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md)); identity-tear first cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)); identity `.text` range tear ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)); live `.text` tear ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). Still **Planned**: `.rodata`/`.data`/heap tear, PAN on `cortex-a57`, umbrella isolation ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
+| Filesystem | None today. **Planned** order (no FR ID): in-RAM memfs → virtio-blk → FAT or xv6-like. Stance: [filesystem.md](../framework/filesystem.md). |
 
 Each stage is one loop unit on the [roadmap](../04-roadmap/roadmap.md).
 

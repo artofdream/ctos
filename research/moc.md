@@ -16,6 +16,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Overview (KPIs / trade-offs): [../docs/framework/overview.md](../docs/framework/overview.md)
 - What can run today (samples): [../docs/framework/apps-today.md](../docs/framework/apps-today.md)
 - Building or porting: [../docs/framework/building-or-porting.md](../docs/framework/building-or-porting.md)
+- Filesystem stance: [../docs/framework/filesystem.md](../docs/framework/filesystem.md)
 - Frozen IDs: [../docs/02-requirements/fr-nfr.md](../docs/02-requirements/fr-nfr.md)
 - Architecture: [../docs/02-architecture/technical-architecture.md](../docs/02-architecture/technical-architecture.md)
 - Roadmap: [../docs/04-roadmap/roadmap.md](../docs/04-roadmap/roadmap.md)
@@ -33,6 +34,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)
+- Filesystem stance scratch: [random-thoughts/2026-09-11-session-memory-filesystem.md](random-thoughts/2026-09-11-session-memory-filesystem.md)
+- Filesystem stance handoff: [daily-briefs/2026-09-11-filesystem-stance.md](daily-briefs/2026-09-11-filesystem-stance.md)
 - Inbox (triage out): [inbox/](inbox/)
 
 ## Templates

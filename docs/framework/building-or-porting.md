@@ -46,7 +46,7 @@ A Linux, musl, or glibc binary will **not** run. Missing, among other things:
 
 - `exec` / ELF loader / dynamic linker
 - syscall table (`read` / `write` / `open` / `mmap` / `clone` / …)
-- filesystem, signals, sockets, `environ`, TLS as Linux defines them
+- filesystem (none today — [filesystem.md](filesystem.md); Planned memfs → virtio-blk → FAT/xv6-like), signals, sockets, `environ`, TLS as Linux defines them
 - a C runtime (`crt0`, libgcc helpers as a POSIX process)
 
 Do not publish a “port busybox / musl to ctos” guide that skips those gaps. That work would be many ADRs, not a weekend `#ifdef`. Frozen Out list: [fr-nfr.md](../02-requirements/fr-nfr.md) (userspace processes, POSIX, networking).

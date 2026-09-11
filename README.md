@@ -72,6 +72,7 @@ Start here before adding kernel features:
 | [Overview](docs/framework/overview.md) | Plain-English KPIs, prerequisites, advantages, drawbacks |
 | [What can run today](docs/framework/apps-today.md) | Concrete samples: coop UART workers, RX echo, standing EL0; cannot-run list |
 | [Building or porting](docs/framework/building-or-porting.md) | Easiest = in-tree `no_std` coop EL1; POSIX not easy; SVC ABI / `libctos` Planned |
+| [Filesystem](docs/framework/filesystem.md) | No FS today. Planned: memfs → virtio-blk → FAT or xv6-like |
 | [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (ISA text revised under ADR-003) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, QEMU `virt`, UART stage, planned stages |
 | [ADR-001](docs/03-adr/ADR-001-honesty-harness-for-ctos.md) | Why this repo uses a honesty/harness practice |

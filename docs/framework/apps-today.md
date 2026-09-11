@@ -103,7 +103,7 @@ Explicit **no**. Do not paper over these with a “porting guide.”
 | A shell (`sh`, bash) or line-oriented TTY | RX probe is one injected byte. No line discipline. |
 | Python, Node, or any hosted interpreter | Needs a process ABI, heap policy, and usually a filesystem. |
 | Network / sockets / HTTP | No virtio-net, no stack, no sockets. |
-| Filesystem (open/read/write files) | No VFS, no block device, no FAT/memfs. **Planned**, not started. |
+| Filesystem (open/read/write files) | No VFS, no block device, no FAT/memfs. **Planned** order: memfs → virtio-blk → FAT or xv6-like. Stance: [filesystem.md](filesystem.md). |
 | SMP / a second CPU / preemptive threads | M9 is cooperative EL1 on one vCPU. |
 | Isolated userspace / “an app you compile and exec” | Standing EL0 is a stub. PAN + `.rodata`/`.data`/heap tear + umbrella isolation stay **Planned**. |
 | Raspberry Pi or any board other than QEMU `virt` | Unprobed. Do not copy virt Verified onto hardware. |
