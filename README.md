@@ -27,8 +27,8 @@ cargo run            # boot the ELF in qemu-system-aarch64 -machine virt
 The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU serial Hello World was probed once in the 2026-09-08 cloud run (`qemu-system-aarch64` 8.2.2, `-machine virt`). That is not CI. Other machines stay Unknown until they run the same kind of probe. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
 
 ```bash
-./scripts/qemu-smoke.sh   # build + hello + paging + heap + two-task sched + W^X + guards + RO+NX + EL0 first mile + no-kernel-read + standing + ASID + TTBR1 private + high-VA exec + identity-tear + vtable reloc + live .text tear + CNTPCT + boot-delta + IRQ-delta + host ELF size + timer tick + injected UART RX + BRK + fatal nested serial + cargo test + force-fail
-cargo test                # #[test_case] including VBAR/BRK/stacks/guards/RO+NX/timer/IRQ-delta/empty RX/MMU/frames/heap/sched/CNTPCT/boot-delta/W^X/EL0/standing/ASID/TTBR1 private + high-VA exec + identity-tear + vtable reloc + live .text; QEMU exits 0 via ARM semihosting
+./scripts/qemu-smoke.sh   # build + hello + paging + heap + two-task sched + W^X + guards + RO+NX + EL0 first mile + no-kernel-read + standing + SVC ABI (yield/uart/exit) + ASID + TTBR1 private + high-VA exec + identity-tear + vtable reloc + live .text tear + CNTPCT + boot-delta + IRQ-delta + host ELF size + timer tick + injected UART RX + BRK + fatal nested serial + cargo test + force-fail
+cargo test                # #[test_case] including VBAR/BRK/stacks/guards/RO+NX/timer/IRQ-delta/empty RX/MMU/frames/heap/sched/CNTPCT/boot-delta/W^X/EL0/standing/SVC ABI/ASID/TTBR1 private + high-VA exec + identity-tear + vtable reloc + live .text; QEMU exits 0 via ARM semihosting
 ```
 
 ### Docker (cts-ai: Windows ARM64 → linux/arm64)

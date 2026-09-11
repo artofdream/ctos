@@ -10,7 +10,7 @@ Do not claim an “easy port” path that does not exist.
 
 Nothing POSIX ports easily.
 
-There is **no C library (libc)**, **no dynamic linker**, **no filesystem**, and **no stable public application ABI**. There is no compiler target that produces a ctos userspace binary, and no loader that would run one if you built it elsewhere.
+There is **no C library (libc)**, **no dynamic linker**, **no filesystem**, and **no userspace CRT / compiler target**. A1 documented a **kernel** SVC ABI (`exit` / `uart_write` / `yield` — [syscall.md](../framework/syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). That is not an application porting target. There is no loader that would run a foreign user-mode binary if you built one elsewhere.
 
 A Linux, musl, or glibc program is a different contract. Recompiling it “for AArch64” does not make it a ctos program.
 
@@ -47,17 +47,17 @@ flowchart LR
 - Drop in a userspace ELF (`ET_DYN` or a Linux `ET_EXEC`)
 - Expect `std`, files, sockets, threads, or a process table
 
-Those need an ABI, a loader, and a userspace that ctos does not have. The standing user-mode stub is a **test mile**, not that runtime ([el0.md](../framework/el0.md)).
+Those need a loader, a CRT, and a userspace that ctos does not have. The standing user-mode stub is a **test mile** plus an A1 ABI trip, not that runtime ([el0.md](../framework/el0.md), [syscall.md](../framework/syscall.md)).
 
 ## Later (Planned)
 
 A path that is **not built**. Call this **Track A** when talking about an OS slot vs app slot ([Immutability](advantages.md#immutability)):
 
-1. A **stable SVC ABI** — documented syscall numbers, not today’s test `SVC #1` / `#2` (a supervisor call is how user-mode code asks the kernel for help)
+1. A **stable SVC ABI** — A1 is the kernel mile (`exit` / `uart_write` / `yield`). Still not a userspace compiler target.
 2. A freestanding C runtime / `libctos` for user mode
 3. Link a freestanding AArch64 user-mode binary
 4. Map it into the **user page table** and return to user mode
 
-Until those exist and have ledger probes, do not say applications “port to ctos.” You extend the kernel. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are **no**: [Hosting apps / containers](hosting-apps.md).
+Until the rest exist and have ledger probes, do not say applications “port to ctos.” You extend the kernel. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are **no**: [Hosting apps / containers](hosting-apps.md).
 
 A filesystem is the same story: **Planned**, not present. Direction: [Filesystem: new vs extend](filesystem.md).

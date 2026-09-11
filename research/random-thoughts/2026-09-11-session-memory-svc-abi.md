@@ -1,6 +1,6 @@
 # Session memory — 2026-09-11 (Track A / A1 SVC ABI)
 
-Fetched `origin/main` `e80dc93` (#28 merged). Branch `cursor/svc-syscall-abi-0dc5`. Draft PR #49.
+Rebased onto `origin/main` `f86785b` (#30 Pages). Conflicts: `roadmap.md` and `honesty-ledger.md` only. Kernel files did not conflict. Branch `cursor/svc-syscall-abi-0dc5`. Draft PR #49. Do not `git pull` the old remote tip.
 
 ADR-021: public `SVC #16` exit / `#17` uart_write / `#18` yield. Reserved 0–2 stay ADR-013 probes (tightened first-mile to imm==0 so it cannot steal ABI numbers). `yield` does not call `sched::yield_now` (exception frame / ADR-010). `uart_write` copies ≤64 bytes from a user-mapped **and** kernel-mapped range; kernel `.data` returns 0.
 
