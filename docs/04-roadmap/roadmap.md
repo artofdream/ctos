@@ -49,4 +49,4 @@ Filesystem work is **Planned** and is not a row above. Intended order (one PR ea
 
 ## Docs website
 
-mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). Route 53 CNAME for `ctos.artof.link` is **in place** (zone `Z1178AFMV41RWP`). HTTPS reachability stays **Planned** until Pages is enabled after merge. Overview pages: [how we measure](../overview/measure.md). Publish notes: [website.md](../website.md).
+mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). `https://ctos.artof.link` HTTPS is **Verified** after #30 (deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200). Route 53 CNAME remains in place (zone `Z1178AFMV41RWP`). Overview: [what can run today](../overview/what-can-run.md). Publish notes: [website.md](../website.md).

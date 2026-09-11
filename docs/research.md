@@ -13,4 +13,4 @@ Session scratch: [`research/random-thoughts/`](https://github.com/artofdream/cto
 
 Tracker is GitHub. Optional Obsidian UI is local-only (`.obsidian/` is gitignored). See [research/README.md](https://github.com/artofdream/ctos/blob/main/research/README.md) on GitHub.
 
-Route 53: CNAME already created (zone `Z1178AFMV41RWP`). Playbook / LIST-only: [research/dns-route53-ctos.md](https://github.com/artofdream/ctos/blob/main/research/dns-route53-ctos.md). HTTPS serving docs stays Planned until Pages is live.
+Route 53: CNAME already created (zone `Z1178AFMV41RWP`). Playbook / LIST-only: [research/dns-route53-ctos.md](https://github.com/artofdream/ctos/blob/main/research/dns-route53-ctos.md). `https://ctos.artof.link` HTTPS is **Verified** after #30 ([website.md](website.md)).
