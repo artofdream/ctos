@@ -35,6 +35,6 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-2c | RO+NX text/data (ADR-015) | `ro: nx data` + `ro: write fault` + `ro: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity image W^X on virt; not “secure OS.” |
 | P-PERF-4 | Boot-to-ready CNTPCT (NFR-08) | `perf: boot-delta ticks=<n>`; not a budget | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
 | P-SEC-3b | User TTBR0 + EL0 cannot read kernel `.data` | `el0: no kernel read`; user table omits `.data` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Isolation / PAN / standing EL0 stay **Planned**. |
-| P-SEC-3c | ASID-tagged TLB isolation | `asid: dual` + `asid: conflict` + `asid: ok`; no `TLBI VMALLE1` on the switch | **This PR** — specific mile. Umbrella isolation / PAN / standing EL0 stay **Planned** ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
+| P-SEC-3c | ASID-tagged TLB isolation | `asid: dual` + `asid: conflict` + `asid: ok`; no `TLBI VMALLE1` on the switch | **This PR** — cloud `qemu-smoke` Verified (honesty ledger). Umbrella isolation / PAN / standing EL0 stay **Planned** ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
 
 Hub: [pillars.md](../framework/pillars.md).
