@@ -51,9 +51,12 @@
 # Roadmap
 
 - [Roadmap](04-roadmap/roadmap.md)
+- [Track A (subordinate)](04-roadmap/track-a.md)
+- [Track B (subordinate)](04-roadmap/track-b.md)
 
 # Framework
 
+- [Core principles](framework/principles.md)
 - [Harness map](framework/formula.md)
 - [Honesty ledger](framework/honesty-ledger.md)
 - [Three pillars](framework/pillars.md)
@@ -61,6 +64,12 @@
 - [Security](framework/security.md)
 - [EL0](framework/el0.md)
 - [Performance](framework/performance.md)
+- [Overview (extra stance)](framework/overview.md)
+- [What can run today (extra)](framework/apps-today.md)
+- [Building or porting (extra)](framework/building-or-porting.md)
+- [Filesystem stance (extra)](framework/filesystem.md)
+- [Gaps to host apps (extra)](framework/host-apps.md)
+- [Immutability (scoped)](framework/immutability.md)
 
 # Site
 

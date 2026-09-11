@@ -43,7 +43,7 @@ docker run --rm ctos-smoke
 # optional: docker compose run --rm smoke
 ```
 
-cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) is **Verified** after the LF / `build-essential` / ROM ratchets (see the honesty ledger). This is not a Raspberry Pi port.
+cts-ai `./scripts/docker-smoke.sh` (linux/arm64) is **Verified** on `main` `e80dc93` (Merge PR #28 / ADR-020): 50 tests, `ident: reloc n=12`, live pages=37, force-fail ok. Earlier Docker Verified: `24d94e6` (#27 / ADR-019), `b0f0ee5` (#24–#26), and `71ee15f` (layout L3). The first 2026-09-09 Docker pass after the LF / `build-essential` / ROM ratchets is still a ledger row. Keep the `b2bbb99` Failed row. This is not a Raspberry Pi port.
 
 ## Docs website (mdBook)
 
@@ -69,6 +69,9 @@ Start here before adding kernel features:
 | [Advantages](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
 | [Drawbacks / limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
 | [Product vision](docs/01-vision/product-vision.md) | What ctos is and is not |
+| [Core principles](docs/framework/principles.md) | Non-negotiable driving force; tracks are subordinate. Display nickname **ctsOS** only |
+| [Overview (extra)](docs/framework/overview.md) | Extra stance; site SoT is the [Overview](docs/overview/) chapters |
+| [Immutability](docs/framework/immutability.md) | Scoped RO only (ADR-015 / ADR-020). Not an “immutable OS.” Track A #31 / Track B #40 |
 | [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (ISA text revised under ADR-003) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, QEMU `virt`, UART stage, planned stages |
 | [ADR-001](docs/03-adr/ADR-001-honesty-harness-for-ctos.md) | Why this repo uses a honesty/harness practice |
@@ -92,6 +95,8 @@ Start here before adding kernel features:
 | [ADR-019](docs/03-adr/ADR-019-identity-text-range-tear.md) | High-VA continuation + 16 KiB dedicated identity text range |
 | [ADR-020](docs/03-adr/ADR-020-identity-fnptr-reloc.md) | High-VA vtable rewrite + live identity `.text` tear |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
+| [Track A](docs/04-roadmap/track-a.md) | Freestanding app hosting (epic #31). Subordinate to principles. |
+| [Track B](docs/04-roadmap/track-b.md) | Linux-compat research (epic #40). Subordinate to principles. |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |
 | [Three pillars](docs/framework/pillars.md) | Antifragility, security, performance (NFR-05 / NFR-10 / NFR-07) |
