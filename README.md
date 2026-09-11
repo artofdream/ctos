@@ -2,7 +2,9 @@
 
 A minimal bare-metal **AArch64** OS kernel in Rust. Learning and research project. Primary ISA is arm64 ([ADR-003](docs/03-adr/ADR-003-primary-isa-aarch64.md)): custom `aarch64-ctos.json`, QEMU `virt`, PL011 UART. x86_64 is not the primary path.
 
-This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker and no Pages publish step for these docs.
+This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker.
+
+Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Intended production URL: `https://ctos.artof.link` (custom domain is **Planned** until DNS answers). Fallback until a `pages` workflow on `main` is green: `https://artofdream.github.io/ctos/`. File presence of the workflow is not a live site. Local build and the sponsor DNS checklist: [docs/website.md](docs/website.md).
 
 ## Build and run
 
@@ -43,6 +45,15 @@ docker run --rm ctos-smoke
 
 cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) is **Verified** after the LF / `build-essential` / ROM ratchets (see the honesty ledger). This is not a Raspberry Pi port.
 
+## Docs website (mdBook)
+
+```bash
+./scripts/docs-build.sh   # installs mdBook 0.5.4 if needed, then `mdbook build`
+mdbook serve              # optional: http://localhost:3000
+```
+
+A green local build is a **generator** probe only. “Docs website published” stays **Unknown** until Pages on `main` is green. `ctos.artof.link` stays **Planned** until DNS responds. See [docs/website.md](docs/website.md).
+
 ## Docs (document-first)
 
 Start here before adding kernel features:
@@ -81,6 +92,7 @@ Start here before adding kernel features:
 | [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear; isolation Planned |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
+| [Docs website + DNS](docs/website.md) | mdBook + Pages; `ctos.artof.link` Planned until DNS |
 | [Second brain](research/README.md) | Vaults for session memory and handoffs |
 
 ## Honesty

@@ -44,3 +44,7 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3i | High-VA vtable rewrite + live identity `.text` tear (ADR-020) | `ident: reloc` + `ident: live` + existing `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). `.rodata` / `.data` / heap stay. Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
 
 Hub: [pillars.md](../framework/pillars.md).
+
+## Docs website
+
+mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). Intended hostname `https://ctos.artof.link` is **Planned** until DNS answers. Fallback `https://artofdream.github.io/ctos/` is **Unknown** until a `pages` workflow on `main` is green. How to build and the sponsor DNS checklist: [website.md](../website.md).
