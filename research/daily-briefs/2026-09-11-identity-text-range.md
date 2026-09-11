@@ -4,7 +4,7 @@
 
 Draft PR https://github.com/artofdream/ctos/pull/27 (`cursor/identity-tear-text-range-ea15`). Parent is `main` `b0f0ee5` (Merge PR #26). One PR: ADR-019 high-VA continuation + 16 KiB dedicated identity text range. No new FR/NFR IDs. PAN unclaimed.
 
-Cloud `scripts/qemu-smoke.sh` **Verified** (2026-09-11, QEMU 8.2.2, `rustc` 1.100.0-nightly `67eda617e`): host `perf: elf-size bytes=3905712`; `ident: jump` / `ident: range lo=0x400ac000 hi=0x400b0000 pages=4` / `ident: text` plus prior ident/ttbr1/standing/asid/paging/heap/sched/wx/guard/ro/el0/perf markers; hello BRK ELRs high; `Running 48 tests` all `[ok]`; force-fail exit 1.
+Cloud `scripts/qemu-smoke.sh` **Verified** on `3e710e1` (2026-09-11, QEMU 8.2.2, `rustc` 1.100.0-nightly `67eda617e`): host `perf: elf-size bytes=3905712`; `ident: jump` / `ident: range lo=0x400ac000 hi=0x400b0000 pages=4` / `ident: text` plus prior ident/ttbr1/standing/asid/paging/heap/sched/wx/guard/ro/el0/perf markers; hello BRK ELRs high; `Running 48 tests` all `[ok]`; force-fail exit 1. GHA on `ac3ad0b` Failed (`ident: probe missed`); this SHA is the 16 KiB + high-VA flag publish.
 
 First attempt to unmap live `.text` after `_start` **Failed** (unhandled sync on `println!` — rustc `dyn Write` vtables are identity fn pointers). Live `.text` stays. `_start` stays at `0x4008_0000`. Full identity teardown stays **Planned**.
 
