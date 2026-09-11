@@ -2,7 +2,9 @@
 
 A minimal bare-metal **AArch64** OS kernel in Rust. Learning and research project. Primary ISA is arm64 ([ADR-003](docs/03-adr/ADR-003-primary-isa-aarch64.md)): custom `aarch64-ctos.json`, QEMU `virt`, PL011 UART. x86_64 is not the primary path.
 
-This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker and no Pages publish step for these docs.
+This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker.
+
+Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Intended production URL: `https://ctos.artof.link` (Route 53 CNAME **in place**, zone `Z1178AFMV41RWP`, account `737290977112`). HTTPS serving the book is **Planned** until Pages is enabled on the repo after merge. Fallback: `https://artofdream.github.io/ctos/`. Overview: [how we measure](docs/overview/measure.md), [prerequisites](docs/overview/prerequisites.md), [limits](docs/overview/limits.md). DNS/Pages: [docs/website.md](docs/website.md).
 
 ## Build and run
 
@@ -43,12 +45,29 @@ docker run --rm ctos-smoke
 
 cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) is **Verified** after the LF / `build-essential` / ROM ratchets (see the honesty ledger). This is not a Raspberry Pi port.
 
+## Docs website (mdBook)
+
+```bash
+./scripts/docs-build.sh   # installs mdBook 0.5.4 if needed, then `mdbook build`
+mdbook serve              # optional: http://localhost:3000
+```
+
+A green local build is a **generator** probe only. “Docs website published” stays **Unknown** until Pages on `main` is green. Route 53 CNAME is in place; HTTPS reachability stays **Planned**. See [docs/website.md](docs/website.md).
+
 ## Docs (document-first)
 
 Start here before adding kernel features:
 
 | Doc | What it is |
 | --- | --- |
+| [KPIs / how we measure](docs/overview/measure.md) | Performance, stability, honest app-support scope |
+| [What can run today](docs/overview/what-can-run.md) | UART workers, RX echo, EL0 stub — not Linux/Python/net |
+| [Building or porting](docs/overview/porting.md) | In-tree `no_std` today; no easy POSIX port |
+| [Filesystem (Planned)](docs/overview/filesystem.md) | No FS today; memfs then virtio-blk; not FAT-supported |
+| [Hosting apps / containers](docs/overview/hosting-apps.md) | Gaps table; containers: no |
+| [Prerequisites](docs/overview/prerequisites.md) | Nightly Rust + QEMU virt; Pages not required for kernel work |
+| [Advantages](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
+| [Drawbacks / limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
 | [Product vision](docs/01-vision/product-vision.md) | What ctos is and is not |
 | [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (ISA text revised under ADR-003) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, QEMU `virt`, UART stage, planned stages |
@@ -81,6 +100,7 @@ Start here before adding kernel features:
 | [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear; isolation Planned |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
+| [Docs website + DNS](docs/website.md) | mdBook + Pages; Route 53 `ctos` CNAME; reachability Planned |
 | [Second brain](research/README.md) | Vaults for session memory and handoffs |
 
 ## Honesty

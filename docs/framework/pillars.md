@@ -10,4 +10,6 @@ After M9, ctos treats **antifragility**, **security**, and **performance** as fi
 
 Bring-up M0–M9 stays on the [roadmap](../04-roadmap/roadmap.md). Pillar work after M9 is listed there as a separate section so a docs PR does not pretend to close paging or a scheduler.
 
+Immutability is the same rule: **scoped** RO+NX / text-tear probes are fine; **absolute** “immutable OS” is not. Overview: [Advantages — Immutability](../overview/advantages.md#immutability).
+
 Do not import florist / AEA role names. These pillars are ctos-native.

@@ -1,0 +1,32 @@
+# mdBook config for the ctos learning-kernel docs site.
+# Source of truth remains the markdown under docs/. This file only
+# describes how to render it. Not a product marketing site.
+
+[book]
+title = "ctos (ctsOS)"
+authors = ["artofdream"]
+description = "Learning-kernel documentation for ctos (ctsOS), a minimal AArch64 Rust OS."
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/artofdream/ctos"
+git-repository-icon = "fab-github"
+edit-url-template = "https://github.com/artofdream/ctos/edit/main/docs/{path}"
+# Production hostname is ctos.artof.link (Route 53 CNAME in place).
+# HTTPS serving the book stays Planned until Pages is live.
+# Relative chapter links also work on the github.io/ctos/ fallback.
+site-url = "/"
+cname = "ctos.artof.link"
+no-section-label = false
+
+[output.html.playground]
+runnable = false
+
+[output.html.fold]
+enable = true
+level = 1
