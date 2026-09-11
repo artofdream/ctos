@@ -19,6 +19,8 @@
 3. **`SCTLR_EL1.WXN` on** once text is RO. Writable pages are treated as XN even if a descriptor forgets PXN.
 4. **Fail-closed probe:** execute-from-`.data` (`blr` to a `RET` bait) is a current-EL permission IABORT (`ro: nx data`). Store to RO text is a current-EL permission DABORT (`ro: write fault`). Serial `ro: ok`. `scripts/qemu-smoke.sh` greps those strings and rejects `ro: probe missed`. `#[test_case]` covers flags + both faults.
 5. **NFR-10 text** is revised in place (ID unchanged): mention the RO+NX image cut. Do not mint NFR-15+.
+6. **One L3 per mixed 2 MiB (2026-09-11 follow-up).** ADR-012 assumed a single L3 for the 2 MiB that straddles `__kernel_end`. After this ADR the mixed block is the one that contains `__data_start` **and** the first RAM 2 MiB that contains `KERNEL_TEXT` (`0x4008_0000`). Those are different blocks once `.text`/`.rodata` (or a linker ratchet) crosses `0x4020_0000`. Reusing one `L3_RAM` overwrites the kernel-text walk. The kernel L3 pool hands out a fresh table per straddle / guard split. The user TTBR0 maps every 2 MiB that holds text or the exception stack, not only the first RAM block.
+7. **Post-MMU `.bss` publishes (same follow-up).** `USER_MAP_OK` and `frame::init` run after `SCTLR.C`. A pre-MMU store to `.bss` can be invisible to a later cached read (boot-delta on the PR #20 test image; cts-ai Docker hello on `b2bbb99` lost the frame pool / user-map ready flag while guard/ro still passed). Do not pin an old nightly for this.
 
 ## Honesty — is this “the kernel is W^X”?
 
@@ -35,5 +37,6 @@ Say “identity image is W^X on this virt guest (ADR-015 probe)” only when the
 
 - `src/paging.rs` sets AP[2] on text and PXN on data/stacks. `src/ro.rs` owns the two faults.
 - Live linker stacks are NX here. If a later change must execute from a linker stack, this ADR is the one to revisit.
-- EL0 user TTBR0 (ADR-013 mile on this PR) still maps kernel text so the lower-EL handler can restore kernel TTBR0; it omits `.data`. That is isolation-adjacent, not this ADR.
+- EL0 user TTBR0 (ADR-013 mile) still maps kernel text so the lower-EL handler can restore kernel TTBR0; it omits `.data`. Coverage follows the image across L2 blocks. That is isolation-adjacent, not this ADR.
+- `linker.ld` parks `__data_start` at `0x4020_1000` so GHA / Docker / this cloud always exercise two kernel L3s. File presence of that address is not a boot probe.
 - This ADR does not claim PAN, ASID isolation, or a higher-half kernel.

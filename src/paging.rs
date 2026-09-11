@@ -4,16 +4,16 @@
 //!
 //! After `exception::init` the CPU is at EL1. This module installs a
 //! 39-bit / 4 KiB / three-level TTBR0 table: a 1 GiB L1 Device-nGnRnE + XN
-//! block for MMIO, an L2 (and one straddling L3) identity of virt RAM so
-//! `.text`/`.rodata` are RO+X, `.data`/`.bss`/live linker stacks are RW+NX,
-//! and `__kernel_end`…RAM-end is PXN, plus one L2/L3 window at `MAP_WINDOW`.
-//! See ADR-008, ADR-012, ADR-014, ADR-015.
+//! block for MMIO, an L2 (and **one L3 per straddling 2 MiB**) identity of
+//! virt RAM so `.text`/`.rodata` are RO+X, `.data`/`.bss`/live linker
+//! stacks are RW+NX, and `__kernel_end`…RAM-end is PXN, plus one L2/L3
+//! window at `MAP_WINDOW`. See ADR-008, ADR-012, ADR-014, ADR-015.
 //!
-//! Heap `GlobalAlloc` is `src/heap.rs` (M8). Not a DTB walker. Not Raspberry Pi.
-//! ADR-014 punches 4 KiB unmapped holes under the linker stacks.
-//! A second L1 (`L1_USER`) is the EL0 TTBR0 window (ADR-013 mile): it maps
-//! kernel text/rodata + the exception stack so the lower-EL handler can
-//! restore kernel TTBR0, and omits `.data`/`.bss`/heap. Not isolation.
+//! A single shared L3 cannot describe two 2 MiB blocks. When
+//! `__data_start` leaves the first RAM 2 MiB, KERNEL_TEXT and `.data`
+//! need distinct L3 tables. The user TTBR0 (`L1_USER`) maps every 2 MiB
+//! that holds kernel text or the exception stack — not only the first
+//! RAM block. Not isolation. Not a DTB walker. Not Raspberry Pi.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -33,6 +33,10 @@ pub const USER_ASID: u64 = 1;
 const WINDOW_PAGES: u64 = 512;
 const PAGE: u64 = 4096;
 const L2_BLOCK: u64 = 1 << 21;
+/// Enough L3s for image straddles + guard splits on a multi-block layout.
+const L3_KERNEL_CAP: usize = 16;
+/// User TTBR0 L3s: text and exception-stack blocks that are not uniform L2.
+const L3_USER_CAP: usize = 8;
 
 const DESC_VALID: u64 = 1 << 0;
 const DESC_TABLE: u64 = 1 << 1;
@@ -68,26 +72,29 @@ const PROBE_MAGIC: u64 = 0x4354_4F53; // "CTOS"
 /// `spin::Mutex` prefixes an atomic, so tables cannot live inside it
 /// (TTBR0 / table descriptors must be 4 KiB-aligned). Single-core:
 /// take `TABLES` before touching these.
+#[derive(Clone, Copy)]
 #[repr(C, align(4096))]
 struct Table {
     entries: [u64; 512],
 }
 
-static mut L1: Table = Table { entries: [0; 512] };
-static mut L2: Table = Table { entries: [0; 512] };
-static mut L3: Table = Table { entries: [0; 512] };
+const fn empty_table() -> Table {
+    Table { entries: [0; 512] }
+}
+
+static mut L1: Table = empty_table();
+static mut L2: Table = empty_table();
+static mut L3: Table = empty_table();
 /// L2 for the RAM GiB (`0x4000_0000`). Replaces the M7 executable L1 block.
-static mut L2_RAM: Table = Table { entries: [0; 512] };
-/// L3 for the single 2 MiB that straddles `__kernel_end` (X vs PXN).
-static mut L3_RAM: Table = Table { entries: [0; 512] };
-/// Extra L3 tables when punching stack guards in an L2 block.
-static mut L3_SPLIT0: Table = Table { entries: [0; 512] };
-static mut L3_SPLIT1: Table = Table { entries: [0; 512] };
-static mut SPLITS_USED: usize = 0;
+static mut L2_RAM: Table = empty_table();
+/// One L3 per kernel 2 MiB that is not a uniform L2 block (straddle or guard).
+static mut L3_KERNEL: [Table; L3_KERNEL_CAP] = [empty_table(); L3_KERNEL_CAP];
+static mut L3_KERNEL_USED: usize = 0;
 /// User TTBR0 L1 (ADR-013 mile). Omits kernel `.data` / `.bss` / heap.
-static mut L1_USER: Table = Table { entries: [0; 512] };
-static mut L2_USER: Table = Table { entries: [0; 512] };
-static mut L3_USER: Table = Table { entries: [0; 512] };
+static mut L1_USER: Table = empty_table();
+static mut L2_USER: Table = empty_table();
+static mut L3_USER: [Table; L3_USER_CAP] = [empty_table(); L3_USER_CAP];
+static mut L3_USER_USED: usize = 0;
 static USER_MAP_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static TABLES: Mutex<()> = Mutex::new(());
@@ -117,16 +124,8 @@ fn l2_ram_pa() -> u64 {
     addr_of!(L2_RAM) as usize as u64
 }
 
-fn l3_ram_pa() -> u64 {
-    addr_of!(L3_RAM) as usize as u64
-}
-
-fn l3_split0_pa() -> u64 {
-    addr_of!(L3_SPLIT0) as usize as u64
-}
-
-fn l3_split1_pa() -> u64 {
-    addr_of!(L3_SPLIT1) as usize as u64
+fn l3_kernel_pa(i: usize) -> u64 {
+    unsafe { addr_of!(L3_KERNEL[i]) as usize as u64 }
 }
 
 fn l1_user_pa() -> u64 {
@@ -137,8 +136,8 @@ fn l2_user_pa() -> u64 {
     addr_of!(L2_USER) as usize as u64
 }
 
-fn l3_user_pa() -> u64 {
-    addr_of!(L3_USER) as usize as u64
+fn l3_user_pa(i: usize) -> u64 {
+    unsafe { addr_of!(L3_USER[i]) as usize as u64 }
 }
 
 unsafe fn l1_slot(i: usize) -> *mut u64 {
@@ -157,18 +156,6 @@ unsafe fn l2_ram_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L2_RAM.entries).cast::<u64>().add(i)
 }
 
-unsafe fn l3_ram_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L3_RAM.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l3_split_slot(which: usize, i: usize) -> *mut u64 {
-    if which == 0 {
-        addr_of_mut!(L3_SPLIT0.entries).cast::<u64>().add(i)
-    } else {
-        addr_of_mut!(L3_SPLIT1.entries).cast::<u64>().add(i)
-    }
-}
-
 unsafe fn l1_user_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L1_USER.entries).cast::<u64>().add(i)
 }
@@ -177,8 +164,28 @@ unsafe fn l2_user_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L2_USER.entries).cast::<u64>().add(i)
 }
 
-unsafe fn l3_user_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L3_USER.entries).cast::<u64>().add(i)
+unsafe fn alloc_kernel_l3() -> Option<u64> {
+    let n = L3_KERNEL_USED;
+    if n >= L3_KERNEL_CAP {
+        return None;
+    }
+    L3_KERNEL_USED = n + 1;
+    addr_of_mut!(L3_KERNEL[n].entries).write([0; 512]);
+    Some(l3_kernel_pa(n))
+}
+
+unsafe fn alloc_user_l3() -> Option<u64> {
+    let n = L3_USER_USED;
+    if n >= L3_USER_CAP {
+        return None;
+    }
+    L3_USER_USED = n + 1;
+    addr_of_mut!(L3_USER[n].entries).write([0; 512]);
+    Some(l3_user_pa(n))
+}
+
+unsafe fn l3_write(l3_pa: u64, index: usize, desc: u64) {
+    core::ptr::write((l3_pa as *mut u64).add(index), desc);
 }
 
 fn l1_block(pa: u64, attr: u64, exec: bool) -> u64 {
@@ -333,6 +340,12 @@ pub fn pan_implemented() -> bool {
     (id >> 20) & 0xf != 0
 }
 
+/// First byte past the first RAM 2 MiB (`0x4020_0000`). Layout ratchet.
+#[allow(dead_code)]
+pub fn first_ram_l2_end() -> u64 {
+    frame::VIRT_RAM_BASE + L2_BLOCK
+}
+
 /// EL0-executable, EL1-NX page (UXN clear, PXN set). Used for the first mile.
 fn l3_page_el0_exec(pa: u64) -> u64 {
     (pa & !0xfff)
@@ -357,19 +370,10 @@ unsafe fn l3_pa_for_ram_block(l2_index: usize) -> Option<u64> {
     let exec = l2e & DESC_PXN == 0;
     let writable = l2e & DESC_AP_RO == 0;
     let block_va = frame::VIRT_RAM_BASE + (l2_index as u64) * L2_BLOCK;
-    let n = SPLITS_USED;
-    if n >= 2 {
-        return None;
-    }
-    SPLITS_USED = n + 1;
-    let l3_pa = if n == 0 {
-        l3_split0_pa()
-    } else {
-        l3_split1_pa()
-    };
+    let l3_pa = alloc_kernel_l3()?;
     for p in 0..512 {
         let page_va = block_va + p as u64 * PAGE;
-        l3_split_slot(n, p).write(l3_page_flags(page_va, exec, writable));
+        l3_write(l3_pa, p, l3_page_flags(page_va, exec, writable));
     }
     l2_ram_slot(l2_index).write(table_desc(l3_pa));
     Some(l3_pa)
@@ -385,7 +389,7 @@ unsafe fn unmap_identity_page(va: u64) -> bool {
         return false;
     };
     let l3i = ((va >> 12) & 0x1ff) as usize;
-    core::ptr::write((l3_pa as *mut u64).add(l3i), 0);
+    l3_write(l3_pa, l3i, 0);
     true
 }
 
@@ -408,8 +412,8 @@ fn page_writable(va: u64, data: u64) -> bool {
     va < KERNEL_TEXT || va >= data
 }
 
-/// Fill L2 (and one L3) so `.text`/`.rodata` are RO+X and everything else
-/// in the 128 MiB guest is RW+NX. Only that 128 MiB is mapped.
+/// Fill L2 (and one fresh L3 per mixed 2 MiB) so `.text`/`.rodata` are
+/// RO+X and everything else in the 128 MiB guest is RW+NX.
 unsafe fn fill_ram_wx() {
     let data = data_start();
     let ram_lo = frame::VIRT_RAM_BASE;
@@ -423,49 +427,80 @@ unsafe fn fill_ram_wx() {
             l2_ram_slot(i).write(l2_block(va, false, true));
         } else if va >= KERNEL_TEXT && next <= data {
             l2_ram_slot(i).write(l2_block(va, true, false));
-        } else {
+        } else if let Some(l3) = alloc_kernel_l3() {
             for p in 0..512 {
                 let page_va = va + p as u64 * PAGE;
-                l3_ram_slot(p).write(l3_page_flags(
-                    page_va,
-                    page_exec(page_va, data),
-                    page_writable(page_va, data),
-                ));
+                l3_write(
+                    l3,
+                    p,
+                    l3_page_flags(
+                        page_va,
+                        page_exec(page_va, data),
+                        page_writable(page_va, data),
+                    ),
+                );
             }
-            l2_ram_slot(i).write(table_desc(l3_ram_pa()));
+            l2_ram_slot(i).write(table_desc(l3));
         }
         va = next;
     }
 }
 
-/// User TTBR0: text/rodata + exception stack only, first RAM 2 MiB L3.
+fn ranges_overlap(a0: u64, a1: u64, b0: u64, b1: u64) -> bool {
+    a0 < b1 && b0 < a1
+}
+
+/// User TTBR0: every 2 MiB that holds text/rodata or the exception stack.
 /// Shared map-window L2 so `EL0_PAGE` is visible. Omits `.data`/heap.
 unsafe fn fill_user_map() -> bool {
     addr_of_mut!(L1_USER.entries).write([0; 512]);
     addr_of_mut!(L2_USER.entries).write([0; 512]);
-    addr_of_mut!(L3_USER.entries).write([0; 512]);
+    L3_USER_USED = 0;
     let data = data_start();
     let exc_lo = crate::exception::exc_stack_bottom();
     let exc_hi = crate::exception::exc_stack_top();
-    let block_va = frame::VIRT_RAM_BASE;
-    if data <= KERNEL_TEXT || data - KERNEL_TEXT > L2_BLOCK {
+    if data <= KERNEL_TEXT || exc_lo >= exc_hi {
         return false;
     }
-    if exc_lo < block_va || exc_hi > block_va + L2_BLOCK {
+    let ram_lo = frame::VIRT_RAM_BASE;
+    let ram_hi = ram_lo + frame::VIRT_RAM_SIZE;
+    if exc_lo < ram_lo || exc_hi > ram_hi {
         return false;
     }
-    for p in 0..512 {
-        let page_va = block_va + p as u64 * PAGE;
-        if page_va >= KERNEL_TEXT && page_va < data {
-            l3_user_slot(p).write(l3_page_flags(page_va, true, false));
-        } else if page_va >= exc_lo && page_va < exc_hi {
-            l3_user_slot(p).write(l3_page_flags(page_va, false, true));
-        } else {
-            l3_user_slot(p).write(0);
+    let mut va = ram_lo;
+    while va < ram_hi {
+        let next = va + L2_BLOCK;
+        let i = ((va >> 21) & 0x1ff) as usize;
+        let overlaps_text = ranges_overlap(va, next, KERNEL_TEXT, data);
+        let overlaps_exc = ranges_overlap(va, next, exc_lo, exc_hi);
+        if !overlaps_text && !overlaps_exc {
+            va = next;
+            continue;
         }
+        let all_text = va >= KERNEL_TEXT && next <= data && !overlaps_exc;
+        let all_exc = va >= exc_lo && next <= exc_hi && !overlaps_text;
+        if all_text {
+            l2_user_slot(i).write(l2_block(va, true, false));
+        } else if all_exc {
+            l2_user_slot(i).write(l2_block(va, false, true));
+        } else {
+            let Some(l3) = alloc_user_l3() else {
+                return false;
+            };
+            for p in 0..512 {
+                let page_va = va + p as u64 * PAGE;
+                if page_va >= KERNEL_TEXT && page_va < data {
+                    l3_write(l3, p, l3_page_flags(page_va, true, false));
+                } else if page_va >= exc_lo && page_va < exc_hi {
+                    l3_write(l3, p, l3_page_flags(page_va, false, true));
+                } else {
+                    l3_write(l3, p, 0);
+                }
+            }
+            l2_user_slot(i).write(table_desc(l3));
+        }
+        va = next;
     }
-    let l2i = ((block_va >> 21) & 0x1ff) as usize;
-    l2_user_slot(l2i).write(table_desc(l3_user_pa()));
     l1_user_slot(1).write(table_desc(l2_user_pa()));
     // Same map-window L2/L3 as the kernel (EL0 trampoline lives there).
     l1_user_slot(2).write(table_desc(l2_pa()));
@@ -481,6 +516,17 @@ fn dsb_ish() {
 fn isb() {
     unsafe {
         core::arch::asm!("isb", options(nostack, preserves_flags));
+    }
+}
+
+/// Clean+invalidate one VA to the PoC so an aliased identity read sees it.
+fn dcache_civac(va: u64) {
+    unsafe {
+        core::arch::asm!(
+            "dc civac, {x}",
+            x = in(reg) va,
+            options(nostack, preserves_flags),
+        );
     }
 }
 
@@ -519,15 +565,14 @@ fn window_index(va: u64) -> Option<usize> {
 /// Fill identity L1 blocks + the map window, then turn the MMU on.
 pub fn init() {
     let _g = TABLES.lock();
+    let user_ok;
     unsafe {
         addr_of_mut!(L1.entries).write([0; 512]);
         addr_of_mut!(L2.entries).write([0; 512]);
         addr_of_mut!(L3.entries).write([0; 512]);
         addr_of_mut!(L2_RAM.entries).write([0; 512]);
-        addr_of_mut!(L3_RAM.entries).write([0; 512]);
-        addr_of_mut!(L3_SPLIT0.entries).write([0; 512]);
-        addr_of_mut!(L3_SPLIT1.entries).write([0; 512]);
-        SPLITS_USED = 0;
+        L3_KERNEL_USED = 0;
+        L3_USER_USED = 0;
         // 0x0000_0000–0x3FFF_FFFF: virt MMIO (UART, GIC, flash).
         l1_slot(0).write(l1_block(0x0000_0000, ATTR_DEVICE, false));
         // 0x4000_0000–0x7FFF_FFFF: L2 RAM (text RO+X, data/stacks/heap RW+NX).
@@ -539,8 +584,7 @@ pub fn init() {
         // 0x8000_0000–0xBFFF_FFFF: L2/L3 window for 4 KiB maps.
         l1_slot(2).write(table_desc(l2_pa()));
         l2_slot(0).write(table_desc(l3_pa()));
-        let user_ok = fill_user_map();
-        USER_MAP_OK.store(user_ok, core::sync::atomic::Ordering::SeqCst);
+        user_ok = fill_user_map();
     }
     dsb_ish();
 
@@ -576,6 +620,10 @@ pub fn init() {
             v = in(reg) sctlr,
         );
     }
+    // Same class as the boot-delta mark: a pre-MMU `.bss` store can be
+    // invisible to a later cached read (PR #20 test image; cts-ai Docker
+    // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.
+    USER_MAP_OK.store(user_ok, core::sync::atomic::Ordering::SeqCst);
 }
 
 pub fn mmu_enabled() -> bool {
@@ -669,11 +717,26 @@ pub fn l3_entry(va: u64) -> Option<u64> {
     Some(unsafe { l3_slot(i).read() })
 }
 
+/// Serial addresses for the next host that hits a layout miss.
+#[allow(dead_code)] // hello kernel; tests walk the same symbols.
+pub fn print_layout() {
+    let mut w = uart::raw();
+    let _ = writeln!(
+        w,
+        "paging: layout data={:#x} end={:#x} pool={:#x} user={}",
+        data_start(),
+        frame::kernel_end(),
+        frame::pool_start(),
+        if user_map_ready() { 1 } else { 0 }
+    );
+}
+
 /// Serial proof: MMU on, alloc, map, write/read, unmap.
 ///
 /// Does not touch an unmapped VA (that would take an unhandled abort).
 #[allow(dead_code)] // hello kernel only; cargo test uses the cases below.
 pub fn observe_probe() -> bool {
+    print_layout();
     if !mmu_enabled() {
         return false;
     }
@@ -689,6 +752,12 @@ pub fn observe_probe() -> bool {
     let via_ident = pa as *mut u64;
     unsafe {
         core::ptr::write_volatile(via_window, PROBE_MAGIC);
+        // Window VA and identity VA alias one PA. Clean both so a host
+        // with a real/emulated D-cache cannot lose the store.
+        dcache_civac(va);
+        dcache_civac(pa);
+        dsb_ish();
+        isb();
         if core::ptr::read_volatile(via_window) != PROBE_MAGIC {
             let _ = unmap_page(va);
             frame::free(pa);
@@ -729,6 +798,10 @@ fn map_unmap_roundtrip() {
     assert!(map_page(va, pa));
     unsafe {
         core::ptr::write_volatile(va as *mut u64, PROBE_MAGIC);
+        dcache_civac(va);
+        dcache_civac(pa);
+        dsb_ish();
+        isb();
         assert_eq!(core::ptr::read_volatile(va as *const u64), PROBE_MAGIC);
         assert_eq!(core::ptr::read_volatile(pa as *const u64), PROBE_MAGIC);
     }
@@ -778,8 +851,49 @@ fn user_ttbr0_omits_kernel_data() {
     assert_eq!(user_ttbr0() >> 48, USER_ASID);
     assert!(user_mapped(KERNEL_TEXT), "user map must include kernel text");
     assert!(
+        user_mapped(crate::exception::exc_stack_bottom()),
+        "user map must include the exception stack (handler SP_EL1)"
+    );
+    assert!(
         !user_mapped(data_start()),
         "user TTBR0 must omit kernel .data"
     );
     assert!(!user_mapped(crate::heap::heap_base()));
+}
+
+#[cfg(test)]
+#[test_case]
+fn layout_stress_crosses_first_ram_l2() {
+    // Linker ratchet: `__data_start` lives in the second RAM 2 MiB so a
+    // single shared L3 cannot cover both the KERNEL_TEXT straddle and
+    // the data_start straddle (cts-ai Docker / nightly growth).
+    assert!(
+        data_start() >= first_ram_l2_end(),
+        "__data_start must leave the first RAM 2 MiB"
+    );
+    assert!(is_executable(KERNEL_TEXT));
+    assert!(is_readonly(KERNEL_TEXT));
+    assert_eq!(pxn_for(data_start()), Some(true));
+    assert!(is_mapped(frame::kernel_end()));
+    assert!(
+        crate::exception::exc_stack_top() > first_ram_l2_end(),
+        "exception stack must also leave the first RAM 2 MiB"
+    );
+    assert!(user_map_ready());
+    assert!(user_mapped(KERNEL_TEXT));
+    assert!(user_mapped(crate::exception::exc_stack_bottom()));
+    assert!(!user_mapped(data_start()));
+}
+
+#[cfg(test)]
+#[test_case]
+fn frame_allocator_ready_after_mmu() {
+    // Pre-MMU `frame::init` stores can vanish after SCTLR.C (same class
+    // as the PR #20 boot-delta miss on the larger test image).
+    assert!(mmu_enabled());
+    assert_ne!(frame::pool_start(), 0, "ALLOC must be visible after MMU");
+    assert!(frame::pool_start() >= frame::kernel_end());
+    let a = frame::alloc().expect("post-MMU frame");
+    assert!(a >= frame::pool_start());
+    frame::free(a);
 }
