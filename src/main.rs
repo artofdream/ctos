@@ -57,8 +57,9 @@ pub extern "C" fn kernel_main() -> ! {
     exception::init();
     paging::init();
     // After MMU + high VBAR: fetch the rest from the TTBR1 alias
-    // (ADR-019). Live `.text` stays mapped (rustc fmt vtables).
-    // `_start` stays at 0x40080000. Not “the kernel moved.”
+    // (ADR-019). ADR-020 rewrites rustc vtables then unmaps live
+    // identity `.text`. `_start` stays at 0x40080000.
+    // Not “the kernel moved.”
     paging::jump_high(kernel_main_high as *const () as usize as u64);
 }
 
@@ -66,8 +67,14 @@ pub extern "C" fn kernel_main() -> ! {
 #[no_mangle]
 extern "C" fn kernel_main_high() -> ! {
     uart::write_str_raw("ident: jump\n");
+    if !paging::rewrite_identity_fn_ptrs() {
+        uart::write_str_raw("ident: reloc missed\n");
+    }
     if !paging::tear_identity_text_range() {
         uart::write_str_raw("ident: range missed\n");
+    }
+    if !paging::tear_live_identity_text() {
+        uart::write_str_raw("ident: live missed\n");
     }
     // After MMU + D-cache (SCTLR.C). A pre-MMU store to .bss can be
     // invisible to later cached reads (PR #20 test image; cts-ai Docker
@@ -129,9 +136,10 @@ extern "C" fn kernel_main_high() -> ! {
         if !ttbr1::observe_probe() {
             uart::write_str_raw("ttbr1: probe missed\n");
         }
-        // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019):
-        // split tables + 16 KiB dedicated identity text range + high jump.
-        // Live `.text` / `.rodata` / `.data` / heap stay. Not “the kernel moved.”
+        // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019 + ADR-020):
+        // split tables + 16 KiB dedicated range + high jump + vtable reloc
+        // + live identity `.text` tear. `.rodata` / `.data` / heap stay.
+        // Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
         }

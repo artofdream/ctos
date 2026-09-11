@@ -1,12 +1,12 @@
 //! Identity-teardown cuts (ADR-018 + ADR-019).
 //!
 //! After MMU + high VBAR, the post-MMU continuation jumps to its
-//! TTBR1 alias (`ident: jump`) and unmaps a dedicated 16 KiB identity
-//! text range (`__ident_tear_*`, ADR-018 page 0 + ADR-019 rest).
-//! High twins stay executable (`L2_HIGH_RAM` clone). Live `.text` /
-//! `.rodata` / `.data` / heap stay identity-mapped: rustc `dyn Write`
-//! vtables still `BLR` identity fn pointers, so a full `.text` yank
-//! dies on the first `println!`.
+//! TTBR1 alias (`ident: jump`), rewrites rustc vtable / fn-pointer
+//! words to high aliases (`ident: reloc`), unmaps a dedicated 16 KiB
+//! identity text range (`__ident_tear_*`), then unmaps live identity
+//! `.text` after the `_start` page (`ident: live`, ADR-020).
+//! High twins stay executable (`L2_HIGH_RAM` clone). `.rodata` /
+//! `.data` / heap stay identity-mapped.
 //!
 //! Probes: EL1 fetch of a torn identity VA faults (`ident: fault`);
 //! EL1 fetch of the high twin still runs (`ident: high` / `ident: text`);
@@ -196,9 +196,16 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss range-ready\n");
         return false;
     }
-    // Do not require pc_is_high() here. rustc may `BLR` this probe at
-    // its identity address (live `.text` stays mapped). The jump is
-    // proven by serial `ident: jump` from `kernel_main_high`.
+    if !paging::identity_reloc_ready() {
+        uart::write_str_raw("ident: miss reloc-ready\n");
+        return false;
+    }
+    if !paging::identity_live_ready() {
+        uart::write_str_raw("ident: miss live-ready\n");
+        return false;
+    }
+    // After ADR-020 the probe itself is only reachable via the high
+    // alias. The jump is also proven by serial `ident: jump`.
     let va = paging::ident_tear_page();
     if paging::is_mapped(va) || paging::user_mapped(va) {
         uart::write_str_raw("ident: leaked\n");
@@ -213,8 +220,16 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: leaked\n");
         return false;
     }
-    if paging::is_mapped(paging::boot_stub_end()) != true {
-        uart::write_str_raw("ident: miss stub\n");
+    if paging::is_mapped(paging::boot_stub_end()) {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    if paging::torn_live_pages() < 8 {
+        uart::write_str_raw("ident: miss live-pages\n");
+        return false;
+    }
+    if paging::reloc_count() == 0 {
+        uart::write_str_raw("ident: miss reloc-count\n");
         return false;
     }
     if paging::torn_text_pages() < 4 {
@@ -266,6 +281,8 @@ fn identity_tear_el1_faults_high_stays() {
     assert!(paging::high_split_ready());
     assert!(paging::identity_tear_ready());
     assert!(paging::identity_range_ready());
+    assert!(paging::identity_reloc_ready());
+    assert!(paging::identity_live_ready());
     assert!(
         run_probe(),
         "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT"

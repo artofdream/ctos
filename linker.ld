@@ -14,14 +14,22 @@ SECTIONS
         *(.text .text.*)
     }
 
+    /* Page-split .text from .rodata so ADR-020 can unmap live identity
+       `.text` after the boot stub without also dropping the Write
+       vtable (they shared 0x400a4000 on the ADR-019 layout). */
+    . = ALIGN(4096);
+    __text_end = .;
+    __rodata_start = .;
+
     .rodata : {
         *(.rodata .rodata.*)
     }
+    __rodata_end = .;
 
     /* Dedicated identity text *range* (ADR-018 page 0 + ADR-019 rest).
-       rustc `dyn Write` / fmt vtables still BLR identity `.text`, so
-       we cannot unmap live `.text` after `_start` yet. This section
-       is 16 KiB of RO+X that EL1 only fetches via the high alias.
+       After ADR-020, rustc `dyn Write` / fmt vtables are rewritten to
+       high aliases so live `.text` after `_start` can be unmapped.
+       This section stays a 16 KiB RO+X high-only fetch probe.
        `_start` at 0x40080000 stays mapped. */
     . = ALIGN(4096);
     __ident_tear_start = .;
@@ -48,6 +56,7 @@ SECTIONS
     .data : {
         *(.data .data.*)
     }
+    __data_end = .;
 
     .bss : {
         . = ALIGN(8);
