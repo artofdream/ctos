@@ -54,6 +54,16 @@ Do not say “applications run on ctos.” These are the **probed examples** of 
 
 Isolation, PAN, and tearing identity `.rodata`/`.data`/heap stay **Planned**.
 
+## Building or porting
+
+Honesty first: there is **no** userspace ABI to compile against, and no libc.
+
+- **Easiest path.** Add an in-tree `no_std` cooperative EL1 task next to `src/sched.rs` (same yield, UART, heap). That is how `sched: task a` / `task b` work today. One milestone → one PR.
+- **POSIX port.** Not easy, and not started. No `exec`, no filesystem, no signals, no sockets. Do not claim a Linux or musl binary will run.
+- **SVC ABI / user programs.** Later **Planned**. Standing EL0 is a dual-SVC *stub* (`SVC #1` / `#2`), not a syscall table. A stable SVC ABI is a later ADR, after isolation miles, not a silent add-on.
+
+Do not invent a “porting guide” that skips those gaps.
+
 ## Prerequisites
 
 - Nightly Rust (`rust-toolchain.toml`), `rust-src`, `llvm-tools-preview`
