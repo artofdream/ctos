@@ -1,6 +1,6 @@
 # Overview (plain English)
 
-**Core principles drive ctos** (display nickname ctsOS — use **ctos** everywhere else). Track A / Track B / A9 are subordinate and never override this list for speed or marketing. Full list: [principles.md](principles.md).
+**Core principles drive ctos.** Track A / Track B / A9 are subordinate and never override this list for speed or marketing. Full list: [principles.md](principles.md).
 
 - Honesty ledger — Verified only with a probe
 - Antifragility — fail-closed sensors + ratchets
