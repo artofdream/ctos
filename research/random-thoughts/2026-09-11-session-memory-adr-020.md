@@ -13,4 +13,6 @@ Did **not** switch to PIC. Post-jump patcher + page-split `.text`/`.rodata`. Rew
 
 Hello layout after the split: `__text_end=__rodata_start=0x400a6000`, live pages=37, 12 rodata identity-text words (duplicate Write vtable).
 
-PAN unclaimed. `.rodata`/`.data`/heap stay. Do not self-merge.
+Cloud `qemu-smoke` on `0fda690` passed: hello `ident: reloc n=12` / `ident: live pages=37` then `Hello World!`; 50 tests `[ok]` (test image `reloc n=74` / `live pages=45`); force-fail exit 1. BRK/fatal ELRs high.
+
+PAN unclaimed. `.rodata`/`.data`/heap stay. Do not self-merge. Draft PR #28. GitHub author TBD from the opener; this session does not merge (ADR-002).
