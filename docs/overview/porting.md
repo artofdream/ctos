@@ -43,7 +43,7 @@ Those need an ABI, a loader, and a userspace that ctos does not have. Standing E
 
 ## Later (Planned)
 
-A path that is **not built** and must stay Planned until probed:
+A path that is **not built** and must stay Planned until probed. Call this **Track A** when talking about an OS slot vs app slot ([Immutability](advantages.md#immutability)):
 
 1. A **stable SVC ABI** (documented syscall numbers, not today’s test `SVC #1` / `#2`)
 2. A freestanding CRT / `libctos` for EL0

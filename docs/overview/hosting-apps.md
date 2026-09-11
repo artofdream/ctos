@@ -21,7 +21,7 @@ These are missing pieces, not a schedule. Rows without a probe stay **Planned** 
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
 | **Preemption / SMP / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
-Until the first block has probes, “host an application” is a sentence we do not use.
+Until the first block has probes, “host an application” is a sentence we do not use. That first block is **Track A** (loader + stable ABI + CRT). An OS slot vs app slot — update the kernel without rebuilding in-tree “apps” — waits on Track A. See [Immutability](advantages.md#immutability). Not containers. Not OTA.
 
 ## Containers
 

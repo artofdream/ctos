@@ -28,7 +28,7 @@ The Route 53 CNAME for `ctos.artof.link` can be in place while GitHub Pages is s
 
 ## Immutability is not absolute
 
-RO+NX and a torn identity `.text` range are **scoped** probes. Do not upgrade them to “immutable kernel” or “the kernel is W^X.” Details: [Advantages — Immutability](advantages.md#immutability).
+RO+NX and a torn identity `.text` range are **scoped** probes. Do not upgrade them to “immutable kernel,” “W^X everywhere,” or “OS updates without touching apps.” An OS slot vs app slot waits on Track A and is not OTA or containers. Details: [Advantages — Immutability](advantages.md#immutability).
 
 ## Other honest gaps
 

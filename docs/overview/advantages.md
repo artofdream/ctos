@@ -28,10 +28,12 @@ After M9, antifragility, security, and performance are first-class ([ADR-011](..
 
 ## Immutability
 
-**Scoped yes. Absolute no.**
+**Scoped yes. Absolute no.** Two different sentences:
 
-We already have probed, **scoped** cuts: identity-image RO+NX (`ro: ok`, [ADR-015](../03-adr/ADR-015-ro-nx-text-data.md)) and identity `.text` tear after a high-VA rewrite (`ident: range` / `ident: live`, [ADR-019](../03-adr/ADR-019-identity-text-range-tear.md), [ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). Those are page-table facts on this QEMU `virt` guest.
+**Page-table scope (probed today).** Identity-image RO+NX (`ro: ok`, [ADR-015](../03-adr/ADR-015-ro-nx-text-data.md)) and identity `.text` tear (`ident: range` / `ident: live`, [ADR-019](../03-adr/ADR-019-identity-text-range-tear.md), [ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)) on this QEMU `virt` guest. Not “the kernel is immutable” or “W^X everywhere.” Claim only with a [ledger](../framework/honesty-ledger.md) probe.
 
-They are **not** “the kernel is immutable,” “W^X everywhere,” or a secure-boot product. `.rodata` / `.data` / heap can still be identity-mapped. Future mappings are not automatically covered. Say a narrower sentence only when the [honesty ledger](../framework/honesty-ledger.md) has a matching probe.
+**OS slot vs app slot (direction, not built).** The useful product meaning is: **update the OS without rebuilding the apps**, and the reverse. That needs a separate **OS slot** (the kernel image you `-kernel` today) and an **app slot** (a loaded EL0 binary that survives an OS swap). That slot split **depends on Track A** — the Planned loader + stable SVC ABI + `libctos` path on [Building or porting](porting.md) and [Hosting apps](hosting-apps.md). Until Track A has probes, there is only one slot: in-tree kernel code.
+
+This is **not** containers, and **not** OTA / A-B firmware updates. Those are later and unclaimed. Do not say “immutable OS updates” until an OS-slot/app-slot probe exists.
 
 Limits of this shape: [Drawbacks / limits](limits.md).

@@ -40,7 +40,7 @@ Gaps before a real app host: stable SVC ABI, ELF/user loader, standing EL0 as no
 
 ## Immutability
 
-**Scoped yes. Absolute no.** Probed today: RO+NX text/data and identity `.text` tear. That is not “the image can never change.” Claim only with a ledger probe. See [Advantages](overview/advantages.md#immutability).
+**Scoped yes. Absolute no.** Probed today: RO+NX and identity `.text` tear. The *product* meaning — **disconnect OS update from apps** (OS slot vs app slot) — depends on Track A (loader/ABI) and is **not built**. Not containers. Not OTA. See [Advantages — Immutability](overview/advantages.md#immutability).
 
 ## KPIs, prerequisites, advantages, drawbacks
 
