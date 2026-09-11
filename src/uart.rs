@@ -72,7 +72,12 @@ impl Pl011 {
     }
 
     pub fn write_string(&mut self, s: &str) {
-        for byte in s.bytes() {
+        self.write_bytes(s.as_bytes());
+    }
+
+    /// Raw bytes. `\n` becomes `\r\n`, same as the kernel console.
+    pub fn write_bytes(&mut self, bytes: &[u8]) {
+        for &byte in bytes {
             if byte == b'\n' {
                 self.write_byte(b'\r');
             }
@@ -168,6 +173,11 @@ pub fn raw() -> Pl011 {
 
 pub fn write_str_raw(s: &str) {
     raw().write_string(s);
+}
+
+/// Exception-safe byte write (no UART mutex). Used by `SYS_UART_WRITE`.
+pub fn write_bytes_raw(bytes: &[u8]) {
+    raw().write_bytes(bytes);
 }
 
 #[macro_export]

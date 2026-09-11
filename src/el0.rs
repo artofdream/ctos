@@ -42,7 +42,7 @@ const RET_A64: u32 = 0xD65F03C0;
 
 /// Kernel-image data the EL0 fetch must *not* execute (UXN on identity RAM).
 #[used]
-static mut KERNEL_DATA_BAIT: [u32; 2] = [RET_A64, RET_A64];
+pub(crate) static mut KERNEL_DATA_BAIT: [u32; 2] = [RET_A64, RET_A64];
 
 static ENTERED: AtomicBool = AtomicBool::new(false);
 static NX_OK: AtomicBool = AtomicBool::new(false);
@@ -66,7 +66,8 @@ pub(crate) fn clear_active() {
     USER_TTBR.store(0, Ordering::SeqCst);
 }
 
-fn install_standing(pc: u64, sp: u64, ttbr: u64) {
+/// Install a bounded standing user context (ADR-013 / ADR-021 ABI trip).
+pub(crate) fn install_standing(pc: u64, sp: u64, ttbr: u64) {
     USER_PC.store(pc, Ordering::SeqCst);
     USER_SP.store(sp, Ordering::SeqCst);
     USER_TTBR.store(ttbr, Ordering::SeqCst);

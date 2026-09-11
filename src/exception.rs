@@ -18,6 +18,7 @@
 //! Execute-from-heap / execute-from-`.data` / write-to-RO-text are
 //! caught here. Lower-EL AArch64 sync is live for the EL0 first mile,
 //! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), the
+//! public SVC ABI (ADR-021), the
 //! TTBR1 private-page DABORT (ADR-016), EL1 fetch from the TTBR1
 //! RAM alias (ADR-017), and the ADR-018 identity-tear IABORT / EL0
 //! DABORT: SVC, IABORT, DABORT.
@@ -976,7 +977,10 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
 #[no_mangle]
 pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
     let ec = (ctx.esr >> 26) & 0x3f;
-    if ec == ESR_EC_SVC_A64 && EXPECT_EL0_SVC.swap(false, Ordering::SeqCst) {
+    if ec == ESR_EC_SVC_A64
+        && svc_imm(ctx.esr) == crate::syscall::SVC_PROBE_RETURN
+        && EXPECT_EL0_SVC.swap(false, Ordering::SeqCst)
+    {
         EL0_SVC_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("el0: svc\n");
         return_from_el0(ctx);
@@ -1003,6 +1007,18 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
         uart::write_str_raw("el0: restored\n");
         return_from_el0(ctx);
         return;
+    }
+    if ec == ESR_EC_SVC_A64 {
+        if let Some(action) = crate::syscall::dispatch(ctx) {
+            match action {
+                crate::syscall::SvcAction::StayEl0 => stay_at_el0(ctx),
+                crate::syscall::SvcAction::ReturnEl1 => {
+                    crate::el0::clear_active();
+                    return_from_el0(ctx);
+                }
+            }
+            return;
+        }
     }
     if is_el0_kernel_fetch(ctx.esr) && EXPECT_EL0_IABORT.swap(false, Ordering::SeqCst) {
         EL0_IABORT_CAUGHT.store(true, Ordering::SeqCst);

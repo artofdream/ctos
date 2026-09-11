@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + standing EL0 + ASID isolation + TTBR1 private page +
+# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + ASID isolation + TTBR1 private page +
 # TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
@@ -179,6 +179,31 @@ if ! grep -q "el0: restored" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: EL0 first-mile + read-mile + standing strings present"
+if grep -q "svc: probe missed" "$log"; then
+    echo "qemu-smoke: svc probe missed (EL0 ABI trip did not run)" >&2
+    exit 1
+fi
+if ! grep -q "svc: yield" "$log"; then
+    echo "qemu-smoke: missing 'svc: yield' on serial (SYS_YIELD, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "svc: user-hi" "$log"; then
+    echo "qemu-smoke: missing 'svc: user-hi' on serial (SYS_UART_WRITE user buffer, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "svc: uart" "$log"; then
+    echo "qemu-smoke: missing 'svc: uart' on serial (SYS_UART_WRITE dispatch, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "svc: exit" "$log"; then
+    echo "qemu-smoke: missing 'svc: exit' on serial (SYS_EXIT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "svc: ok" "$log"; then
+    echo "qemu-smoke: missing 'svc: ok' on serial (ADR-021 ABI mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: SVC ABI strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1

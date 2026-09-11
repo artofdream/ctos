@@ -17,7 +17,7 @@ flowchart TD
 | Pillar | Frozen ID | Home | What “done” looks like |
 | --- | --- | --- | --- |
 | Antifragility | [NFR-05](../02-requirements/fr-nfr.md) | [antifragility.md](antifragility.md) | Repeated failures become sensors/gates, not extra README advice |
-| Security | [NFR-10](../02-requirements/fr-nfr.md) | [security.md](security.md) | Threat-model v1.8 + probes before any “secure OS” claim. EL0 miles: [el0.md](el0.md). On `main` `e80dc93`: standing + ASID + TTBR1 first cut + EL1 high-VA fetch + identity-tear first cut + 16 KiB range + live `.text` tear (ADR-020) are Verified. Still **Planned**: `.rodata`/`.data`/heap tear, PAN on `cortex-a57`, umbrella isolation. |
+| Security | [NFR-10](../02-requirements/fr-nfr.md) | [security.md](security.md) | Threat-model v1.9 + probes before any “secure OS” claim. EL0 miles: [el0.md](el0.md) (umbrella isolation Planned; standing + TTBR1 first cut + EL1 high-VA fetch + identity `.text` range tear + live `.text` tear + ASID + SVC ABI are separate rows). App hosting: [syscall.md](syscall.md) (A1 ABI only; Track A #31 still Planned) |
 | Performance | [NFR-07](../02-requirements/fr-nfr.md) | [performance.md](performance.md) | Measurable CNTPCT + IRQ-delta + host ELF size + boot-delta; optimize only with a probe |
 
 Bring-up M0–M9 stays on the [roadmap](../04-roadmap/roadmap.md). Pillar work after M9 is listed there as a separate section so a docs PR does not pretend to close paging or a scheduler.

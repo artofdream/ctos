@@ -1,8 +1,8 @@
-# Security — threat model v1.8 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020)
+# Security — threat model v1.9 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.8** (2026-09-11). Slice/update of v1.7 (adds high-VA vtable / fn-pointer rewrite + live identity `.text` tear after the boot stub; `.rodata`/`.data`/heap stay; PAN and full identity teardown still Planned). Not a v2 model and not “secure.”
+Version: **v1.9** (2026-09-11). Slice/update of v1.8 (adds a documented EL0 SVC ABI — `exit` / `uart_write` / `yield`; app hosting stays Planned; PAN and full identity teardown still Planned). Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -28,7 +28,8 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Identity-tear page | One dedicated identity text page unmapped from TTBR0. High twin stays. Not a relocated kernel. | `__ident_tear_*` ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)) |
 | Identity text range | Dedicated 16 KiB identity text range unmapped. High twins stay. Not a relocated kernel. | `__ident_tear_*` 16 KiB ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)) |
 | Live identity `.text` | rustc vtables rewritten to high aliases; live identity `.text` after `_start` unmapped. High twins stay. `.rodata`/`.data`/heap stay. Not a relocated kernel. | `[0x4008_1000, __text_end)` ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)) |
-| Remaining isolation gaps | Shared boot-stub text in the user table (handler must fetch if VBAR were still identity). No PAN on cortex-a57. EL0 trampoline still `TLBI VMALLE1` (`.data` leaves are global). Identity `.rodata`/`.data`/heap still live. Lower-EL IRQ still parks. | User TTBR0 + ASID + TTBR1 first cut + exec mile + torn live `.text`; isolation Planned |
+| Remaining isolation gaps | Shared boot-stub text in the user table (handler must fetch if VBAR were still identity). No PAN on cortex-a57. EL0 trampoline still `TLBI VMALLE1` (`.data` leaves are global). Identity `.rodata`/`.data`/heap still live. Lower-EL IRQ still parks. | User TTBR0 + ASID + TTBR1 first cut + exec mile + torn live `.text` + SVC ABI; isolation Planned |
+| SVC ABI (exit / uart_write / yield) | Documented numbers 16–18. `uart_write` rejects a kernel `.data` pointer. Not Linux. Not app hosting. | `src/syscall.rs` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)) |
 | Console / sensors | PL011 is how we see whether a probe ran. | Device MMIO `0x0900_0000` |
 
 ## Adversaries
@@ -36,7 +37,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Adversary | In scope? | Notes |
 | --- | --- | --- |
 | **Buggy kernel code** (wrong store, bad `unsafe`, execute-from-heap, stack smash) | **Yes** | Primary adversary today. Mitigate with PXN on heap/frames, unmapped linker-stack guards, minimize `unsafe` (NFR-01), fail-closed smoke. |
-| **Malicious EL0** (standing or trampoline task executing kernel data or escalating via a bad map) | **Named; standing context is bounded** | First mile + user-TTBR0 read mile + ASID TLB mile + standing dual-SVC + TTBR1 private page + EL1 high-VA fetch exist. That is **not** “EL0 isolated” (kernel text still in the user table, no PAN, identity map still live, EL0 path still full-TLBI, lower-EL IRQ still parks). |
+| **Malicious EL0** (standing or trampoline task executing kernel data or escalating via a bad map) | **Named; standing context is bounded** | First mile + user-TTBR0 read mile + ASID TLB mile + standing dual-SVC + TTBR1 private page + EL1 high-VA fetch + a documented SVC ABI exist. That is **not** “EL0 isolated” (kernel text still in the user table, no PAN, identity map still live, EL0 path still full-TLBI, lower-EL IRQ still parks). Not app hosting. |
 | **Compromised device tree** | **Mostly out** | M7 does not walk FDT. DTB sits at RAM base below the image. A hostile DTB is a QEMU/host problem until a walker exists; then it becomes an input-validation ADR. |
 | **DMA / virtio devices** | **Out** | The guest does not program a DMA master. UART/GIC/timer are MMIO. A malicious virtio device is future surface. |
 | **Hostile QEMU or CI host** | **Out** | Hypervisor / runner is trusted. Repo-secret leak is a *host* control (`.gitignore`, review), not a guest mitigation. |
@@ -55,7 +56,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 ```
 
 - **EL1 now.** Page tables distinguish *execute* (RO+X text vs RW+NX data/stacks/heap vs Device XN), *write* (AP[2] on text), and *presence* (guard holes).
-- **EL0 first mile + user TTBR0 + ASID TLB + standing + TTBR1 first cut + EL1 high-VA fetch + identity-tear first cut + identity `.text` range tear + live `.text` tear, isolation Planned.** Lower-EL AArch64 **sync** is taken (SVC / IABORT / DABORT). IRQ/FIQ/SError lower-EL slots still park. Dual ASID without `TLBI VMALLE1` is a probed mile (`asid: ok`). Standing dual-SVC flips `is_active()`. TTBR1 private page is EL1-only (`ttbr1: ok`). EL1 can fetch a real path from the high RAM alias (`ttbr1: el1 exec`); `VBAR_EL1` is that alias (`ttbr1: vbar`). A 16 KiB dedicated identity text range is unmapped (`ident: range`); live identity `.text` after `_start` is unmapped after a vtable rewrite (`ident: reloc` / `ident: live`); `_start` stays. Closing *isolation* still needs PAN and a full identity teardown. A caught load of `.data` or of `TTBR1_PRIV` is that mile, not “EL0 isolated.”
+- **EL0 first mile + user TTBR0 + ASID TLB + standing + TTBR1 first cut + EL1 high-VA fetch + identity-tear first cut + identity `.text` range tear + live `.text` tear + SVC ABI, isolation Planned.** Lower-EL AArch64 **sync** is taken (SVC / IABORT / DABORT). IRQ/FIQ/SError lower-EL slots still park. Dual ASID without `TLBI VMALLE1` is a probed mile (`asid: ok`). Standing dual-SVC flips `is_active()`. TTBR1 private page is EL1-only (`ttbr1: ok`). EL1 can fetch a real path from the high RAM alias (`ttbr1: el1 exec`); `VBAR_EL1` is that alias (`ttbr1: vbar`). A 16 KiB dedicated identity text range is unmapped (`ident: range`); live identity `.text` after `_start` is unmapped after a vtable rewrite (`ident: reloc` / `ident: live`); `_start` stays. A documented SVC ABI (`svc: ok`) is an ABI mile, not app hosting. Closing *isolation* still needs PAN and a full identity teardown. A caught load of `.data` or of `TTBR1_PRIV` is that mile, not “EL0 isolated.”
 - **Repo vs guest.** “No secrets in repo” is a host boundary. It does not harden the UART.
 
 ## Non-goals
@@ -70,7 +71,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 
 | Mitigation | Probe | Ledger |
 | --- | --- | --- |
-| Threat-model v1.8 written | Read this file | Verified (file + review). Still no “secure OS”. |
+| Threat-model v1.9 written | Read this file | Verified (file + review). Still no “secure OS”. |
 | Device MMIO XN (L1 block 0) | `pxn_for(0x0900_0000) == Some(true)` | Covered by the W^X tests when they run. |
 | Heap + coop stacks PXN | Serial `wx: ok`; `#[test_case]` flags + execute-from-heap IABORT | Verified: 2026-09-10 cloud `qemu-smoke` (honesty ledger). |
 | Kernel text still executable | `is_executable(0x4008_0000)` | Same W^X probe. |
@@ -90,10 +91,11 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Identity-tear first cut | Serial `ident: split` / `ident: fault` / `ident: high` / `ident: no el0` / `ident: ok` | First cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)). Full teardown Planned. |
 | Identity text range tear | Serial `ident: jump` / `ident: range` / `ident: text` | Range cut ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)). |
 | High-VA vtable rewrite + live `.text` tear | Serial `ident: reloc` / `ident: live` | Live `.text` cut ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). `.rodata`/`.data`/heap stay. |
+| SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: ok`; user buffer + kernel-`.data` reject | ABI mile ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). Not app hosting. |
 | RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | Verified: 2026-09-11 cloud `qemu-smoke` (honesty ledger). |
 
 ## Claim gate
 
-A PR may say “threat-model v1.8 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” “a 16 KiB dedicated identity text range was unmapped,” “rustc vtables were rewritten to high aliases,” or “live identity `.text` after the boot stub was unmapped” only for the mile that actually passed.
+A PR may say “threat-model v1.9 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” “a 16 KiB dedicated identity text range was unmapped,” “rustc vtables were rewritten to high aliases,” “live identity `.text` after the boot stub was unmapped,” or “EL0 issued the documented SVC ABI” only for the mile that actually passed.
 
-It may **not** say “secure OS,” “hardened,” “EL0 works,” “EL0 isolated,” “the kernel moved,” or “immutable OS.” Scoped RO is [immutability.md](immutability.md). Unprobed stays **Unknown**. https://ctos.artof.link HTTPS is **Verified** (2026-09-11 after #30; see the [honesty ledger](honesty-ledger.md)).
+It may **not** say “secure OS,” “hardened,” “EL0 works,” “EL0 isolated,” “the kernel moved,” “immutable OS,” or “app hosting is done.” Scoped RO is [immutability.md](immutability.md). Unprobed stays **Unknown**. https://ctos.artof.link HTTPS is **Verified** (2026-09-11 after #30; see the [honesty ledger](honesty-ledger.md)).

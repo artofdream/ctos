@@ -17,7 +17,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on the M8 PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 
-M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). Pillar work through ADR-020 (#17–#28) is also on `main`. Idle tip ≈ `e80dc93` (Merge PR #28). Merge of any open PR is still a human/MRC job (ADR-002).
+M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). Pillar work through ADR-020 (#17–#28) plus docs #30/#51/#29 are on `main`. This PR is Track A / A1 ([issue #32](https://github.com/artofdream/ctos/issues/32), parent [issue #31](https://github.com/artofdream/ctos/issues/31)): ADR-021 SVC ABI. Merge is still a human/MRC job (ADR-002).
 
 ## Pillars (post-M9)
 
@@ -46,9 +46,24 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3k | PAN on virt `cortex-a57` | `ID_AA64MMFR1_EL1.PAN != 0` **and** an EL1-vs-EL0 access fault | **Planned.** ARMv8.0 `cortex-a57`. Do not switch `-cpu` silently. |
 | P-SEC-3l | Umbrella EL0 isolation | Standing + PAN + full TTBR1 / identity teardown | **Planned.** Specific miles (P-SEC-3…P-SEC-3k) are not this row. Do not claim “EL0 isolated.” |
 
-Hub: [pillars.md](../framework/pillars.md).
+Hub: [pillars.md](../framework/pillars.md). ABI contract: [syscall.md](../framework/syscall.md).
 
-Filesystem work is **Planned** and is not a row above. Intended order (one PR each, after a VFS ADR): memfs → virtio-blk → on-disk FAT or xv6-like → host-checkable image. Do not claim FAT. See [Filesystem: new vs extend](../overview/filesystem.md).
+## Track A — freestanding app hosting ([#31](https://github.com/artofdream/ctos/issues/31))
+
+A1 is the SVC ABI mile only. **Track A stays incomplete** after A1 (A2–A9 Planned). Not Linux containers. Not glibc. One child issue → one PR. Do not round A1 Verified up to “app hosting is done.”
+
+| ID | Work | Probe that closes it | Status |
+| --- | --- | --- | --- |
+| A1 | Stable SVC ABI + docs ([#32](https://github.com/artofdream/ctos/issues/32), ADR-021) | `svc: yield` + `svc: user-hi` + `svc: uart` + `svc: exit` + `svc: ok`; `#[test_case]` | **Unknown** on rebase onto `aa46219` until `qemu-smoke`. App hosting stays **Planned**. |
+| A2 | Freestanding CRT / `libctos` | crate + probes wrapping exit / uart_write / yield | **Planned** |
+| A3 | ELF (or raw image) loader into user TTBR0 | loaded image runs at EL0 | **Planned** |
+| A4 | Standing EL0 as normal mode | not only a smoke probe | **Planned** |
+| A5 | Isolation completion | remaining identity tear / PAN only with ADR | **Planned** |
+| A6 | Thin VFS + memfs | path walk + read probe | **Planned** |
+| A7 | virtio-blk + FAT or xv6-like FS | block + fs probe | **Planned** |
+| A8–A9 | Sample in-tree coop UART / standing EL0 app | documented sample serial | **Planned** |
+
+Filesystem work is **Planned** and is not a row above (A6–A7). Intended order (one PR each, after a VFS ADR): memfs → virtio-blk → on-disk FAT or xv6-like → host-checkable image. Do not claim FAT. See [Filesystem: new vs extend](../overview/filesystem.md).
 
 ## Tracks (subordinate to principles)
 
