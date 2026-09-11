@@ -51,15 +51,17 @@ A Linux, musl, or glibc binary will **not** run. Missing, among other things:
 
 Do not publish a “port busybox / musl to ctos” guide that skips those gaps. That work would be many ADRs, not a weekend `#ifdef`. Frozen Out list: [fr-nfr.md](../02-requirements/fr-nfr.md) (userspace processes, POSIX, networking).
 
-## Later Planned — SVC ABI + `libctos` (freestanding EL0)
+## Later Planned — `libctos` + loader (freestanding EL0)
 
-Standing EL0 is a **dual-SVC stub** (`SVC #1` stay / `SVC #2` restore) plus first-mile `SVC #0`. It is not a syscall table and not a libc.
+Standing EL0 is a **dual-SVC stub** (`SVC #1` stay / `SVC #2` restore) plus first-mile `SVC #0`, plus the A1 public ABI trip (`exit` / `uart_write` / `yield`). It is not a libc.
 
-**Planned** (not in tree, not Verified):
+A1 documented a **kernel** SVC ABI ([syscall.md](syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). That is not an application porting target.
 
-1. Isolation miles first: PAN (usually absent on `cortex-a57`), identity `.rodata` / `.data` / heap tear, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)).
-2. A **stable SVC ABI** written as a later ADR (numbers, registers, error model). Do not silently grow `#1` / `#2` into POSIX.
-3. A freestanding **`libctos`** (name reserved here as intent only — no crate today) that a future EL0 program could link against `no_std`, talking that ABI. Still not glibc. Still not `exec` of a Linux ELF.
+**Still Planned:**
+
+1. Isolation miles: PAN (usually absent on `cortex-a57`), identity `.rodata` / `.data` / heap tear, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)).
+2. A freestanding **`libctos`** (no crate today) that a future EL0 program could link against `no_std`, talking that ABI. Still not glibc. Still not `exec` of a Linux ELF.
+3. An ELF/raw loader into user TTBR0.
 
 Until those probes exist, “write a user program for ctos” is **Planned**. The easiest thing you can do today remains an in-tree EL1 task.
 

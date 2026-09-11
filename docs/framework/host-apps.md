@@ -12,7 +12,7 @@ Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). 
 
 | Need (typical host app) | On ctos today | Status |
 | --- | --- | --- |
-| A process you `exec` | One linked kernel ELF. Standing EL0 is a dual-SVC stub | **Planned** (loader + ABI). Not started. |
+| A process you `exec` | One linked kernel ELF. Standing EL0 is a dual-SVC stub plus A1 kernel ABI (`exit` / `uart_write` / `yield`) | **Planned** (loader + CRT). A1 is the ABI mile only. |
 | POSIX / glibc / musl | Custom `aarch64-ctos.json`, `os: none`, no libc | Not easy, not started. |
 | Files (`open` / a disk) | No VFS | **Planned** memfs → virtio-blk → FAT/xv6-like |
 | Sockets / HTTP | No virtio-net, no stack | **Planned** at best; not a Now mile |

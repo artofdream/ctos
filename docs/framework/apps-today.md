@@ -78,7 +78,7 @@ This is **not** interactive echo, virtio-keyboard, or a TTY. A later line-orient
 | `el0: restored` | `SVC #2` taken; back to EL1 |
 | `el0: ok` | First-mile bundle including standing |
 
-`#[test_case]` `standing_el0_enter_leave` closes enter/leave. Lower-EL IRQ still parks. PAN on `-cpu cortex-a57` is **Planned**. This is **not** a user process, not POSIX, not a syscall table, and not “EL0 isolated.”
+`#[test_case]` `standing_el0_enter_leave` closes enter/leave. After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`) — [syscall.md](syscall.md). Lower-EL IRQ still parks. PAN on `-cpu cortex-a57` is **Planned**. This is **not** a user process, not POSIX, and not “EL0 isolated.” The ABI mile is not app hosting.
 
 ## Also on the same hello path
 
