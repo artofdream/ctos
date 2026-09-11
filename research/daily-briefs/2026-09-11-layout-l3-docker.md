@@ -2,20 +2,18 @@
 
 ## Where we stopped
 
-Draft PR https://github.com/artofdream/ctos/pull/21 (`cursor/layout-l3-user-map-c915`). Parent is `main` `b2bbb99` (Merge PR #20). One PR: kernel L3 pool, multi-block user TTBR0, post-MMU `frame::init` / `USER_MAP_OK`, linker `__data_start=0x40201000`. No new FR/NFR IDs.
+#21 merged as `71ee15f` on `main`. Layout fix is on the tip. Follow-up branch `cursor/layout-gha-ledger-c915` only folds the GHA URLs.
 
-cts-ai Docker on `b2bbb99`: **Failed** (sponsor serial, `elf-size bytes=3786384`): `paging`/`heap`/`sched`/`wx`/`el0` probe missed; guard/ro still ok.
+cts-ai Docker on `b2bbb99`: **Failed** (sponsor serial). Cloud qemu-smoke on `c04b84b`: **Verified**. GHA on `c04b84b`: **Verified** — push [34563006005](https://github.com/artofdream/ctos/actions/runs/34563006005), PR [34563008516](https://github.com/artofdream/ctos/actions/runs/34563008516), both matrices grepped `paging: layout` / `paging: ok` / `el0: ok`.
 
-Cloud `scripts/qemu-smoke.sh` **Verified** (2026-09-11, QEMU 8.2.2, `rustc` 1.100.0-nightly `67eda617e`): host `perf: elf-size bytes=3837736`; `paging: layout data=0x40201000 end=0x4023c000 pool=0x4023c000 user=1`; all hello probes ok; `Running 38 tests` all `[ok]`; force-fail exit 1.
-
-GHA `smoke.yml` on this branch: **Unknown** (no run URL on the cloud-probe commit yet). Docker after the fix: **Unknown** until the sponsor re-runs `./scripts/docker-smoke.sh` after merge.
+Docker after the fix (`71ee15f`): **Unknown** until the sponsor re-runs `./scripts/docker-smoke.sh`.
 
 ## Do next
 
-1. Human or MRC review. Author does not merge (ADR-002). GitHub author of #21 is expected `cursor[bot]`; merge hat is `artofdream`.
-2. Sponsor re-probes cts-ai Docker Desktop after merge. This cloud VM has no Docker engine.
-3. Isolation (PAN / ASID TLB / standing EL0 / TTBR1) stays Planned. Do not claim “EL0 isolated.”
-4. Identity image is W^X on this virt guest only. Do not say “secure OS.”
+1. Sponsor re-probes cts-ai Docker Desktop on `main` `71ee15f`. This cloud VM has no Docker engine.
+2. Isolation stays Planned. Do not claim “EL0 isolated.”
+3. Identity image is W^X on this virt guest only. Do not say “secure OS.”
+4. GitHub author of #21 was `artofdream`. ADR-002: that login does not merge its own PR.
 
 ## Honesty
 
