@@ -4,7 +4,7 @@ A minimal bare-metal **AArch64** OS kernel in Rust. Learning and research projec
 
 This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker.
 
-Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Intended production URL: `https://ctos.artof.link` (Route 53 in AWS account `737290977112` / `us-east-1`; custom-domain **reachability** is **Planned** until Pages lists the hostname and HTTPS serves the book). Fallback until a `pages` workflow on `main` is green: `https://artofdream.github.io/ctos/`. File presence of the workflow is not a live site. Local build and the Route 53 checklist: [docs/website.md](docs/website.md).
+Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Intended production URL: `https://ctos.artof.link` (Route 53 CNAME **in place**, zone `Z1178AFMV41RWP`, account `737290977112`). HTTPS serving the book is **Planned** until Pages is enabled on the repo after merge. Fallback: `https://artofdream.github.io/ctos/`. Overview: [how we measure](docs/overview/measure.md), [prerequisites](docs/overview/prerequisites.md), [limits](docs/overview/limits.md). DNS/Pages: [docs/website.md](docs/website.md).
 
 ## Build and run
 
@@ -52,7 +52,7 @@ cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) i
 mdbook serve              # optional: http://localhost:3000
 ```
 
-A green local build is a **generator** probe only. “Docs website published” stays **Unknown** until Pages on `main` is green. `ctos.artof.link` reachability stays **Planned** until Pages shows the domain and HTTPS works. See [docs/website.md](docs/website.md).
+A green local build is a **generator** probe only. “Docs website published” stays **Unknown** until Pages on `main` is green. Route 53 CNAME is in place; HTTPS reachability stays **Planned**. See [docs/website.md](docs/website.md).
 
 ## Docs (document-first)
 
@@ -60,6 +60,10 @@ Start here before adding kernel features:
 
 | Doc | What it is |
 | --- | --- |
+| [How we measure](docs/overview/measure.md) | Performance, stability, honest app-support scope |
+| [Prerequisites](docs/overview/prerequisites.md) | Nightly Rust + QEMU virt; Pages not required for kernel work |
+| [Why this shape](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
+| [Limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
 | [Product vision](docs/01-vision/product-vision.md) | What ctos is and is not |
 | [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (ISA text revised under ADR-003) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, QEMU `virt`, UART stage, planned stages |

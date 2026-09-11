@@ -47,4 +47,4 @@ Hub: [pillars.md](../framework/pillars.md).
 
 ## Docs website
 
-mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). Intended hostname `https://ctos.artof.link` (Route 53 account `737290977112` / `us-east-1`) has **Planned** reachability until Pages lists the domain and HTTPS works. Fallback `https://artofdream.github.io/ctos/` is **Unknown** until a `pages` workflow on `main` is green. How to build and the Route 53 CLI checklist: [website.md](../website.md).
+mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). Route 53 CNAME for `ctos.artof.link` is **in place** (zone `Z1178AFMV41RWP`). HTTPS reachability stays **Planned** until Pages is enabled after merge. Overview pages: [how we measure](../overview/measure.md). Publish notes: [website.md](../website.md).

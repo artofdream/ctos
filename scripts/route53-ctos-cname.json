@@ -1,5 +1,5 @@
 {
-  "Comment": "ctos.artof.link CNAME for GitHub Pages (account 737290977112). CREATE only if list-resource-record-sets shows no ctos.artof.link. row.",
+  "Comment": "RECOVERY ONLY. Sponsor already created ctos.artof.link CNAME in zone Z1178AFMV41RWP (account 737290977112). LIST first. Do not CREATE if the row exists.",
   "Changes": [
     {
       "Action": "CREATE",

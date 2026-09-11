@@ -2,6 +2,13 @@
 
 [Introduction](index.md)
 
+# Overview
+
+- [How we measure](overview/measure.md)
+- [Prerequisites](overview/prerequisites.md)
+- [Why this shape](overview/advantages.md)
+- [Limits](overview/limits.md)
+
 # Vision
 
 - [Product vision](01-vision/product-vision.md)

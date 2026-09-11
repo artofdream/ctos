@@ -12,4 +12,6 @@ Local probe: `./scripts/docs-build.sh` downloaded the official linux-gnu tarball
 
 Sponsor follow-up: DNS is Route 53, account `737290977112`, region `us-east-1`. Documented CLI + `scripts/route53-ctos-cname.json`. This VM: `dig` already CNAME to `artofdream.github.io.`; no AWS CLI/creds so the hosted-zone row is Unknown; HTTPS cert mismatch + HTTP 404 + `has_pages: false` so reachability stays Planned.
 
+Sponsor: CNAME already created, zone `Z1178AFMV41RWP`. Documented DNS in place; HTTPS Planned. Added overview pages: measure / prerequisites / advantages / limits. Application support is scope, not a new FR ID.
+
 Do not self-merge. GitHub author of #30 is `artofdream`; merge hat `cursor[bot]`. MRC COMMENT landed on `443ff26`.
