@@ -4,7 +4,7 @@
 
 #21 merged as `71ee15f` on `main`. Layout fix is on the tip. Follow-up branch `cursor/layout-gha-ledger-c915` only folds the GHA URLs.
 
-cts-ai Docker on `b2bbb99`: **Failed** (sponsor serial). Cloud qemu-smoke on `c04b84b`: **Verified**. GHA on `c04b84b`: **Verified** — push [34563006005](https://github.com/artofdream/ctos/actions/runs/34563006005), PR [34563008516](https://github.com/artofdream/ctos/actions/runs/34563008516), both matrices grepped `paging: layout` / `paging: ok` / `el0: ok`.
+cts-ai Docker on `b2bbb99`: **Failed** (sponsor serial). Cloud qemu-smoke on `c04b84b`: **Verified**. GHA: **Verified** — branch push [34563006005](https://github.com/artofdream/ctos/actions/runs/34563006005), PR [34563008516](https://github.com/artofdream/ctos/actions/runs/34563008516), merge-commit [34563104020](https://github.com/artofdream/ctos/actions/runs/34563104020) on `71ee15f`. Both matrices grepped `paging: layout` / `paging: ok` / `el0: ok`.
 
 Docker after the fix (`71ee15f`): **Unknown** until the sponsor re-runs `./scripts/docker-smoke.sh`.
 
