@@ -7,9 +7,11 @@
 //! - `BR x0` to kernel `.data` must take a lower-EL IABORT (`el0: nx kernel`)
 //! - `LDR` from kernel `.data` must take a lower-EL DABORT (`el0: no kernel read`)
 //!
-//! `is_active()` stays **false**: this is not a standing userspace and
-//! not isolation. PAN is typically unimplemented on `-cpu cortex-a57`.
-//! ASID=1 is programmed on user TTBR0; we still TLBI ALL. See el0.md.
+//! `is_active()` stays **false**: standing EL0 is deferred (no user task,
+//! lower-EL IRQ still parked). PAN is typically unimplemented on
+//! `-cpu cortex-a57`. ASID=1 is programmed on user TTBR0; this path
+//! still TLBI ALL because kernel `.data` leaves are global. The ASID
+//! isolation mile lives in `src/asid.rs`. See el0.md.
 
 use core::fmt::Write;
 use core::hint::black_box;

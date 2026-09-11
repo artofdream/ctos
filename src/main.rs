@@ -7,6 +7,7 @@
 
 extern crate alloc;
 
+mod asid;
 mod el0;
 mod exception;
 mod frame;
@@ -103,6 +104,10 @@ pub extern "C" fn kernel_main() -> ! {
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): EL0 first mile + read.
         if !el0::observe_probe() {
             uart::write_str_raw("el0: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
+        if !asid::observe_probe() {
+            uart::write_str_raw("asid: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
         if !perf::observe_probe() {

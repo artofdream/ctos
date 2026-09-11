@@ -13,7 +13,9 @@
 //! `__data_start` leaves the first RAM 2 MiB, KERNEL_TEXT and `.data`
 //! need distinct L3 tables. The user TTBR0 (`L1_USER`) maps every 2 MiB
 //! that holds kernel text or the exception stack — not only the first
-//! RAM block. Not isolation. Not a DTB walker. Not Raspberry Pi.
+//! RAM block. ASID isolation (`src/asid.rs`) uses a second L1 with `nG`
+//! probe pages and does **not** `TLBI VMALLE1` on the switch. Not a
+//! DTB walker. Not Raspberry Pi. Not “EL0 isolated.”
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -30,6 +32,14 @@ pub const EL0_PAGE: u64 = MAP_WINDOW + 2 * 4096;
 pub const KERNEL_TEXT: u64 = 0x4008_0000;
 /// ASID programmed into user TTBR0. Not a claim that ASID isolation works.
 pub const USER_ASID: u64 = 1;
+/// Second ASID for the dual-table isolation probe (ADR-013). Not PAN.
+pub const ASID_ISO_B: u64 = 2;
+/// Map-window VA mapped to different PAs under ASID 1 vs ASID 2 (`nG`).
+pub const ASID_DUAL_VA: u64 = MAP_WINDOW + 5 * 4096;
+/// Map-window VA mapped only under ASID 1. ASID 2 must fault (stale = fail).
+pub const ASID_CONFLICT_VA: u64 = MAP_WINDOW + 6 * 4096;
+/// nG (not global): TLB entry is ASID-tagged. Global entries ignore ASID.
+const DESC_NG: u64 = 1 << 11;
 const WINDOW_PAGES: u64 = 512;
 const PAGE: u64 = 4096;
 const L2_BLOCK: u64 = 1 << 21;
@@ -95,6 +105,10 @@ static mut L1_USER: Table = empty_table();
 static mut L2_USER: Table = empty_table();
 static mut L3_USER: [Table; L3_USER_CAP] = [empty_table(); L3_USER_CAP];
 static mut L3_USER_USED: usize = 0;
+/// ASID-B tables: same MMIO + RAM L2 as the kernel, own map-window L2/L3.
+static mut L1_ASID_B: Table = empty_table();
+static mut L2_ASID_B: Table = empty_table();
+static mut L3_ASID_B: Table = empty_table();
 static USER_MAP_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static TABLES: Mutex<()> = Mutex::new(());
@@ -140,6 +154,18 @@ fn l3_user_pa(i: usize) -> u64 {
     unsafe { addr_of!(L3_USER[i]) as usize as u64 }
 }
 
+fn l1_asid_b_pa() -> u64 {
+    addr_of!(L1_ASID_B) as usize as u64
+}
+
+fn l2_asid_b_pa() -> u64 {
+    addr_of!(L2_ASID_B) as usize as u64
+}
+
+fn l3_asid_b_pa() -> u64 {
+    addr_of!(L3_ASID_B) as usize as u64
+}
+
 unsafe fn l1_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L1.entries).cast::<u64>().add(i)
 }
@@ -162,6 +188,18 @@ unsafe fn l1_user_slot(i: usize) -> *mut u64 {
 
 unsafe fn l2_user_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L2_USER.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l1_asid_b_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L1_ASID_B.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l2_asid_b_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L2_ASID_B.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l3_asid_b_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L3_ASID_B.entries).cast::<u64>().add(i)
 }
 
 unsafe fn alloc_kernel_l3() -> Option<u64> {
@@ -323,6 +361,44 @@ pub fn user_map_ready() -> bool {
 #[allow(dead_code)]
 pub fn user_ttbr0() -> u64 {
     l1_user_pa() | (USER_ASID << 48)
+}
+
+/// Kernel L1 with ASID 0 (boot TTBR0). Restore here after the ASID probe.
+#[allow(dead_code)]
+pub fn kernel_ttbr0() -> u64 {
+    l1_pa()
+}
+
+/// Kernel L1 tagged with the user ASID. Used as ASID-A in the isolation probe.
+#[allow(dead_code)]
+pub fn asid_a_ttbr0() -> u64 {
+    l1_pa() | (USER_ASID << 48)
+}
+
+/// Alternate L1 + ASID 2. Shares RAM/MMIO; own map-window leaves.
+#[allow(dead_code)]
+pub fn asid_b_ttbr0() -> u64 {
+    l1_asid_b_pa() | (ASID_ISO_B << 48)
+}
+
+/// Switch TTBR0 without `TLBI VMALLE1`. Isolation mile: programming + no full flush.
+#[allow(dead_code)]
+pub fn switch_ttbr0_no_tlbi(ttbr: u64) {
+    dsb_ish();
+    unsafe {
+        core::arch::asm!(
+            "msr ttbr0_el1, {t}",
+            "isb",
+            t = in(reg) ttbr,
+            options(nostack, preserves_flags),
+        );
+    }
+}
+
+/// Invalidate one VA in every ASID (`TLBI VAAE1`). Setup / unmap only.
+#[allow(dead_code)]
+pub fn invalidate_va(va: u64) {
+    tlbi_va(va);
 }
 
 #[allow(dead_code)]
@@ -675,6 +751,62 @@ pub fn map_el0_exec(va: u64, pa: u64) -> bool {
 
 /// Map a 4 KiB frame at `va` in the dedicated window.
 pub fn map_page(va: u64, pa: u64) -> bool {
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    map_window_desc(va, l3_page(pa))
+}
+
+/// Map-window page with nG set (ASID-tagged). Used by the isolation probe.
+#[allow(dead_code)]
+pub fn map_page_ng(va: u64, pa: u64) -> bool {
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    map_window_desc(va, l3_page(pa) | DESC_NG)
+}
+
+fn map_window_desc(va: u64, desc: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_slot(i).write(desc);
+    }
+    dsb_ish();
+    tlbi_va(va);
+    true
+}
+
+/// Clone kernel MMIO + RAM L1 slots; give ASID B its own empty map-window L3.
+#[allow(dead_code)]
+pub fn prepare_asid_b_tables() -> bool {
+    let _g = TABLES.lock();
+    unsafe {
+        addr_of_mut!(L1_ASID_B.entries).write([0; 512]);
+        addr_of_mut!(L2_ASID_B.entries).write([0; 512]);
+        addr_of_mut!(L3_ASID_B.entries).write([0; 512]);
+        let mmio = l1_slot(0).read();
+        let ram = l1_slot(1).read();
+        if mmio & DESC_VALID == 0 || ram & DESC_VALID == 0 {
+            return false;
+        }
+        l1_asid_b_slot(0).write(mmio);
+        l1_asid_b_slot(1).write(ram);
+        l2_asid_b_slot(0).write(table_desc(l3_asid_b_pa()));
+        l1_asid_b_slot(2).write(table_desc(l2_asid_b_pa()));
+    }
+    dsb_ish();
+    true
+}
+
+/// Map `va` → `pa` in ASID B's window L3 with nG. No TLBI (caller invalidates).
+#[allow(dead_code)]
+pub fn map_asid_b_ng(va: u64, pa: u64) -> bool {
     let Some(i) = window_index(va) else {
         return false;
     };
@@ -683,14 +815,45 @@ pub fn map_page(va: u64, pa: u64) -> bool {
     }
     let _g = TABLES.lock();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID != 0 {
+        if l3_asid_b_slot(i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_slot(i).write(l3_page(pa));
+        l3_asid_b_slot(i).write(l3_page(pa) | DESC_NG);
     }
     dsb_ish();
-    tlbi_va(va);
     true
+}
+
+#[allow(dead_code)]
+pub fn unmap_asid_b_page(va: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_asid_b_slot(i).read() & DESC_VALID == 0 {
+            return false;
+        }
+        l3_asid_b_slot(i).write(0);
+    }
+    dsb_ish();
+    true
+}
+
+/// Walk ASID-B tables. Used by the isolation `#[test_case]`.
+#[allow(dead_code)]
+pub fn asid_b_mapped(va: u64) -> bool {
+    let _g = TABLES.lock();
+    walk_leaf(l1_asid_b_pa(), va).is_some()
+}
+
+/// True when the kernel window leaf has nG (ASID-tagged).
+#[allow(dead_code)]
+pub fn window_is_ng(va: u64) -> bool {
+    match l3_entry(va) {
+        Some(d) if d & DESC_VALID != 0 => d & DESC_NG != 0,
+        _ => false,
+    }
 }
 
 /// Clear the L3 slot for `va` and invalidate that translation.
