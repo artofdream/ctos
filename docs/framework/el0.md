@@ -31,7 +31,7 @@ Direction: [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md). TTBR1 first 
 | Identity-tear first cut | Serial `ident: split` / `ident: fault` / `ident: high` / `ident: no el0` / `ident: ok`; `#[test_case]` `identity_tear_el1_faults_high_stays` | One identity text page unmapped; high twin still fetches. Not a relocated kernel. Full teardown Planned. |
 | Identity text range tear | Serial `ident: jump` / `ident: range` / `ident: text`; `#[test_case]` `identity_text_range_unmapped_boot_stub_stays` | High-VA continuation + 16 KiB dedicated range unmapped; high twins still fetch. Not a relocated kernel. |
 | High-VA vtable rewrite + live `.text` tear | Serial `ident: reloc` / `ident: live`; `#[test_case]` `identity_fn_ptrs_rewritten_high` + `live_identity_text_unmapped_boot_stub_stays` | rustc `dyn Write` / fmt tables patched to high aliases; live identity `.text` after `_start` unmapped; `println!` still runs. `.rodata`/`.data`/heap stay. Not a relocated kernel. |
-| SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`; `#[test_case]` `el0_svc_abi_yield_uart_exit` | Documented numbers 16–18. Not Linux. Not app hosting. |
+| SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`; `#[test_case]` `el0_svc_abi_yield_uart_exit` + kernel-`.data` / TTBR1-alias reject | Documented numbers 16–18. Not Linux. Not app hosting. |
 
 ## Still Planned (isolation)
 

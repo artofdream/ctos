@@ -115,6 +115,12 @@ fn user_range_ok(ptr: u64, len: u64) -> bool {
         return false;
     }
     let last = ptr + len - 1;
+    // Walks mask to 39 bits. A TTBR1 / non-canonical alias of a mapped
+    // page would otherwise pass, and `copy_user` would load the original
+    // pointer (kernel abort instead of `uart_write` → 0).
+    if ptr != paging::identity_pa(ptr) || last != paging::identity_pa(last) {
+        return false;
+    }
     let mut page = ptr & !0xfff;
     let end = last & !0xfff;
     while page <= end {
@@ -291,6 +297,24 @@ fn abi_reject_kernel_data() -> bool {
     UART_LAST.load(Ordering::SeqCst) == 0 && !UART_OK.load(Ordering::SeqCst)
 }
 
+/// `SYS_UART_WRITE` via the TTBR1 alias of a user-mapped page, then `SYS_EXIT`.
+#[allow(dead_code)] // `#[test_case]` only.
+fn abi_reject_high_alias() -> bool {
+    if !run_payload(|ptr, va| {
+        let msg_off = 64u64;
+        let dst = unsafe { (ptr as *mut u8).add(msg_off as usize) };
+        for i in 0..4 {
+            unsafe {
+                core::ptr::write_volatile(dst.add(i), b'X');
+            }
+        }
+        write_reject_payload(ptr, paging::to_high_va(va + msg_off));
+    }) {
+        return false;
+    }
+    UART_LAST.load(Ordering::SeqCst) == 0 && !UART_OK.load(Ordering::SeqCst)
+}
+
 /// Serial proof: EL0 issues yield, uart_write, exit. Not app hosting.
 #[allow(dead_code)] // hello kernel only; cargo test uses the cases below.
 pub fn observe_probe() -> bool {
@@ -351,6 +375,17 @@ fn el0_uart_write_rejects_kernel_data() {
     assert!(
         abi_reject_kernel_data(),
         "SYS_UART_WRITE must reject a kernel .data pointer"
+    );
+    assert!(!el0::is_active());
+}
+
+#[cfg(test)]
+#[test_case]
+fn el0_uart_write_rejects_high_alias() {
+    assert!(paging::mmu_enabled());
+    assert!(
+        abi_reject_high_alias(),
+        "SYS_UART_WRITE must reject a TTBR1 alias of a user-mapped page"
     );
     assert!(!el0::is_active());
 }

@@ -29,7 +29,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Identity text range | Dedicated 16 KiB identity text range unmapped. High twins stay. Not a relocated kernel. | `__ident_tear_*` 16 KiB ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)) |
 | Live identity `.text` | rustc vtables rewritten to high aliases; live identity `.text` after `_start` unmapped. High twins stay. `.rodata`/`.data`/heap stay. Not a relocated kernel. | `[0x4008_1000, __text_end)` ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)) |
 | Remaining isolation gaps | Shared boot-stub text in the user table (handler must fetch if VBAR were still identity). No PAN on cortex-a57. EL0 trampoline still `TLBI VMALLE1` (`.data` leaves are global). Identity `.rodata`/`.data`/heap still live. Lower-EL IRQ still parks. | User TTBR0 + ASID + TTBR1 first cut + exec mile + torn live `.text` + SVC ABI; isolation Planned |
-| SVC ABI (exit / uart_write / yield) | Documented numbers 16–18. `uart_write` rejects a kernel `.data` pointer. Not Linux. Not app hosting. | `src/syscall.rs` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)) |
+| SVC ABI (exit / uart_write / yield) | Documented numbers 16–18. `uart_write` rejects a kernel `.data` pointer and a TTBR1 / non-canonical alias. Not Linux. Not app hosting. | `src/syscall.rs` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)) |
 | Console / sensors | PL011 is how we see whether a probe ran. | Device MMIO `0x0900_0000` |
 
 ## Adversaries
@@ -91,7 +91,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Identity-tear first cut | Serial `ident: split` / `ident: fault` / `ident: high` / `ident: no el0` / `ident: ok` | First cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)). Full teardown Planned. |
 | Identity text range tear | Serial `ident: jump` / `ident: range` / `ident: text` | Range cut ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)). |
 | High-VA vtable rewrite + live `.text` tear | Serial `ident: reloc` / `ident: live` | Live `.text` cut ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). `.rodata`/`.data`/heap stay. |
-| SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: ok`; user buffer + kernel-`.data` reject | ABI mile ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). Not app hosting. |
+| SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: ok`; user buffer + kernel-`.data` / TTBR1-alias reject | ABI mile ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). Not app hosting. |
 | RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | Verified: 2026-09-11 cloud `qemu-smoke` (honesty ledger). |
 
 ## Claim gate
