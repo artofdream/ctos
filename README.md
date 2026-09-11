@@ -69,7 +69,8 @@ Start here before adding kernel features:
 | [Advantages](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
 | [Drawbacks / limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
 | [Product vision](docs/01-vision/product-vision.md) | What ctos is and is not |
-| [Overview](docs/framework/overview.md) | Plain-English KPIs, prerequisites, advantages, drawbacks |
+| [Overview](docs/framework/overview.md) | Principles first, then KPIs, prerequisites, trade-offs |
+| [Core principles](docs/framework/principles.md) | Non-negotiable driving force; tracks are subordinate |
 | [What can run today](docs/framework/apps-today.md) | Concrete samples: coop UART workers, RX echo, standing EL0; cannot-run list |
 | [Building or porting](docs/framework/building-or-porting.md) | Easiest = in-tree `no_std` coop EL1; POSIX not easy; SVC ABI / `libctos` Planned |
 | [Filesystem](docs/framework/filesystem.md) | No FS today. Planned: memfs → virtio-blk → FAT or xv6-like |
@@ -98,6 +99,8 @@ Start here before adding kernel features:
 | [ADR-019](docs/03-adr/ADR-019-identity-text-range-tear.md) | High-VA continuation + 16 KiB dedicated identity text range |
 | [ADR-020](docs/03-adr/ADR-020-identity-fnptr-reloc.md) | High-VA vtable rewrite + live identity `.text` tear |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
+| [Track A](docs/04-roadmap/track-a.md) | Freestanding app hosting (epic #31). Subordinate to principles. |
+| [Track B](docs/04-roadmap/track-b.md) | Linux-compat research (epic #40). Subordinate to principles. |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |
 | [Three pillars](docs/framework/pillars.md) | Antifragility, security, performance (NFR-05 / NFR-10 / NFR-07) |

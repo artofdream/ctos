@@ -1,8 +1,16 @@
 # Overview (plain English)
 
+**Core principles drive ctos** (display nickname ctsOS — use **ctos** everywhere else). Track A / Track B / A9 are subordinate and never override this list for speed or marketing. Full list: [principles.md](principles.md).
+
+- Honesty ledger — Verified only with a probe
+- Antifragility — fail-closed sensors + ratchets
+- Security — threat model; probed mitigations only
+- Performance — measure first; no invented benches
+- Document-first / one milestone → one PR
+
 ctos is a **learning** AArch64 kernel for QEMU `virt`. It is not a desktop, not POSIX, and not a “secure OS.” Status words need a probe in the [honesty ledger](honesty-ledger.md). This note does **not** invent latency, size, or “faster than” numbers. Measured markers live in the ledger; they are one environment each.
 
-Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md). Immutability: [immutability.md](immutability.md) (scoped only).
+Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md). Immutability: [immutability.md](immutability.md) (scoped only). Tracks: [A](../04-roadmap/track-a.md) / [B](../04-roadmap/track-b.md) (subordinate).
 
 A docs website at https://ctos.artof.link is **Planned**. A Route 53 CNAME exists; this tree does not publish Pages. Do not claim that URL works.
 

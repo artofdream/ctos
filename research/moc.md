@@ -4,7 +4,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
-- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-a9-perf-shape.md](daily-briefs/2026-09-11-a9-perf-shape.md)
+- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-principles-drive.md](daily-briefs/2026-09-11-principles-drive.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
@@ -14,6 +14,9 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 - Vision: [../docs/01-vision/product-vision.md](../docs/01-vision/product-vision.md)
 - Overview (KPIs / trade-offs): [../docs/framework/overview.md](../docs/framework/overview.md)
+- Core principles: [../docs/framework/principles.md](../docs/framework/principles.md)
+- Track A (subordinate): [../docs/04-roadmap/track-a.md](../docs/04-roadmap/track-a.md)
+- Track B (subordinate): [../docs/04-roadmap/track-b.md](../docs/04-roadmap/track-b.md)
 - What can run today (samples): [../docs/framework/apps-today.md](../docs/framework/apps-today.md)
 - Building or porting: [../docs/framework/building-or-porting.md](../docs/framework/building-or-porting.md)
 - Filesystem stance: [../docs/framework/filesystem.md](../docs/framework/filesystem.md)
@@ -45,6 +48,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - A9 OS/app slot handoff: [daily-briefs/2026-09-11-a9-os-app-slots.md](daily-briefs/2026-09-11-a9-os-app-slots.md)
 - A9 perf-shape scratch: [random-thoughts/2026-09-11-session-memory-a9-perf.md](random-thoughts/2026-09-11-session-memory-a9-perf.md)
 - A9 perf-shape handoff: [daily-briefs/2026-09-11-a9-perf-shape.md](daily-briefs/2026-09-11-a9-perf-shape.md)
+- Principles-drive scratch: [random-thoughts/2026-09-11-session-memory-principles.md](random-thoughts/2026-09-11-session-memory-principles.md)
+- Principles-drive handoff: [daily-briefs/2026-09-11-principles-drive.md](daily-briefs/2026-09-11-principles-drive.md)
 - Inbox (triage out): [inbox/](inbox/)
 
 ## Templates

@@ -1,5 +1,7 @@
 # Product vision
 
+**Core principles are the driving force** for **ctos**. Tracks and nicknames are subordinate. Non-negotiable: honesty ledger, antifragility (fail-closed + ratchets), security (threat model, probed mitigations only), performance (measure first), document-first / one-PR loops. [principles.md](../framework/principles.md).
+
 ## What ctos is
 
 ctos is a **learning and research** bare-metal OS kernel written in Rust for **AArch64** (arm64 primary; [ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). The near-term product is a QEMU `virt` guest that owns the machine after `-kernel` load: UART text, then exceptions, paging, a heap, and a tiny scheduler — in that order.
@@ -17,4 +19,4 @@ It exists so we can study kernel mechanics with a document-first harness: claims
 
 ## Success (current horizon)
 
-A new session can read the vision, [overview](../framework/overview.md), [what can run today](../framework/apps-today.md), [building or porting](../framework/building-or-porting.md), [host-app gaps](../framework/host-apps.md), architecture, honesty ledger, and latest daily brief, then take **one** roadmap milestone to a GitHub PR without inventing status.
+A new session can read the vision, [principles](../framework/principles.md), [overview](../framework/overview.md), [what can run today](../framework/apps-today.md), [building or porting](../framework/building-or-porting.md), [host-app gaps](../framework/host-apps.md), architecture, honesty ledger, and latest daily brief, then take **one** roadmap milestone to a GitHub PR without inventing status.

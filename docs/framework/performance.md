@@ -46,7 +46,7 @@ That is **kernel_main-entry to after-init** on this QEMU virt guest. It is not a
 
 ## OS/app slot disconnect (A9) — expected shape, not a bench
 
-[A9 #48](https://github.com/artofdream/ctos/issues/48) would load a **separate app payload** after the OS image ([overview A9](overview.md), [immutability.md](immutability.md)). That is **Planned after Track A ABI/loader**. Today is still **one linked ELF**. There is **no Verified delta**. Do not invent a “faster/slower than linked-in” number.
+[A9 #48](https://github.com/artofdream/ctos/issues/48) would load a **separate app payload** after the OS image ([immutability.md](immutability.md), site [measure.md](../overview/measure.md)). That is **Planned after Track A ABI/loader**. Today is still **one linked ELF**. There is **no Verified delta**. Do not invent a “faster/slower than linked-in” number.
 
 | Class | What we expect (hypothesis, unmeasured) | Honesty |
 | --- | --- | --- |
