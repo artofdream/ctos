@@ -12,7 +12,8 @@
 //! Lower-EL IRQ/FIQ/SError still park (not exercised). PAN is typically
 //! unimplemented on `-cpu cortex-a57`. The EL0 trampoline still TLBI ALL
 //! because kernel `.data` leaves are global. ASID isolation lives in
-//! `src/asid.rs`. TTBR1 private page is `src/ttbr1.rs` (ADR-016).
+//! `src/asid.rs`. TTBR1 private page + high-VA EL1 fetch live in
+//! `src/ttbr1.rs` (ADR-016 / ADR-017).
 //! See el0.md. Not “EL0 isolated.”
 
 use core::fmt::Write;

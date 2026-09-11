@@ -110,7 +110,8 @@ pub extern "C" fn kernel_main() -> ! {
         if !asid::observe_probe() {
             uart::write_str_raw("asid: probe missed\n");
         }
-        // Serial proof for qemu-smoke (NFR-10 / ADR-016): TTBR1 private page.
+        // Serial proof for qemu-smoke (NFR-10 / ADR-016 + ADR-017):
+        // TTBR1 private page + EL1 high-VA fetch.
         if !ttbr1::observe_probe() {
             uart::write_str_raw("ttbr1: probe missed\n");
         }

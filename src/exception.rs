@@ -17,9 +17,11 @@
 //! Dedicated stacks + the nested `BRK` probe remain (ADR-005).
 //! Execute-from-heap / execute-from-`.data` / write-to-RO-text are
 //! caught here. Lower-EL AArch64 sync is live for the EL0 first mile,
-//! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), and the
-//! TTBR1 private-page DABORT (ADR-016): SVC, IABORT, DABORT.
-//! Other lower-EL slots still park.
+//! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), the
+//! TTBR1 private-page DABORT (ADR-016), and EL1 fetch from the TTBR1
+//! RAM alias (ADR-017): SVC, IABORT, DABORT.
+//! Other lower-EL slots still park. After paging::init, `VBAR_EL1` is
+//! the high alias of this table. Identity `_start` stays at `0x4008_0000`.
 
 use core::arch::global_asm;
 use core::fmt::Write;
@@ -488,6 +490,22 @@ pub fn vbar_el1() -> u64 {
         core::arch::asm!("mrs {v}, vbar_el1", v = out(reg) vbar);
     }
     vbar
+}
+
+/// Program `VBAR_EL1`. Used at boot (identity) and after MMU (TTBR1 alias).
+pub fn install_vbar(vbar: u64) -> bool {
+    if vbar & 0x7ff != 0 {
+        return false;
+    }
+    unsafe {
+        core::arch::asm!(
+            "msr vbar_el1, {v}",
+            "isb",
+            v = in(reg) vbar,
+            options(nostack, preserves_flags),
+        );
+    }
+    vbar_el1() == vbar
 }
 
 #[allow(dead_code)] // asserted in `#[test_case]`.
@@ -1002,7 +1020,13 @@ pub extern "C" fn fatal_probe_missed() -> ! {
 #[test_case]
 fn vbar_el1_points_at_table() {
     assert_eq!(current_el(), 1);
-    assert_eq!(vbar_el1(), vector_table_addr());
+    // After paging::init the table is fetched via the TTBR1 RAM alias.
+    // The link address stays identity (`0x4008_0000` + offset).
+    let ident = vector_table_addr();
+    let high = crate::paging::to_high_va(ident);
+    assert_eq!(vbar_el1(), high);
+    assert!(crate::paging::is_high_va(vbar_el1()));
+    assert_eq!(high.wrapping_sub(ident), crate::paging::TTBR1_BASE);
 }
 
 #[cfg(test)]

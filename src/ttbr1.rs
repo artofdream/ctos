@@ -1,14 +1,20 @@
-//! TTBR1 kernel-private page (P-SEC-3e / ADR-016 first cut).
+//! TTBR1 private page (ADR-016) + EL1 fetch from the high RAM alias (ADR-017).
 //!
-//! Enables a high-half walk (`TCR.EPD1` clear, T1SZ=25) and maps one
-//! EL1-only page at `paging::TTBR1_PRIV`. EL1 can read it; EL0 must
-//! take a lower-EL DABORT (`ttbr1: no el0`). The kernel still runs
-//! from the identity TTBR0 map — full higher-half teardown is Planned.
+//! ADR-016: one EL1-only page at `paging::TTBR1_PRIV`. EL1 can read it;
+//! EL0 must take a lower-EL DABORT (`ttbr1: no el0`).
+//!
+//! ADR-017: identity RAM is aliased at `va + TTBR1_BASE`. A real EL1
+//! function is invoked through that high VA and prints `ttbr1: el1 exec`
+//! from the fetched path. `VBAR_EL1` is the high alias of the vector
+//! table (`ttbr1: vbar`). `_start` / QEMU `-kernel` stay at `0x4008_0000`.
+//! Identity teardown is Planned. Shared `L2_RAM` means unmapping identity
+//! also unmaps the alias.
 //!
 //! Not “EL0 isolated.” PAN stays unclaimed on `-cpu cortex-a57`.
 
 use core::fmt::Write;
 use core::hint::black_box;
+use core::mem::transmute;
 
 use crate::exception;
 use crate::frame;
@@ -92,8 +98,65 @@ fn el0_load_high() -> bool {
     ok
 }
 
+/// Real EL1 path fetched via TTBR1. Must stay in `.text` (RO+X).
+#[inline(never)]
+#[no_mangle]
+pub extern "C" fn ttbr1_high_el1_path() -> u64 {
+    let pc: u64;
+    unsafe {
+        core::arch::asm!(
+            "adr {p}, 1f",
+            "1:",
+            p = out(reg) pc,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
+    // UART MMIO is an absolute identity address (`0x0900_0000`). The
+    // string lives in `.rodata`, reached by ADRP from this high PC —
+    // that resolves to the TTBR1 RAM alias (same PA as identity).
+    uart::write_str_raw("ttbr1: el1 exec\n");
+    pc
+}
+
+/// EL1 instruction fetch from the high RAM alias + high VBAR (ADR-017).
+fn run_high_exec() -> bool {
+    if !paging::mmu_enabled() || !paging::ttbr1_ready() || !paging::ttbr1_walks_enabled() {
+        return false;
+    }
+    if !paging::high_alias_ready() {
+        return false;
+    }
+    let ident = ttbr1_high_el1_path as *const () as usize as u64;
+    if ident < paging::KERNEL_TEXT || ident >= paging::data_start() {
+        return false;
+    }
+    let high = paging::to_high_va(ident);
+    if !paging::is_high_va(high) || !paging::high_mapped(high) {
+        return false;
+    }
+    if !paging::high_is_executable(high) {
+        return false;
+    }
+    let vbar = exception::vbar_el1();
+    let vbar_ident = exception::vector_table_addr();
+    if vbar != paging::to_high_va(vbar_ident) {
+        return false;
+    }
+    let f: extern "C" fn() -> u64 = unsafe { transmute(black_box(high)) };
+    let pc = f();
+    if !paging::is_high_va(pc) {
+        return false;
+    }
+    // `adr` is the first insn; allow a tiny prefix (nop/BTI).
+    if pc < high || pc.wrapping_sub(high) > 32 {
+        return false;
+    }
+    uart::write_str_raw("ttbr1: vbar\n");
+    true
+}
+
 /// EL1 can use the high page; EL0 cannot. Identity teardown stays Planned.
-fn run_probe() -> bool {
+fn run_priv_probe() -> bool {
     if !paging::mmu_enabled() || !paging::ttbr1_ready() || !paging::ttbr1_walks_enabled() {
         return false;
     }
@@ -142,10 +205,14 @@ fn run_probe() -> bool {
     true
 }
 
-/// Serial proof: EL1 high access + EL0 DABORT on the private page.
-#[allow(dead_code)] // hello kernel only; cargo test uses the case below.
+/// Serial proof: high-VA EL1 fetch + EL1 private page + EL0 DABORT.
+#[allow(dead_code)] // hello kernel only; cargo test uses the cases below.
 pub fn observe_probe() -> bool {
-    if !run_probe() {
+    if !run_high_exec() {
+        uart::write_str_raw("ttbr1: exec missed\n");
+        return false;
+    }
+    if !run_priv_probe() {
         return false;
     }
     let mut w = uart::raw();
@@ -159,7 +226,18 @@ fn ttbr1_el1_sees_priv_el0_does_not() {
     assert!(paging::mmu_enabled());
     assert!(paging::ttbr1_walks_enabled());
     assert!(
-        run_probe(),
+        run_priv_probe(),
         "EL1 must use TTBR1_PRIV; EL0 must take a lower-EL DABORT"
+    );
+}
+
+#[cfg(test)]
+#[test_case]
+fn el1_executes_from_ttbr1_high_va() {
+    assert!(paging::mmu_enabled());
+    assert!(paging::high_alias_ready());
+    assert!(
+        run_high_exec(),
+        "EL1 must fetch a real path from the TTBR1 RAM alias"
     );
 }

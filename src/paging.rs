@@ -16,9 +16,12 @@
 //! RAM block. ASID isolation (`src/asid.rs`) uses a second L1 with `nG`
 //! probe pages and does **not** `TLBI VMALLE1` on the switch.
 //!
-//! TTBR1 (ADR-016 first cut) is enabled with the same 39-bit T1SZ. One
-//! kernel-private page lives at `TTBR1_PRIV` (EL1 RW, EL0 none). The
-//! kernel still runs from the identity map; full higher-half teardown
+//! TTBR1 (ADR-016 first cut + ADR-017 exec mile) is enabled with the
+//! same 39-bit T1SZ. One kernel-private page lives at `TTBR1_PRIV`
+//! (EL1 RW, EL0 none). `L1_HIGH[1]` aliases the identity RAM tables so
+//! EL1 can fetch `.text` at `identity + TTBR1_BASE`. `VBAR_EL1` is
+//! moved to that high alias after the MMU is on. `_start` and the
+//! QEMU `-kernel` load stay at `0x4008_0000`. Full identity teardown
 //! is Planned. Not a DTB walker. Not Raspberry Pi. Not “EL0 isolated.”
 
 use core::fmt::Write;
@@ -44,8 +47,12 @@ pub const ASID_DUAL_VA: u64 = MAP_WINDOW + 5 * 4096;
 pub const ASID_CONFLICT_VA: u64 = MAP_WINDOW + 6 * 4096;
 /// First VA of the TTBR1 / high-half window (T1SZ=25, 39-bit).
 pub const TTBR1_BASE: u64 = 0xFFFF_FF80_0000_0000;
+/// Add this to a TTBR0 identity VA to get the TTBR1 RAM alias (ADR-017).
+pub const TTBR1_OFFSET: u64 = TTBR1_BASE;
 /// Kernel-private page in TTBR1 (EL1 RW, EL0 none). Not a relocated kernel.
 pub const TTBR1_PRIV: u64 = TTBR1_BASE;
+/// 39-bit input address mask (T0SZ = T1SZ = 25).
+const VA_IA_MASK: u64 = (1u64 << 39) - 1;
 /// nG (not global): TLB entry is ASID-tagged. Global entries ignore ASID.
 const DESC_NG: u64 = 1 << 11;
 const WINDOW_PAGES: u64 = 512;
@@ -123,12 +130,15 @@ static mut L1_ASID_B: Table = empty_table();
 static mut L2_ASID_B: Table = empty_table();
 static mut L3_ASID_B: Table = empty_table();
 /// TTBR1 L1/L2/L3 for the kernel-private high page (ADR-016 first cut).
+/// L1_HIGH[1] aliases `L2_RAM` so kernel text is fetchable at high VA.
 static mut L1_HIGH: Table = empty_table();
 static mut L2_HIGH: Table = empty_table();
 static mut L3_HIGH: Table = empty_table();
 static USER_MAP_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static TTBR1_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+static HIGH_ALIAS_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static TABLES: Mutex<()> = Mutex::new(());
 
@@ -335,8 +345,23 @@ unsafe fn desc_at(table_pa: u64, index: usize) -> u64 {
     core::ptr::read((table_pa as *const u64).add(index))
 }
 
+/// Identity VA → TTBR1 RAM alias. QEMU `-kernel` / `_start` stay low.
+#[allow(dead_code)]
+pub fn to_high_va(va: u64) -> u64 {
+    (va & VA_IA_MASK).wrapping_add(TTBR1_OFFSET)
+}
+
+/// True when `va` is in the TTBR1 window (T1SZ=25).
+#[allow(dead_code)]
+pub fn is_high_va(va: u64) -> bool {
+    va >= TTBR1_BASE
+}
+
+/// Walk a 39-bit / 4 KiB table. Masks to the T0SZ/T1SZ input address so
+/// a canonical high VA and its identity twin hit the same L1/L2/L3 slots.
 fn walk_leaf(l1_table: u64, va: u64) -> Option<u64> {
-    let l1i = ((va >> 30) & 0x1ff) as usize;
+    let ia = va & VA_IA_MASK;
+    let l1i = ((ia >> 30) & 0x1ff) as usize;
     let l1e = unsafe { desc_at(l1_table, l1i) };
     if l1e & DESC_VALID == 0 {
         return None;
@@ -344,14 +369,14 @@ fn walk_leaf(l1_table: u64, va: u64) -> Option<u64> {
     if l1e & DESC_TABLE == 0 {
         return Some(l1e);
     }
-    let l2e = unsafe { desc_at(l1e & !0xfff, ((va >> 21) & 0x1ff) as usize) };
+    let l2e = unsafe { desc_at(l1e & !0xfff, ((ia >> 21) & 0x1ff) as usize) };
     if l2e & DESC_VALID == 0 {
         return None;
     }
     if l2e & DESC_TABLE == 0 {
         return Some(l2e);
     }
-    let l3e = unsafe { desc_at(l2e & !0xfff, ((va >> 12) & 0x1ff) as usize) };
+    let l3e = unsafe { desc_at(l2e & !0xfff, ((ia >> 12) & 0x1ff) as usize) };
     if l3e & DESC_VALID == 0 {
         return None;
     }
@@ -396,16 +421,38 @@ pub fn user_mapped(va: u64) -> bool {
 }
 
 /// Walk TTBR1. The private page is present only after `map_ttbr1_priv`.
+/// After ADR-017, RAM identity VAs are also present at `to_high_va(va)`.
 #[allow(dead_code)]
 pub fn high_mapped(va: u64) -> bool {
     let _g = TABLES.lock();
     walk_leaf(l1_high_pa(), va).is_some()
 }
 
+/// Walk TTBR1. `Some(true)` = PXN set on the high alias.
+#[allow(dead_code)]
+pub fn high_pxn_for(va: u64) -> Option<bool> {
+    if !is_high_va(va) {
+        return None;
+    }
+    let _g = TABLES.lock();
+    walk_leaf(l1_high_pa(), va).map(|d| d & DESC_PXN != 0)
+}
+
+#[allow(dead_code)]
+pub fn high_is_executable(va: u64) -> bool {
+    matches!(high_pxn_for(va), Some(false))
+}
+
 /// TTBR1 tables programmed and walks enabled (ADR-016 first cut).
 #[allow(dead_code)]
 pub fn ttbr1_ready() -> bool {
     TTBR1_OK.load(core::sync::atomic::Ordering::SeqCst)
+}
+
+/// Identity RAM is aliased at `va + TTBR1_BASE` (ADR-017).
+#[allow(dead_code)]
+pub fn high_alias_ready() -> bool {
+    HIGH_ALIAS_OK.load(core::sync::atomic::Ordering::SeqCst)
 }
 
 #[allow(dead_code)]
@@ -724,12 +771,15 @@ pub fn init() {
         l2_slot(0).write(table_desc(l3_pa()));
         user_ok = fill_user_map();
         // TTBR1: empty L3 behind a live table walk (ADR-016). Probe maps
-        // TTBR1_PRIV later. Kernel fetch/stack/UART stay on identity TTBR0.
+        // TTBR1_PRIV later. L1[1] aliases identity RAM so EL1 can fetch
+        // .text at high VA (ADR-017). Same L2_RAM: unmap identity = unmap
+        // the alias. Full teardown needs split tables (Planned).
         addr_of_mut!(L1_HIGH.entries).write([0; 512]);
         addr_of_mut!(L2_HIGH.entries).write([0; 512]);
         addr_of_mut!(L3_HIGH.entries).write([0; 512]);
         l1_high_slot(0).write(table_desc(l2_high_pa()));
         l2_high_slot(0).write(table_desc(l3_high_pa()));
+        l1_high_slot(1).write(table_desc(l2_ram_pa()));
     }
     dsb_ish();
 
@@ -776,6 +826,10 @@ pub fn init() {
     // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.
     USER_MAP_OK.store(user_ok, core::sync::atomic::Ordering::SeqCst);
     TTBR1_OK.store(true, core::sync::atomic::Ordering::SeqCst);
+    HIGH_ALIAS_OK.store(true, core::sync::atomic::Ordering::SeqCst);
+    // Exception fetch from the high alias. Identity VBAR was installed
+    // before the MMU; `_start` stays at 0x4008_0000 (ADR-017).
+    let _ = crate::exception::install_vbar(to_high_va(crate::exception::vector_table_addr()));
 }
 
 pub fn mmu_enabled() -> bool {
@@ -1210,4 +1264,29 @@ fn ttbr1_tables_programmed() {
     assert_eq!(ttbr1_el1() & !0xfff, kernel_ttbr1());
     assert_eq!(tcr_el1() & 0x3f, TCR_T0SZ);
     assert_eq!((tcr_el1() >> 16) & 0x3f, 25);
+}
+
+#[cfg(test)]
+#[test_case]
+fn high_alias_maps_kernel_text() {
+    assert!(high_alias_ready(), "TTBR1 RAM alias must publish after MMU");
+    let high_text = to_high_va(KERNEL_TEXT);
+    assert!(is_high_va(high_text));
+    assert_eq!(high_text, KERNEL_TEXT.wrapping_add(TTBR1_BASE));
+    assert!(high_mapped(high_text), "kernel text must be aliased in TTBR1");
+    assert!(
+        high_is_executable(high_text),
+        "high kernel text must stay PXN-clear"
+    );
+    let high_data = to_high_va(data_start());
+    assert!(high_mapped(high_data), "RAM alias includes .data");
+    assert_eq!(
+        high_pxn_for(high_data),
+        Some(true),
+        "high .data must stay PXN"
+    );
+    assert!(
+        high_mapped(to_high_va(crate::exception::vector_table_addr())),
+        "vector table must be aliased in TTBR1"
+    );
 }
