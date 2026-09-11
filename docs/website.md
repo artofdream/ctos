@@ -70,6 +70,7 @@ If the DNS host already has an A record for `ctos`, remove it before adding the 
 | --- | --- | --- |
 | mdBook builds this tree | `./scripts/docs-build.sh` (or `mdbook build`) exit 0 | — |
 | Pages workflow exists | Read `.github/workflows/pages.yml` | File presence only |
+| Pages workflow builds a PR | Green `pages` run on this branch (build job; deploy skipped) | See honesty ledger |
 | Docs website published | Green `pages` workflow on `main` **and** a fetch of the github.io or custom URL | **Unknown** |
 | Custom domain `ctos.artof.link` | DNS CNAME answers + HTTPS fetch | **Planned** (sponsor DNS + Settings) |
 
