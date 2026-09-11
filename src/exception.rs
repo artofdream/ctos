@@ -391,8 +391,13 @@ trigger_fatal_nested_asm:
     "#
 );
 
+/// Link / identity address of a linker symbol.
+///
+/// `addr_of!` is ADRP from the current PC. After ADR-017 the handler
+/// may run at the TTBR1 alias; mask back to the 39-bit identity VA so
+/// guard / stack compares match `FAR_EL1` (the store used the low VA).
 fn linker_sym(sym: *const u8) -> u64 {
-    sym as usize as u64
+    (sym as usize as u64) & ((1u64 << 39) - 1)
 }
 
 pub fn thread_stack_guard() -> u64 {
@@ -454,7 +459,7 @@ pub fn fatal_stack_top() -> u64 {
 }
 
 pub fn vector_table_addr() -> u64 {
-    exception_vectors as *const () as usize as u64
+    (exception_vectors as *const () as usize as u64) & ((1u64 << 39) - 1)
 }
 
 pub fn current_el() -> u64 {
@@ -634,8 +639,8 @@ pub fn ttbr1_dabort_caught() -> bool {
 /// GPRs are saved on the kernel thread stack across the trip.
 #[allow(dead_code)] // hello + `#[test_case]` via `src/el0.rs`.
 pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
-    let kslot = EL0_KSP.as_ptr() as u64;
-    let cslot = EL0_CONT.as_ptr() as u64;
+    let kslot = crate::paging::identity_pa(EL0_KSP.as_ptr() as u64);
+    let cslot = crate::paging::identity_pa(EL0_CONT.as_ptr() as u64);
     core::arch::asm!(
         "stp x19, x20, [sp, #-16]!",
         "stp x21, x22, [sp, #-16]!",

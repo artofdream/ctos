@@ -38,6 +38,6 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3c | ASID-tagged TLB isolation | `asid: dual` + `asid: conflict` + `asid: ok`; no `TLBI VMALLE1` on the switch | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Umbrella isolation / PAN stay **Planned**. |
 | P-SEC-3d | Standing EL0 context | `el0: standing` + `el0: restored`; `is_active()` true only while standing | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Not POSIX. Lower-EL IRQ still parks. |
 | P-SEC-3e | TTBR1 kernel-private page (ADR-016 first cut) | `ttbr1: el1` + `ttbr1: no el0` + `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
-| P-SEC-3f | EL1 fetch from TTBR1 high VA (ADR-017) | `ttbr1: el1 exec` + `ttbr1: vbar` + existing `ttbr1: ok` | This branch: probe in the honesty ledger. Identity boot stub stays. Identity teardown / PAN / umbrella isolation stay **Planned**. |
+| P-SEC-3f | EL1 fetch from TTBR1 high VA (ADR-017) | `ttbr1: el1 exec` + `ttbr1: vbar` + existing `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity boot stub stays. Identity teardown / PAN / umbrella isolation stay **Planned**. |
 
 Hub: [pillars.md](../framework/pillars.md).

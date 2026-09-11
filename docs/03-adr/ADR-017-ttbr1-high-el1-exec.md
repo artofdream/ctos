@@ -18,6 +18,7 @@ This ADR is the **largest Verified cut** that still keeps the boot stub: alias i
 5. **Identity boot stub stays.** `_start`, QEMU `-kernel` load, and link-time `fn` items remain at `0x4008_0000`. Most EL1 data access still uses identity VAs. **Do not say the kernel moved.**
 6. **Still Planned.** Full identity teardown (unmap low `.text`/`.data`/heap after a complete high-VA jump); PAN on `-cpu cortex-a57`; umbrella EL0 isolation. User TTBR0 still maps kernel text so a missed high-VBAR path can fetch. Do not change default `-cpu`.
 7. **NFR-10 text** is revised in place (ID unchanged). Do not mint NFR-15+.
+8. **ADRP is not a PA.** After VBAR is high, handler code that does `addr_of!(table)` / `user_ttbr0()` must mask to the 39-bit identity VA before programming `TTBR0` or comparing `FAR_EL1`. First attempts Failed: guard `FAR` compared to a high `__stack_guard`, then standing `stay_at_el0` programmed a high `L1_USER` as TTBR0. `paging::identity_pa` / `linker_sym` are the ratchet.
 
 ## Honesty
 

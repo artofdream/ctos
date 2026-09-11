@@ -36,7 +36,8 @@ static ALLOC: Mutex<Option<FrameAlloc>> = Mutex::new(None);
 
 /// First byte after the image + linker stacks. Frame pool starts here.
 pub fn kernel_end() -> u64 {
-    core::ptr::addr_of!(__kernel_end) as usize as u64
+    // ADRP from a high-VA caller would tag TTBR1; TTBR/pool math is PA.
+    (core::ptr::addr_of!(__kernel_end) as usize as u64) & ((1u64 << 39) - 1)
 }
 
 fn align_up(addr: u64, align: u64) -> u64 {

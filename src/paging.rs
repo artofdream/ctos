@@ -148,63 +148,63 @@ unsafe extern "C" {
 
 /// First byte of `.data` (page-aligned). `.text`/`.rodata` end here.
 pub fn data_start() -> u64 {
-    core::ptr::addr_of!(__data_start) as usize as u64
+    identity_pa(core::ptr::addr_of!(__data_start) as usize as u64)
 }
 
 fn l1_pa() -> u64 {
-    addr_of!(L1) as usize as u64
+    identity_pa(addr_of!(L1) as usize as u64)
 }
 
 fn l2_pa() -> u64 {
-    addr_of!(L2) as usize as u64
+    identity_pa(addr_of!(L2) as usize as u64)
 }
 
 fn l3_pa() -> u64 {
-    addr_of!(L3) as usize as u64
+    identity_pa(addr_of!(L3) as usize as u64)
 }
 
 fn l2_ram_pa() -> u64 {
-    addr_of!(L2_RAM) as usize as u64
+    identity_pa(addr_of!(L2_RAM) as usize as u64)
 }
 
 fn l3_kernel_pa(i: usize) -> u64 {
-    unsafe { addr_of!(L3_KERNEL[i]) as usize as u64 }
+    unsafe { identity_pa(addr_of!(L3_KERNEL[i]) as usize as u64) }
 }
 
 fn l1_user_pa() -> u64 {
-    addr_of!(L1_USER) as usize as u64
+    identity_pa(addr_of!(L1_USER) as usize as u64)
 }
 
 fn l2_user_pa() -> u64 {
-    addr_of!(L2_USER) as usize as u64
+    identity_pa(addr_of!(L2_USER) as usize as u64)
 }
 
 fn l3_user_pa(i: usize) -> u64 {
-    unsafe { addr_of!(L3_USER[i]) as usize as u64 }
+    unsafe { identity_pa(addr_of!(L3_USER[i]) as usize as u64) }
 }
 
 fn l1_asid_b_pa() -> u64 {
-    addr_of!(L1_ASID_B) as usize as u64
+    identity_pa(addr_of!(L1_ASID_B) as usize as u64)
 }
 
 fn l2_asid_b_pa() -> u64 {
-    addr_of!(L2_ASID_B) as usize as u64
+    identity_pa(addr_of!(L2_ASID_B) as usize as u64)
 }
 
 fn l3_asid_b_pa() -> u64 {
-    addr_of!(L3_ASID_B) as usize as u64
+    identity_pa(addr_of!(L3_ASID_B) as usize as u64)
 }
 
 fn l1_high_pa() -> u64 {
-    addr_of!(L1_HIGH) as usize as u64
+    identity_pa(addr_of!(L1_HIGH) as usize as u64)
 }
 
 fn l2_high_pa() -> u64 {
-    addr_of!(L2_HIGH) as usize as u64
+    identity_pa(addr_of!(L2_HIGH) as usize as u64)
 }
 
 fn l3_high_pa() -> u64 {
-    addr_of!(L3_HIGH) as usize as u64
+    identity_pa(addr_of!(L3_HIGH) as usize as u64)
 }
 
 unsafe fn l1_slot(i: usize) -> *mut u64 {
@@ -345,10 +345,16 @@ unsafe fn desc_at(table_pa: u64, index: usize) -> u64 {
     core::ptr::read((table_pa as *const u64).add(index))
 }
 
+/// Drop the TTBR1 tag. Page-table and linker VAs are physical at identity.
+#[allow(dead_code)]
+pub fn identity_pa(va: u64) -> u64 {
+    va & VA_IA_MASK
+}
+
 /// Identity VA → TTBR1 RAM alias. QEMU `-kernel` / `_start` stay low.
 #[allow(dead_code)]
 pub fn to_high_va(va: u64) -> u64 {
-    (va & VA_IA_MASK).wrapping_add(TTBR1_OFFSET)
+    identity_pa(va).wrapping_add(TTBR1_OFFSET)
 }
 
 /// True when `va` is in the TTBR1 window (T1SZ=25).
