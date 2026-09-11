@@ -79,6 +79,8 @@ const TCR_T1SZ: u64 = 25 << 16;
 const TCR_IRGN1_WBWA: u64 = 0b01 << 24;
 const TCR_ORGN1_WBWA: u64 = 0b01 << 26;
 const TCR_SH1_INNER: u64 = 0b11 << 28;
+/// TG1=0b10 is 4 KiB. TG1=0b00 is reserved (unlike TG0=0b00).
+const TCR_TG1_4K: u64 = 0b10 << 30;
 /// Set = TTBR1 walks disabled. We leave this clear (ADR-016).
 const TCR_EPD1: u64 = 1 << 23;
 const TCR_IPS_40: u64 = 0b010 << 32;
@@ -677,7 +679,8 @@ fn tlbi_all() {
 }
 
 fn tlbi_va(va: u64) {
-    let page = va >> 12;
+    // TLBI VAAE1: Xt[43:0] = VA[55:12]; [63:44] are RES0.
+    let page = (va >> 12) & ((1u64 << 44) - 1);
     unsafe {
         core::arch::asm!(
             "tlbi vaae1, {x}",
@@ -741,6 +744,7 @@ pub fn init() {
         | TCR_IRGN1_WBWA
         | TCR_ORGN1_WBWA
         | TCR_SH1_INNER
+        | TCR_TG1_4K
         | TCR_IPS_40;
     let ttbr = l1_pa();
     let ttbr1 = l1_high_pa();
