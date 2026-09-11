@@ -1,6 +1,6 @@
 # Advantages
 
-These are properties of **how the repo is run**, not a product pitch. They are useful if you want a small AArch64 kernel you can study without inflated status.
+These are properties of **how the repo is run**, not a product pitch. They are useful if you want a small AArch64 kernel you can study without inflated status. The landing **Driving principles** block (honesty, antifragility, security, performance, document-first) is the force; Track A/B stay subordinate.
 
 ## Document-first
 

@@ -1,10 +1,24 @@
-# ctos docs
+# ctos (ctsOS) docs
 
-Learning-kernel documentation for [ctos](https://github.com/artofdream/ctos): a minimal bare-metal **AArch64** OS in Rust. Primary path is QEMU `virt` and PL011 UART ([ADR-003](03-adr/ADR-003-primary-isa-aarch64.md)).
+Learning-kernel documentation for **ctos** (display name **ctsOS**): a minimal bare-metal **AArch64** OS in Rust. Repo and crate stay `ctos`. Primary path is QEMU `virt` and PL011 UART ([ADR-003](03-adr/ADR-003-primary-isa-aarch64.md)).
 
 These pages **are** the website. mdBook publishes the same files under `docs/` (see [Docs website + DNS](website.md)). There is no second marketing copy.
 
-This is **not** a product site. Status words need a probe ([honesty ledger](framework/honesty-ledger.md)). Do not say “secure OS,” “production ready,” or “EL0 isolated.” `https://ctos.artof.link` does **not** serve this book until GitHub Pages is live (Route 53 CNAME can already exist).
+This is **not** a product site. Status words need a probe. Do not say “secure OS,” “production ready,” or “EL0 isolated.” `https://ctos.artof.link` does **not** serve this book until GitHub Pages is live (Route 53 CNAME can already exist).
+
+## Driving principles
+
+These stay the **driving force**. Tracks (A = loader/ABI, B = later slots/FS) are **subordinate** workstreams. A track does not outrank a principle.
+
+| Principle | Frozen ID | What it means here |
+| --- | --- | --- |
+| **Honesty** | [NFR-06](02-requirements/fr-nfr.md) | Status words need a probe. Unprobed stays **Unknown**. [Honesty ledger](framework/honesty-ledger.md) |
+| **Antifragility** | [NFR-05](02-requirements/fr-nfr.md) | Repeated failures become sensors, not extra README advice. [Antifragility](framework/antifragility.md) |
+| **Security** | [NFR-10](02-requirements/fr-nfr.md) | Threat model + probes. Not a “secure OS” slogan. [Security](framework/security.md) |
+| **Performance** | [NFR-07](02-requirements/fr-nfr.md) | Measure first. No invented benches. [Performance](framework/performance.md) |
+| **Document-first** | [FR-14](02-requirements/fr-nfr.md) / [NFR-13](02-requirements/fr-nfr.md) | Vision → ADR → code. IDs stay frozen. [Advantages](overview/advantages.md) |
+
+Hub: [Three pillars](framework/pillars.md) (antifragility, security, performance) sit on the same honesty rule.
 
 ## What can run today
 

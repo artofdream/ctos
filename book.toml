@@ -3,9 +3,9 @@
 # describes how to render it. Not a product marketing site.
 
 [book]
-title = "ctos"
+title = "ctos (ctsOS)"
 authors = ["artofdream"]
-description = "Learning-kernel documentation for ctos, a minimal AArch64 Rust OS."
+description = "Learning-kernel documentation for ctos (ctsOS), a minimal AArch64 Rust OS."
 language = "en"
 src = "docs"
 
