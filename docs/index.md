@@ -30,6 +30,14 @@ Dedicated page: [Filesystem: new vs extend](overview/filesystem.md).
 
 **Best fit later:** memfs first, then virtio-blk + FAT16/32 or a tiny xv6-like FS, behind a thin VFS ADR. Avoid ext4/btrfs/ZFS/NTFS as a first cut. Order: VFS ADR → memfs Verified → virtio-blk → on-disk FS → host-checkable image probe.
 
+## Hosting apps / containers
+
+Dedicated page: [Hosting applications — gaps, and containers](overview/hosting-apps.md).
+
+Gaps before a real app host: stable SVC ABI, ELF/user loader, standing EL0 as normal, stronger isolation, VFS+memfs, libctos/CRT, richer I/O; later preemption/SMP/net.
+
+**Containers: no.** OCI/Docker need Linux features ctos does not have and is not aiming at soon. Today Docker hosts the ctos smoke image, not the reverse. Container support is not Planned here.
+
 ## KPIs, prerequisites, advantages, drawbacks
 
 | Dedicated page | What it is |

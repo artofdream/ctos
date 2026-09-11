@@ -35,6 +35,6 @@ Do not imply these work:
 - Filesystem apps (no block device, no VFS — [Filesystem (Planned)](filesystem.md))
 - SMP workloads (one CPU, cooperative yield only)
 
-Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready.”
+Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** ([Hosting apps / containers](hosting-apps.md)).
 
 How you would add something in-tree (and why Linux apps do not port): [Building or porting](porting.md).

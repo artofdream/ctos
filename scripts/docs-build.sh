@@ -47,6 +47,7 @@ for html in \
   book/overview/what-can-run.html \
   book/overview/porting.html \
   book/overview/filesystem.html \
+  book/overview/hosting-apps.html \
   book/overview/measure.html \
   book/overview/prerequisites.html \
   book/overview/advantages.html \

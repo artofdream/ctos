@@ -50,6 +50,6 @@ A path that is **not built** and must stay Planned until probed:
 3. Link a freestanding AArch64 EL0 binary
 4. Map it into **user TTBR0** and `ERET`
 
-Until those exist and have ledger probes, do not say applications “port to ctos.” You extend the kernel. Isolation and a real userspace stay **Planned**.
+Until those exist and have ledger probes, do not say applications “port to ctos.” You extend the kernel. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are **no**: [Hosting apps / containers](hosting-apps.md).
 
 A filesystem is the same story: **Planned**, not present. Direction: [Filesystem: new vs extend](filesystem.md).

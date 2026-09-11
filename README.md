@@ -64,6 +64,7 @@ Start here before adding kernel features:
 | [What can run today](docs/overview/what-can-run.md) | UART workers, RX echo, EL0 stub — not Linux/Python/net |
 | [Building or porting](docs/overview/porting.md) | In-tree `no_std` today; no easy POSIX port |
 | [Filesystem (Planned)](docs/overview/filesystem.md) | No FS today; memfs then virtio-blk; not FAT-supported |
+| [Hosting apps / containers](docs/overview/hosting-apps.md) | Gaps table; containers: no |
 | [Prerequisites](docs/overview/prerequisites.md) | Nightly Rust + QEMU virt; Pages not required for kernel work |
 | [Advantages](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
 | [Drawbacks / limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
