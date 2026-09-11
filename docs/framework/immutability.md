@@ -20,11 +20,13 @@ These are **scoped** cuts on QEMU `virt`. They are not an immutable kernel.
 
 Heap, PTEs, UART/GIC, and coop stacks stay writable on purpose. `.rodata`/`.data`/heap identity tear is still **Planned**.
 
-## Track A — RO app payloads (later)
+## Track A — RO app payloads, then A9 slot disconnect
 
-[Track A #31](https://github.com/artofdream/ctos/issues/31) is the freestanding-app plan (SVC ABI, `libctos`, loader, standing EL0 as normal mode). **RO app payloads** belong there: once a loader maps an image into user TTBR0, that image can be RO+X the same way kernel text is today. That is **Planned**. Today there is still **one linked kernel ELF** — no separate app slot, not Verified.
+The **goal** of this stance (sponsor clarification) is to **disconnect OS updates from apps**: a separate OS image vs app payloads. Update/replace the kernel without rebuilding apps, and the reverse. That is [A9 #48](https://github.com/artofdream/ctos/issues/48). It is **not** an “immutable OS” product sentence.
 
-Optional later: an immutable **OS image / root slot** so OS updates and app payloads disconnect ([A9 #48](https://github.com/artofdream/ctos/issues/48)). Needs A1–A4 first. Not a Verified “immutable OS.”
+[Track A #31](https://github.com/artofdream/ctos/issues/31) must land first: stable SVC ABI (A1), `libctos` (A2), ELF/raw loader into user TTBR0 (A3), standing EL0 as normal mode (A4). **RO app payloads** are that loader mapping an image RO+X. A9 is **Planned after that ABI/loader**, not instead of it.
+
+**Today:** one linked kernel ELF. No OS-image artifact, no app payload slot, no cross-update probe. **Not Verified.**
 
 [Track B #40](https://github.com/artofdream/ctos/issues/40) must not use Linux-compat research to claim an immutable or container host. Containers stay a [non-goal](host-apps.md).
 

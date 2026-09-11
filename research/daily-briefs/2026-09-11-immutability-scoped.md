@@ -8,8 +8,10 @@ Open plan issues named: Track A [#31](https://github.com/artofdream/ctos/issues/
 
 ## Do next
 
-Do not start an “immutable OS” kernel PR. RO app payloads wait on Track A ABI/loader. A9 OS/app disconnect is a later docs/ADR after A1–A4.
+Do not start an “immutable OS” kernel PR. RO app payloads wait on Track A ABI/loader (A1–A4). A9 OS/app **slot disconnect** is **Planned after that** — [issue #48](https://github.com/artofdream/ctos/issues/48).
 
 ## Honesty
 
-Scoped RO is already on ADR-015 / ADR-020 ledger rows. Product “immutable OS” is a non-claim.
+Scoped RO is already on ADR-015 / ADR-020 ledger rows. Product “immutable OS” is a non-claim. Today is one linked ELF; A9 is not Verified.
+
+Sponsor clarification (this pass): goal = disconnect OS updates from apps (OS image ≠ app payloads). Documented in overview + this brief.

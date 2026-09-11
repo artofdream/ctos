@@ -13,7 +13,7 @@ Session scratch goes in `research/random-thoughts/`. Do not treat scratch as the
 
 Tracker is GitHub. These folders are the memory; `gh` is the work queue. Notes stay in this tree. A Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists; the custom domain is **Planned** until a separate Pages PR. Do not claim the URL works.
 
-Idle tip on 2026-09-11: `main` ≈ `e80dc93` (Merge PR #28 / ADR-020). Latest handoff: [daily-briefs/2026-09-11-immutability-scoped.md](daily-briefs/2026-09-11-immutability-scoped.md) (scoped immutability). Prior: [host-apps](daily-briefs/2026-09-11-host-apps-containers.md), [filesystem](daily-briefs/2026-09-11-filesystem-stance.md).
+Idle tip on 2026-09-11: `main` ≈ `e80dc93` (Merge PR #28 / ADR-020). Latest handoff: [daily-briefs/2026-09-11-a9-os-app-slots.md](daily-briefs/2026-09-11-a9-os-app-slots.md) (A9 OS/app disconnect Planned). Prior: [scoped immutability](daily-briefs/2026-09-11-immutability-scoped.md).
 
 ## Further reading / landscape
 

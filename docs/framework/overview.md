@@ -47,6 +47,14 @@ First-class page: [building-or-porting.md](building-or-porting.md). Short honest
 - **POSIX / glibc** = not easy, not started.
 - **SVC ABI + `libctos`** for freestanding EL0 = later **Planned** (standing dual-SVC is a stub, not a syscall table).
 
+## OS image vs app payloads (A9)
+
+The sponsor goal for “immutability” here is **not** a frozen kernel. It is to **disconnect OS updates from apps**: one OS image artifact, separate app payloads, so you can replace the kernel without rebuilding apps and replace apps without rebuilding the kernel.
+
+- **Today:** one linked kernel ELF (`target/aarch64-ctos/debug/ctos`). Sample tasks and the standing EL0 stub are compiled in. **Not Verified** as a slot/split.
+- **Planned** after Track A ABI + loader ([A1–A4 on #31](https://github.com/artofdream/ctos/issues/31)): issue [A9 #48](https://github.com/artofdream/ctos/issues/48). Stance: [immutability.md](immutability.md).
+- Do not say “immutable OS” or “apps update independently” until a probe shows two artifacts and a load path.
+
 ## Prerequisites
 
 - Nightly Rust (`rust-toolchain.toml`), `rust-src`, `llvm-tools-preview`
@@ -69,7 +77,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 - QEMU `virt` only. No Raspberry Pi or board claim
 - Not POSIX, not multi-tenant, not a product runtime. No filesystem today ([filesystem.md](filesystem.md)). Not a container host ([host-apps.md](host-apps.md)); host `docker-smoke` ≠ guest Docker.
 - Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); `.rodata`/`.data`/heap stay
-- Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate).
+- Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot disconnect** (A9) is **Planned** after Track A ABI/loader — still one ELF today.
 - Performance numbers are guest counter deltas, not a latency budget
 - Docs website / custom domain is **Planned** (CNAME exists; Pages publish is a separate PR)
 - Same-login cannot self-merge; a second identity has to land the PR

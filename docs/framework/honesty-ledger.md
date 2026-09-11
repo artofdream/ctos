@@ -131,6 +131,7 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Guest runs host apps (Linux ELF / shell / Python) | No `exec`, libc, or app-load serial marker | Planned | Site: [docs/overview/hosting-apps.md](../overview/hosting-apps.md). Extra: [host-apps.md](host-apps.md). Today: in-tree samples only. |
 | Guest is a container host (OCI / Docker / k8s) | Source: no OCI, runc, cgroup, or namespace code in `src/` | Verified | Absence + non-goal. Site: [hosting-apps.md](../overview/hosting-apps.md). Host `docker-smoke.sh` is a build harness, not a guest runtime. Not a later Planned feature. |
 | Product “immutable OS” | Marketing sentence vs [immutability.md](immutability.md) | Planned | **Non-claim.** Absolute immutability is incompatible (heap/PTEs/devices mutate). Scoped RO is ADR-015 / ADR-020. Site: [advantages.md](../overview/advantages.md). File presence is not Verified. |
+| OS image vs app payloads disconnected (A9) | Two artifacts + load path + cross-update probe (app on OS n and n+1) | Planned | After Track A ABI/loader ([#31](https://github.com/artofdream/ctos/issues/31) A1–A4). Issue [A9 #48](https://github.com/artofdream/ctos/issues/48). **Today: one linked ELF — not Verified.** |
 
 ## How to update
 
