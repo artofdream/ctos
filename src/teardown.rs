@@ -190,9 +190,9 @@ fn run_probe() -> bool {
     if !paging::identity_tear_ready() || !paging::identity_range_ready() {
         return false;
     }
-    if !paging::pc_is_high() {
-        return false;
-    }
+    // Do not require pc_is_high() here. rustc may `BLR` this probe at
+    // its identity address (live `.text` stays mapped). The jump is
+    // proven by serial `ident: jump` from `kernel_main_high`.
     let va = paging::ident_tear_page();
     if paging::is_mapped(va) || paging::user_mapped(va) {
         uart::write_str_raw("ident: leaked\n");
