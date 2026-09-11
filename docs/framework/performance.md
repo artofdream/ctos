@@ -33,10 +33,19 @@ That is a **spread of IRQ-to-handler counter deltas on this QEMU virt guest**. I
 - Host marker `perf: elf-size bytes=<n>` (fail closed if missing or `< 4096`).
 - This is a **measurement**, not a size budget and not a “smaller is better” claim.
 
-It does not time QEMU boot. Boot-time CNTPCT remains unprobed (still Planned if someone wants it).
+It does not time QEMU boot.
+
+## Boot-to-ready CNTPCT (NFR-08, this tree)
+
+`kernel_main` samples `CNTPCT_EL0` after `paging::init` (MMU + D-cache on) and again after `Hello World!` (init complete):
+
+- Serial marker `perf: boot-delta ticks=<n>` (fail closed on `perf: boot-delta missed`).
+- `#[test_case]` asserts a sample exists and the counter advanced.
+
+That is **kernel_main-entry to after-init** on this QEMU virt guest. It is not a latency budget, not QEMU startup time, not a published bench, and not criterion.
 
 ## Later probes (Planned)
 
-- Guest boot-to-ready CNTPCT (NFR-08 boot time) once someone actually measures it.
+- A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
 
 Do not add a host `criterion` crate or a “bench.yml” that prints invented numbers.

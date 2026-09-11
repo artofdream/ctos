@@ -23,6 +23,6 @@ Device MMIO (L1 block 0) was already XN. The missing cut is: **heap and heap-bac
 ## Consequences
 
 - `src/paging.rs` grows `L2_RAM` / `L3_RAM`. Identity VA == PA is unchanged.
-- Linker-stack guard pages are [ADR-014](ADR-014-linker-stack-guard-pages.md). A later RO+NX split of `.text` vs `.data`, or `SCTLR.WXN`, needs another ADR.
+- Linker-stack guard pages are [ADR-014](ADR-014-linker-stack-guard-pages.md). The RO+NX text/data split and `SCTLR.WXN` are [ADR-015](ADR-015-ro-nx-text-data.md).
 - EL0 isolation is [ADR-013](ADR-013-el0-isolation-direction.md) (Planned). UXN is already set on RAM so a future EL0 cannot fetch kernel or heap by accident; that is not an EL0 probe.
 - This ADR does not claim a secure OS, Raspberry Pi, or side-channel resistance.

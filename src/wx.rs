@@ -1,8 +1,8 @@
 //! W^X probe: heap NX + kernel text executable (NFR-10 / ADR-012).
 //!
 //! Cooperative worker stacks are heap `Vec`s, so heap PXN covers them.
-//! Linker SP_EL0 / SP_EL1 / fatal stacks stay in the executable image —
-//! this module does not claim those NX. Not a “secure OS” claim.
+//! Live linker stacks are RW+NX with `.data` (ADR-015). This module is
+//! still the heap execute-from probe, not a “secure OS” claim.
 
 use alloc::boxed::Box;
 use core::fmt::Write;

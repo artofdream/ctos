@@ -16,6 +16,7 @@ mod heap;
 mod paging;
 mod perf;
 mod qemu;
+mod ro;
 mod sched;
 mod timer;
 mod uart;
@@ -53,11 +54,15 @@ pub extern "C" fn kernel_main() -> ! {
     exception::init();
     frame::init();
     paging::init();
+    // After MMU + D-cache (SCTLR.C). A pre-MMU store to .bss can be
+    // invisible to later cached reads on the larger test image.
+    perf::mark_early();
     heap::init();
     sched::init();
     gic::init();
     timer::init();
     println!("Hello World!");
+    let _ = perf::mark_ready();
 
     #[cfg(feature = "force-fail")]
     panic!("force-fail");
@@ -90,13 +95,21 @@ pub extern "C" fn kernel_main() -> ! {
         if !guard::observe_probe() {
             uart::write_str_raw("guard: probe missed\n");
         }
-        // Serial proof for qemu-smoke (NFR-10 / ADR-013): EL0 first mile.
+        // Serial proof for qemu-smoke (NFR-10 / ADR-015): RO+NX text/data.
+        if !ro::observe_probe() {
+            uart::write_str_raw("ro: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-10 / ADR-013): EL0 first mile + read.
         if !el0::observe_probe() {
             uart::write_str_raw("el0: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
         if !perf::observe_probe() {
             uart::write_str_raw("perf: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-08): boot-to-ready CNTPCT.
+        if !perf::observe_boot_delta() {
+            uart::write_str_raw("perf: boot-delta missed\n");
         }
         // Serial proof for qemu-smoke (FR-08): several CNTP ticks, then remask
         // so the M3/M4 probes are not interrupted. First tick still prints

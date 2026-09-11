@@ -18,6 +18,11 @@ SECTIONS
         *(.rodata .rodata.*)
     }
 
+    /* Page-aligned so ADR-015 can map .text/.rodata RO+X and
+       .data/.bss/stacks RW+NX without sharing a 4 KiB page. */
+    . = ALIGN(4096);
+    __data_start = .;
+
     .data : {
         *(.data .data.*)
     }
@@ -32,8 +37,8 @@ SECTIONS
     }
 
     /* 4 KiB unmapped holes (ADR-014). Punched after the MMU tables are
-       filled so a downward overflow becomes a translation fault. The
-       stack pages themselves stay in the executable image — not W^X. */
+       filled so a downward overflow becomes a translation fault.
+       Live stack pages are RW+NX with .data/.bss (ADR-015), not X+W. */
     . = ALIGN(4096);
     __stack_guard = .;
     . += 4096;
