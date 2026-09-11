@@ -1,11 +1,11 @@
 # Session memory — 2026-09-11 (Track A / A1 SVC ABI)
 
-Rebased onto `origin/main` `f86785b` (#30 Pages). Conflicts: `roadmap.md` and `honesty-ledger.md` only. Kernel files did not conflict. Branch `cursor/svc-syscall-abi-0dc5`. Draft PR #49. Do not `git pull` the old remote tip.
+Rebased onto `origin/main` `6c34e4a` (#51). Conflicts: `honesty-ledger.md` (first commit + stale smoke records), then overview pages when folding A1 into #51 landing.
 
-ADR-021: public `SVC #16` exit / `#17` uart_write / `#18` yield. Reserved 0–2 stay ADR-013 probes (tightened first-mile to imm==0 so it cannot steal ABI numbers). `yield` does not call `sched::yield_now` (exception frame / ADR-010). `uart_write` copies ≤64 bytes from a user-mapped **and** kernel-mapped range; kernel `.data` returns 0.
+Kept #51 Pages/HTTPS Verified rows and mermaid/plain-English overview. Folded A1 ABI notes without claiming hosting. Skipped stale `773f64b` / `0638174` smoke-record commits so they could not mark this tip Verified.
 
-Payload on `EL0_PAGE`: SVC #18, MOVZ/MOVK user ptr, SVC #17, SVC #16. User buffer `svc: user-hi\n`.
+Kernel files did not conflict. Branch `cursor/svc-syscall-abi-0dc5`. PR #49. Do not `git pull` the old remote tip.
 
-53 tests. qemu-smoke ok on `79afb57`. Track A incomplete.
+ADR-021: public `SVC #16` exit / `#17` uart_write / `#18` yield. Reserved 0–2 stay ADR-013 probes.
 
 Do not self-merge. GitHub author of #49 is `artofdream`; merge hat is `cursor[bot]`. This session does not merge.
