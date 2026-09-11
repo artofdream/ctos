@@ -40,6 +40,6 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3e | TTBR1 kernel-private page (ADR-016 first cut) | `ttbr1: el1` + `ttbr1: no el0` + `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
 | P-SEC-3f | EL1 fetch from TTBR1 high VA (ADR-017) | `ttbr1: el1 exec` + `ttbr1: vbar` + existing `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity boot stub stays. |
 | P-SEC-3g | Identity-tear first cut (ADR-018) | `ident: split` + `ident: fault` + `ident: high` + `ident: no el0` + `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
-| P-SEC-3h | High-VA jump + 16 KiB identity text range (ADR-019) | `ident: jump` + `ident: range` + `ident: text` + existing `ident: ok` | Cloud `qemu-smoke` on this PR (see honesty ledger). Live `.text` stays (rustc fmt vtables). Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
+| P-SEC-3h | High-VA jump + 16 KiB identity text range (ADR-019) | `ident: jump` + `ident: range` + `ident: text` + existing `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Live `.text` stays (rustc fmt vtables). Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
 
 Hub: [pillars.md](../framework/pillars.md).

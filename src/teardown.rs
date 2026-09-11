@@ -80,7 +80,7 @@ pub extern "C" fn ident_range_el1_path() -> u64 {
 
 fn ident_page_layout_ok() -> bool {
     let va = paging::ident_tear_page();
-    if va & 0xfff != 0 || paging::ident_tear_end() != va + 4096 {
+    if va & 0xfff != 0 || paging::ident_tear_end() < va + 4 * 4096 {
         return false;
     }
     if va <= paging::KERNEL_TEXT || va >= paging::data_start() {
@@ -185,9 +185,15 @@ fn el0_load_torn() -> bool {
 
 fn run_probe() -> bool {
     if !paging::mmu_enabled() || !paging::high_split_ready() {
+        uart::write_str_raw("ident: miss split-ready\n");
         return false;
     }
-    if !paging::identity_tear_ready() || !paging::identity_range_ready() {
+    if !paging::identity_tear_ready() {
+        uart::write_str_raw("ident: miss tear-ready\n");
+        return false;
+    }
+    if !paging::identity_range_ready() {
+        uart::write_str_raw("ident: miss range-ready\n");
         return false;
     }
     // Do not require pc_is_high() here. rustc may `BLR` this probe at
@@ -199,6 +205,7 @@ fn run_probe() -> bool {
         return false;
     }
     if !paging::high_mapped(paging::to_high_va(va)) {
+        uart::write_str_raw("ident: miss high\n");
         return false;
     }
     let second = paging::ident_tear_page() + 4096;
@@ -207,28 +214,36 @@ fn run_probe() -> bool {
         return false;
     }
     if paging::is_mapped(paging::boot_stub_end()) != true {
+        uart::write_str_raw("ident: miss stub\n");
         return false;
     }
     if paging::torn_text_pages() < 4 {
+        uart::write_str_raw("ident: miss pages\n");
         return false;
     }
     if paging::is_mapped(paging::KERNEL_TEXT) != true {
+        uart::write_str_raw("ident: miss stub0\n");
         return false;
     }
     uart::write_str_raw("ident: split\n");
     if !run_ident_fault() {
+        uart::write_str_raw("ident: miss fault\n");
         return false;
     }
     if !run_high_after_tear() {
+        uart::write_str_raw("ident: miss high-run\n");
         return false;
     }
     if !run_text_fault() {
+        uart::write_str_raw("ident: miss text-fault\n");
         return false;
     }
     if !run_text_high() {
+        uart::write_str_raw("ident: miss text-high\n");
         return false;
     }
     if !el0_load_torn() {
+        uart::write_str_raw("ident: miss el0\n");
         return false;
     }
     true

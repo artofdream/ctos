@@ -179,7 +179,7 @@ pub fn ident_tear_page() -> u64 {
     identity_pa(core::ptr::addr_of!(__ident_tear_start) as usize as u64)
 }
 
-/// Byte past the torn page. Must be `ident_tear_page() + 4096`.
+/// Byte past the dedicated tear range (16 KiB / 4 pages on this cut).
 pub fn ident_tear_end() -> u64 {
     identity_pa(core::ptr::addr_of!(__ident_tear_end) as usize as u64)
 }
@@ -226,7 +226,7 @@ pub fn is_torn_identity_va(va: u64) -> bool {
 /// How many identity `.text` pages after the boot stub were unmapped.
 #[allow(dead_code)]
 pub fn torn_text_pages() -> u64 {
-    TORN_TEXT_PAGES.load(core::sync::atomic::Ordering::SeqCst)
+    load_u64_flag(&TORN_TEXT_PAGES)
 }
 
 /// Branch to the TTBR1 alias of `ident` and do not return (ADR-019).
@@ -597,13 +597,13 @@ pub fn high_split_ready() -> bool {
 /// Dedicated identity text page unmapped; high twin still mapped (ADR-018).
 #[allow(dead_code)]
 pub fn identity_tear_ready() -> bool {
-    IDENTITY_TEAR_OK.load(core::sync::atomic::Ordering::SeqCst)
+    load_flag(&IDENTITY_TEAR_OK)
 }
 
 /// Dedicated 16 KiB identity text range unmapped (ADR-019). Live `.text` stays.
 #[allow(dead_code)]
 pub fn identity_range_ready() -> bool {
-    IDENTITY_RANGE_OK.load(core::sync::atomic::Ordering::SeqCst)
+    load_flag(&IDENTITY_RANGE_OK)
 }
 
 #[allow(dead_code)]
@@ -930,6 +930,46 @@ fn dcache_civac(va: u64) {
     }
 }
 
+/// Publish a `.bss` atomic so an identity load sees a high-VA store
+/// (and the reverse). Same class as the PR #20 / Docker `.bss` miss.
+fn publish_flag(flag: &core::sync::atomic::AtomicBool, val: bool) {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicBool))
+            .store(val, core::sync::atomic::Ordering::SeqCst);
+    }
+    dcache_civac(ident);
+    dcache_civac(to_high_va(ident));
+    dsb_ish();
+}
+
+fn load_flag(flag: &core::sync::atomic::AtomicBool) -> bool {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicBool))
+            .load(core::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+fn publish_u64(flag: &core::sync::atomic::AtomicU64, val: u64) {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicU64))
+            .store(val, core::sync::atomic::Ordering::SeqCst);
+    }
+    dcache_civac(ident);
+    dcache_civac(to_high_va(ident));
+    dsb_ish();
+}
+
+fn load_u64_flag(flag: &core::sync::atomic::AtomicU64) -> u64 {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicU64))
+            .load(core::sync::atomic::Ordering::SeqCst)
+    }
+}
+
 fn tlbi_all() {
     unsafe {
         core::arch::asm!("tlbi vmalle1", options(nostack, preserves_flags));
@@ -1058,7 +1098,7 @@ pub fn init() {
     // After MMU + high VBAR: unmap the dedicated identity text page.
     // Skip if the high tables still share `L2_RAM` (clone failed).
     let torn = split_ok && tear_identity_probe_page();
-    IDENTITY_TEAR_OK.store(torn, core::sync::atomic::Ordering::SeqCst);
+    publish_flag(&IDENTITY_TEAR_OK, torn);
 }
 
 /// Unmap the dedicated identity text page from kernel + user TTBR0.
@@ -1069,7 +1109,8 @@ pub fn tear_identity_probe_page() -> bool {
     if va & (PAGE - 1) != 0 {
         return false;
     }
-    if ident_tear_end() != va + PAGE {
+    // ADR-019 grew the section to 16 KiB. Init still tears page 0 only.
+    if ident_tear_end() < va + PAGE || ((ident_tear_end() - va) & (PAGE - 1)) != 0 {
         return false;
     }
     if va < KERNEL_TEXT || va >= data_start() {
@@ -1161,8 +1202,8 @@ pub fn tear_identity_text_range() -> bool {
     if !high_mapped(to_high_va(lo)) || !high_is_executable(to_high_va(lo)) {
         return false;
     }
-    TORN_TEXT_PAGES.store(pages, core::sync::atomic::Ordering::SeqCst);
-    IDENTITY_RANGE_OK.store(true, core::sync::atomic::Ordering::SeqCst);
+    publish_u64(&TORN_TEXT_PAGES, pages);
+    publish_flag(&IDENTITY_RANGE_OK, true);
     let mut w = uart::raw();
     let _ = writeln!(
         w,
