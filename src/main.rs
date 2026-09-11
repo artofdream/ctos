@@ -19,6 +19,7 @@ mod perf;
 mod qemu;
 mod ro;
 mod sched;
+mod teardown;
 mod timer;
 mod ttbr1;
 mod uart;
@@ -114,6 +115,11 @@ pub extern "C" fn kernel_main() -> ! {
         // TTBR1 private page + EL1 high-VA fetch.
         if !ttbr1::observe_probe() {
             uart::write_str_raw("ttbr1: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-10 / ADR-018): split TTBR1
+        // RAM tables + one torn identity text page. Boot stub stays.
+        if !teardown::observe_probe() {
+            uart::write_str_raw("ident: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
         if !perf::observe_probe() {

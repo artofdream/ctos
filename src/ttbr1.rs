@@ -7,8 +7,8 @@
 //! function is invoked through that high VA and prints `ttbr1: el1 exec`
 //! from the fetched path. `VBAR_EL1` is the high alias of the vector
 //! table (`ttbr1: vbar`). `_start` / QEMU `-kernel` stay at `0x4008_0000`.
-//! Identity teardown is Planned. Shared `L2_RAM` means unmapping identity
-//! also unmaps the alias.
+//! ADR-018 clones RAM tables and unmaps one identity text page; this
+//! module is still the exec / private-page mile. Full teardown Planned.
 //!
 //! Not “EL0 isolated.” PAN stays unclaimed on `-cpu cortex-a57`.
 

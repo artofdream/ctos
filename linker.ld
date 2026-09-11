@@ -18,6 +18,17 @@ SECTIONS
         *(.rodata .rodata.*)
     }
 
+    /* Dedicated 4 KiB identity text page (ADR-018). After MMU + high
+       VBAR this page is unmapped from TTBR0; EL1 keeps fetching the
+       twin via TTBR1. `_start` at 0x40080000 stays mapped. */
+    . = ALIGN(4096);
+    __ident_tear_start = .;
+    .ident_tear : {
+        KEEP(*(ident_tear))
+        . = ALIGN(4096);
+    }
+    __ident_tear_end = .;
+
     /* Page-aligned so ADR-015 can map .text/.rodata RO+X and
        .data/.bss/stacks RW+NX without sharing a 4 KiB page.
        Sit in the *next* 2 MiB L2 block (0x4020_0000+) so KERNEL_TEXT

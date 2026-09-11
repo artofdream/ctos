@@ -68,14 +68,15 @@ Start here before adding kernel features:
 | [ADR-014](docs/03-adr/ADR-014-linker-stack-guard-pages.md) | Unmapped 4 KiB holes under linker stacks |
 | [ADR-015](docs/03-adr/ADR-015-ro-nx-text-data.md) | RO+NX text/data split (`SCTLR.WXN`) |
 | [ADR-016](docs/03-adr/ADR-016-ttbr1-private-page.md) | TTBR1 kernel-private page (first cut) |
-| [ADR-017](docs/03-adr/ADR-017-ttbr1-high-el1-exec.md) | EL1 fetch from TTBR1 RAM alias (identity teardown Planned) |
+| [ADR-017](docs/03-adr/ADR-017-ttbr1-high-el1-exec.md) | EL1 fetch from TTBR1 RAM alias |
+| [ADR-018](docs/03-adr/ADR-018-identity-teardown-first-cut.md) | Identity-tear first cut (split tables + one torn text page) |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |
 | [Three pillars](docs/framework/pillars.md) | Antifragility, security, performance (NFR-05 / NFR-10 / NFR-07) |
 | [Antifragility SOP](docs/framework/antifragility.md) | Ratchet repeated failures into sensors |
-| [Security](docs/framework/security.md) | Threat-model v1.5; not a “secure OS” claim |
-| [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 first cut + high-VA exec; isolation Planned |
+| [Security](docs/framework/security.md) | Threat-model v1.6; not a “secure OS” claim |
+| [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity-tear first cut; isolation Planned |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
 | [Second brain](research/README.md) | Vaults for session memory and handoffs |
