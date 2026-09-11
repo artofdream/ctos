@@ -1,30 +1,56 @@
 # What can run today
 
-Concrete examples that match **probes already on this tree**. They are in-kernel (or a standing EL0 stub), written against ctos APIs, on QEMU `virt`. They are not third-party applications and not a product runtime.
+Plain English. These are **in-kernel samples** (or one short user-mode stub) that already have probes on this tree. They are not third-party applications and not a product runtime.
 
-Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Pillars: [pillars.md](../framework/pillars.md). How we measure: [measure.md](measure.md).
+Status of each probe: [honesty ledger](../framework/honesty-ledger.md). How we measure: [measure.md](measure.md). Isolation of user programs stays **Planned**. Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
 
-No new FR/NFR IDs. Isolation stays **Planned**. Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
+## Privilege — where code runs
 
-## 1. Cooperative EL1 UART workers
+The CPU has privilege levels. **EL1** is kernel privilege (where ctos runs). **EL0** is lower privilege (user mode). A **process** would be a loaded program with its own address space, files, and a public ABI. That process does **not** exist yet.
 
-Two tasks on **heap stacks** that print a line and **yield** to each other. Same class as the M9 smoke markers `sched: task a` / `sched: task b` / `sched: ok` ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md), [FR-11](../02-requirements/fr-nfr.md)).
+```mermaid
+flowchart TD
+  EL1["EL1 — kernel privilege<br/>Verified: this is where ctos runs"]
+  EL0["EL0 — lower privilege<br/>Verified: a short standing stub only"]
+  PROC["A process / application<br/>Planned: not built"]
+  EL1 --> EL0
+  EL0 -.-> PROC
+```
 
-A natural variant of the same scheduler is a **serial heartbeat or counter**: one (or both) workers print a tick and yield. Still cooperative EL1. Still UART text. Not preemptive. Not SMP.
+*The stub is not a process. Umbrella “EL0 isolated” stays Planned.*
+
+A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel for something. Today’s `SVC #1` / `#2` are test miles, not a public syscall list.
+
+## 1. Cooperative UART workers
+
+Two tasks on **heap stacks** that print a line and **yield** to each other. Same class as the smoke markers `sched: task a` / `sched: task b` / `sched: ok` ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md), cooperative scheduling — [FR-11](../02-requirements/fr-nfr.md)).
+
+A natural variant is a **serial heartbeat or counter**: print a tick, yield, repeat. Still cooperative EL1. Still UART text. Not preemptive. Not two CPUs.
 
 ## 2. UART RX echo gadget
 
-Read a byte from **PL011 RX** and print it. Same class as the M6 probe `input: rx 0x41` ([ADR-007](../03-adr/ADR-007-pl011-uart-rx.md)).
+Read a byte from the serial receive path (**PL011 RX**) and print it. Same class as `input: rx 0x41` ([ADR-007](../03-adr/ADR-007-pl011-uart-rx.md)).
 
 That is a byte in, a line out. **No TTY, no line editor, no canonical mode, no virtio-keyboard.**
 
 ## 3. Standing EL0 stub
 
-A short payload at EL0 that does an **SVC round-trip** and returns. Same class as `el0: standing` / `el0: restored` ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md), [el0.md](../framework/el0.md)).
+A short payload in **user mode (EL0)** that does an SVC round-trip and returns. Same class as `el0: standing` / `el0: restored` ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md), [el0.md](../framework/el0.md)).
 
-This is **not** a process. There is no libc, no files, no argv, no loader for a foreign ELF. Umbrella “EL0 isolated” stays **Planned**.
+This is **not** a process. There is no libc, no files, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
 
 ## What cannot run
+
+```mermaid
+flowchart TD
+  Q{"Want to run it on ctos today?"}
+  Q -->|UART worker / echo / stub| Y["Yes — extend the kernel in-tree"]
+  Q -->|Linux binary, shell, Python| N1["No"]
+  Q -->|Network server or files| N2["No — no NIC, no filesystem"]
+  Q -->|Docker / OCI container| N3["No — not a goal"]
+```
+
+*“Yes” means rebuild the kernel. It does not mean drop in an app.*
 
 Do not imply these work:
 
@@ -33,7 +59,7 @@ Do not imply these work:
 - Python (or any hosted language runtime)
 - Network servers (no NIC, no sockets, no DMA)
 - Filesystem apps (no block device, no VFS — [Filesystem (Planned)](filesystem.md))
-- SMP workloads (one CPU, cooperative yield only)
+- Extra-CPU workloads (one CPU, cooperative yield only)
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** ([Hosting apps / containers](hosting-apps.md)).
 

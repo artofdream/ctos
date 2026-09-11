@@ -4,12 +4,12 @@
 
 # Overview
 
-- [KPIs / how we measure](overview/measure.md)
 - [What can run today](overview/what-can-run.md)
+- [Prerequisites](overview/prerequisites.md)
 - [Building or porting](overview/porting.md)
 - [Filesystem (Planned)](overview/filesystem.md)
 - [Hosting apps / containers](overview/hosting-apps.md)
-- [Prerequisites](overview/prerequisites.md)
+- [KPIs / how we measure](overview/measure.md)
 - [Advantages](overview/advantages.md)
 - [Drawbacks / limits](overview/limits.md)
 

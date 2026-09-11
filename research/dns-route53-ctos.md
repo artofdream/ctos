@@ -18,4 +18,4 @@ aws route53 list-resource-record-sets --hosted-zone-id Z1178AFMV41RWP \
 
 Recovery batch only (if LIST shows the name missing): [`scripts/route53-ctos-cname.json`](../scripts/route53-ctos-cname.json).
 
-DNS in place ≠ docs live. Enable GitHub Pages + repo custom domain after merge. Do not claim `https://ctos.artof.link` serves the book until that HTTPS probe. Full write-up: [`docs/website.md`](../docs/website.md).
+DNS in place was the 2026-09-11 CNAME probe. HTTPS serving the book is a **separate** row: **Verified** after #30 (deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + `curl -sSI https://ctos.artof.link` HTTP 200). Route 53 API LIST stays Unknown without AWS CLI. Full write-up: [`docs/website.md`](../docs/website.md).

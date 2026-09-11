@@ -4,7 +4,7 @@ A minimal bare-metal **AArch64** OS kernel in Rust. Learning and research projec
 
 This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker.
 
-Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Intended production URL: `https://ctos.artof.link` (Route 53 CNAME **in place**, zone `Z1178AFMV41RWP`, account `737290977112`). HTTPS serving the book is **Planned** until Pages is enabled on the repo after merge. Fallback: `https://artofdream.github.io/ctos/`. Overview: [how we measure](docs/overview/measure.md), [prerequisites](docs/overview/prerequisites.md), [limits](docs/overview/limits.md). DNS/Pages: [docs/website.md](docs/website.md).
+Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Production URL: [`https://ctos.artof.link`](https://ctos.artof.link) — **Verified** after #30 (main deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200 + Driving principles). Route 53 CNAME remains in place (zone `Z1178AFMV41RWP`, account `737290977112`). `https://artofdream.github.io/ctos` (no trailing slash) 301s to the custom domain. Overview: [what can run today](docs/overview/what-can-run.md), [prerequisites](docs/overview/prerequisites.md), [limits](docs/overview/limits.md). DNS/Pages: [docs/website.md](docs/website.md).
 
 ## Build and run
 
@@ -48,11 +48,11 @@ cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) i
 ## Docs website (mdBook)
 
 ```bash
-./scripts/docs-build.sh   # installs mdBook 0.5.4 if needed, then `mdbook build`
+./scripts/docs-build.sh   # installs mdBook 0.5.4 + mdbook-mermaid 0.17.1 if needed, then `mdbook build`
 mdbook serve              # optional: http://localhost:3000
 ```
 
-A green local build is a **generator** probe only. “Docs website published” stays **Unknown** until Pages on `main` is green. Route 53 CNAME is in place; HTTPS reachability stays **Planned**. See [docs/website.md](docs/website.md).
+A green local build is a **generator** probe only. The live custom domain is a **separate** ledger row (**Verified** after #30). See [docs/website.md](docs/website.md).
 
 ## Docs (document-first)
 
@@ -100,7 +100,7 @@ Start here before adding kernel features:
 | [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear; isolation Planned |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
-| [Docs website + DNS](docs/website.md) | mdBook + Pages; Route 53 `ctos` CNAME; reachability Planned |
+| [Docs website + DNS](docs/website.md) | mdBook + Pages; `https://ctos.artof.link` HTTPS Verified after #30 |
 | [Second brain](research/README.md) | Vaults for session memory and handoffs |
 
 ## Honesty

@@ -1,6 +1,18 @@
 # Three pillars
 
-After M9, ctos treats **antifragility**, **security**, and **performance** as first-class pillars ([ADR-011](../03-adr/ADR-011-three-pillars.md)). They share one rule: a status word needs a probe ([honesty ledger](honesty-ledger.md)).
+After the cooperative scheduler (M9), ctos treats **antifragility**, **security**, and **performance** as first-class pillars ([ADR-011](../03-adr/ADR-011-three-pillars.md)). In everyday words: we turn repeated misses into sensors, we prove security slices instead of saying “secure OS,” and we measure before we tune. They share one rule: a status word needs a probe ([honesty ledger](honesty-ledger.md)).
+
+**Principles drive; pillars sit under them; tracks sit under both.** Visitor-facing list: [landing — Driving principles](../index.md#driving-principles). This page is the deep hub, not a second marketing copy.
+
+```mermaid
+flowchart TD
+  P["Core principles<br/>honesty · antifragility · security<br/>performance · document-first"]
+  L["Three pillars — this page<br/>NFR-05 · NFR-10 · NFR-07"]
+  T["Tracks A / B<br/>subordinate workstreams"]
+  P --> L --> T
+```
+
+*Tracks (loader/ABI, later slots/FS) do not outrank a principle.*
 
 | Pillar | Frozen ID | Home | What “done” looks like |
 | --- | --- | --- | --- |

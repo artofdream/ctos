@@ -1,84 +1,105 @@
-# ctos (ctsOS) docs
+# ctos (ctsOS)
 
-Learning-kernel documentation for **ctos** (display name **ctsOS**): a minimal bare-metal **AArch64** OS in Rust. Repo and crate stay `ctos`. Primary path is QEMU `virt` and PL011 UART ([ADR-003](03-adr/ADR-003-primary-isa-aarch64.md)).
+**ctos** is a small operating-system **kernel** you can study. It is written in Rust for 64-bit ARM (**AArch64**). You run it in the **QEMU** emulator, not as a desktop or phone OS. The nickname **ctsOS** is only for display; the repo and crate stay `ctos`.
 
-These pages **are** the website. mdBook publishes the same files under `docs/` (see [Docs website + DNS](website.md)). There is no second marketing copy.
+This book **is** the website. The same markdown lives under `docs/` in [the GitHub repo](https://github.com/artofdream/ctos). There is no second marketing copy.
 
-This is **not** a product site. Status words need a probe. Do not say “secure OS,” “production ready,” or “EL0 isolated.” `https://ctos.artof.link` does **not** serve this book until GitHub Pages is live (Route 53 CNAME can already exist).
+It is **not** a product site. Do not say “secure OS,” “production ready,” or “EL0 isolated.” Status words need a [probe](framework/honesty-ledger.md).
+
+## What it is
+
+ctos boots under QEMU’s `virt` machine and prints on a serial port (the **PL011 UART**). After that it grows one honest mile at a time: exceptions, paging, a heap, a tiny scheduler, then measured security and performance cuts.
+
+**Core principles drive.** Roadmap tracks (A = loader and syscall ABI, B = later slots and a filesystem) are **subordinate**. A track does not outrank a principle.
+
+Primary path: QEMU `virt` + UART ([ADR-003](03-adr/ADR-003-primary-isa-aarch64.md)). Frozen requirement IDs: [FR-01–FR-15 and NFR-01–NFR-14](02-requirements/fr-nfr.md).
 
 ## Driving principles
 
-These stay the **driving force**. Tracks (A = loader/ABI, B = later slots/FS) are **subordinate** workstreams. A track does not outrank a principle.
+Everyday meaning first; frozen IDs second. Same list as the [pillars hub](framework/pillars.md). This landing is the visitor-facing source. `docs/framework/` stays for deep links — do not keep a second marketing copy.
 
-| Principle | Frozen ID | What it means here |
+| Principle | In everyday words | Frozen ID |
 | --- | --- | --- |
-| **Honesty** | [NFR-06](02-requirements/fr-nfr.md) | Status words need a probe. Unprobed stays **Unknown**. [Honesty ledger](framework/honesty-ledger.md) |
-| **Antifragility** | [NFR-05](02-requirements/fr-nfr.md) | Repeated failures become sensors, not extra README advice. [Antifragility](framework/antifragility.md) |
-| **Security** | [NFR-10](02-requirements/fr-nfr.md) | Threat model + probes. Not a “secure OS” slogan. [Security](framework/security.md) |
-| **Performance** | [NFR-07](02-requirements/fr-nfr.md) | Measure first. No invented benches. [Performance](framework/performance.md) |
-| **Document-first** | [FR-14](02-requirements/fr-nfr.md) / [NFR-13](02-requirements/fr-nfr.md) | Vision → ADR → code. IDs stay frozen. [Advantages](overview/advantages.md) |
+| **Honesty** | If we did not run a check, we do not say it works. Unprobed stays **Unknown**. | [NFR-06](02-requirements/fr-nfr.md) · [ledger](framework/honesty-ledger.md) |
+| **Antifragility** | The same miss twice becomes an automated sensor, not another README paragraph. | [NFR-05](02-requirements/fr-nfr.md) · [Antifragility](framework/antifragility.md) |
+| **Security** | Write down what we fear, then prove a slice. Not a “secure OS” slogan. | [NFR-10](02-requirements/fr-nfr.md) · [Security](framework/security.md) |
+| **Performance** | Measure a known path first. No invented benches. | [NFR-07](02-requirements/fr-nfr.md) · [Performance](framework/performance.md) |
+| **Document-first** | Write the decision, then the code. One milestone → one branch → one PR. | [FR-14](02-requirements/fr-nfr.md) / [NFR-13](02-requirements/fr-nfr.md) |
 
-Hub: [Three pillars](framework/pillars.md) (antifragility, security, performance) sit on the same honesty rule.
+```mermaid
+flowchart TD
+  P["Core principles<br/>honesty · antifragility · security<br/>performance · document-first"]
+  L["Three pillars<br/>antifragility · security · performance"]
+  T["Tracks A / B<br/>loader, ABI, later slots / FS<br/>subordinate — not the driver"]
+  P --> L --> T
+```
 
-## What can run today
+*Principles sit above pillars. Tracks sit below both. Not a claim that Track A or B is built.*
 
-Dedicated page: [What can run today](overview/what-can-run.md). Three honest samples only:
+## What runs today
 
-1. **Cooperative EL1 UART workers** — two heap-stack tasks that print and yield (`sched: task a/b`). Variant: serial heartbeat/counter.
-2. **UART RX echo gadget** — PL011 byte in, print out (`input: rx 0x41`). No TTY or line editor.
-3. **Standing EL0 stub** — short payload + SVC (`el0: standing` / `restored`). Not a process; no libc or files.
+Three samples that already have probes. Details: [What can run today](overview/what-can-run.md).
 
-**Cannot run:** Linux binaries, shell, Python, network servers, filesystem apps, SMP.
+1. **Two kernel tasks that take turns** — they print on the serial port and yield. Not preemptive. Not two CPUs.
+2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
+3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, then a call back into the kernel. **Not a process.** No libc, no files, no apps.
 
-## Building or porting
+**Cannot run:** Linux programs, a shell, Python, network servers, filesystem apps, extra CPUs, or containers.
 
-Dedicated page: [Building or porting](overview/porting.md).
+```mermaid
+flowchart LR
+  subgraph today ["Verified today"]
+    W["Two UART workers"]
+    E["Serial echo gadget"]
+    S["Short user-mode stub"]
+  end
+  subgraph no ["Cannot run"]
+    L["Linux binaries / shell / Python"]
+    N["Network / files / extra CPUs"]
+    C["Containers"]
+  end
+  today -.-> no
+```
 
-Today nothing POSIX ports easily (no libc, no dynamic linker, no FS, no public app ABI). The easy path is **in-tree `no_std` Rust** and `cargo build` on `aarch64-ctos.json`. Do not drop in userspace ELFs. A stable SVC ABI is **Planned**.
+*Left side matches existing smoke markers. Right side is out of scope. Do not say “apps run.”*
 
-## Filesystem (Planned)
+## How to build
 
-Dedicated page: [Filesystem: new vs extend](overview/filesystem.md).
+You need nightly Rust and QEMU. Pages is **not** required for kernel work. Full list: [Prerequisites](overview/prerequisites.md).
 
-**Today:** no VFS, no block stack — nothing compatible out of the box. Do not say “supports FAT.”
+```bash
+rustup toolchain install nightly
+rustup component add rust-src llvm-tools-preview
+cargo build                 # ELF at target/aarch64-ctos/debug/ctos
+./scripts/qemu-smoke.sh     # fail-closed serial + tests
+```
 
-**Best fit later:** memfs first, then virtio-blk + FAT16/32 or a tiny xv6-like FS, behind a thin VFS ADR. Avoid ext4/btrfs/ZFS/NTFS as a first cut. Order: VFS ADR → memfs Verified → virtio-blk → on-disk FS → host-checkable image probe.
+```mermaid
+flowchart LR
+  R["rustup nightly"] --> B["cargo build"] --> Q["qemu-smoke"]
+```
 
-## Hosting apps / containers
+*That rebuilds the **kernel**, including any in-tree code you add. It is not “port an app.”*
 
-Dedicated page: [Hosting applications — gaps, and containers](overview/hosting-apps.md).
+## Read next
 
-Gaps before a real app host: stable SVC ABI, ELF/user loader, standing EL0 as normal, stronger isolation, VFS+memfs, libctos/CRT, richer I/O; later preemption/SMP/net.
-
-**Containers: no.** OCI/Docker need Linux features ctos does not have and is not aiming at soon. Today Docker hosts the ctos smoke image, not the reverse. Container support is not Planned here.
-
-## Immutability
-
-**Scoped yes. Absolute no.** Probed today: RO+NX and identity `.text` tear. The *product* meaning — **disconnect OS update from apps** (OS slot vs app slot) — depends on Track A (loader/ABI) and is **not built**. Not containers. Not OTA. See [Advantages — Immutability](overview/advantages.md#immutability).
-
-## KPIs, prerequisites, advantages, drawbacks
-
-| Dedicated page | What it is |
+| If you want… | Go here |
 | --- | --- |
-| [KPIs / how we measure](overview/measure.md) | CNTPCT, IRQ-delta, boot-delta, ELF size; OS/app-slot cost vs neutral is unmeasured; not SPEC |
-| [Prerequisites](overview/prerequisites.md) | Nightly Rust + QEMU `virt`; Pages not required for kernel work |
-| [Advantages](overview/advantages.md) | Document-first, probed claims, QEMU virt scope, pillars as NFRs |
-| [Drawbacks / limits](overview/limits.md) | Learning kernel; identity stub at `0x4008_0000`; PAN unclaimed; no net/DMA |
+| What is in vs out | [What can run today](overview/what-can-run.md) · [Drawbacks / limits](overview/limits.md) |
+| Why POSIX does not port | [Building or porting](overview/porting.md) |
+| Files later (not now) | [Filesystem (Planned)](overview/filesystem.md) |
+| App host / containers | [Hosting apps](overview/hosting-apps.md) — containers: **no** |
+| How we measure | [KPIs](overview/measure.md) |
+| Why the repo is run this way | [Advantages](overview/advantages.md) |
+| Deep dives | [Vision](01-vision/product-vision.md) · [FR / NFR](02-requirements/fr-nfr.md) · [Architecture](02-architecture/technical-architecture.md) · [Roadmap](04-roadmap/roadmap.md) · [Ledger](framework/honesty-ledger.md) |
 
-## Deep dives
-
-1. [Product vision](01-vision/product-vision.md)
-2. [FR / NFR](02-requirements/fr-nfr.md) — frozen `FR-01`–`FR-15`, `NFR-01`–`NFR-14`
-3. [Technical architecture](02-architecture/technical-architecture.md)
-4. [Roadmap](04-roadmap/roadmap.md)
-5. [Honesty ledger](framework/honesty-ledger.md)
-6. [Three pillars](framework/pillars.md)
-
-Kernel build: [GitHub README](https://github.com/artofdream/ctos#readme).
+Kernel build notes also live in the [GitHub README](https://github.com/artofdream/ctos#readme).
 
 ## URLs
 
 | URL | Honesty |
 | --- | --- |
-| `https://ctos.artof.link` | Route 53 CNAME is **in place**. HTTPS serving these docs is **Planned** until Pages is enabled and a fetch succeeds. |
-| `https://artofdream.github.io/ctos/` | Project-site fallback. **Unknown** until a `pages` workflow on `main` is green. |
+| `https://ctos.artof.link` | **Verified.** HTTPS 200, cert for this name, landing shows Driving principles. Main deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) after #30. |
+| `https://artofdream.github.io/ctos` | **Redirect.** This path (no trailing slash) 301s to the custom domain. A trailing slash 404’d on the 2026-09-11 probe — do not treat github.io as a second live tree. |
+
+Publish mechanics: [Docs website + DNS](website.md).

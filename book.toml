@@ -1,6 +1,10 @@
 # mdBook config for the ctos learning-kernel docs site.
 # Source of truth remains the markdown under docs/. This file only
 # describes how to render it. Not a product marketing site.
+#
+# Live URL: https://ctos.artof.link — Verified after #30
+# (main deploy 34653046584 + HTTPS 200 + Driving principles).
+# github.io/ctos without a trailing slash 301s to the custom domain.
 
 [book]
 title = "ctos (ctsOS)"
@@ -13,16 +17,22 @@ src = "docs"
 build-dir = "book"
 create-missing = false
 
+# Wraps ```mermaid fences as <pre class="mermaid">. The JS below
+# loads a pinned mermaid from jsDelivr. `mdbook build` needs
+# mdbook-mermaid on PATH (scripts/docs-build.sh and pages.yml install it).
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
 [output.html]
 git-repository-url = "https://github.com/artofdream/ctos"
 git-repository-icon = "fab-github"
 edit-url-template = "https://github.com/artofdream/ctos/edit/main/docs/{path}"
-# Production hostname is ctos.artof.link (Route 53 CNAME in place).
-# HTTPS serving the book stays Planned until Pages is live.
-# Relative chapter links also work on the github.io/ctos/ fallback.
+# Production hostname is ctos.artof.link (HTTPS live after #30).
 site-url = "/"
 cname = "ctos.artof.link"
 no-section-label = false
+additional-css = ["docs/mermaid.css"]
+additional-js = ["docs/mermaid-init.js"]
 
 [output.html.playground]
 runnable = false

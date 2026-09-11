@@ -1,0 +1,11 @@
+/* Keep diagrams readable inside mdBook chapter width. */
+.mermaid {
+  overflow-x: auto;
+  margin: 1.2em 0;
+  text-align: center;
+}
+
+.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}

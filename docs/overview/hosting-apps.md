@@ -1,33 +1,50 @@
 # Hosting applications — gaps, and containers
 
-What is missing before ctos could **host** an application (a loaded EL0 binary with a stable ABI), and whether it can host **containers**.
+What is missing before ctos could **host** an application (a loaded user-mode binary with a stable ABI), and whether it can host **containers**.
 
-Today you **extend the kernel** ([Building or porting](porting.md)). Samples that exist: [What can run today](what-can-run.md). Probes: [honesty ledger](../framework/honesty-ledger.md). Isolation: [el0.md](../framework/el0.md).
+Today you **extend the kernel** ([Building or porting](porting.md)). Samples that exist: [What can run today](what-can-run.md). Isolation notes: [el0.md](../framework/el0.md).
 
-No new FR/NFR IDs. Do not say ctos is an app host or a container runtime.
+Do not say ctos is an app host or a container runtime.
+
+## Today vs the slot split (A9 direction)
+
+**Today:** one linked ELF. Kernel code and any “app-shaped” experiment ship together. QEMU `-kernel` loads that one image.
+
+**Later (Planned):** an **OS slot** (the kernel you update) and an **app slot** (a loaded user-mode binary that can survive an OS swap). That split is the useful meaning of immutability. It depends on Track A (loader + stable ABI + CRT). It is **not** containers and **not** over-the-air firmware updates.
+
+```mermaid
+flowchart TD
+  TODAY["Today: one linked ELF<br/>kernel + in-tree code<br/>Verified"]
+  LATER["Later: OS slot + app slot<br/>update OS without rebuilding apps<br/>Planned — Track A / A9 direction"]
+  TODAY -.-> LATER
+```
+
+*Do not say the slot split exists. Runtime cost vs “same as today” is unmeasured.*
 
 ## Gaps before hosting applications
 
 These are missing pieces, not a schedule. Rows without a probe stay **Planned** or unbuilt. “Later” is not a promise.
 
+A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Today’s `SVC #1` / `#2` are test miles, not a documented syscall contract.
+
 | Gap | Why it blocks hosting | Status |
 | --- | --- | --- |
-| **Stable SVC ABI** | Today’s `SVC #1` / `#2` are test miles, not a documented syscall contract | Planned (direction on the porting page) |
-| **ELF / user loader** | No loader for a freestanding EL0 binary, let alone a Linux ELF | Not built |
-| **Standing EL0 as normal** | Standing enter/leave is a stub mile, not the default way code runs | First mile Verified; normal userspace **Planned** |
-| **Stronger isolation** | Umbrella EL0 isolation needs PAN + fuller identity teardown | **Planned** — do not say “EL0 isolated” |
+| **Stable SVC ABI** | Need documented syscall numbers, not the test pair | Planned (direction on the porting page) |
+| **ELF / user loader** | No loader for a freestanding user-mode binary, let alone a Linux ELF | Not built |
+| **Standing user mode as normal** | Standing enter/leave is a stub mile, not the default way code runs | First mile Verified; normal userspace **Planned** |
+| **Stronger isolation** | Umbrella user-mode isolation needs PAN + fuller identity teardown | **Planned** — do not say “EL0 isolated” |
 | **VFS + memfs** | No files, no paths; see [Filesystem](filesystem.md) | **Planned** |
-| **libctos / CRT** | Nothing to link a freestanding EL0 program against | Not built |
+| **libctos / CRT** | Nothing to link a freestanding user-mode program against | Not built |
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
-| **Preemption / SMP / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
+| **Preemption / extra CPUs / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
-Until the first block has probes, “host an application” is a sentence we do not use. That first block is **Track A** (loader + stable ABI + CRT). An OS slot vs app slot — update the kernel without rebuilding in-tree “apps” — waits on Track A. See [Immutability](advantages.md#immutability). Not containers. Not OTA.
+Until the first block has probes, “host an application” is a sentence we do not use. That first block is **Track A**. See [Immutability](advantages.md#immutability).
 
 ## Containers
 
 **No.** ctos cannot host OCI / Docker / Kubernetes workloads.
 
-Those need Linux kernel features (namespaces, cgroups, a Linux ABI, usually overlay/AUFS or equivalent, a rich syscall surface) that this learning kernel **does not have** and is **not aiming at soon**.
+Those need Linux kernel features (namespaces, cgroups, a Linux ABI, usually overlay or equivalent, a rich syscall surface) that this learning kernel **does not have** and is **not aiming at soon**.
 
 **Today the arrow is the other way:** Docker on a host (cts-ai `linux/arm64`) **runs the ctos smoke image**. That is “Docker hosts ctos,” not “ctos hosts containers.” See the [README Docker notes](https://github.com/artofdream/ctos#readme) and the Docker rows in the [ledger](../framework/honesty-ledger.md).
 
