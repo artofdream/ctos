@@ -4,6 +4,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
+- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-docs-refresh-idle-tip.md](daily-briefs/2026-09-11-docs-refresh-idle-tip.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
@@ -19,10 +20,12 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Pillars hub: [../docs/framework/pillars.md](../docs/framework/pillars.md)
 - Threat model: [../docs/framework/security.md](../docs/framework/security.md)
 - EL0: [../docs/framework/el0.md](../docs/framework/el0.md)
+- Antifragility: [../docs/framework/antifragility.md](../docs/framework/antifragility.md)
 - Performance: [../docs/framework/performance.md](../docs/framework/performance.md)
 
 ## Daily Brief / scratch
 
+- Latest idle-tip handoff: [daily-briefs/2026-09-11-docs-refresh-idle-tip.md](daily-briefs/2026-09-11-docs-refresh-idle-tip.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - Inbox (triage out): [inbox/](inbox/)

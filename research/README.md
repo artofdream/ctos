@@ -11,7 +11,9 @@ Four vaults, scaled to a kernel repo. This is session memory in git — not a wi
 
 Session scratch goes in `research/random-thoughts/`. Do not treat scratch as the honesty ledger.
 
-Tracker is GitHub. These folders are the memory; `gh` is the work queue.
+Tracker is GitHub. These folders are the memory; `gh` is the work queue. Notes stay in this tree. A Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists; the custom domain is **Planned** until a separate Pages PR. Do not claim the URL works.
+
+Idle tip on 2026-09-11: `main` ≈ `e80dc93` (Merge PR #28 / ADR-020). Latest handoff: [daily-briefs/2026-09-11-docs-refresh-idle-tip.md](daily-briefs/2026-09-11-docs-refresh-idle-tip.md).
 
 ## Further reading / landscape
 

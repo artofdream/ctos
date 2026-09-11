@@ -43,7 +43,7 @@ docker run --rm ctos-smoke
 # optional: docker compose run --rm smoke
 ```
 
-cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) is **Verified** after the LF / `build-essential` / ROM ratchets (see the honesty ledger). This is not a Raspberry Pi port.
+cts-ai `./scripts/docker-smoke.sh` (linux/arm64) is **Verified** on `main` `e80dc93` (Merge PR #28 / ADR-020): 50 tests, `ident: reloc n=12`, live pages=37, force-fail ok. Earlier Docker Verified: `24d94e6` (#27 / ADR-019), `b0f0ee5` (#24–#26), and `71ee15f` (layout L3). The first 2026-09-09 Docker pass after the LF / `build-essential` / ROM ratchets is still a ledger row. Keep the `b2bbb99` Failed row. This is not a Raspberry Pi port.
 
 ## Docs website (mdBook)
 

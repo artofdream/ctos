@@ -36,7 +36,8 @@ Direction: [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md). TTBR1 first 
 | Probe | What would close it |
 | --- | --- |
 | PAN | `ID_AA64MMFR1_EL1.PAN != 0` **and** an EL1 access to an EL0-accessible page faults. `-cpu cortex-a57` is ARMv8.0 — usually unimplemented. Do not claim PAN. |
-| Full higher-half / identity teardown | Identity `.rodata`/`.data`/heap unmapped after those accesses are proven high-only ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md) tears live `.text` after a vtable rewrite, not the full tear). |
+| Identity `.rodata` / `.data` / heap tear | Those identity ranges unmapped; accesses proven high-only. After live `.text` (ADR-020). |
+| Full higher-half / identity teardown | The row above plus a guest that no longer fetches identity `.text` after the boot stub ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md) tears live `.text` after a vtable rewrite, not this). |
 | EL0 entry without full TLBI | User TTBR0 switch that does not `TLBI VMALLE1` (needs `nG` on kernel `.data` or an ASID-specific invalidate). |
 | Lower-EL IRQ while standing | Timer (or other) IRQ taken from EL0 and returned. Still parked. |
 

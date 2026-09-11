@@ -9,15 +9,15 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M0 | Kernel tree + harness scaffold on GitHub | Files on the default-target PR; ledger started | In harness PRs #2/#3 (source). Merge is a human/MRC job. |
 | M1 | QEMU `virt` boots UART "Hello World!" | `qemu-system-aarch64` serial shows the string; see honesty ledger | Verified in the 2026-09-08 cloud probe (not CI). x86 VGA probe is historical only. |
 | M2 | Integration test harness | QEMU virt ARM semihosting exit + `#[test_case]`; `scripts/qemu-smoke.sh` fail-closed | Verified in the 2026-09-08 cloud probe (not CI). Sponsor stacked this on the ISA PR. |
-| M3 | Exception vectors + breakpoint | Test or QEMU serial proof the handler runs | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
-| M4 | Fatal exception stack | Fatal path does not silently lock the VM | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
-| M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
-| M6 | Input | Injected PL011 RX byte observable on serial (or test) | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
-| M7 | Paging + frame allocator | Map/unmap or allocator test | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on this PR still Unknown. |
-| M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
+| M3 | Exception vectors + breakpoint | Test or QEMU serial proof the handler runs | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on the M3 PR (see honesty ledger). |
+| M4 | Fatal exception stack | Fatal path does not silently lock the VM | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on the M4 PR branch still Unknown. |
+| M5 | Hardware interrupts (GIC + timer) | Timer tick observable (serial or test) | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on the M5 PR (see honesty ledger). |
+| M6 | Input | Injected PL011 RX byte observable on serial (or test) | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on the M6 PR branch still Unknown. |
+| M7 | Paging + frame allocator | Map/unmap or allocator test | Verified: 2026-09-09 cloud `qemu-smoke` (see honesty ledger). GHA on the M7 PR branch still Unknown. |
+| M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on the M8 PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 
-M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). ADR-011 / #17 through ADR-019 identity `.text` range tear #27 are on `main`. This PR is the ADR-020 high-VA vtable rewrite + live identity `.text` tear. Merge is still a human/MRC job (ADR-002).
+M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). Pillar work through ADR-020 (#17–#28) is also on `main`. Idle tip ≈ `e80dc93` (Merge PR #28). Merge of any open PR is still a human/MRC job (ADR-002).
 
 ## Pillars (post-M9)
 
@@ -40,8 +40,11 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3e | TTBR1 kernel-private page (ADR-016 first cut) | `ttbr1: el1` + `ttbr1: no el0` + `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
 | P-SEC-3f | EL1 fetch from TTBR1 high VA (ADR-017) | `ttbr1: el1 exec` + `ttbr1: vbar` + existing `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity boot stub stays. |
 | P-SEC-3g | Identity-tear first cut (ADR-018) | `ident: split` + `ident: fault` + `ident: high` + `ident: no el0` + `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
-| P-SEC-3h | High-VA jump + 16 KiB identity text range (ADR-019) | `ident: jump` + `ident: range` + `ident: text` + existing `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
-| P-SEC-3i | High-VA vtable rewrite + live identity `.text` tear (ADR-020) | `ident: reloc` + `ident: live` + existing `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). `.rodata` / `.data` / heap stay. Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
+| P-SEC-3h | High-VA jump + 16 KiB identity text range (ADR-019) | `ident: jump` + `ident: range` + `ident: text` + existing `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` + cts-ai Docker on `24d94e6` (see honesty ledger). Do not claim “the kernel moved.” |
+| P-SEC-3i | High-VA vtable rewrite + live identity `.text` tear (ADR-020) | `ident: reloc` + `ident: live` + existing `ident: ok`; `println!` after the tear | **Verified:** 2026-09-11 cloud `qemu-smoke` + cts-ai Docker on `e80dc93` + GHA merge-commit [34651404108](https://github.com/artofdream/ctos/actions/runs/34651404108) (see honesty ledger). `.rodata` / `.data` / heap stay. Do not claim “the kernel moved.” |
+| P-SEC-3j | Identity `.rodata` / `.data` / heap tear | Those identity ranges unmapped; accesses proven high-only | **Planned.** After live `.text` (ADR-020), not instead of it. |
+| P-SEC-3k | PAN on virt `cortex-a57` | `ID_AA64MMFR1_EL1.PAN != 0` **and** an EL1-vs-EL0 access fault | **Planned.** ARMv8.0 `cortex-a57`. Do not switch `-cpu` silently. |
+| P-SEC-3l | Umbrella EL0 isolation | Standing + PAN + full TTBR1 / identity teardown | **Planned.** Specific miles (P-SEC-3…P-SEC-3k) are not this row. Do not claim “EL0 isolated.” |
 
 Hub: [pillars.md](../framework/pillars.md).
 

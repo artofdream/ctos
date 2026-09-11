@@ -31,7 +31,7 @@ This architecture does **not** claim Raspberry Pi or other SoC support.
 - Docker: `Dockerfile` / `scripts/docker-smoke.sh` (linux/arm64-friendly; do not pin amd64)
 - GHA: `.github/workflows/smoke.yml` (`ubuntu-24.04-arm` and `ubuntu-24.04`)
 
-Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `smoke.yml` was green on that revision (`ubuntu-24.04` and `ubuntu-24.04-arm`). cts-ai Docker Desktop linux/arm64 `docker run --rm ctos-smoke` was Verified on 2026-09-09 after the LF / `cc` / ROM ratchets.
+Source + local smoke were first probed on 2026-09-08 (see the honesty ledger). Current idle tip is `main` ≈ `e80dc93` (Merge PR #28 / ADR-020). cts-ai Docker Desktop linux/arm64 `./scripts/docker-smoke.sh` is **Verified** on that SHA (50 tests, `ident: reloc n=12`, live pages=37, force-fail ok). Earlier Docker Verified: `24d94e6` (ADR-019), `b0f0ee5` (#24–#26), `71ee15f` (layout L3). Keep the `b2bbb99` Failed row. GHA merge-commit [34651404108](https://github.com/artofdream/ctos/actions/runs/34651404108) on `e80dc93` grepped the same class of markers. A Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists; **https://ctos.artof.link is Planned** until a separate Pages PR publishes. Do not claim “secure OS,” “the kernel moved,” or “EL0 isolated.”
 
 ## Planned stages
 
@@ -43,7 +43,7 @@ Source + local smoke were probed on 2026-09-08 (see the honesty ledger). GHA `sm
 | Paging | M7: EL1 identity map + bump frames (FR-09 / ADR-008) — probe status in the honesty ledger. DTB walk staged. |
 | Heap | M8: first-fit `GlobalAlloc` on identity-mapped frames (FR-10 / ADR-009) — probe status in the honesty ledger. |
 | Scheduler | M9: cooperative EL1 yield (FR-11 / ADR-010) — probe status in the honesty ledger. Not preemptive. |
-| Pillars | [ADR-011](../03-adr/ADR-011-three-pillars.md): antifragility / security / performance. Threat-model v1.8 ([security.md](../framework/security.md)). Heap NX ([ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md)). Linker-stack guards ([ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md)). EL0 first mile + standing + ASID TLB mile; TTBR1 first cut ([ADR-016](../03-adr/ADR-016-ttbr1-private-page.md)); EL1 high-VA fetch ([ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md)); identity-tear first cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)); identity `.text` range tear ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)); live `.text` tear ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)); umbrella isolation Planned ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
+| Pillars | [ADR-011](../03-adr/ADR-011-three-pillars.md): antifragility / security / performance. Threat-model v1.8 ([security.md](../framework/security.md)). Heap NX ([ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md)). Linker-stack guards ([ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md)). EL0 first mile + standing + ASID TLB mile; TTBR1 first cut ([ADR-016](../03-adr/ADR-016-ttbr1-private-page.md)); EL1 high-VA fetch ([ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md)); identity-tear first cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)); identity `.text` range tear ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)); live `.text` tear ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). Still **Planned**: `.rodata`/`.data`/heap tear, PAN on `cortex-a57`, umbrella isolation ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
 
 Each stage is one loop unit on the [roadmap](../04-roadmap/roadmap.md).
 
