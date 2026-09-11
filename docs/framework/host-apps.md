@@ -6,7 +6,7 @@ Do not say “you can run host apps on ctos.” A **host app** here means a prog
 
 Hub: [overview.md](overview.md). Porting: [building-or-porting.md](building-or-porting.md). Filesystem: [filesystem.md](filesystem.md).
 
-A docs website at https://ctos.artof.link is **Planned**. This tree does not publish Pages.
+Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). This page is extra stance. HTTPS at https://ctos.artof.link stays **Planned** until a fetch succeeds.
 
 ## What a host app needs vs what exists
 

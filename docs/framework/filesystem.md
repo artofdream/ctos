@@ -4,7 +4,7 @@
 
 Do not say “ctos has files.” Do not mint a new FR/NFR ID in chat. Frozen Out list already names POSIX / userspace as later ([fr-nfr.md](../02-requirements/fr-nfr.md)). Hub: [overview.md](overview.md). Samples that do run: [apps-today.md](apps-today.md).
 
-A docs website at https://ctos.artof.link is **Planned**. This tree does not publish Pages.
+Site source of truth: [Filesystem (Planned)](../overview/filesystem.md). This page is extra stance. HTTPS at https://ctos.artof.link stays **Planned** until a fetch succeeds.
 
 ## Intended order (not started)
 

@@ -4,7 +4,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
-- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-principles-drive.md](daily-briefs/2026-09-11-principles-drive.md)
+- Latest idle tip (`main` = `f86785b`, #30): [daily-briefs/2026-09-11-rebase-after-30.md](daily-briefs/2026-09-11-rebase-after-30.md)
+- Prior (principles): [daily-briefs/2026-09-11-principles-drive.md](daily-briefs/2026-09-11-principles-drive.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
@@ -13,7 +14,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 ## Relationship (docs)
 
 - Vision: [../docs/01-vision/product-vision.md](../docs/01-vision/product-vision.md)
-- Overview (KPIs / trade-offs): [../docs/framework/overview.md](../docs/framework/overview.md)
+- Site Overview (SoT): [../docs/overview/measure.md](../docs/overview/measure.md)
+- Overview extra stance: [../docs/framework/overview.md](../docs/framework/overview.md)
 - Core principles: [../docs/framework/principles.md](../docs/framework/principles.md)
 - Track A (subordinate): [../docs/04-roadmap/track-a.md](../docs/04-roadmap/track-a.md)
 - Track B (subordinate): [../docs/04-roadmap/track-b.md](../docs/04-roadmap/track-b.md)
@@ -34,6 +36,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Daily Brief / scratch
 
+- Rebase onto #30: [daily-briefs/2026-09-11-rebase-after-30.md](daily-briefs/2026-09-11-rebase-after-30.md)
+- Rebase scratch: [random-thoughts/2026-09-11-session-memory-rebase-30.md](random-thoughts/2026-09-11-session-memory-rebase-30.md)
 - Latest samples/porting handoff: [daily-briefs/2026-09-11-apps-today-porting.md](daily-briefs/2026-09-11-apps-today-porting.md)
 - Prior idle-tip handoff: [daily-briefs/2026-09-11-docs-refresh-idle-tip.md](daily-briefs/2026-09-11-docs-refresh-idle-tip.md)
 - Handoffs: [daily-briefs/](daily-briefs/)

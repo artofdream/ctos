@@ -38,4 +38,4 @@ One loop unit each. Each row needs a fail-closed ledger probe.
 
 OCI/Docker containers, glibc/musl ports, SMP, networking (unless a later ADR). See [host-apps.md](../framework/host-apps.md).
 
-Samples today: [apps-today.md](../framework/apps-today.md). Porting: [building-or-porting.md](../framework/building-or-porting.md).
+Samples today: site [what-can-run.md](../overview/what-can-run.md) (extra: [apps-today.md](../framework/apps-today.md)). Porting: site [porting.md](../overview/porting.md) (extra: [building-or-porting.md](../framework/building-or-porting.md)).

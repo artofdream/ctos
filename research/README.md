@@ -11,9 +11,9 @@ Four vaults, scaled to a kernel repo. This is session memory in git — not a wi
 
 Session scratch goes in `research/random-thoughts/`. Do not treat scratch as the honesty ledger.
 
-Tracker is GitHub. These folders are the memory; `gh` is the work queue. Notes stay in this tree. A Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists; the custom domain is **Planned** until a separate Pages PR. Do not claim the URL works.
+Tracker is GitHub. These folders are the memory; `gh` is the work queue. Notes stay in this tree. A Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists; HTTPS serving the book is **Planned** until a fetch succeeds. mdBook/Pages landed in #30 (`f86785b`). Do not claim the URL works.
 
-Idle tip on 2026-09-11: `main` ≈ `e80dc93` (Merge PR #28 / ADR-020). Latest handoff: [daily-briefs/2026-09-11-principles-drive.md](daily-briefs/2026-09-11-principles-drive.md) (principles still drive). Prior: [A9 perf](daily-briefs/2026-09-11-a9-perf-shape.md).
+Idle tip on 2026-09-11: `main` = `f86785b` (Merge PR #30 / mdBook Pages). Latest handoff: [daily-briefs/2026-09-11-rebase-after-30.md](daily-briefs/2026-09-11-rebase-after-30.md). Prior: [principles](daily-briefs/2026-09-11-principles-drive.md).
 
 ## Further reading / landscape
 

@@ -12,4 +12,4 @@ These principles are the **driving force**. They are non-negotiable. Track A, Tr
 | Performance | Measure first. No invented benches. Optimize only after a probe. | [performance.md](performance.md) / [NFR-07](../02-requirements/fr-nfr.md) |
 | Document-first / one-PR loops | One milestone → one branch → one GitHub PR. Author ≠ merger. | [ADR-002](../03-adr/ADR-002-pr-identity-split.md), [roadmap](../04-roadmap/roadmap.md) |
 
-Hub: [overview.md](overview.md). Pillars: [pillars.md](pillars.md). Vision: [product-vision.md](../01-vision/product-vision.md).
+Landing page (same list, site SoT): [Driving principles](../index.md#driving-principles). Hub: [overview.md](overview.md). Pillars: [pillars.md](pillars.md). Vision: [product-vision.md](../01-vision/product-vision.md).

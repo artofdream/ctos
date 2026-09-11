@@ -4,7 +4,7 @@ Honesty first: there is **no** userspace ABI to compile against, and no libc. ct
 
 What already runs: [apps-today.md](apps-today.md). KPIs and trade-offs: [overview.md](overview.md).
 
-A docs website at https://ctos.artof.link is **Planned**. A Route 53 CNAME exists; this tree does not publish Pages. Do not claim that URL works.
+Site source of truth: [Building or porting](../overview/porting.md). This page is extra stance. HTTPS at https://ctos.artof.link stays **Planned** until a fetch succeeds.
 
 ## Easiest path — in-tree `no_std` cooperative EL1
 

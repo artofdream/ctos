@@ -32,6 +32,6 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 | B4 | Linux ELF / auxv / `PT_INTERP` vs freestanding loader | **Planned** ([#44](https://github.com/artofdream/ctos/issues/44)) |
 | B5 | Linux VFS concepts vs thin ctos VFS | **Planned** ([#45](https://github.com/artofdream/ctos/issues/45)) |
 | B6 | Decision: compat layer vs reimplement vs never | **Planned** ([#46](https://github.com/artofdream/ctos/issues/46)) |
-| B7 | Containers remain a non-goal (OCI needs a Linux host) | **Planned** as documentation ([#47](https://github.com/artofdream/ctos/issues/47)); guest runtime already **no** in [host-apps.md](../framework/host-apps.md) |
+| B7 | Containers remain a non-goal (OCI needs a Linux host) | **Planned** as documentation ([#47](https://github.com/artofdream/ctos/issues/47)); guest runtime already **no** in site [hosting-apps.md](../overview/hosting-apps.md) (extra: [host-apps.md](../framework/host-apps.md)) |
 
 Do not claim Docker/OCI host without namespaces/cgroups/overlay. That stays out or far-later — not a Track B “win.”

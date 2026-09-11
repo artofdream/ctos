@@ -12,7 +12,7 @@ ctos is a **learning** AArch64 kernel for QEMU `virt`. It is not a desktop, not 
 
 Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md). Immutability: [immutability.md](immutability.md) (scoped only). Tracks: [A](../04-roadmap/track-a.md) / [B](../04-roadmap/track-b.md) (subordinate).
 
-A docs website at https://ctos.artof.link is **Planned**. A Route 53 CNAME exists; this tree does not publish Pages. Do not claim that URL works.
+Site chapters (source of truth for the published book): [Overview](../overview/measure.md). HTTPS at https://ctos.artof.link stays **Planned** until a fetch of the published book succeeds. See [website.md](../website.md).
 
 ## KPIs (what we actually measure)
 
@@ -89,7 +89,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 - Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); `.rodata`/`.data`/heap stay
 - Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot disconnect** (A9) is **Planned** after Track A ABI/loader — still one ELF today.
 - Performance numbers are guest counter deltas, not a latency budget
-- Docs website / custom domain is **Planned** (CNAME exists; Pages publish is a separate PR)
+- Docs website / custom domain: CNAME is in place; HTTPS serving the book is **Planned** until a fetch succeeds ([website.md](../website.md))
 - Same-login cannot self-merge; a second identity has to land the PR
 
 ## Honesty

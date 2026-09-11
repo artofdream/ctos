@@ -4,7 +4,7 @@
 
 **Incompatible** if absolute. A kernel must mutate heap, page tables, device MMIO, and task state. “Immutable OS” as marketing is a status inflation. Do not write it.
 
-Hub: [overview.md](overview.md). Pillars: [pillars.md](pillars.md). Threat model: [security.md](security.md).
+Hub: [overview.md](overview.md). Site SoT: [Advantages — Immutability](../overview/advantages.md#immutability). Pillars: [pillars.md](pillars.md). Threat model: [security.md](security.md).
 
 Plan issues (open on 2026-09-11): [Track A #31](https://github.com/artofdream/ctos/issues/31) / in-repo [track-a.md](../04-roadmap/track-a.md), [Track B #40](https://github.com/artofdream/ctos/issues/40) / [track-b.md](../04-roadmap/track-b.md). A9: [#48](https://github.com/artofdream/ctos/issues/48). Tracks are subordinate to [principles.md](principles.md).
 

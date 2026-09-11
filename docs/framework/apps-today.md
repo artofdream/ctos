@@ -4,7 +4,7 @@ Do not say “applications run on ctos.” These are the **probed guest examples
 
 Hub: [overview.md](overview.md). How to add something: [building-or-porting.md](building-or-porting.md). Frozen IDs: [FR-08](../02-requirements/fr-nfr.md) (UART RX), [FR-11](../02-requirements/fr-nfr.md) (coop yield).
 
-A docs website at https://ctos.artof.link is **Planned**. This tree does not publish Pages. Do not claim that URL works.
+Site source of truth: [What can run today](../overview/what-can-run.md). This page is extra stance (sample walkthroughs). HTTPS at https://ctos.artof.link stays **Planned** until a fetch succeeds.
 
 ## Sample: cooperative EL1 UART workers (M9)
 
