@@ -50,6 +50,13 @@ jobs:
           test "$(tr -d '[:space:]' < book/CNAME)" = "ctos.artof.link"
           # Repo-root CNAME must stay in lockstep with book.toml.
           test "$(tr -d '[:space:]' < CNAME)" = "ctos.artof.link"
+          # Same files as docs/overview — site and repo stay aligned.
+          test -f book/overview/what-can-run.html
+          test -f book/overview/porting.html
+          test -f book/overview/measure.html
+          test -f book/overview/prerequisites.html
+          test -f book/overview/advantages.html
+          test -f book/overview/limits.html
           touch book/.nojekyll
 
       - name: Upload Pages artifact

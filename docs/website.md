@@ -1,6 +1,17 @@
 # Docs website + DNS
 
-The published site is this mdBook (`book.toml`, source `docs/`). It is a documentation surface for the learning kernel, not a product site.
+The published site is this mdBook (`book.toml`, **`src = "docs"`**). The website and the repo are the **same markdown**. Do not keep a second copy of the overview pages.
+
+Required site chapters (sidebar + landing). A missing file fails `mdbook build` (`create-missing = false`) and `scripts/docs-build.sh`:
+
+| Website page | Source file |
+| --- | --- |
+| What can run today | `docs/overview/what-can-run.md` |
+| Building or porting | `docs/overview/porting.md` |
+| KPIs / how we measure | `docs/overview/measure.md` |
+| Prerequisites | `docs/overview/prerequisites.md` |
+| Advantages | `docs/overview/advantages.md` |
+| Drawbacks / limits | `docs/overview/limits.md` |
 
 Frozen IDs touched by the publish path: [FR-14](02-requirements/fr-nfr.md) (document-first path stays ahead of code), [NFR-06](02-requirements/fr-nfr.md) (honesty), [NFR-13](02-requirements/fr-nfr.md) (written acceptance matches what is proven). No new FR/NFR IDs.
 

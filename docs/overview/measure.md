@@ -1,4 +1,4 @@
-# How we measure
+# KPIs / how we measure
 
 Plain English. These are the probes this repo actually runs. They are **not** a product dashboard, a latency SLA, or invented KPIs. Numbers live in the [honesty ledger](../framework/honesty-ledger.md) as one environment and one revision. Deep dives: [pillars](../framework/pillars.md), [performance](../framework/performance.md), [antifragility](../framework/antifragility.md).
 

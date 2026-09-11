@@ -1,6 +1,6 @@
-# Limits
+# Drawbacks / limits
 
-What this project **is not**, and what is still unfinished. Pair with [How we measure](measure.md) and [product vision](../01-vision/product-vision.md).
+What this project **is not**, and what is still unfinished. Pair with [KPIs / how we measure](measure.md) and [product vision](../01-vision/product-vision.md).
 
 ## Learning kernel, not a product
 

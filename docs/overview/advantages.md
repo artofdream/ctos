@@ -1,4 +1,4 @@
-# Why this project shape
+# Advantages
 
 These are properties of **how the repo is run**, not a product pitch. They are useful if you want a small AArch64 kernel you can study without inflated status.
 

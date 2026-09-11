@@ -60,12 +60,12 @@ Start here before adding kernel features:
 
 | Doc | What it is |
 | --- | --- |
-| [How we measure](docs/overview/measure.md) | Performance, stability, honest app-support scope |
+| [KPIs / how we measure](docs/overview/measure.md) | Performance, stability, honest app-support scope |
 | [What can run today](docs/overview/what-can-run.md) | UART workers, RX echo, EL0 stub — not Linux/Python/net |
 | [Building or porting](docs/overview/porting.md) | In-tree `no_std` today; no easy POSIX port |
 | [Prerequisites](docs/overview/prerequisites.md) | Nightly Rust + QEMU virt; Pages not required for kernel work |
-| [Why this shape](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
-| [Limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
+| [Advantages](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
+| [Drawbacks / limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
 | [Product vision](docs/01-vision/product-vision.md) | What ctos is and is not |
 | [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (ISA text revised under ADR-003) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, QEMU `virt`, UART stage, planned stages |

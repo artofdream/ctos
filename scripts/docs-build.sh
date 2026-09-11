@@ -42,4 +42,15 @@ echo "docs-build: $(mdbook --version)"
 mdbook build
 test -f book/CNAME
 test "$(tr -d '[:space:]' < book/CNAME)" = "ctos.artof.link"
+# Website chapters are these docs/ files — fail if the book dropped one.
+for html in \
+  book/overview/what-can-run.html \
+  book/overview/porting.html \
+  book/overview/measure.html \
+  book/overview/prerequisites.html \
+  book/overview/advantages.html \
+  book/overview/limits.html
+do
+  test -f "$html"
+done
 echo "docs-build: ok (output ./book/ — not a live Pages probe)"

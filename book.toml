@@ -17,7 +17,8 @@ create-missing = false
 git-repository-url = "https://github.com/artofdream/ctos"
 git-repository-icon = "fab-github"
 edit-url-template = "https://github.com/artofdream/ctos/edit/main/docs/{path}"
-# Production hostname is the custom domain (DNS still Planned).
+# Production hostname is ctos.artof.link (Route 53 CNAME in place).
+# HTTPS serving the book stays Planned until Pages is live.
 # Relative chapter links also work on the github.io/ctos/ fallback.
 site-url = "/"
 cname = "ctos.artof.link"
