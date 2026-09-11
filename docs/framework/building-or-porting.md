@@ -63,6 +63,8 @@ Standing EL0 is a **dual-SVC stub** (`SVC #1` stay / `SVC #2` restore) plus firs
 
 Until those probes exist, “write a user program for ctos” is **Planned**. The easiest thing you can do today remains an in-tree EL1 task.
 
+A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) is **Planned after** that ABI/loader. Today is still one linked ELF — not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
+
 ## Do not invent
 
 - A porting guide that assumes POSIX, a shell, Python, or containers ([host-apps.md](host-apps.md): containers are **no**)

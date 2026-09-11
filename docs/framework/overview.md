@@ -84,4 +84,4 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 
 ## Honesty
 
-Do not say “secure OS,” “the kernel moved,” “EL0 isolated,” or “https://ctos.artof.link works.” Point at the [ledger](honesty-ledger.md) for any number you quote.
+Do not say “secure OS,” “the kernel moved,” “EL0 isolated,” “immutable OS,” “apps update independently of the OS,” or “https://ctos.artof.link works.” Point at the [ledger](honesty-ledger.md) for any number you quote.
