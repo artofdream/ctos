@@ -2,7 +2,7 @@
 
 After the cooperative scheduler (M9), ctos treats **antifragility**, **security**, and **performance** as first-class pillars ([ADR-011](../03-adr/ADR-011-three-pillars.md)). In everyday words: we turn repeated misses into sensors, we prove security slices instead of saying “secure OS,” and we measure before we tune. They share one rule: a status word needs a probe ([honesty ledger](honesty-ledger.md)).
 
-**Principles drive; pillars sit under them; tracks sit under both.** Visitor-facing list: [landing — Driving principles](../index.md#driving-principles). This page is the deep hub, not a second marketing copy.
+**Principles drive; pillars sit under them; tracks sit under both.** Visitor-facing list: [landing — Driving principles](../index.md#driving-principles). This page is the deep hub, not a second marketing copy. Extra stance: [overview.md](overview.md).
 
 ```mermaid
 flowchart TD

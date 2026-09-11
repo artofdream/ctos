@@ -17,4 +17,4 @@ It exists so we can study kernel mechanics with a document-first harness: claims
 
 ## Success (current horizon)
 
-A new session can read the vision, architecture, honesty ledger, and latest daily brief, then take **one** roadmap milestone to a GitHub PR without inventing status.
+A new session can read the vision, [overview](../framework/overview.md), architecture, honesty ledger, and latest daily brief, then take **one** roadmap milestone to a GitHub PR without inventing status.

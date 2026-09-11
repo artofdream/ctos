@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-`main` ≈ `e80dc93` (Merge PR #28 / ADR-020). Docs-only refresh on `cursor/docs-refresh-post-27-192e` (rebased onto that tip). No kernel / `src/` / `linker.ld` / smoke-script behavior changes. This PR does **not** publish GitHub Pages.
+`main` ≈ `e80dc93` (Merge PR #28 / ADR-020). Docs-only refresh on `cursor/docs-refresh-post-27-192e` (rebased onto that tip). Added [docs/framework/overview.md](../../docs/framework/overview.md) (KPIs / prerequisites / trade-offs; no invented numbers). No kernel / `src/` / `linker.ld` / smoke-script behavior changes. This PR does **not** publish GitHub Pages.
 
 Arc on `main`:
 

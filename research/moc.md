@@ -13,6 +13,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 ## Relationship (docs)
 
 - Vision: [../docs/01-vision/product-vision.md](../docs/01-vision/product-vision.md)
+- Overview (KPIs / trade-offs): [../docs/framework/overview.md](../docs/framework/overview.md)
 - Frozen IDs: [../docs/02-requirements/fr-nfr.md](../docs/02-requirements/fr-nfr.md)
 - Architecture: [../docs/02-architecture/technical-architecture.md](../docs/02-architecture/technical-architecture.md)
 - Roadmap: [../docs/04-roadmap/roadmap.md](../docs/04-roadmap/roadmap.md)
