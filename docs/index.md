@@ -10,6 +10,7 @@ This is **not** a product marketing site. Status words need a probe. Unprobed st
 | --- | --- |
 | [How we measure](overview/measure.md) | Performance, stability, and how we refuse invented KPIs |
 | [What can run today](overview/what-can-run.md) | Three honest examples (UART workers, RX echo, EL0 stub) — and what cannot |
+| [Building or porting](overview/porting.md) | In-tree `no_std` Rust today; no easy POSIX port; SVC ABI Planned |
 | [Prerequisites](overview/prerequisites.md) | Nightly Rust, QEMU `virt`; Pages not required for kernel work |
 | [Why this shape](overview/advantages.md) | Document-first, probed claims, QEMU scope, pillars as NFRs |
 | [Limits](overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |

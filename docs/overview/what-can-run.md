@@ -36,3 +36,5 @@ Do not imply these work:
 - SMP workloads (one CPU, cooperative yield only)
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready.”
+
+How you would add something in-tree (and why Linux apps do not port): [Building or porting](porting.md).

@@ -6,6 +6,7 @@
 
 - [How we measure](overview/measure.md)
 - [What can run today](overview/what-can-run.md)
+- [Building or porting](overview/porting.md)
 - [Prerequisites](overview/prerequisites.md)
 - [Why this shape](overview/advantages.md)
 - [Limits](overview/limits.md)

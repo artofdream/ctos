@@ -20,6 +20,8 @@ cargo run            # qemu-system-aarch64 -machine virt
 ./scripts/qemu-smoke.sh
 ```
 
+That rebuilds **the kernel**, including any in-tree `no_std` code you add. It is not a port of a Linux app. See [Building or porting](porting.md).
+
 Commands and honesty notes: [GitHub README](https://github.com/artofdream/ctos#readme). A successful `cargo build` on your machine is not a copied Verified boot from another host.
 
 ## Optional

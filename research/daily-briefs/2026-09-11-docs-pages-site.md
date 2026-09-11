@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-Draft PR https://github.com/artofdream/ctos/pull/30 (`cursor/docs-pages-site-c371`). Parent is current `main` `e80dc93` (no rebase needed). One PR: mdBook + Pages + overview pages, including [What can run today](../../docs/overview/what-can-run.md) (three honest examples only). No kernel changes. No new FR/NFR IDs.
+Draft PR https://github.com/artofdream/ctos/pull/30 (`cursor/docs-pages-site-c371`). Parent is current `main` `e80dc93` (no rebase needed). One PR: mdBook + Pages + overview pages, including [What can run today](../../docs/overview/what-can-run.md) and [Building or porting](../../docs/overview/porting.md) (in-tree `no_std` only; POSIX port Planned). No kernel changes. No new FR/NFR IDs.
 
 Sponsor: Route 53 CNAME already created, zone `Z1178AFMV41RWP`, account `737290977112`. Public `dig` **Verified**. HTTPS / Pages bind **Planned** (`has_pages: false`). Do not claim `https://ctos.artof.link` serves docs.
 
