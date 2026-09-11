@@ -1,6 +1,6 @@
 # ADR-021 — Minimal EL0 SVC syscall ABI
 
-- Status: Accepted (ABI mile; app hosting still Planned)
+- Status: Accepted (ABI mile Verified when the serial / tests pass; Track A / app hosting still Planned)
 - Date: 2026-09-11
 
 ## Context

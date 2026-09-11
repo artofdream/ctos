@@ -1,6 +1,6 @@
 # SVC syscall ABI (Track A / A1 / ADR-021)
 
-**ABI mile: documented here.** App hosting (loader, `libctos`, VFS, OS/app slots) stays **Planned**. Not Linux. Not POSIX.
+**ABI mile only.** App hosting (loader, `libctos`, VFS, OS/app slots) stays **Planned**. Track A is still incomplete after A1. Not Linux. Not POSIX.
 
 Contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). This mile: [issue #32](https://github.com/artofdream/ctos/issues/32). Code: `src/syscall.rs`.
 
@@ -8,7 +8,7 @@ Contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). Parent plan: [issue #
 
 AArch64 `SVC #<n>` where `n` is the syscall number. Arguments in `x0`, `x1`, `x2`. Return in `x0`.
 
-Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#2` restore). A freestanding app must not issue them.
+Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#2` restore). A later CRT (A2) must not issue them. There is no hosted app yet.
 
 ## Public numbers
 
