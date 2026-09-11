@@ -1,9 +1,9 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + ASID isolation + CNTPCT baseline + boot-delta +
-# IRQ-to-handler delta + host ELF size + timer tick + injected UART RX +
-# BRK + fatal nested lines, then cargo test.
+# EL0 no-kernel-read + standing EL0 + ASID isolation + TTBR1 private page +
+# CNTPCT baseline + boot-delta + IRQ-to-handler delta + host ELF size +
+# timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -23,6 +23,7 @@ GUARD="${CTOS_GUARD_STRING:-guard: ok}"
 RO="${CTOS_RO_STRING:-ro: ok}"
 EL0="${CTOS_EL0_STRING:-el0: ok}"
 ASID="${CTOS_ASID_STRING:-asid: ok}"
+TTBR1="${CTOS_TTBR1_STRING:-ttbr1: ok}"
 BOOTDELTA="${CTOS_BOOTDELTA_STRING:-perf: boot-delta}"
 ELFSIZE="${CTOS_ELFSIZE_STRING:-perf: elf-size}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
@@ -167,7 +168,15 @@ if ! grep -q "el0: no kernel read" "$log"; then
     echo "qemu-smoke: missing 'el0: no kernel read' on serial (EL0 kernel-data load, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile + read-mile strings present"
+if ! grep -q "el0: standing" "$log"; then
+    echo "qemu-smoke: missing 'el0: standing' on serial (standing EL0 context, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "el0: restored" "$log"; then
+    echo "qemu-smoke: missing 'el0: restored' on serial (standing EL0 teardown, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: EL0 first-mile + read-mile + standing strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1
@@ -189,6 +198,27 @@ if ! grep -q "asid: conflict" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: ASID isolation strings present"
+if ! grep -q "$TTBR1" "$log"; then
+    echo "qemu-smoke: missing '$TTBR1' on serial (NFR-10 TTBR1 private-page mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "ttbr1: probe missed" "$log"; then
+    echo "qemu-smoke: ttbr1 probe missed (high-page EL1/EL0 path did not run)" >&2
+    exit 1
+fi
+if grep -q "ttbr1: leaked" "$log"; then
+    echo "qemu-smoke: ttbr1 leaked to EL0 (private page was visible)" >&2
+    exit 1
+fi
+if ! grep -q "ttbr1: el1" "$log"; then
+    echo "qemu-smoke: missing 'ttbr1: el1' on serial (EL1 high-page access, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ttbr1: no el0" "$log"; then
+    echo "qemu-smoke: missing 'ttbr1: no el0' on serial (EL0 high-page DABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: TTBR1 private-page strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1

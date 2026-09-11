@@ -14,8 +14,12 @@
 //! need distinct L3 tables. The user TTBR0 (`L1_USER`) maps every 2 MiB
 //! that holds kernel text or the exception stack — not only the first
 //! RAM block. ASID isolation (`src/asid.rs`) uses a second L1 with `nG`
-//! probe pages and does **not** `TLBI VMALLE1` on the switch. Not a
-//! DTB walker. Not Raspberry Pi. Not “EL0 isolated.”
+//! probe pages and does **not** `TLBI VMALLE1` on the switch.
+//!
+//! TTBR1 (ADR-016 first cut) is enabled with the same 39-bit T1SZ. One
+//! kernel-private page lives at `TTBR1_PRIV` (EL1 RW, EL0 none). The
+//! kernel still runs from the identity map; full higher-half teardown
+//! is Planned. Not a DTB walker. Not Raspberry Pi. Not “EL0 isolated.”
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -38,6 +42,10 @@ pub const ASID_ISO_B: u64 = 2;
 pub const ASID_DUAL_VA: u64 = MAP_WINDOW + 5 * 4096;
 /// Map-window VA mapped only under ASID 1. ASID 2 must fault (stale = fail).
 pub const ASID_CONFLICT_VA: u64 = MAP_WINDOW + 6 * 4096;
+/// First VA of the TTBR1 / high-half window (T1SZ=25, 39-bit).
+pub const TTBR1_BASE: u64 = 0xFFFF_FF80_0000_0000;
+/// Kernel-private page in TTBR1 (EL1 RW, EL0 none). Not a relocated kernel.
+pub const TTBR1_PRIV: u64 = TTBR1_BASE;
 /// nG (not global): TLB entry is ASID-tagged. Global entries ignore ASID.
 const DESC_NG: u64 = 1 << 11;
 const WINDOW_PAGES: u64 = 512;
@@ -67,6 +75,11 @@ const TCR_T0SZ: u64 = 25;
 const TCR_IRGN0_WBWA: u64 = 0b01 << 8;
 const TCR_ORGN0_WBWA: u64 = 0b01 << 10;
 const TCR_SH0_INNER: u64 = 0b11 << 12;
+const TCR_T1SZ: u64 = 25 << 16;
+const TCR_IRGN1_WBWA: u64 = 0b01 << 24;
+const TCR_ORGN1_WBWA: u64 = 0b01 << 26;
+const TCR_SH1_INNER: u64 = 0b11 << 28;
+/// Set = TTBR1 walks disabled. We leave this clear (ADR-016).
 const TCR_EPD1: u64 = 1 << 23;
 const TCR_IPS_40: u64 = 0b010 << 32;
 
@@ -109,7 +122,13 @@ static mut L3_USER_USED: usize = 0;
 static mut L1_ASID_B: Table = empty_table();
 static mut L2_ASID_B: Table = empty_table();
 static mut L3_ASID_B: Table = empty_table();
+/// TTBR1 L1/L2/L3 for the kernel-private high page (ADR-016 first cut).
+static mut L1_HIGH: Table = empty_table();
+static mut L2_HIGH: Table = empty_table();
+static mut L3_HIGH: Table = empty_table();
 static USER_MAP_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+static TTBR1_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static TABLES: Mutex<()> = Mutex::new(());
 
@@ -166,6 +185,18 @@ fn l3_asid_b_pa() -> u64 {
     addr_of!(L3_ASID_B) as usize as u64
 }
 
+fn l1_high_pa() -> u64 {
+    addr_of!(L1_HIGH) as usize as u64
+}
+
+fn l2_high_pa() -> u64 {
+    addr_of!(L2_HIGH) as usize as u64
+}
+
+fn l3_high_pa() -> u64 {
+    addr_of!(L3_HIGH) as usize as u64
+}
+
 unsafe fn l1_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L1.entries).cast::<u64>().add(i)
 }
@@ -200,6 +231,18 @@ unsafe fn l2_asid_b_slot(i: usize) -> *mut u64 {
 
 unsafe fn l3_asid_b_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L3_ASID_B.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l1_high_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L1_HIGH.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l2_high_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L2_HIGH.entries).cast::<u64>().add(i)
+}
+
+unsafe fn l3_high_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L3_HIGH.entries).cast::<u64>().add(i)
 }
 
 unsafe fn alloc_kernel_l3() -> Option<u64> {
@@ -352,6 +395,19 @@ pub fn user_mapped(va: u64) -> bool {
     walk_leaf(l1_user_pa(), va).is_some()
 }
 
+/// Walk TTBR1. The private page is present only after `map_ttbr1_priv`.
+#[allow(dead_code)]
+pub fn high_mapped(va: u64) -> bool {
+    let _g = TABLES.lock();
+    walk_leaf(l1_high_pa(), va).is_some()
+}
+
+/// TTBR1 tables programmed and walks enabled (ADR-016 first cut).
+#[allow(dead_code)]
+pub fn ttbr1_ready() -> bool {
+    TTBR1_OK.load(core::sync::atomic::Ordering::SeqCst)
+}
+
 #[allow(dead_code)]
 pub fn user_map_ready() -> bool {
     USER_MAP_OK.load(core::sync::atomic::Ordering::SeqCst)
@@ -379,6 +435,12 @@ pub fn asid_a_ttbr0() -> u64 {
 #[allow(dead_code)]
 pub fn asid_b_ttbr0() -> u64 {
     l1_asid_b_pa() | (ASID_ISO_B << 48)
+}
+
+/// TTBR1 L1 PA (ASID comes from TTBR0; TCR.A1 stays 0).
+#[allow(dead_code)]
+pub fn kernel_ttbr1() -> u64 {
+    l1_high_pa()
 }
 
 /// Switch TTBR0 without `TLBI VMALLE1`. Isolation mile: programming + no full flush.
@@ -661,6 +723,13 @@ pub fn init() {
         l1_slot(2).write(table_desc(l2_pa()));
         l2_slot(0).write(table_desc(l3_pa()));
         user_ok = fill_user_map();
+        // TTBR1: empty L3 behind a live table walk (ADR-016). Probe maps
+        // TTBR1_PRIV later. Kernel fetch/stack/UART stay on identity TTBR0.
+        addr_of_mut!(L1_HIGH.entries).write([0; 512]);
+        addr_of_mut!(L2_HIGH.entries).write([0; 512]);
+        addr_of_mut!(L3_HIGH.entries).write([0; 512]);
+        l1_high_slot(0).write(table_desc(l2_high_pa()));
+        l2_high_slot(0).write(table_desc(l3_high_pa()));
     }
     dsb_ish();
 
@@ -668,19 +737,25 @@ pub fn init() {
         | TCR_IRGN0_WBWA
         | TCR_ORGN0_WBWA
         | TCR_SH0_INNER
-        | TCR_EPD1
+        | TCR_T1SZ
+        | TCR_IRGN1_WBWA
+        | TCR_ORGN1_WBWA
+        | TCR_SH1_INNER
         | TCR_IPS_40;
     let ttbr = l1_pa();
+    let ttbr1 = l1_high_pa();
     unsafe {
         core::arch::asm!(
             "msr mair_el1, {mair}",
             "msr tcr_el1, {tcr}",
             "msr ttbr0_el1, {ttbr}",
+            "msr ttbr1_el1, {ttbr1}",
             "msr tpidr_el1, {ttbr}",
             "isb",
             mair = in(reg) MAIR,
             tcr = in(reg) tcr,
             ttbr = in(reg) ttbr,
+            ttbr1 = in(reg) ttbr1,
         );
     }
     tlbi_all();
@@ -700,6 +775,7 @@ pub fn init() {
     // invisible to a later cached read (PR #20 test image; cts-ai Docker
     // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.
     USER_MAP_OK.store(user_ok, core::sync::atomic::Ordering::SeqCst);
+    TTBR1_OK.store(true, core::sync::atomic::Ordering::SeqCst);
 }
 
 pub fn mmu_enabled() -> bool {
@@ -722,6 +798,30 @@ pub fn ttbr0_el1() -> u64 {
         core::arch::asm!("mrs {v}, ttbr0_el1", v = out(reg) v);
     }
     v
+}
+
+#[allow(dead_code)]
+pub fn ttbr1_el1() -> u64 {
+    let v: u64;
+    unsafe {
+        core::arch::asm!("mrs {v}, ttbr1_el1", v = out(reg) v);
+    }
+    v
+}
+
+#[allow(dead_code)]
+pub fn tcr_el1() -> u64 {
+    let v: u64;
+    unsafe {
+        core::arch::asm!("mrs {v}, tcr_el1", v = out(reg) v);
+    }
+    v
+}
+
+/// `true` when TCR.EPD1 is clear (TTBR1 walks are live).
+#[allow(dead_code)]
+pub fn ttbr1_walks_enabled() -> bool {
+    tcr_el1() & TCR_EPD1 == 0
 }
 
 #[allow(dead_code)]
@@ -854,6 +954,46 @@ pub fn window_is_ng(va: u64) -> bool {
         Some(d) if d & DESC_VALID != 0 => d & DESC_NG != 0,
         _ => false,
     }
+}
+
+/// Map a 4 KiB frame at `TTBR1_PRIV` (EL1 RW, EL0 none, NX). ADR-016 first cut.
+#[allow(dead_code)]
+pub fn map_ttbr1_priv(pa: u64) -> bool {
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_high_slot(0).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_high_slot(0).write(l3_page(pa));
+    }
+    dsb_ish();
+    tlbi_va(TTBR1_PRIV);
+    true
+}
+
+/// Clear the TTBR1 private page. Identity of `pa` is unchanged.
+#[allow(dead_code)]
+pub fn unmap_ttbr1_priv() -> bool {
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_high_slot(0).read() & DESC_VALID == 0 {
+            return false;
+        }
+        l3_high_slot(0).write(0);
+    }
+    dsb_ish();
+    tlbi_va(TTBR1_PRIV);
+    true
+}
+
+/// High-page leaf. `Some(d)` after a map; `Some(0)` after unmap.
+#[allow(dead_code)]
+pub fn ttbr1_priv_entry() -> u64 {
+    let _g = TABLES.lock();
+    unsafe { l3_high_slot(0).read() }
 }
 
 /// Clear the L3 slot for `va` and invalidate that translation.
@@ -1059,4 +1199,15 @@ fn frame_allocator_ready_after_mmu() {
     let a = frame::alloc().expect("post-MMU frame");
     assert!(a >= frame::pool_start());
     frame::free(a);
+}
+
+#[cfg(test)]
+#[test_case]
+fn ttbr1_tables_programmed() {
+    assert!(mmu_enabled());
+    assert!(ttbr1_ready(), "TTBR1 tables must publish after MMU");
+    assert!(ttbr1_walks_enabled(), "TCR.EPD1 must be clear (ADR-016)");
+    assert_eq!(ttbr1_el1() & !0xfff, kernel_ttbr1());
+    assert_eq!(tcr_el1() & 0x3f, TCR_T0SZ);
+    assert_eq!((tcr_el1() >> 16) & 0x3f, 25);
 }

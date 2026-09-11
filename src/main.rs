@@ -20,6 +20,7 @@ mod qemu;
 mod ro;
 mod sched;
 mod timer;
+mod ttbr1;
 mod uart;
 mod wx;
 
@@ -108,6 +109,10 @@ pub extern "C" fn kernel_main() -> ! {
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {
             uart::write_str_raw("asid: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (NFR-10 / ADR-016): TTBR1 private page.
+        if !ttbr1::observe_probe() {
+            uart::write_str_raw("ttbr1: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
         if !perf::observe_probe() {

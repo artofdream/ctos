@@ -16,8 +16,9 @@
 //! `.text`/`.rodata` RO+X and `.data`/`.bss`/live linker stacks RW+NX.
 //! Dedicated stacks + the nested `BRK` probe remain (ADR-005).
 //! Execute-from-heap / execute-from-`.data` / write-to-RO-text are
-//! caught here. Lower-EL AArch64 sync is live for the EL0 first mile
-//! and the user-TTBR0 read mile (ADR-013): SVC, IABORT, DABORT.
+//! caught here. Lower-EL AArch64 sync is live for the EL0 first mile,
+//! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), and the
+//! TTBR1 private-page DABORT (ADR-016): SVC, IABORT, DABORT.
 //! Other lower-EL slots still park.
 
 use core::arch::global_asm;
@@ -71,8 +72,20 @@ static EXPECT_EL0_DABORT: AtomicBool = AtomicBool::new(false);
 static EL0_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_ASID_CONFLICT: AtomicBool = AtomicBool::new(false);
 static ASID_CONFLICT_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_STANDING: AtomicBool = AtomicBool::new(false);
+static EL0_STANDING_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EL0_RESTORED_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_TTBR1_DABORT: AtomicBool = AtomicBool::new(false);
+static TTBR1_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
 static EL0_KSP: AtomicU64 = AtomicU64::new(0);
+
+/// Standing user payload writes this into X1 between SVC #1 and SVC #2.
+pub const STANDING_MAGIC: u64 = 0x51A4;
+/// AArch64 `SVC #1` (standing announce).
+const SVC1_IMM: u64 = 1;
+/// AArch64 `SVC #2` (standing restore).
+const SVC2_IMM: u64 = 2;
 
 /// GPR + exception-register frame for the first-level current-EL sync path.
 /// Layout must match `sync_current_el` in the vector asm.
@@ -569,6 +582,33 @@ pub fn asid_conflict_caught() -> bool {
     ASID_CONFLICT_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm the standing EL0 dual-SVC (SVC #1 stay / SVC #2 restore).
+pub fn arm_el0_standing() {
+    EL0_STANDING_CAUGHT.store(false, Ordering::SeqCst);
+    EL0_RESTORED_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_EL0_STANDING.store(true, Ordering::SeqCst);
+}
+
+pub fn el0_standing_caught() -> bool {
+    EL0_STANDING_CAUGHT.load(Ordering::SeqCst)
+}
+
+pub fn el0_restored_caught() -> bool {
+    EXPECT_EL0_STANDING.store(false, Ordering::SeqCst);
+    EL0_RESTORED_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// Arm the TTBR1 private-page EL0 load (ADR-016).
+pub fn arm_ttbr1_dabort() {
+    TTBR1_DABORT_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_TTBR1_DABORT.store(true, Ordering::SeqCst);
+}
+
+pub fn ttbr1_dabort_caught() -> bool {
+    EXPECT_TTBR1_DABORT.store(false, Ordering::SeqCst);
+    TTBR1_DABORT_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// `ERET` to EL0 at `user_pc` with `x0 = user_arg` and `SP_EL0 = user_sp`.
 /// Returns after the lower-EL handler sends us back to EL1t.
 ///
@@ -654,6 +694,28 @@ fn return_from_el0(ctx: &mut ExceptionContext) {
     }
     ctx.elr = EL0_CONT.load(Ordering::SeqCst);
     ctx.spsr = SPSR_EL1T_MASKED;
+}
+
+fn svc_imm(esr: u64) -> u64 {
+    esr & 0xffff
+}
+
+/// Stay at EL0 after a standing SVC: put user TTBR0 back.
+/// AArch64 SVC preferred return is the *next* insn — do not add 4.
+/// Last `.data` access must finish before the `msr` (user map omits it).
+fn stay_at_el0(_ctx: &mut ExceptionContext) {
+    let uttbr = crate::paging::user_ttbr0();
+    unsafe {
+        core::arch::asm!(
+            "msr ttbr0_el1, {t}",
+            "isb",
+            "tlbi vmalle1",
+            "dsb ish",
+            "isb",
+            t = in(reg) uttbr,
+            options(nostack, preserves_flags),
+        );
+    }
 }
 
 fn is_perm_iabort(esr: u64) -> bool {
@@ -851,6 +913,28 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
         return_from_el0(ctx);
         return;
     }
+    if ec == ESR_EC_SVC_A64
+        && svc_imm(ctx.esr) == SVC1_IMM
+        && EXPECT_EL0_STANDING.load(Ordering::SeqCst)
+        && crate::el0::is_active()
+    {
+        EL0_STANDING_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("el0: standing\n");
+        stay_at_el0(ctx);
+        return;
+    }
+    if ec == ESR_EC_SVC_A64
+        && svc_imm(ctx.esr) == SVC2_IMM
+        && EXPECT_EL0_STANDING.swap(false, Ordering::SeqCst)
+        && EL0_STANDING_CAUGHT.load(Ordering::SeqCst)
+        && ctx.x[1] == STANDING_MAGIC
+    {
+        crate::el0::clear_active();
+        EL0_RESTORED_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("el0: restored\n");
+        return_from_el0(ctx);
+        return;
+    }
     if is_el0_kernel_fetch(ctx.esr) && EXPECT_EL0_IABORT.swap(false, Ordering::SeqCst) {
         EL0_IABORT_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("el0: nx kernel\n");
@@ -860,6 +944,15 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
     if is_el0_kernel_read(ctx.esr) && EXPECT_EL0_DABORT.swap(false, Ordering::SeqCst) {
         EL0_DABORT_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("el0: no kernel read\n");
+        return_from_el0(ctx);
+        return;
+    }
+    if is_el0_kernel_read(ctx.esr)
+        && EXPECT_TTBR1_DABORT.swap(false, Ordering::SeqCst)
+        && (far_el1() & !0xfff) == crate::paging::TTBR1_PRIV
+    {
+        TTBR1_DABORT_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("ttbr1: no el0\n");
         return_from_el0(ctx);
         return;
     }
