@@ -47,4 +47,4 @@ Hub: [pillars.md](../framework/pillars.md).
 
 ## Docs website
 
-mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). Intended hostname `https://ctos.artof.link` is **Planned** until DNS answers. Fallback `https://artofdream.github.io/ctos/` is **Unknown** until a `pages` workflow on `main` is green. How to build and the sponsor DNS checklist: [website.md](../website.md).
+mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). Intended hostname `https://ctos.artof.link` (Route 53 account `737290977112` / `us-east-1`) has **Planned** reachability until Pages lists the domain and HTTPS works. Fallback `https://artofdream.github.io/ctos/` is **Unknown** until a `pages` workflow on `main` is green. How to build and the Route 53 CLI checklist: [website.md](../website.md).

@@ -4,7 +4,7 @@ A minimal bare-metal **AArch64** OS kernel in Rust. Learning and research projec
 
 This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker.
 
-Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Intended production URL: `https://ctos.artof.link` (custom domain is **Planned** until DNS answers). Fallback until a `pages` workflow on `main` is green: `https://artofdream.github.io/ctos/`. File presence of the workflow is not a live site. Local build and the sponsor DNS checklist: [docs/website.md](docs/website.md).
+Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Intended production URL: `https://ctos.artof.link` (Route 53 in AWS account `737290977112` / `us-east-1`; custom-domain **reachability** is **Planned** until Pages lists the hostname and HTTPS serves the book). Fallback until a `pages` workflow on `main` is green: `https://artofdream.github.io/ctos/`. File presence of the workflow is not a live site. Local build and the Route 53 checklist: [docs/website.md](docs/website.md).
 
 ## Build and run
 
@@ -52,7 +52,7 @@ cts-ai `docker build` + `docker run --rm ctos-smoke` (linux/arm64, 2026-09-09) i
 mdbook serve              # optional: http://localhost:3000
 ```
 
-A green local build is a **generator** probe only. “Docs website published” stays **Unknown** until Pages on `main` is green. `ctos.artof.link` stays **Planned** until DNS responds. See [docs/website.md](docs/website.md).
+A green local build is a **generator** probe only. “Docs website published” stays **Unknown** until Pages on `main` is green. `ctos.artof.link` reachability stays **Planned** until Pages shows the domain and HTTPS works. See [docs/website.md](docs/website.md).
 
 ## Docs (document-first)
 
@@ -92,7 +92,7 @@ Start here before adding kernel features:
 | [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear; isolation Planned |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
-| [Docs website + DNS](docs/website.md) | mdBook + Pages; `ctos.artof.link` Planned until DNS |
+| [Docs website + DNS](docs/website.md) | mdBook + Pages; Route 53 `ctos` CNAME; reachability Planned |
 | [Second brain](research/README.md) | Vaults for session memory and handoffs |
 
 ## Honesty

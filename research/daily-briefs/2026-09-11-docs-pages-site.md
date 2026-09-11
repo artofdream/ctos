@@ -2,19 +2,22 @@
 
 ## Where we stopped
 
-Draft PR https://github.com/artofdream/ctos/pull/30 (`cursor/docs-pages-site-c371`). Parent is `main` `e80dc93` (Merge PR #28 / ADR-020). One PR: mdBook docs site + Pages workflow + `CNAME` for `ctos.artof.link`. No kernel changes. No new FR/NFR IDs.
+Draft PR https://github.com/artofdream/ctos/pull/30 (`cursor/docs-pages-site-c371`). Parent is `main` `e80dc93` (Merge PR #28 / ADR-020). One PR: mdBook docs site + Pages workflow + in-repo `CNAME` + Route 53 playbook for `ctos.artof.link`. No kernel changes. No new FR/NFR IDs.
 
-Local `./scripts/docs-build.sh` **Verified** on this cloud VM (mdBook 0.5.4, `book/CNAME` = `ctos.artof.link`). PR `pages` run [34651704287](https://github.com/artofdream/ctos/actions/runs/34651704287) **Verified** (`mdBook build`; deploy skipped). Generator / PR-build only.
+Local `./scripts/docs-build.sh` **Verified** (mdBook 0.5.4). PR `pages` run [34651704287](https://github.com/artofdream/ctos/actions/runs/34651704287) **Verified** (`mdBook build`; deploy skipped).
 
-`has_pages` was **false** and homepage null when this work started. Custom domain stays **Planned** (sponsor DNS + Settings). “Docs website published” stays **Unknown** until a `pages` workflow on `main` is green and a URL fetch succeeds.
+Public `dig CNAME ctos.artof.link` **Verified** this VM: `artofdream.github.io.` Route 53 API in account `737290977112` was **not** probed (no AWS CLI / credentials). `https://ctos.artof.link` TLS name-mismatch; HTTP 404; `has_pages: false`. Reachability stays **Planned**.
+
+MRC `COMMENT` on #30 at `443ff26` (later commits added the Route 53 playbook). Author does not merge.
 
 ## Do next
 
-1. Human or MRC review. Author does not merge (ADR-002). GitHub author of this PR is expected `cursor[bot]`; merge hat is `artofdream`.
-2. Repo admin: Settings → Pages → Source = GitHub Actions. After first `main` deploy, set custom domain `ctos.artof.link`.
-3. Sponsor: DNS `CNAME ctos` → `artofdream.github.io` at the `artof.link` host. Do not claim DNS is live until a resolver answers.
+1. New MRC pass on the Route 53 docs commit if needed. GitHub author is `artofdream`; merge hat is `cursor[bot]`.
+2. Repo admin: Settings → Pages → Source = GitHub Actions. After first `main` deploy, Custom domain `ctos.artof.link`, then Enforce HTTPS.
+3. Next AWS session: `us-east-1`, account `737290977112`, `list-resource-record-sets` on zone `artof.link` **before** `change-resource-record-sets` (`scripts/route53-ctos-cname.json`). Do not CREATE blindly — public `dig` already answers.
 
 ## Honesty
 
-- Did not claim the site is published or that DNS is configured.
+- Did not claim the site is published or that Pages bound the custom domain.
+- Did not claim a Route 53 API write. Public `dig` ≠ account `737290977112` confirmation.
 - Did not claim “secure OS” or “EL0 isolated.”

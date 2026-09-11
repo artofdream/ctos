@@ -18,7 +18,7 @@ Kernel build and QEMU smoke stay in the [GitHub README](https://github.com/artof
 
 | URL | Honesty |
 | --- | --- |
-| `https://ctos.artof.link` | Intended production hostname. **Planned** until DNS answers (sponsor action). |
+| `https://ctos.artof.link` | Intended production hostname (Route 53, account `737290977112`). Reachability **Planned** until Pages lists the domain and HTTPS works. |
 | `https://artofdream.github.io/ctos/` | GitHub Pages project-site fallback. **Unknown** until a `pages` workflow on `main` is green. |
 
 How to build this book locally, how Pages deploys, and the DNS checklist: [Docs website + DNS](website.md).

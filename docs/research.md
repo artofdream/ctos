@@ -12,3 +12,5 @@ Session memory lives in git under [`research/`](https://github.com/artofdream/ct
 Session scratch: [`research/random-thoughts/`](https://github.com/artofdream/ctos/tree/main/research/random-thoughts). Do not treat scratch as the [honesty ledger](framework/honesty-ledger.md).
 
 Tracker is GitHub. Optional Obsidian UI is local-only (`.obsidian/` is gitignored). See [research/README.md](https://github.com/artofdream/ctos/blob/main/research/README.md) on GitHub.
+
+Route 53 playbook for `ctos.artof.link` (account `737290977112`, not a live-DNS claim): [research/dns-route53-ctos.md](https://github.com/artofdream/ctos/blob/main/research/dns-route53-ctos.md).

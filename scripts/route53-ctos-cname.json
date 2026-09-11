@@ -1,0 +1,16 @@
+{
+  "Comment": "ctos.artof.link CNAME for GitHub Pages (account 737290977112). CREATE only if list-resource-record-sets shows no ctos.artof.link. row.",
+  "Changes": [
+    {
+      "Action": "CREATE",
+      "ResourceRecordSet": {
+        "Name": "ctos.artof.link.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          { "Value": "artofdream.github.io." }
+        ]
+      }
+    }
+  ]
+}
