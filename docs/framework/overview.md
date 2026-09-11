@@ -32,17 +32,27 @@ QEMU TCG jitter is one lab. These are not Raspberry Pi numbers and not a publish
 
 Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 
-### Application-support scope (what can run today)
+### Application-support scope
 
-| In scope now (probed) | Out / Planned |
-| --- | --- |
-| Freestanding `no_std` ELF, `-kernel` on `virt` | POSIX, libc, a package manager |
-| UART text + one injected RX byte | Networking, filesystems, GPU |
-| `Box` / `Vec` on a first-fit heap | Growing/slab heaps as a product |
-| Two cooperative EL1 tasks (yield, not preemption) | SMP, preemptive userspace |
-| Standing EL0 enter/leave as a **probe** | “An app” at EL0; umbrella isolation |
+Do not say “applications run on ctos.” These are the **probed examples** of what the guest can do today. Each needs a matching ledger row.
 
-Do not say “applications run on ctos.” Two kernel workers and a UART hello are what we have probed. Isolation, PAN, and tearing identity `.rodata`/`.data`/heap stay **Planned**.
+#### What can run today
+
+- **Cooperative UART tasks.** Two EL1 heap-backed workers yield to each other and print `sched: task a` / `sched: task b` / `sched: ok`. Cooperative only — not preemptive, not SMP.
+- **UART echo (one injected byte).** Host injects `0x41`; the guest polls PL011 RX and prints `input: rx 0x41`. That is the M6 input mile, not a line-oriented shell and not virtio-keyboard.
+- **Standing EL0 stub.** Bounded dual-SVC on the user TTBR0: `el0: standing` then a user `MOVZ`, then `el0: restored`. `is_active()` is true only for that lifetime. Not POSIX, not a user process, not isolation.
+- Also probed on the same hello path: UART `Hello World!`, `Box`/`Vec` on the first-fit heap, timer tick, BRK + fatal nested.
+
+#### What cannot run (today)
+
+- A POSIX / libc binary, a shell, or “an app you compile and exec”
+- Interactive line echo, files, sockets, HTTP, or a package manager
+- Preemptive threads, SMP, or a second CPU
+- Isolated userspace (PAN, full identity teardown, and umbrella EL0 isolation stay **Planned**)
+- Raspberry Pi or any board other than QEMU `virt`
+- GPU / desktop / windowing; virtio devices; networking stack
+
+Isolation, PAN, and tearing identity `.rodata`/`.data`/heap stay **Planned**.
 
 ## Prerequisites
 
