@@ -44,9 +44,21 @@ It does not time QEMU boot.
 
 That is **kernel_main-entry to after-init** on this QEMU virt guest. It is not a latency budget, not QEMU startup time, not a published bench, and not criterion.
 
+## OS/app slot disconnect (A9) — expected shape, not a bench
+
+[A9 #48](https://github.com/artofdream/ctos/issues/48) would load a **separate app payload** after the OS image ([overview A9](overview.md), [immutability.md](immutability.md)). That is **Planned after Track A ABI/loader**. Today is still **one linked ELF**. There is **no Verified delta**. Do not invent a “faster/slower than linked-in” number.
+
+| Class | What we expect (hypothesis, unmeasured) | Honesty |
+| --- | --- | --- |
+| **Costs** | Extra boot/load work; each SVC crossing; ASID/TTBR0 switches into the app map; optional COW later if payloads are shared | Cost only after a probe. Not a budget. |
+| **Neutral / wins** | Steady EL0 compute (once mapped) should look like today’s standing stub, not like a new ISA. Smaller OS updates are an **operational** win (rebuild kernel without apps), not a CNTPCT win | Operational ≠ measured latency. |
+| **Gate** | Keep `perf: boot-delta`. Add a **new** app-load CNTPCT probe (`perf: app-load` or similar) when the loader exists. Fail closed on miss | Marker does not exist today. |
+
+Until that app-load probe prints on a two-artifact boot, A9 performance stays **Planned**. QEMU TCG jitter is still one lab. No `criterion` crate. No “slot disconnect is free.”
+
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
-- If Track A (OS slot vs app slot) lands: CNTPCT around load + `ERET`/`SVC`, compared to in-tree workers. Cost vs neutral is unknown until that probe. Do not invent a percent. Overview: [KPIs — OS slot vs app slot](../overview/measure.md#os-slot-vs-app-slot-performance).
+- App-load CNTPCT (A9) — only after a real loader; see the table above. Site KPI page: [measure.md](../overview/measure.md#os-slot-vs-app-slot-performance). Do not invent a percent.
 
 Do not add a host `criterion` crate or a “bench.yml” that prints invented numbers.

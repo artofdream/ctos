@@ -26,7 +26,7 @@ The **goal** of this stance (sponsor clarification) is to **disconnect OS update
 
 [Track A #31](https://github.com/artofdream/ctos/issues/31) must land first: stable SVC ABI (A1), `libctos` (A2), ELF/raw loader into user TTBR0 (A3), standing EL0 as normal mode (A4). **RO app payloads** are that loader mapping an image RO+X. A9 is **Planned after that ABI/loader**, not instead of it.
 
-**Today:** one linked kernel ELF. No OS-image artifact, no app payload slot, no cross-update probe. **Not Verified.**
+**Today:** one linked kernel ELF. No OS-image artifact, no app payload slot, no cross-update probe. **Not Verified.** Performance impact is the same honesty: expected costs and a future app-load CNTPCT gate, **no Verified delta** ([performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench)).
 
 [Track B #40](https://github.com/artofdream/ctos/issues/40) must not use Linux-compat research to claim an immutable or container host. Containers stay a [non-goal](host-apps.md).
 

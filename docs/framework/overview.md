@@ -18,8 +18,9 @@ These are **sensors**, not product SLOs. A missing marker is a fail. A printed n
 | IRQ-to-handler spread on this virt guest | Serial `perf: irq-delta min=… max=… spread=… n=…` |
 | Debug ELF byte size | Host `perf: elf-size bytes=<n>` (measurement, not “smaller is better”) |
 | `kernel_main` after-MMU → after-init | Serial `perf: boot-delta ticks=<n>` |
+| App-load after OS/app split (A9) | **Planned** `perf: app-load` CNTPCT + existing boot-delta. No marker today. |
 
-QEMU TCG jitter is one lab. These are not Raspberry Pi numbers and not a published bench. Read the ledger row for the SHA you care about.
+QEMU TCG jitter is one lab. These are not Raspberry Pi numbers and not a published bench. Read the ledger row for the SHA you care about. A9 expected costs (boot/load, SVC, ASID/TTBR, later COW) vs steady EL0 compute: [performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench). **No Verified delta** — still one ELF.
 
 ### Antifragility ([NFR-05](../02-requirements/fr-nfr.md) / [antifragility.md](antifragility.md))
 
@@ -54,6 +55,7 @@ The sponsor goal for “immutability” here is **not** a frozen kernel. It is t
 - **Today:** one linked kernel ELF (`target/aarch64-ctos/debug/ctos`). Sample tasks and the standing EL0 stub are compiled in. **Not Verified** as a slot/split.
 - **Planned** after Track A ABI + loader ([A1–A4 on #31](https://github.com/artofdream/ctos/issues/31)): issue [A9 #48](https://github.com/artofdream/ctos/issues/48). Stance: [immutability.md](immutability.md).
 - Do not say “immutable OS” or “apps update independently” until a probe shows two artifacts and a load path.
+- **Performance (unmeasured):** expect costs at boot/load, SVC, ASID/TTBR switches, optional later COW; steady EL0 compute similar; smaller OS updates are operational, not a bench. Gate: boot-delta + a new app-load CNTPCT probe. **No Verified delta today.** Details: [performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench).
 
 ## Prerequisites
 

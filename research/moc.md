@@ -4,7 +4,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
-- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-a9-os-app-slots.md](daily-briefs/2026-09-11-a9-os-app-slots.md)
+- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-a9-perf-shape.md](daily-briefs/2026-09-11-a9-perf-shape.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
@@ -43,6 +43,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Immutability scratch: [random-thoughts/2026-09-11-session-memory-immutability.md](random-thoughts/2026-09-11-session-memory-immutability.md)
 - Immutability handoff: [daily-briefs/2026-09-11-immutability-scoped.md](daily-briefs/2026-09-11-immutability-scoped.md)
 - A9 OS/app slot handoff: [daily-briefs/2026-09-11-a9-os-app-slots.md](daily-briefs/2026-09-11-a9-os-app-slots.md)
+- A9 perf-shape scratch: [random-thoughts/2026-09-11-session-memory-a9-perf.md](random-thoughts/2026-09-11-session-memory-a9-perf.md)
+- A9 perf-shape handoff: [daily-briefs/2026-09-11-a9-perf-shape.md](daily-briefs/2026-09-11-a9-perf-shape.md)
 - Inbox (triage out): [inbox/](inbox/)
 
 ## Templates
