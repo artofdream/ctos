@@ -2,7 +2,7 @@
 
 ctos is a **learning** AArch64 kernel for QEMU `virt`. It is not a desktop, not POSIX, and not a “secure OS.” Status words need a probe in the [honesty ledger](honesty-ledger.md). This note does **not** invent latency, size, or “faster than” numbers. Measured markers live in the ledger; they are one environment each.
 
-Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md).
+Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md). Immutability: [immutability.md](immutability.md) (scoped only).
 
 A docs website at https://ctos.artof.link is **Planned**. A Route 53 CNAME exists; this tree does not publish Pages. Do not claim that URL works.
 
@@ -69,6 +69,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 - QEMU `virt` only. No Raspberry Pi or board claim
 - Not POSIX, not multi-tenant, not a product runtime. No filesystem today ([filesystem.md](filesystem.md)). Not a container host ([host-apps.md](host-apps.md)); host `docker-smoke` ≠ guest Docker.
 - Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); `.rodata`/`.data`/heap stay
+- Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate).
 - Performance numbers are guest counter deltas, not a latency budget
 - Docs website / custom domain is **Planned** (CNAME exists; Pages publish is a separate PR)
 - Same-login cannot self-merge; a second identity has to land the PR

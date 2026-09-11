@@ -4,7 +4,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
-- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-host-apps-containers.md](daily-briefs/2026-09-11-host-apps-containers.md)
+- Latest idle tip (`main` ≈ `e80dc93`): [daily-briefs/2026-09-11-immutability-scoped.md](daily-briefs/2026-09-11-immutability-scoped.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
@@ -18,6 +18,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Building or porting: [../docs/framework/building-or-porting.md](../docs/framework/building-or-porting.md)
 - Filesystem stance: [../docs/framework/filesystem.md](../docs/framework/filesystem.md)
 - Gaps to host apps / containers-no: [../docs/framework/host-apps.md](../docs/framework/host-apps.md)
+- Immutability (scoped): [../docs/framework/immutability.md](../docs/framework/immutability.md)
 - Frozen IDs: [../docs/02-requirements/fr-nfr.md](../docs/02-requirements/fr-nfr.md)
 - Architecture: [../docs/02-architecture/technical-architecture.md](../docs/02-architecture/technical-architecture.md)
 - Roadmap: [../docs/04-roadmap/roadmap.md](../docs/04-roadmap/roadmap.md)
@@ -39,6 +40,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Filesystem stance handoff: [daily-briefs/2026-09-11-filesystem-stance.md](daily-briefs/2026-09-11-filesystem-stance.md)
 - Host-apps / containers-no scratch: [random-thoughts/2026-09-11-session-memory-host-apps.md](random-thoughts/2026-09-11-session-memory-host-apps.md)
 - Host-apps handoff: [daily-briefs/2026-09-11-host-apps-containers.md](daily-briefs/2026-09-11-host-apps-containers.md)
+- Immutability scratch: [random-thoughts/2026-09-11-session-memory-immutability.md](random-thoughts/2026-09-11-session-memory-immutability.md)
+- Immutability handoff: [daily-briefs/2026-09-11-immutability-scoped.md](daily-briefs/2026-09-11-immutability-scoped.md)
 - Inbox (triage out): [inbox/](inbox/)
 
 ## Templates

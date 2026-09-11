@@ -74,6 +74,7 @@ Start here before adding kernel features:
 | [Building or porting](docs/framework/building-or-porting.md) | Easiest = in-tree `no_std` coop EL1; POSIX not easy; SVC ABI / `libctos` Planned |
 | [Filesystem](docs/framework/filesystem.md) | No FS today. Planned: memfs → virtio-blk → FAT or xv6-like |
 | [Gaps to host apps](docs/framework/host-apps.md) | Why Linux/shell/Python do not run; containers are **no** (host `docker-smoke` ≠ guest runtime) |
+| [Immutability](docs/framework/immutability.md) | Scoped RO only (ADR-015 / ADR-020). Not an “immutable OS.” Track A #31 / Track B #40 |
 | [FR / NFR](docs/02-requirements/fr-nfr.md) | Frozen functional and non-functional IDs (ISA text revised under ADR-003) |
 | [Technical architecture](docs/02-architecture/technical-architecture.md) | `no_std`, QEMU `virt`, UART stage, planned stages |
 | [ADR-001](docs/03-adr/ADR-001-honesty-harness-for-ctos.md) | Why this repo uses a honesty/harness practice |

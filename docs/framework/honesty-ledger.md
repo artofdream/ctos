@@ -130,6 +130,7 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Guest filesystem (VFS / memfs / virtio-blk / FAT) | Serial + `#[test_case]` that do not exist; `src/` has no FS stack | Planned | Site: [docs/overview/filesystem.md](../overview/filesystem.md). Extra stance: [filesystem.md](filesystem.md). Order **Planned**: memfs → virtio-blk → FAT or xv6-like. Do not say “supports FAT.” File presence is not a guest `open`. |
 | Guest runs host apps (Linux ELF / shell / Python) | No `exec`, libc, or app-load serial marker | Planned | Site: [docs/overview/hosting-apps.md](../overview/hosting-apps.md). Extra: [host-apps.md](host-apps.md). Today: in-tree samples only. |
 | Guest is a container host (OCI / Docker / k8s) | Source: no OCI, runc, cgroup, or namespace code in `src/` | Verified | Absence + non-goal. Site: [hosting-apps.md](../overview/hosting-apps.md). Host `docker-smoke.sh` is a build harness, not a guest runtime. Not a later Planned feature. |
+| Product “immutable OS” | Marketing sentence vs [immutability.md](immutability.md) | Planned | **Non-claim.** Absolute immutability is incompatible (heap/PTEs/devices mutate). Scoped RO is ADR-015 / ADR-020. Site: [advantages.md](../overview/advantages.md). File presence is not Verified. |
 
 ## How to update
 
