@@ -45,6 +45,8 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 
 Hub: [pillars.md](../framework/pillars.md).
 
+Filesystem work is **Planned** and is not a row above. Intended order (one PR each, after a VFS ADR): memfs → virtio-blk → on-disk FAT or xv6-like → host-checkable image. Do not claim FAT. See [Filesystem: new vs extend](../overview/filesystem.md).
+
 ## Docs website
 
 mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). Route 53 CNAME for `ctos.artof.link` is **in place** (zone `Z1178AFMV41RWP`). HTTPS reachability stays **Planned** until Pages is enabled after merge. Overview pages: [how we measure](../overview/measure.md). Publish notes: [website.md](../website.md).

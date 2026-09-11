@@ -22,6 +22,14 @@ Dedicated page: [Building or porting](overview/porting.md).
 
 Today nothing POSIX ports easily (no libc, no dynamic linker, no FS, no public app ABI). The easy path is **in-tree `no_std` Rust** and `cargo build` on `aarch64-ctos.json`. Do not drop in userspace ELFs. A stable SVC ABI is **Planned**.
 
+## Filesystem (Planned)
+
+Dedicated page: [Filesystem: new vs extend](overview/filesystem.md).
+
+**Today:** no VFS, no block stack — nothing compatible out of the box. Do not say “supports FAT.”
+
+**Best fit later:** memfs first, then virtio-blk + FAT16/32 or a tiny xv6-like FS, behind a thin VFS ADR. Avoid ext4/btrfs/ZFS/NTFS as a first cut. Order: VFS ADR → memfs Verified → virtio-blk → on-disk FS → host-checkable image probe.
+
 ## KPIs, prerequisites, advantages, drawbacks
 
 | Dedicated page | What it is |

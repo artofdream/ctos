@@ -53,6 +53,7 @@ jobs:
           # Same files as docs/overview — site and repo stay aligned.
           test -f book/overview/what-can-run.html
           test -f book/overview/porting.html
+          test -f book/overview/filesystem.html
           test -f book/overview/measure.html
           test -f book/overview/prerequisites.html
           test -f book/overview/advantages.html

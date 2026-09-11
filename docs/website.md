@@ -8,6 +8,7 @@ Required site chapters (sidebar + landing). A missing file fails `mdbook build` 
 | --- | --- |
 | What can run today | `docs/overview/what-can-run.md` |
 | Building or porting | `docs/overview/porting.md` |
+| Filesystem (Planned) | `docs/overview/filesystem.md` |
 | KPIs / how we measure | `docs/overview/measure.md` |
 | Prerequisites | `docs/overview/prerequisites.md` |
 | Advantages | `docs/overview/advantages.md` |

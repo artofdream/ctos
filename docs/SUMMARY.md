@@ -7,6 +7,7 @@
 - [KPIs / how we measure](overview/measure.md)
 - [What can run today](overview/what-can-run.md)
 - [Building or porting](overview/porting.md)
+- [Filesystem (Planned)](overview/filesystem.md)
 - [Prerequisites](overview/prerequisites.md)
 - [Advantages](overview/advantages.md)
 - [Drawbacks / limits](overview/limits.md)

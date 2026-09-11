@@ -32,7 +32,7 @@ Do not imply these work:
 - A shell
 - Python (or any hosted language runtime)
 - Network servers (no NIC, no sockets, no DMA)
-- Filesystem apps (no block device, no VFS)
+- Filesystem apps (no block device, no VFS — [Filesystem (Planned)](filesystem.md))
 - SMP workloads (one CPU, cooperative yield only)
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready.”

@@ -120,6 +120,7 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Public CNAME `ctos.artof.link` → `artofdream.github.io` | `dig CNAME ctos.artof.link +short` | Verified | 2026-09-11 this cloud VM (repeat): `artofdream.github.io.` **DNS is in place** at the public resolver. Not “the docs URL serves the book.” |
 | Route 53 `ctos` CNAME in account `737290977112` zone `Z1178AFMV41RWP` | Sponsor stated CREATE done (zone `Z1178AFMV41RWP`); API `list-resource-record-sets` as that account | Unknown | This environment still has no AWS CLI / credentials. Sponsor named the zone and said the record exists. Do **not** `CREATE` again. Public `dig` is the Verified row above, not this API probe. |
 | Custom domain `ctos.artof.link` reachability | Pages Settings/API lists the hostname **and** `curl -sSI https://ctos.artof.link` is HTTP 200 with a cert for that name | Planned | DNS can be in place while Pages is off. 2026-09-11: TLS name-mismatch; HTTP 404; `has_pages: false`. Do not claim the URL serves docs until Pages is live. |
+| Guest filesystem (VFS / memfs / virtio-blk / FAT) | Serial + `#[test_case]` that do not exist; `src/` has no FS stack | Planned | Direction only: [filesystem.md](../overview/filesystem.md). Absence of memfs/virtio-blk/FAT in `src/` is Verified as “none now.” Do not say “supports FAT.” |
 
 ## How to update
 

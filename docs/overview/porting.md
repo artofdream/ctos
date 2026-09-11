@@ -51,3 +51,5 @@ A path that is **not built** and must stay Planned until probed:
 4. Map it into **user TTBR0** and `ERET`
 
 Until those exist and have ledger probes, do not say applications “port to ctos.” You extend the kernel. Isolation and a real userspace stay **Planned**.
+
+A filesystem is the same story: **Planned**, not present. Direction: [Filesystem: new vs extend](filesystem.md).

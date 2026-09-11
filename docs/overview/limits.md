@@ -16,7 +16,7 @@ Default probe CPU is `-cpu cortex-a57` (ARMv8.0). Do not claim Privileged Access
 
 ## No network, disk, or DMA
 
-There is no NIC driver, no virtio-net, no block device, and no DMA API. Input on virt is PL011 UART RX. Timer is GICv2 + CNTP. That is the I/O surface.
+There is no NIC driver, no virtio-net, no block device, no VFS, and no DMA API. Input on virt is PL011 UART RX. Timer is GICv2 + CNTP. That is the I/O surface. Filesystem direction (Planned only): [Filesystem: new vs extend](filesystem.md).
 
 ## No real userspace apps
 
