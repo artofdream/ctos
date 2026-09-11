@@ -2,7 +2,7 @@
 
 This file is the source of truth for how agents work in this repo. Frozen product requirements live in [docs/02-requirements/fr-nfr.md](docs/02-requirements/fr-nfr.md) (FR-01–FR-15, NFR-01–NFR-14). Do not invent new IDs in chat; add them via a GitHub issue plus an ADR/docs change.
 
-ctos is a **GitHub** project (`artofdream/ctos`). Use `gh` for issues, PRs, and reviews. Do not assume GitLab, `glab`, or a GitLab wiki. Learning-kernel docs are meant for GitHub Pages (mdBook) at `https://ctos.artof.link` — see [docs/website.md](docs/website.md). That URL is **Planned** until DNS answers; do not invent a GitLab Pages SOP.
+ctos is a **GitHub** project (`artofdream/ctos`). Use `gh` for issues, PRs, and reviews. Do not assume GitLab, `glab`, or a GitLab wiki. Learning-kernel docs are on GitHub Pages (mdBook) at `https://ctos.artof.link` — see [docs/website.md](docs/website.md). That URL is **Verified** (2026-09-11 after #30); do not invent a GitLab Pages SOP.
 
 The practice here is a **ctos-native harness**: honesty (claim vs probe), fail-closed sensors, document-first, a four-vault second brain, and no self-merge. After M9 the same weight sits on **three pillars** — antifragility, security, performance ([ADR-011](docs/03-adr/ADR-011-three-pillars.md), [pillars.md](docs/framework/pillars.md)). It is *inspired by* harness-engineering / honesty practices ([architecture.artof.link](https://architecture.artof.link/) as prior art). ctos is its own OS-kernel project with its own vocabulary. Do not import florist platform, 14-hat maps, or AEA role names.
 

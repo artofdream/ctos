@@ -4,7 +4,7 @@ Honesty first: there is **no** userspace ABI to compile against, and no libc. ct
 
 What already runs: [apps-today.md](apps-today.md). KPIs and trade-offs: [overview.md](overview.md).
 
-Site source of truth: [Building or porting](../overview/porting.md). This page is extra stance. HTTPS at https://ctos.artof.link stays **Planned** until a fetch succeeds.
+Site source of truth: [Building or porting](../overview/porting.md). This page is extra stance. HTTPS at https://ctos.artof.link is **Verified** (2026-09-11 after #30).
 
 ## Easiest path — in-tree `no_std` cooperative EL1
 
@@ -68,7 +68,7 @@ A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdrea
 ## Do not invent
 
 - A porting guide that assumes POSIX, a shell, Python, or containers ([host-apps.md](host-apps.md): containers are **no**)
-- A claim that https://ctos.artof.link is a live docs site
+- A claim about the docs URL that skips the [ledger](honesty-ledger.md) (HTTPS is Verified as of 2026-09-11; do not invent extra site KPIs)
 - “Secure OS,” “the kernel moved,” or “EL0 isolated”
 
 Cite the ledger for any Verified SHA you quote.

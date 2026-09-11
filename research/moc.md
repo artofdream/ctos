@@ -4,8 +4,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 
 ## Start here
 
-- Latest idle tip (`main` = `f86785b`, #30): [daily-briefs/2026-09-11-rebase-after-30.md](daily-briefs/2026-09-11-rebase-after-30.md)
-- Prior (principles): [daily-briefs/2026-09-11-principles-drive.md](daily-briefs/2026-09-11-principles-drive.md)
+- Latest idle tip (`main` = `f86785b`, live site Verified): [daily-briefs/2026-09-11-pages-live-verified.md](daily-briefs/2026-09-11-pages-live-verified.md)
+- Prior (rebase onto #30): [daily-briefs/2026-09-11-rebase-after-30.md](daily-briefs/2026-09-11-rebase-after-30.md)
 - Open-vault steps: [obsidian-checklist.md](obsidian-checklist.md)
 - Vault how-to: [obsidian.md](obsidian.md)
 - Four vaults: [README.md](README.md)
