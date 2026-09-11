@@ -1,14 +1,19 @@
-//! Identity-teardown first cut (ADR-018).
+//! Identity-teardown cuts (ADR-018 + ADR-019).
 //!
 //! After MMU + high VBAR, paging unmaps one dedicated identity text
-//! page (`__ident_tear_*`) from kernel and user TTBR0. The TTBR1 twin
-//! stays executable because RAM tables were cloned (`L2_HIGH_RAM`).
+//! page (`__ident_tear_*`) from kernel and user TTBR0. The post-MMU
+//! continuation then jumps to its TTBR1 alias and unmaps identity
+//! `.text` after the `_start` / vectors page. The high twins stay
+//! executable because RAM tables were cloned (`L2_HIGH_RAM`).
+//! `.rodata` / `.data` / heap / stacks / UART stay identity-mapped
+//! (rustc still stores absolute pointers in `.rodata`).
 //!
-//! Probes: EL1 fetch of the low VA faults (`ident: fault`); EL1 fetch
-//! of the high twin still runs (`ident: high`); EL0 load of the low VA
-//! faults (`ident: no el0`). `_start` / QEMU `-kernel` stay at
-//! `0x4008_0000`. The rest of identity `.text`/`.data`/heap stays
-//! mapped. Not “the kernel moved.” Not “EL0 isolated.” PAN unclaimed.
+//! Probes: EL1 fetch of a torn identity VA faults (`ident: fault` /
+//! `ident: text`); EL1 fetch of the high twin still runs (`ident: high`);
+//! EL0 load of a torn VA faults (`ident: no el0`). `_start` / QEMU
+//! `-kernel` stay at `0x4008_0000`. Not “the kernel moved.” Not
+//! “EL0 isolated.” PAN unclaimed. Full teardown (`.rodata`/`.data`/
+//! heap) stays Planned.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -55,6 +60,24 @@ pub extern "C" fn ident_tear_el1_path() -> u64 {
     pc
 }
 
+/// Ordinary `.text` (not the dedicated tear section). After ADR-019
+/// its identity page is unmapped; the high twin must still fetch.
+#[inline(never)]
+#[no_mangle]
+pub extern "C" fn ident_range_el1_path() -> u64 {
+    let pc: u64;
+    unsafe {
+        core::arch::asm!(
+            "adr {p}, 1f",
+            "1:",
+            p = out(reg) pc,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
+    uart::write_str_raw("ident: text\n");
+    pc
+}
+
 fn ident_page_layout_ok() -> bool {
     let va = paging::ident_tear_page();
     if va & 0xfff != 0 || paging::ident_tear_end() != va + 4096 {
@@ -67,26 +90,63 @@ fn ident_page_layout_ok() -> bool {
     (fn_va & !0xfff) == va
 }
 
+fn text_fn_layout_ok() -> bool {
+    let fn_va = paging::identity_pa(ident_range_el1_path as *const () as usize as u64);
+    let page = fn_va & !0xfff;
+    page >= paging::boot_stub_end()
+        && page < paging::text_end()
+        && paging::is_torn_identity_va(fn_va)
+}
+
+fn run_high_path(ident: u64, max_delta: u64) -> Option<u64> {
+    let high = paging::to_high_va(ident);
+    if !paging::is_high_va(high) || !paging::high_mapped(high) {
+        return None;
+    }
+    if !paging::high_is_executable(high) {
+        return None;
+    }
+    let f: extern "C" fn() -> u64 = unsafe { transmute(black_box(high)) };
+    let pc = f();
+    if paging::is_high_va(pc) && pc >= high && pc.wrapping_sub(high) <= max_delta {
+        Some(pc)
+    } else {
+        None
+    }
+}
+
 fn run_high_after_tear() -> bool {
     if !ident_page_layout_ok() {
         return false;
     }
     let ident = paging::identity_pa(ident_tear_el1_path as *const () as usize as u64);
-    let high = paging::to_high_va(ident);
-    if !paging::is_high_va(high) || !paging::high_mapped(high) {
-        return false;
-    }
-    if !paging::high_is_executable(high) {
-        return false;
-    }
-    let f: extern "C" fn() -> u64 = unsafe { transmute(black_box(high)) };
-    let pc = f();
-    paging::is_high_va(pc) && pc >= high && pc.wrapping_sub(high) <= 32
+    run_high_path(ident, 32).is_some()
 }
 
 fn run_ident_fault() -> bool {
     let ident = paging::identity_pa(ident_tear_el1_path as *const () as usize as u64);
     if paging::is_mapped(ident) {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    exception::arm_ident_tear();
+    let f: extern "C" fn() -> u64 = unsafe { transmute(black_box(ident)) };
+    let _ = black_box(f)();
+    exception::ident_tear_caught()
+}
+
+fn run_text_high() -> bool {
+    if !text_fn_layout_ok() {
+        return false;
+    }
+    let ident = paging::identity_pa(ident_range_el1_path as *const () as usize as u64);
+    run_high_path(ident, 32).is_some()
+}
+
+fn run_text_fault() -> bool {
+    let ident = paging::identity_pa(ident_range_el1_path as *const () as usize as u64);
+    if paging::is_mapped(ident) {
+        uart::write_str_raw("ident: leaked\n");
         return false;
     }
     exception::arm_ident_tear();
@@ -111,9 +171,10 @@ fn el0_load_torn() -> bool {
     }
     sync_icache(ptr);
     let user_sp = va + 4096;
+    let torn = paging::identity_pa(ident_range_el1_path as *const () as usize as u64) & !0xfff;
     exception::arm_ident_el0();
     unsafe {
-        exception::eret_to_el0(black_box(va), paging::ident_tear_page(), user_sp);
+        exception::eret_to_el0(black_box(va), torn, user_sp);
     }
     let ok = exception::ident_el0_caught();
     let _ = paging::unmap_page(va);
@@ -125,14 +186,26 @@ fn run_probe() -> bool {
     if !paging::mmu_enabled() || !paging::high_split_ready() {
         return false;
     }
-    if !paging::identity_tear_ready() {
+    if !paging::identity_tear_ready() || !paging::identity_range_ready() {
+        return false;
+    }
+    if !paging::pc_is_high() {
         return false;
     }
     let va = paging::ident_tear_page();
     if paging::is_mapped(va) || paging::user_mapped(va) {
+        uart::write_str_raw("ident: leaked\n");
         return false;
     }
     if !paging::high_mapped(paging::to_high_va(va)) {
+        return false;
+    }
+    let text = paging::boot_stub_end();
+    if paging::is_mapped(text) || paging::user_mapped(text) {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    if paging::torn_text_pages() < 2 {
         return false;
     }
     if paging::is_mapped(paging::KERNEL_TEXT) != true {
@@ -145,13 +218,19 @@ fn run_probe() -> bool {
     if !run_high_after_tear() {
         return false;
     }
+    if !run_text_fault() {
+        return false;
+    }
+    if !run_text_high() {
+        return false;
+    }
     if !el0_load_torn() {
         return false;
     }
     true
 }
 
-/// Serial proof: split tables + torn identity text page + high fetch.
+/// Serial proof: split tables + torn identity `.text` + high fetch.
 #[allow(dead_code)] // hello kernel only; cargo test uses the case below.
 pub fn observe_probe() -> bool {
     if !run_probe() {
@@ -167,8 +246,9 @@ pub fn observe_probe() -> bool {
 fn identity_tear_el1_faults_high_stays() {
     assert!(paging::high_split_ready());
     assert!(paging::identity_tear_ready());
+    assert!(paging::identity_range_ready());
     assert!(
         run_probe(),
-        "EL1 identity fetch of the torn page must fault; high twin + EL0 DABORT"
+        "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT"
     );
 }

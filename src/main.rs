@@ -56,6 +56,19 @@ pub extern "C" fn kernel_main() -> ! {
     uart::UART.lock().init();
     exception::init();
     paging::init();
+    // After MMU + high VBAR: fetch the rest from the TTBR1 alias so
+    // identity `.text` after `_start` / vectors can be unmapped (ADR-019).
+    // `_start` stays at 0x40080000. Not “the kernel moved.”
+    paging::jump_high(kernel_main_high as usize as u64);
+}
+
+#[inline(never)]
+#[no_mangle]
+extern "C" fn kernel_main_high() -> ! {
+    uart::write_str_raw("ident: jump\n");
+    if !paging::tear_identity_text_range() {
+        uart::write_str_raw("ident: range missed\n");
+    }
     // After MMU + D-cache (SCTLR.C). A pre-MMU store to .bss can be
     // invisible to later cached reads (PR #20 test image; cts-ai Docker
     // hello lost `frame::ALLOC` / `USER_MAP_OK` the same way).
@@ -116,8 +129,9 @@ pub extern "C" fn kernel_main() -> ! {
         if !ttbr1::observe_probe() {
             uart::write_str_raw("ttbr1: probe missed\n");
         }
-        // Serial proof for qemu-smoke (NFR-10 / ADR-018): split TTBR1
-        // RAM tables + one torn identity text page. Boot stub stays.
+        // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019):
+        // split tables + torn identity `.text` after the boot stub.
+        // `.rodata` / `.data` / heap stay. Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
         }
@@ -192,11 +206,30 @@ impl<T: Fn()> Testable for T {
     }
 }
 
+/// rustc `dyn` vtable: drop, size, align, then methods. After ADR-019
+/// the method address is an identity VA — BLR it through the high alias.
+#[cfg(test)]
+#[repr(C)]
+struct DynFat {
+    data: *const (),
+    vtable: *const usize,
+}
+
+#[cfg(test)]
+fn call_testable_run_high(test: &dyn Testable) {
+    let fat: DynFat =
+        unsafe { core::mem::transmute_copy(&(test as *const dyn Testable)) };
+    let run = unsafe { *fat.vtable.add(3) } as u64;
+    let f: fn(*const ()) =
+        unsafe { core::mem::transmute(paging::to_high_va(run)) };
+    f(fat.data);
+}
+
 #[cfg(test)]
 fn test_runner(tests: &[&dyn Testable]) {
     println!("Running {} tests", tests.len());
     for test in tests {
-        test.run();
+        call_testable_run_high(*test);
     }
     qemu::exit_success();
 }

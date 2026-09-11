@@ -2,7 +2,7 @@
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
 # EL0 no-kernel-read + standing EL0 + ASID isolation + TTBR1 private page +
-# TTBR1 high-VA EL1 exec + identity-tear first cut + CNTPCT baseline + boot-delta + IRQ-to-handler
+# TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
@@ -245,6 +245,18 @@ if grep -q "ident: leaked" "$log"; then
     echo "qemu-smoke: ident leaked (torn identity page was still usable)" >&2
     exit 1
 fi
+if grep -q "ident: range missed" "$log"; then
+    echo "qemu-smoke: ident range missed (identity .text after boot stub stayed mapped)" >&2
+    exit 1
+fi
+if ! grep -q "ident: jump" "$log"; then
+    echo "qemu-smoke: missing 'ident: jump' on serial (high-VA continuation, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: range" "$log"; then
+    echo "qemu-smoke: missing 'ident: range' on serial (identity .text range tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "ident: split" "$log"; then
     echo "qemu-smoke: missing 'ident: split' on serial (TTBR1 RAM clone, qemu exit $qemu_ec)" >&2
     exit 1
@@ -255,6 +267,10 @@ if ! grep -q "ident: fault" "$log"; then
 fi
 if ! grep -q "ident: high" "$log"; then
     echo "qemu-smoke: missing 'ident: high' on serial (EL1 high twin after tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: text" "$log"; then
+    echo "qemu-smoke: missing 'ident: text' on serial (EL1 high fetch of torn .text, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 if ! grep -q "ident: no el0" "$log"; then

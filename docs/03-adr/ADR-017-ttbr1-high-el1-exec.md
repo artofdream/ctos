@@ -33,4 +33,4 @@ Say “EL1 fetched a real path from a TTBR1 high VA” or “VBAR lives at the h
 
 - `paging::init` installs the RAM alias and relocates VBAR. `src/ttbr1.rs` owns both the private-page probe and the exec probe.
 - [ADR-016](ADR-016-ttbr1-private-page.md) remains the private-page first cut. This ADR is the exec mile.
-- [ADR-018](ADR-018-identity-teardown-first-cut.md) splits TTBR1 RAM tables and unmaps one identity text page. Jumping `kernel_main` to high VA and unmapping the rest of identity is still later.
+- [ADR-018](ADR-018-identity-teardown-first-cut.md) splits TTBR1 RAM tables and unmaps one identity text page. [ADR-019](ADR-019-identity-text-range-tear.md) jumps the post-MMU continuation to high VA and unmaps identity `.text` after the boot stub. Unmapping `.rodata`/`.data`/heap is still later.

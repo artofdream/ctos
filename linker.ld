@@ -14,6 +14,13 @@ SECTIONS
         *(.text .text.*)
     }
 
+    /* Page-align so ADR-019 can unmap identity .text after the
+       0x40080000 boot stub without sharing a leaf with .rodata.
+       rustc stores absolute string / vtable pointers in .rodata;
+       those stay identity-mapped. */
+    . = ALIGN(4096);
+    __text_end = .;
+
     .rodata : {
         *(.rodata .rodata.*)
     }

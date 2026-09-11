@@ -17,7 +17,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 
-M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). ADR-011 / #17 through ADR-017 EL1 high-VA fetch #25 are on `main`. This PR is the ADR-018 identity-tear first cut. Merge is still a human/MRC job (ADR-002).
+M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). ADR-011 / #17 through ADR-018 identity-tear first cut #26 are on `main`. This PR is the ADR-019 identity `.text` range tear. Merge is still a human/MRC job (ADR-002).
 
 ## Pillars (post-M9)
 
@@ -40,5 +40,6 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3e | TTBR1 kernel-private page (ADR-016 first cut) | `ttbr1: el1` + `ttbr1: no el0` + `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
 | P-SEC-3f | EL1 fetch from TTBR1 high VA (ADR-017) | `ttbr1: el1 exec` + `ttbr1: vbar` + existing `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity boot stub stays. |
 | P-SEC-3g | Identity-tear first cut (ADR-018) | `ident: split` + `ident: fault` + `ident: high` + `ident: no el0` + `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
+| P-SEC-3h | Identity `.text` range tear (ADR-019) | `ident: jump` + `ident: range` + `ident: text` + existing `ident: ok` | Cloud `qemu-smoke` on this PR (see honesty ledger). `.rodata`/`.data`/heap stay. Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
 
 Hub: [pillars.md](../framework/pillars.md).
