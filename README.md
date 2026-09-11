@@ -25,8 +25,8 @@ cargo run            # boot the ELF in qemu-system-aarch64 -machine virt
 The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU serial Hello World was probed once in the 2026-09-08 cloud run (`qemu-system-aarch64` 8.2.2, `-machine virt`). That is not CI. Other machines stay Unknown until they run the same kind of probe. See the [ctos honesty ledger](docs/framework/honesty-ledger.md).
 
 ```bash
-./scripts/qemu-smoke.sh   # build + hello + paging + heap + two-task sched + W^X + guards + RO+NX + EL0 first mile + no-kernel-read + CNTPCT + boot-delta + IRQ-delta + host ELF size + timer tick + injected UART RX + BRK + fatal nested serial + cargo test + force-fail
-cargo test                # #[test_case] including VBAR/BRK/stacks/guards/RO+NX/timer/IRQ-delta/empty RX/MMU/frames/heap/sched/CNTPCT/boot-delta/W^X/EL0; QEMU exits 0 via ARM semihosting
+./scripts/qemu-smoke.sh   # build + hello + paging + heap + two-task sched + W^X + guards + RO+NX + EL0 first mile + no-kernel-read + standing + ASID + TTBR1 + CNTPCT + boot-delta + IRQ-delta + host ELF size + timer tick + injected UART RX + BRK + fatal nested serial + cargo test + force-fail
+cargo test                # #[test_case] including VBAR/BRK/stacks/guards/RO+NX/timer/IRQ-delta/empty RX/MMU/frames/heap/sched/CNTPCT/boot-delta/W^X/EL0/standing/ASID/TTBR1; QEMU exits 0 via ARM semihosting
 ```
 
 ### Docker (cts-ai: Windows ARM64 → linux/arm64)
@@ -64,16 +64,17 @@ Start here before adding kernel features:
 | [ADR-010](docs/03-adr/ADR-010-cooperative-rr-el1.md) | Cooperative round-robin on EL1 (FR-11 / M9) |
 | [ADR-011](docs/03-adr/ADR-011-three-pillars.md) | Three pillars: antifragility, security, performance |
 | [ADR-012](docs/03-adr/ADR-012-wx-nx-heap-stacks.md) | W^X: NX heap + cooperative stacks |
-| [ADR-013](docs/03-adr/ADR-013-el0-isolation-direction.md) | EL0 isolation direction + first mile (isolation Planned) |
+| [ADR-013](docs/03-adr/ADR-013-el0-isolation-direction.md) | EL0 isolation direction + first mile + standing (isolation Planned) |
 | [ADR-014](docs/03-adr/ADR-014-linker-stack-guard-pages.md) | Unmapped 4 KiB holes under linker stacks |
 | [ADR-015](docs/03-adr/ADR-015-ro-nx-text-data.md) | RO+NX text/data split (`SCTLR.WXN`) |
+| [ADR-016](docs/03-adr/ADR-016-ttbr1-private-page.md) | TTBR1 kernel-private page (identity teardown Planned) |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |
 | [Three pillars](docs/framework/pillars.md) | Antifragility, security, performance (NFR-05 / NFR-10 / NFR-07) |
 | [Antifragility SOP](docs/framework/antifragility.md) | Ratchet repeated failures into sensors |
-| [Security](docs/framework/security.md) | Threat-model v1.2; not a “secure OS” claim |
-| [EL0](docs/framework/el0.md) | First mile + user TTBR0 read mile; isolation Planned |
+| [Security](docs/framework/security.md) | Threat-model v1.4; not a “secure OS” claim |
+| [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 first cut; isolation Planned |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
 | [Second brain](research/README.md) | Vaults for session memory and handoffs |

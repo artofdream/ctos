@@ -1,21 +1,23 @@
-//! EL0 first mile + user-TTBR0 read mile (P-SEC-3 / ADR-013).
+//! EL0 first mile + user-TTBR0 read + standing context (P-SEC-3 / ADR-013).
 //!
 //! Deliberate `ERET` to EL0 on a one-page trampoline (UXN-clear, PXN).
 //! `eret_to_el0` switches to a user TTBR0 that omits kernel `.data`/heap.
-//! Three probes, then back to EL1:
+//! Four probes, then back to EL1:
 //! - `SVC #0` returns via the lower-EL sync slot (`el0: svc`)
 //! - `BR x0` to kernel `.data` must take a lower-EL IABORT (`el0: nx kernel`)
 //! - `LDR` from kernel `.data` must take a lower-EL DABORT (`el0: no kernel read`)
+//! - Standing dual-SVC on the user TTBR0 (`el0: standing` / `el0: restored`)
 //!
-//! `is_active()` stays **false**: standing EL0 is deferred (no user task,
-//! lower-EL IRQ still parked). PAN is typically unimplemented on
-//! `-cpu cortex-a57`. ASID=1 is programmed on user TTBR0; this path
-//! still TLBI ALL because kernel `.data` leaves are global. The ASID
-//! isolation mile lives in `src/asid.rs`. See el0.md.
+//! `is_active()` is true only while that standing context exists.
+//! Lower-EL IRQ/FIQ/SError still park (not exercised). PAN is typically
+//! unimplemented on `-cpu cortex-a57`. The EL0 trampoline still TLBI ALL
+//! because kernel `.data` leaves are global. ASID isolation lives in
+//! `src/asid.rs`. TTBR1 private page is `src/ttbr1.rs` (ADR-016).
+//! See el0.md. Not “EL0 isolated.”
 
 use core::fmt::Write;
 use core::hint::black_box;
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use crate::exception;
 use crate::frame;
@@ -24,6 +26,12 @@ use crate::uart;
 
 /// AArch64 `SVC #0`.
 const SVC0_A64: u32 = 0xD4000001;
+/// AArch64 `SVC #1` (standing announce).
+const SVC1_A64: u32 = 0xD4000021;
+/// AArch64 `SVC #2` (standing restore).
+const SVC2_A64: u32 = 0xD4000041;
+/// AArch64 `MOVZ X1, #0x51A4` — user ran at EL0 after the first SVC.
+const MOVZ_X1_MAGIC: u32 = 0xD28A3481;
 /// AArch64 `BR X0`.
 const BR_X0_A64: u32 = 0xD61F0000;
 /// AArch64 `LDR X1, [X0]`.
@@ -38,11 +46,30 @@ static mut KERNEL_DATA_BAIT: [u32; 2] = [RET_A64, RET_A64];
 static ENTERED: AtomicBool = AtomicBool::new(false);
 static NX_OK: AtomicBool = AtomicBool::new(false);
 static READ_OK: AtomicBool = AtomicBool::new(false);
+static ACTIVE: AtomicBool = AtomicBool::new(false);
+static USER_PC: AtomicU64 = AtomicU64::new(0);
+static USER_SP: AtomicU64 = AtomicU64::new(0);
+static USER_TTBR: AtomicU64 = AtomicU64::new(0);
 
-/// Always false until a later ADR keeps an EL0 context (isolation / userspace).
-#[allow(dead_code)] // hello build has no caller; `#[test_case]` does.
+/// True only while a standing user context is installed (ADR-013).
+#[allow(dead_code)] // hello build has no caller; `#[test_case]` + handler do.
 pub fn is_active() -> bool {
-    false
+    ACTIVE.load(Ordering::SeqCst)
+}
+
+/// Drop the standing flag and saved user PC/SP/TTBR0. Handler + teardown.
+pub(crate) fn clear_active() {
+    ACTIVE.store(false, Ordering::SeqCst);
+    USER_PC.store(0, Ordering::SeqCst);
+    USER_SP.store(0, Ordering::SeqCst);
+    USER_TTBR.store(0, Ordering::SeqCst);
+}
+
+fn install_standing(pc: u64, sp: u64, ttbr: u64) {
+    USER_PC.store(pc, Ordering::SeqCst);
+    USER_SP.store(sp, Ordering::SeqCst);
+    USER_TTBR.store(ttbr, Ordering::SeqCst);
+    ACTIVE.store(true, Ordering::SeqCst);
 }
 
 /// True after a successful SVC round-trip on this boot (first mile only).
@@ -102,6 +129,17 @@ fn write_instr(ptr: *mut u32, insn: u32) {
     sync_icache(ptr);
 }
 
+fn write_standing(ptr: *mut u32) {
+    unsafe {
+        core::ptr::write_volatile(ptr, SVC1_A64);
+        core::ptr::write_volatile(ptr.add(1), MOVZ_X1_MAGIC);
+        core::ptr::write_volatile(ptr.add(2), SVC2_A64);
+    }
+    sync_icache(ptr);
+    sync_icache(unsafe { ptr.add(1) });
+    sync_icache(unsafe { ptr.add(2) });
+}
+
 fn svc_roundtrip() -> bool {
     with_el0_page(|ptr, va| {
         write_instr(ptr, SVC0_A64);
@@ -124,6 +162,36 @@ fn kernel_data_iabort() -> bool {
             exception::eret_to_el0(black_box(va), bait, user_sp);
         }
         exception::el0_iabort_caught()
+    })
+}
+
+/// Dual-SVC standing user on the user TTBR0. Not a trampoline-only flag:
+/// the first SVC stays at EL0; the user `MOVZ` must run before restore.
+fn stand_and_restore() -> bool {
+    if is_active() || !paging::user_map_ready() {
+        return false;
+    }
+    with_el0_page(|ptr, va| {
+        write_standing(ptr);
+        let user_sp = va + 4096;
+        exception::arm_el0_standing();
+        install_standing(va, user_sp, paging::user_ttbr0());
+        if !is_active()
+            || USER_PC.load(Ordering::SeqCst) != va
+            || USER_SP.load(Ordering::SeqCst) != user_sp
+            || USER_TTBR.load(Ordering::SeqCst) != paging::user_ttbr0()
+        {
+            clear_active();
+            return false;
+        }
+        unsafe {
+            exception::eret_to_el0(black_box(va), 0, user_sp);
+        }
+        if is_active() {
+            clear_active();
+            return false;
+        }
+        exception::el0_standing_caught() && exception::el0_restored_caught()
     })
 }
 
@@ -164,6 +232,9 @@ pub fn observe_probe() -> bool {
         return false;
     }
     READ_OK.store(true, Ordering::SeqCst);
+    if !stand_and_restore() {
+        return false;
+    }
     let mut w = uart::raw();
     let _ = writeln!(w, "el0: ok");
     true
@@ -171,11 +242,22 @@ pub fn observe_probe() -> bool {
 
 #[cfg(test)]
 #[test_case]
-fn el0_is_not_active() {
+fn el0_is_not_active_at_rest() {
     assert!(
         !is_active(),
-        "EL0 must stay inactive: first mile is not isolation or userspace"
+        "no standing EL0 context outside stand_and_restore"
     );
+}
+
+#[cfg(test)]
+#[test_case]
+fn standing_el0_enter_leave() {
+    assert!(!is_active(), "must start inactive");
+    assert!(
+        stand_and_restore(),
+        "standing user must SVC #1, run at EL0, SVC #2, then restore"
+    );
+    assert!(!is_active(), "teardown must clear is_active()");
 }
 
 #[cfg(test)]
