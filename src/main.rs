@@ -59,7 +59,7 @@ pub extern "C" fn kernel_main() -> ! {
     // After MMU + high VBAR: fetch the rest from the TTBR1 alias so
     // identity `.text` after `_start` / vectors can be unmapped (ADR-019).
     // `_start` stays at 0x40080000. Not “the kernel moved.”
-    paging::jump_high(kernel_main_high as usize as u64);
+    paging::jump_high(kernel_main_high as *const () as usize as u64);
 }
 
 #[inline(never)]

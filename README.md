@@ -70,7 +70,7 @@ Start here before adding kernel features:
 | [ADR-016](docs/03-adr/ADR-016-ttbr1-private-page.md) | TTBR1 kernel-private page (first cut) |
 | [ADR-017](docs/03-adr/ADR-017-ttbr1-high-el1-exec.md) | EL1 fetch from TTBR1 RAM alias |
 | [ADR-018](docs/03-adr/ADR-018-identity-teardown-first-cut.md) | Identity-tear first cut (split tables + one torn text page) |
-| [ADR-019](docs/03-adr/ADR-019-identity-text-range-tear.md) | Identity `.text` after the boot stub torn (high-VA continuation) |
+| [ADR-019](docs/03-adr/ADR-019-identity-text-range-tear.md) | High-VA continuation + 16 KiB dedicated identity text range |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |

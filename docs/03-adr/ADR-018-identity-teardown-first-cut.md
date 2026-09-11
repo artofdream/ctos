@@ -32,4 +32,4 @@ Say “TTBR1 RAM tables are independent of identity” or “one identity text p
 
 - `paging::init` clones RAM tables and unmaps `__ident_tear_*`. `src/teardown.rs` owns the serial probe.
 - [ADR-017](ADR-017-ttbr1-high-el1-exec.md) remains the exec mile. This ADR is the first identity-teardown cut.
-- [ADR-019](ADR-019-identity-text-range-tear.md) jumps the post-MMU continuation to high VA and unmaps identity `.text` after the boot stub. Unmapping `.rodata`/`.data`/heap is still later.
+- [ADR-019](ADR-019-identity-text-range-tear.md) jumps the post-MMU continuation to high VA and expands the dedicated tear to 16 KiB. Live `.text` stays mapped (rustc fmt vtables). Unmapping live `.text`/`.rodata`/`.data`/heap is still later.

@@ -1,19 +1,18 @@
 //! Identity-teardown cuts (ADR-018 + ADR-019).
 //!
-//! After MMU + high VBAR, paging unmaps one dedicated identity text
-//! page (`__ident_tear_*`) from kernel and user TTBR0. The post-MMU
-//! continuation then jumps to its TTBR1 alias and unmaps identity
-//! `.text` after the `_start` / vectors page. The high twins stay
-//! executable because RAM tables were cloned (`L2_HIGH_RAM`).
-//! `.rodata` / `.data` / heap / stacks / UART stay identity-mapped
-//! (rustc still stores absolute pointers in `.rodata`).
+//! After MMU + high VBAR, the post-MMU continuation jumps to its
+//! TTBR1 alias (`ident: jump`) and unmaps a dedicated 16 KiB identity
+//! text range (`__ident_tear_*`, ADR-018 page 0 + ADR-019 rest).
+//! High twins stay executable (`L2_HIGH_RAM` clone). Live `.text` /
+//! `.rodata` / `.data` / heap stay identity-mapped: rustc `dyn Write`
+//! vtables still `BLR` identity fn pointers, so a full `.text` yank
+//! dies on the first `println!`.
 //!
-//! Probes: EL1 fetch of a torn identity VA faults (`ident: fault` /
-//! `ident: text`); EL1 fetch of the high twin still runs (`ident: high`);
+//! Probes: EL1 fetch of a torn identity VA faults (`ident: fault`);
+//! EL1 fetch of the high twin still runs (`ident: high` / `ident: text`);
 //! EL0 load of a torn VA faults (`ident: no el0`). `_start` / QEMU
 //! `-kernel` stay at `0x4008_0000`. Not “the kernel moved.” Not
-//! “EL0 isolated.” PAN unclaimed. Full teardown (`.rodata`/`.data`/
-//! heap) stays Planned.
+//! “EL0 isolated.” PAN unclaimed. Full teardown stays Planned.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -60,8 +59,9 @@ pub extern "C" fn ident_tear_el1_path() -> u64 {
     pc
 }
 
-/// Ordinary `.text` (not the dedicated tear section). After ADR-019
-/// its identity page is unmapped; the high twin must still fetch.
+/// Second page of the dedicated tear range (ADR-019). Not the
+/// `0x4008_0000` boot stub and not live `.text` (fmt vtables).
+#[link_section = "ident_tear2"]
 #[inline(never)]
 #[no_mangle]
 pub extern "C" fn ident_range_el1_path() -> u64 {
@@ -93,8 +93,9 @@ fn ident_page_layout_ok() -> bool {
 fn text_fn_layout_ok() -> bool {
     let fn_va = paging::identity_pa(ident_range_el1_path as *const () as usize as u64);
     let page = fn_va & !0xfff;
-    page >= paging::boot_stub_end()
-        && page < paging::text_end()
+    page != paging::ident_tear_page()
+        && page >= paging::ident_tear_page()
+        && page < paging::ident_tear_end()
         && paging::is_torn_identity_va(fn_va)
 }
 
@@ -200,12 +201,15 @@ fn run_probe() -> bool {
     if !paging::high_mapped(paging::to_high_va(va)) {
         return false;
     }
-    let text = paging::boot_stub_end();
-    if paging::is_mapped(text) || paging::user_mapped(text) {
+    let second = paging::ident_tear_page() + 4096;
+    if paging::is_mapped(second) || paging::user_mapped(second) {
         uart::write_str_raw("ident: leaked\n");
         return false;
     }
-    if paging::torn_text_pages() < 2 {
+    if paging::is_mapped(paging::boot_stub_end()) != true {
+        return false;
+    }
+    if paging::torn_text_pages() < 4 {
         return false;
     }
     if paging::is_mapped(paging::KERNEL_TEXT) != true {

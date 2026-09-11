@@ -2,7 +2,7 @@
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.7** (2026-09-11). Slice/update of v1.6 (adds high-VA continuation + identity `.text` after the boot stub torn; `.rodata`/`.data`/heap stay; PAN and full identity teardown still Planned). Not a v2 model and not “secure.”
+Version: **v1.7** (2026-09-11). Slice/update of v1.6 (adds high-VA continuation + 16 KiB dedicated identity text range; live `.text`/`.rodata`/`.data`/heap stay; PAN and full identity teardown still Planned). Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -26,7 +26,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | TTBR1 private page | One EL1-only high page. Proves EL0 cannot load it. Not a relocated kernel. | `paging::TTBR1_PRIV` ([ADR-016](../03-adr/ADR-016-ttbr1-private-page.md)) |
 | TTBR1 RAM alias / high VBAR | EL1 can fetch `.text` at `identity + TTBR1_BASE`. `VBAR_EL1` is that alias. Identity `-kernel` stub stays. | `L1_HIGH[1]` → cloned `L2_HIGH_RAM` ([ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md), [ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)) |
 | Identity-tear page | One dedicated identity text page unmapped from TTBR0. High twin stays. Not a relocated kernel. | `__ident_tear_*` ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)) |
-| Identity `.text` after the boot stub | Contiguous identity `.text` after `0x4008_0000` unmapped. High twins stay. `.rodata`/`.data`/heap stay identity-mapped. Not a relocated kernel. | `[0x4008_1000, __text_end)` ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)) |
+| Identity text range | Dedicated 16 KiB identity text range unmapped. High twins stay. Live `.text` stays (rustc fmt vtables). Not a relocated kernel. | `__ident_tear_*` 16 KiB ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)) |
 | Remaining isolation gaps | Shared boot-stub text in the user table (handler must fetch if VBAR were still identity). No PAN on cortex-a57. EL0 trampoline still `TLBI VMALLE1` (`.data` leaves are global). Identity `.rodata`/`.data`/heap still live. Lower-EL IRQ still parks. | User TTBR0 + ASID + TTBR1 first cut + exec mile + torn `.text`; isolation Planned |
 | Console / sensors | PL011 is how we see whether a probe ran. | Device MMIO `0x0900_0000` |
 
@@ -54,7 +54,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 ```
 
 - **EL1 now.** Page tables distinguish *execute* (RO+X text vs RW+NX data/stacks/heap vs Device XN), *write* (AP[2] on text), and *presence* (guard holes).
-- **EL0 first mile + user TTBR0 + ASID TLB + standing + TTBR1 first cut + EL1 high-VA fetch + identity-tear first cut + identity `.text` range tear, isolation Planned.** Lower-EL AArch64 **sync** is taken (SVC / IABORT / DABORT). IRQ/FIQ/SError lower-EL slots still park. Dual ASID without `TLBI VMALLE1` is a probed mile (`asid: ok`). Standing dual-SVC flips `is_active()`. TTBR1 private page is EL1-only (`ttbr1: ok`). EL1 can fetch a real path from the high RAM alias (`ttbr1: el1 exec`); `VBAR_EL1` is that alias (`ttbr1: vbar`). Identity `.text` after the boot stub is unmapped (`ident: range` / `ident: ok`); `_start` stays. Closing *isolation* still needs PAN and a full identity teardown. A caught load of `.data` or of `TTBR1_PRIV` is that mile, not “EL0 isolated.”
+- **EL0 first mile + user TTBR0 + ASID TLB + standing + TTBR1 first cut + EL1 high-VA fetch + identity-tear first cut + identity `.text` range tear, isolation Planned.** Lower-EL AArch64 **sync** is taken (SVC / IABORT / DABORT). IRQ/FIQ/SError lower-EL slots still park. Dual ASID without `TLBI VMALLE1` is a probed mile (`asid: ok`). Standing dual-SVC flips `is_active()`. TTBR1 private page is EL1-only (`ttbr1: ok`). EL1 can fetch a real path from the high RAM alias (`ttbr1: el1 exec`); `VBAR_EL1` is that alias (`ttbr1: vbar`). A 16 KiB dedicated identity text range is unmapped (`ident: range` / `ident: ok`); `_start` and live `.text` stay. Closing *isolation* still needs PAN and a full identity teardown. A caught load of `.data` or of `TTBR1_PRIV` is that mile, not “EL0 isolated.”
 - **Repo vs guest.** “No secrets in repo” is a host boundary. It does not harden the UART.
 
 ## Non-goals
@@ -63,7 +63,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 - Not **side-channel complete** (no cache/timing/Spectre story; QEMU TCG is the wrong lab).
 - Not a **product “the kernel is W^X”** sentence. The identity image on this virt guest is RO+X / RW+NX with WXN ([ADR-015](../03-adr/ADR-015-ro-nx-text-data.md)). Future mappings are not automatically covered. Guard pages remain **holes**.
 - Not **ASAN / canaries / heap-stack guards**. Coop worker stacks have no unmapped holes. Overflow there is still image-adjacent PXN RAM.
-- Not secure boot, PAN, or a fully torn-down identity map (ADR-019 unmaps identity `.text` after the boot stub; `.rodata`/`.data`/heap stay; `_start` stays at `0x4008_0000`).
+- Not secure boot, PAN, or a fully torn-down identity map (ADR-019 unmaps a 16 KiB dedicated text range after a high-VA jump; live `.text`/`.rodata`/`.data`/heap stay; `_start` stays at `0x4008_0000`).
 
 ## Mitigations mapped to probes
 
@@ -87,11 +87,11 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | TTBR1 private page | Serial `ttbr1: el1` / `ttbr1: no el0` / `ttbr1: ok` | First cut ([ADR-016](../03-adr/ADR-016-ttbr1-private-page.md)). |
 | EL1 fetch from TTBR1 high VA | Serial `ttbr1: el1 exec` / `ttbr1: vbar` | Exec mile ([ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md)). |
 | Identity-tear first cut | Serial `ident: split` / `ident: fault` / `ident: high` / `ident: no el0` / `ident: ok` | First cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)). Full teardown Planned. |
-| Identity `.text` range tear | Serial `ident: jump` / `ident: range` / `ident: text` | Range cut ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)). `.rodata`/`.data`/heap stay. |
+| Identity text range tear | Serial `ident: jump` / `ident: range` / `ident: text` | Range cut ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)). Live `.text` stays. |
 | RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | Verified: 2026-09-11 cloud `qemu-smoke` (honesty ledger). |
 
 ## Claim gate
 
-A PR may say “threat-model v1.7 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” or “identity `.text` after the boot stub was unmapped” only for the mile that actually passed.
+A PR may say “threat-model v1.7 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” or “a 16 KiB dedicated identity text range was unmapped” only for the mile that actually passed.
 
 It may **not** say “secure OS,” “hardened,” “EL0 works,” or “EL0 isolated.” Unprobed stays **Unknown**.
