@@ -78,7 +78,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | EL0 entered and returned | Serial `el0: svc` / `el0: ok`; `#[test_case]` | Verified first mile — not isolation. |
 | EL0 cannot execute kernel data | Serial `el0: nx kernel`; lower-EL IABORT | Verified first mile. |
 | EL0 cannot read kernel `.data` | Serial `el0: no kernel read`; user TTBR0 omits `.data` | Verified read mile. Isolation stays **Planned**. |
-| RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | See honesty ledger (this PR). |
+| RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | Verified: 2026-09-11 cloud `qemu-smoke` (honesty ledger). |
 
 ## Claim gate
 

@@ -37,7 +37,7 @@ It does not time QEMU boot.
 
 ## Boot-to-ready CNTPCT (NFR-08, this tree)
 
-`kernel_main` samples `CNTPCT_EL0` before UART init and again after `Hello World!` (init complete):
+`kernel_main` samples `CNTPCT_EL0` after `paging::init` (MMU + D-cache on) and again after `Hello World!` (init complete):
 
 - Serial marker `perf: boot-delta ticks=<n>` (fail closed on `perf: boot-delta missed`).
 - `#[test_case]` asserts a sample exists and the counter advanced.

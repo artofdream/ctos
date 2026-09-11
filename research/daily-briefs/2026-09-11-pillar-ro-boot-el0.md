@@ -4,7 +4,9 @@
 
 Draft PR on `cursor/pillar-deepen-ro-boot-el0-aadc`. Parent is `main` `72c8da0` (Merge PR #19). One PR: ADR-015 RO+NX, NFR-08 boot-delta, ADR-013 user-TTBR0 read mile. No new FR/NFR IDs.
 
-Hello-kernel serial **Verified** on this cloud VM (2026-09-11, QEMU 8.2.2, `rustc` 1.100.0-nightly `67eda617e`, `-cpu cortex-a57`): `ro: nx data` / `ro: write fault` / `ro: ok`, `el0: svc` / `el0: nx kernel` / `el0: no kernel read` / `el0: ok`, `perf: boot-delta ticks=736050`. Full `scripts/qemu-smoke.sh` (cargo test + force-fail + RX inject) not yet on this revision.
+Cloud `scripts/qemu-smoke.sh` **Verified** (2026-09-11, QEMU 8.2.2, `rustc` 1.100.0-nightly `67eda617e`): host `perf: elf-size bytes=3785520`; `ro: nx data` / `ro: write fault` / `ro: ok`, `el0: svc` / `el0: nx kernel` / `el0: no kernel read` / `el0: ok`, `perf: boot-delta ticks=111019`, `perf: cntpct delta=20506`, `perf: irq-delta min=4885 max=26301 spread=21416 n=8`, `input: rx 0x41`, two `exception: sync BRK`, `exception: fatal nested` / `kind=0x200`. `Running 36 tests` all `[ok]`, force-fail exit 1.
+
+First `cargo test` Failed: pre-MMU boot-delta mark lost on the test image; early sample moved to after `paging::init`.
 
 GHA `smoke.yml` on this branch: **Unknown**.
 

@@ -10,6 +10,6 @@ EL0 fetch of unmapped `.data` is now a **translation** IABORT, not only UXN perm
 
 PAN: do not `msr pan` on cortex-a57. Read `ID_AA64MMFR1_EL1` only.
 
-Boot-delta: sample after BSS in `kernel_main`, not in `_start` (BSS wipe). Ready = after `Hello World!`.
+Boot-delta: do **not** sample `.bss` atomics before `paging::init`. Hello image happened to work; the larger test image lost `BOOT_MARKED` (pre-MMU store invisible to later cached reads). Official early mark is after MMU + `SCTLR.C`. Ready = after `Hello World!`. First `cargo test` Failed: `perf: boot-delta sample missing`.
 
 Do not self-merge. GitHub author of this PR is expected `cursor[bot]`; merge hat is `artofdream`.

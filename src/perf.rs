@@ -3,7 +3,7 @@
 //!
 //! The loop probe proves the physical counter is readable and advances.
 //! The IRQ probe records CNTPCT−CVAL when the timer handler runs (min /
-//! max / spread). The boot probe is CNTPCT from `kernel_main` entry to
+//! max / spread). The boot probe is CNTPCT from after `paging::init` to
 //! after init / `Hello World!`. None is a published bench or a latency
 //! budget. See `docs/framework/performance.md`.
 
@@ -21,10 +21,13 @@ static BOOT_MARKED: AtomicBool = AtomicBool::new(false);
 /// Enough iterations that QEMU virt CNTPCT should move. Not a workload.
 const LOOP_ITERS: u64 = 10_000;
 
-/// First instruction of `kernel_main` (post-BSS). Not `_start`.
+/// Early marker after MMU on (post-`paging::init`). Not `_start`.
 pub fn mark_early() {
     BOOT_EARLY.store(timer::cntpct(), Ordering::SeqCst);
     BOOT_MARKED.store(true, Ordering::SeqCst);
+    unsafe {
+        core::arch::asm!("dsb sy", "isb", options(nostack, preserves_flags));
+    }
 }
 
 /// After init markers (`Hello World!`). Stores the boot-to-ready delta.
@@ -33,7 +36,18 @@ pub fn mark_ready() -> bool {
         return false;
     }
     let t0 = BOOT_EARLY.load(Ordering::SeqCst);
-    let delta = timer::cntpct().wrapping_sub(t0);
+    let mut now = timer::cntpct();
+    let mut delta = now.wrapping_sub(t0);
+    if delta == 0 {
+        // Counter may not have moved yet on a tight path; wait one tick.
+        let start = now;
+        let mut spins = 0u32;
+        while timer::cntpct() == start && spins < 1_000_000 {
+            spins = spins.wrapping_add(1);
+        }
+        now = timer::cntpct();
+        delta = now.wrapping_sub(t0);
+    }
     if delta == 0 {
         return false;
     }
@@ -122,6 +136,12 @@ fn cntpct_advances_over_loop() {
 #[cfg(test)]
 #[test_case]
 fn boot_delta_sample_exists() {
+    if boot_delta().is_none() {
+        assert!(
+            mark_ready(),
+            "early CNTPCT mark missing or counter did not advance"
+        );
+    }
     let delta = boot_delta().expect("perf: boot-delta sample missing");
     assert!(delta > 0);
 }

@@ -50,11 +50,13 @@ global_asm!(
 
 #[no_mangle]
 pub extern "C" fn kernel_main() -> ! {
-    perf::mark_early();
     uart::UART.lock().init();
     exception::init();
     frame::init();
     paging::init();
+    // After MMU + D-cache (SCTLR.C). A pre-MMU store to .bss can be
+    // invisible to later cached reads on the larger test image.
+    perf::mark_early();
     heap::init();
     sched::init();
     gic::init();
