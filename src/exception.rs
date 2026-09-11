@@ -69,6 +69,8 @@ static EXPECT_RO_WRITE: AtomicBool = AtomicBool::new(false);
 static RO_WRITE_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_EL0_DABORT: AtomicBool = AtomicBool::new(false);
 static EL0_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_ASID_CONFLICT: AtomicBool = AtomicBool::new(false);
+static ASID_CONFLICT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
 static EL0_KSP: AtomicU64 = AtomicU64::new(0);
 
@@ -556,6 +558,17 @@ pub fn el0_dabort_caught() -> bool {
     EL0_DABORT_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm the ASID conflict probe: translation DABORT at `ASID_CONFLICT_VA`.
+pub fn arm_asid_conflict() {
+    ASID_CONFLICT_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_ASID_CONFLICT.store(true, Ordering::SeqCst);
+}
+
+pub fn asid_conflict_caught() -> bool {
+    EXPECT_ASID_CONFLICT.store(false, Ordering::SeqCst);
+    ASID_CONFLICT_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// `ERET` to EL0 at `user_pc` with `x0 = user_arg` and `SP_EL0 = user_sp`.
 /// Returns after the lower-EL handler sends us back to EL1t.
 ///
@@ -795,6 +808,15 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         crate::guard::note_fault();
         // Skip the faulting store. Unlike the heap NX `blr`, LR is the
         // caller — jumping there would abandon the callee stack frame.
+        ctx.elr = ctx.elr.wrapping_add(4);
+        return;
+    }
+    if is_trans_dabort(ctx.esr)
+        && EXPECT_ASID_CONFLICT.swap(false, Ordering::SeqCst)
+        && (far_el1() & !0xfff) == crate::paging::ASID_CONFLICT_VA
+    {
+        ASID_CONFLICT_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("asid: conflict\n");
         ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }

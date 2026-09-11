@@ -17,7 +17,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on this PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 
-M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). ADR-011 / #17, pillars follow-up #18, and pillar deepen #19 (guards, EL0 first mile, elf-size, threat v1.1) are on `main`. This PR is the next pillar deepen (RO+NX, boot-delta, user TTBR0). Merge is still a human/MRC job (ADR-002).
+M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). ADR-011 / #17 through layout-fix #21 and docs #22 are on `main`. This PR is the ASID isolation mile (ADR-013). Merge is still a human/MRC job (ADR-002).
 
 ## Pillars (post-M9)
 
@@ -32,8 +32,9 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-PERF-2 | IRQ-to-handler CNTPCT delta | Serial `perf: irq-delta` + samples `max >= min`; not a latency budget | **Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). |
 | P-PERF-3 | Host debug ELF size (NFR-08) | Host marker `perf: elf-size bytes=<n>`; not a budget | **Verified:** 2026-09-10 cloud `qemu-smoke` host print (see honesty ledger). |
 | P-SEC-3 | EL0 first mile | `el0: svc` + `el0: nx kernel` + `el0: ok` | **First mile Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). |
-| P-SEC-2c | RO+NX text/data (ADR-015) | `ro: nx data` + `ro: write fault` + `ro: ok` | **This PR** — probe in the honesty ledger. Identity image W^X on virt; not “secure OS.” |
-| P-PERF-4 | Boot-to-ready CNTPCT (NFR-08) | `perf: boot-delta ticks=<n>`; not a budget | **This PR** — probe in the honesty ledger. |
-| P-SEC-3b | User TTBR0 + EL0 cannot read kernel `.data` | `el0: no kernel read`; user table omits `.data` | **This PR** — specific mile. Isolation / PAN / ASID-isolation / standing EL0 stay **Planned** ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
+| P-SEC-2c | RO+NX text/data (ADR-015) | `ro: nx data` + `ro: write fault` + `ro: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity image W^X on virt; not “secure OS.” |
+| P-PERF-4 | Boot-to-ready CNTPCT (NFR-08) | `perf: boot-delta ticks=<n>`; not a budget | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
+| P-SEC-3b | User TTBR0 + EL0 cannot read kernel `.data` | `el0: no kernel read`; user table omits `.data` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Isolation / PAN / standing EL0 stay **Planned**. |
+| P-SEC-3c | ASID-tagged TLB isolation | `asid: dual` + `asid: conflict` + `asid: ok`; no `TLBI VMALLE1` on the switch | **This PR** — specific mile. Umbrella isolation / PAN / standing EL0 stay **Planned** ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). |
 
 Hub: [pillars.md](../framework/pillars.md).

@@ -1,9 +1,9 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + CNTPCT baseline + boot-delta + IRQ-to-handler delta +
-# host ELF size + timer tick + injected UART RX + BRK + fatal nested lines,
-# then cargo test.
+# EL0 no-kernel-read + ASID isolation + CNTPCT baseline + boot-delta +
+# IRQ-to-handler delta + host ELF size + timer tick + injected UART RX +
+# BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -22,6 +22,7 @@ WX="${CTOS_WX_STRING:-wx: ok}"
 GUARD="${CTOS_GUARD_STRING:-guard: ok}"
 RO="${CTOS_RO_STRING:-ro: ok}"
 EL0="${CTOS_EL0_STRING:-el0: ok}"
+ASID="${CTOS_ASID_STRING:-asid: ok}"
 BOOTDELTA="${CTOS_BOOTDELTA_STRING:-perf: boot-delta}"
 ELFSIZE="${CTOS_ELFSIZE_STRING:-perf: elf-size}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
@@ -167,6 +168,27 @@ if ! grep -q "el0: no kernel read" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: EL0 first-mile + read-mile strings present"
+if ! grep -q "$ASID" "$log"; then
+    echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "asid: probe missed" "$log"; then
+    echo "qemu-smoke: asid probe missed (dual ASID / conflict path did not run)" >&2
+    exit 1
+fi
+if grep -q "asid: stale" "$log"; then
+    echo "qemu-smoke: asid stale TLB entry used across ASIDs (isolation Failed)" >&2
+    exit 1
+fi
+if ! grep -q "asid: dual" "$log"; then
+    echo "qemu-smoke: missing 'asid: dual' on serial (ASID 1 vs 2 data, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "asid: conflict" "$log"; then
+    echo "qemu-smoke: missing 'asid: conflict' on serial (stale-entry fault, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: ASID isolation strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1
