@@ -36,7 +36,7 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-PERF-4 | Boot-to-ready CNTPCT (NFR-08) | `perf: boot-delta ticks=<n>`; not a budget | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
 | P-SEC-3b | User TTBR0 + EL0 cannot read kernel `.data` | `el0: no kernel read`; user table omits `.data` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Isolation / PAN stay **Planned**. |
 | P-SEC-3c | ASID-tagged TLB isolation | `asid: dual` + `asid: conflict` + `asid: ok`; no `TLBI VMALLE1` on the switch | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Umbrella isolation / PAN stay **Planned**. |
-| P-SEC-3d | Standing EL0 context | `el0: standing` + `el0: restored`; `is_active()` true only while standing | **This PR** — probe status in the honesty ledger. Not POSIX. Lower-EL IRQ still parks. |
-| P-SEC-3e | TTBR1 kernel-private page (ADR-016 first cut) | `ttbr1: el1` + `ttbr1: no el0` + `ttbr1: ok` | **This PR** — probe status in the honesty ledger. Identity teardown / full higher-half stay **Planned**. |
+| P-SEC-3d | Standing EL0 context | `el0: standing` + `el0: restored`; `is_active()` true only while standing | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Not POSIX. Lower-EL IRQ still parks. |
+| P-SEC-3e | TTBR1 kernel-private page (ADR-016 first cut) | `ttbr1: el1` + `ttbr1: no el0` + `ttbr1: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity teardown / full higher-half stay **Planned**. |
 
 Hub: [pillars.md](../framework/pillars.md).

@@ -700,10 +700,10 @@ fn svc_imm(esr: u64) -> u64 {
     esr & 0xffff
 }
 
-/// Stay at EL0 after a standing SVC: skip the SVC, put user TTBR0 back.
+/// Stay at EL0 after a standing SVC: put user TTBR0 back.
+/// AArch64 SVC preferred return is the *next* insn — do not add 4.
 /// Last `.data` access must finish before the `msr` (user map omits it).
-fn stay_at_el0(ctx: &mut ExceptionContext) {
-    ctx.elr = ctx.elr.wrapping_add(4);
+fn stay_at_el0(_ctx: &mut ExceptionContext) {
     let uttbr = crate::paging::user_ttbr0();
     unsafe {
         core::arch::asm!(
