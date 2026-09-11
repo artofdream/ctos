@@ -126,7 +126,9 @@ fn run_high_exec() -> bool {
     if !paging::high_alias_ready() {
         return false;
     }
-    let ident = ttbr1_high_el1_path as *const () as usize as u64;
+    // After the ADR-019 high jump, `fn as usize` may be a high VA
+    // (ADRP from the current PC). Page-table compares need identity.
+    let ident = paging::identity_pa(ttbr1_high_el1_path as *const () as usize as u64);
     if ident < paging::KERNEL_TEXT || ident >= paging::data_start() {
         return false;
     }

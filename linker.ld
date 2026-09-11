@@ -18,13 +18,19 @@ SECTIONS
         *(.rodata .rodata.*)
     }
 
-    /* Dedicated 4 KiB identity text page (ADR-018). After MMU + high
-       VBAR this page is unmapped from TTBR0; EL1 keeps fetching the
-       twin via TTBR1. `_start` at 0x40080000 stays mapped. */
+    /* Dedicated identity text *range* (ADR-018 page 0 + ADR-019 rest).
+       rustc `dyn Write` / fmt vtables still BLR identity `.text`, so
+       we cannot unmap live `.text` after `_start` yet. This section
+       is 16 KiB of RO+X that EL1 only fetches via the high alias.
+       `_start` at 0x40080000 stays mapped. */
     . = ALIGN(4096);
     __ident_tear_start = .;
     .ident_tear : {
         KEEP(*(ident_tear))
+        . = ALIGN(4096);
+        KEEP(*(ident_tear2))
+        . = ALIGN(4096);
+        . += 8192;
         . = ALIGN(4096);
     }
     __ident_tear_end = .;

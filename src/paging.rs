@@ -23,10 +23,14 @@
 //! at `identity + TTBR1_BASE` after an identity page is unmapped.
 //! `VBAR_EL1` is moved to that high alias after the MMU is on. One
 //! dedicated identity text page (`__ident_tear_*`) is then unmapped
-//! from TTBR0 (kernel + user). `_start` and the QEMU `-kernel` load
-//! stay at `0x4008_0000`. Full identity teardown (all `.text`/`.data`/
-//! heap) is still Planned. Not a DTB walker. Not Raspberry Pi. Not
-//! “EL0 isolated.” Not “the kernel moved.”
+//! from TTBR0 (kernel + user). After a high-VA jump of the post-MMU
+//! continuation, the rest of that dedicated identity text *range*
+//! (16 KiB) is unmapped too ([ADR-019](../docs/03-adr/ADR-019-identity-text-range-tear.md)).
+//! Live `.text` / `.rodata` / `.data` / heap stay identity-mapped:
+//! rustc `dyn Write` vtables still `BLR` identity fn pointers.
+//! `_start` and the QEMU `-kernel` load stay at `0x4008_0000`. Full
+//! identity teardown is still Planned. Not a DTB walker. Not
+//! Raspberry Pi. Not “EL0 isolated.” Not “the kernel moved.”
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -152,6 +156,10 @@ static HIGH_SPLIT_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static IDENTITY_TEAR_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
+static IDENTITY_RANGE_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+static TORN_TEXT_PAGES: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
 static TABLES: Mutex<()> = Mutex::new(());
 
 unsafe extern "C" {
@@ -171,9 +179,81 @@ pub fn ident_tear_page() -> u64 {
     identity_pa(core::ptr::addr_of!(__ident_tear_start) as usize as u64)
 }
 
-/// Byte past the torn page. Must be `ident_tear_page() + 4096`.
+/// Byte past the dedicated tear range (16 KiB / 4 pages on this cut).
 pub fn ident_tear_end() -> u64 {
     identity_pa(core::ptr::addr_of!(__ident_tear_end) as usize as u64)
+}
+
+/// First byte past the documented boot stub page (`_start` + vectors).
+pub fn boot_stub_end() -> u64 {
+    KERNEL_TEXT + PAGE
+}
+
+/// Current PC via `ADR`. After the ADR-019 jump this is a TTBR1 VA.
+#[allow(dead_code)]
+pub fn current_pc() -> u64 {
+    let pc: u64;
+    unsafe {
+        core::arch::asm!(
+            "adr {p}, 1f",
+            "1:",
+            p = out(reg) pc,
+            options(nomem, nostack, preserves_flags),
+        );
+    }
+    pc
+}
+
+/// True when this function's `ADR` lands in the TTBR1 window.
+#[allow(dead_code)]
+pub fn pc_is_high() -> bool {
+    is_high_va(current_pc())
+}
+
+/// Identity VA is in the torn `.text` range or the dedicated tear page.
+#[allow(dead_code)]
+pub fn is_torn_identity_va(va: u64) -> bool {
+    let ia = identity_pa(va);
+    let page = ia & !0xfff;
+    if page == ident_tear_page() {
+        return true;
+    }
+    let lo = ident_tear_page();
+    let hi = ident_tear_end();
+    page >= lo && page < hi
+}
+
+/// How many identity `.text` pages after the boot stub were unmapped.
+#[allow(dead_code)]
+pub fn torn_text_pages() -> u64 {
+    load_u64_flag(&TORN_TEXT_PAGES)
+}
+
+/// Branch to the TTBR1 alias of `ident` and do not return (ADR-019).
+/// Call only after MMU + high VBAR. Stack / LR are unchanged (`BR`).
+pub fn jump_high(ident: u64) -> ! {
+    let high = if is_high_va(ident) {
+        ident
+    } else {
+        to_high_va(ident)
+    };
+    unsafe {
+        core::arch::asm!(
+            "isb",
+            "br {t}",
+            t = in(reg) high,
+            options(noreturn, nostack),
+        );
+    }
+}
+
+/// Call a rustc `fn()` through its high alias. Identity fn pointers
+/// fault after the ADR-019 text-range tear.
+#[allow(dead_code)]
+pub fn invoke_high(f: fn()) {
+    let high = to_high_va(f as usize as u64);
+    let g: fn() = unsafe { core::mem::transmute(high) };
+    g();
 }
 
 fn l1_pa() -> u64 {
@@ -517,7 +597,13 @@ pub fn high_split_ready() -> bool {
 /// Dedicated identity text page unmapped; high twin still mapped (ADR-018).
 #[allow(dead_code)]
 pub fn identity_tear_ready() -> bool {
-    IDENTITY_TEAR_OK.load(core::sync::atomic::Ordering::SeqCst)
+    load_flag(&IDENTITY_TEAR_OK)
+}
+
+/// Dedicated 16 KiB identity text range unmapped (ADR-019). Live `.text` stays.
+#[allow(dead_code)]
+pub fn identity_range_ready() -> bool {
+    load_flag(&IDENTITY_RANGE_OK)
 }
 
 #[allow(dead_code)]
@@ -844,6 +930,46 @@ fn dcache_civac(va: u64) {
     }
 }
 
+/// Publish a `.bss` atomic so an identity load sees a high-VA store
+/// (and the reverse). Same class as the PR #20 / Docker `.bss` miss.
+fn publish_flag(flag: &core::sync::atomic::AtomicBool, val: bool) {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicBool))
+            .store(val, core::sync::atomic::Ordering::SeqCst);
+    }
+    dcache_civac(ident);
+    dcache_civac(to_high_va(ident));
+    dsb_ish();
+}
+
+fn load_flag(flag: &core::sync::atomic::AtomicBool) -> bool {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicBool))
+            .load(core::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+fn publish_u64(flag: &core::sync::atomic::AtomicU64, val: u64) {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicU64))
+            .store(val, core::sync::atomic::Ordering::SeqCst);
+    }
+    dcache_civac(ident);
+    dcache_civac(to_high_va(ident));
+    dsb_ish();
+}
+
+fn load_u64_flag(flag: &core::sync::atomic::AtomicU64) -> u64 {
+    let ident = identity_pa(flag as *const _ as u64);
+    unsafe {
+        (*(ident as *const core::sync::atomic::AtomicU64))
+            .load(core::sync::atomic::Ordering::SeqCst)
+    }
+}
+
 fn tlbi_all() {
     unsafe {
         core::arch::asm!("tlbi vmalle1", options(nostack, preserves_flags));
@@ -972,7 +1098,7 @@ pub fn init() {
     // After MMU + high VBAR: unmap the dedicated identity text page.
     // Skip if the high tables still share `L2_RAM` (clone failed).
     let torn = split_ok && tear_identity_probe_page();
-    IDENTITY_TEAR_OK.store(torn, core::sync::atomic::Ordering::SeqCst);
+    publish_flag(&IDENTITY_TEAR_OK, torn);
 }
 
 /// Unmap the dedicated identity text page from kernel + user TTBR0.
@@ -983,7 +1109,8 @@ pub fn tear_identity_probe_page() -> bool {
     if va & (PAGE - 1) != 0 {
         return false;
     }
-    if ident_tear_end() != va + PAGE {
+    // ADR-019 grew the section to 16 KiB. Init still tears page 0 only.
+    if ident_tear_end() < va + PAGE || ((ident_tear_end() - va) & (PAGE - 1)) != 0 {
         return false;
     }
     if va < KERNEL_TEXT || va >= data_start() {
@@ -1017,6 +1144,73 @@ pub fn tear_identity_probe_page() -> bool {
         return false;
     }
     high_mapped(high) && high_is_executable(high)
+}
+
+/// Unmap the dedicated identity text *range* (ADR-019).
+///
+/// Live `.text` stays mapped: rustc `dyn Write` / fmt vtables still
+/// `BLR` identity fn pointers (first `println!` after a full `.text`
+/// yank is an unhandled IABORT). This only tears `__ident_tear_*`
+/// (16 KiB). Must run after the high-VA jump. Boot stub stays.
+#[allow(dead_code)]
+pub fn tear_identity_text_range() -> bool {
+    if !high_split_ready() || !pc_is_high() {
+        return false;
+    }
+    let lo = ident_tear_page();
+    let hi = ident_tear_end();
+    if lo & (PAGE - 1) != 0 || hi & (PAGE - 1) != 0 {
+        return false;
+    }
+    if lo <= KERNEL_TEXT || hi <= lo || hi > data_start() {
+        return false;
+    }
+    let pages = (hi - lo) / PAGE;
+    if pages < 4 {
+        return false;
+    }
+    {
+        let _g = TABLES.lock();
+        let mut va = lo;
+        unsafe {
+            while va < hi {
+                if !unmap_identity_page(va) {
+                    return false;
+                }
+                if !unmap_user_ram_page(va) {
+                    return false;
+                }
+                va += PAGE;
+            }
+        }
+        dsb_ish();
+    }
+    let mut va = lo;
+    while va < hi {
+        tlbi_va(va);
+        va += PAGE;
+    }
+    if is_mapped(lo) || user_mapped(lo) || is_mapped(hi - PAGE) {
+        return false;
+    }
+    if !is_mapped(KERNEL_TEXT) || !is_executable(KERNEL_TEXT) {
+        return false;
+    }
+    if !is_mapped(boot_stub_end()) || !is_executable(boot_stub_end()) {
+        return false;
+    }
+    if !high_mapped(to_high_va(lo)) || !high_is_executable(to_high_va(lo)) {
+        return false;
+    }
+    publish_u64(&TORN_TEXT_PAGES, pages);
+    publish_flag(&IDENTITY_RANGE_OK, true);
+    let mut w = uart::raw();
+    let _ = writeln!(
+        w,
+        "ident: range lo={:#x} hi={:#x} pages={}",
+        lo, hi, pages
+    );
+    true
 }
 
 pub fn mmu_enabled() -> bool {
@@ -1511,4 +1705,39 @@ fn identity_tear_page_unmapped_high_stays() {
     assert!(high_is_executable(high), "high twin must stay PXN-clear");
     assert!(is_mapped(KERNEL_TEXT), "boot stub page stays identity-mapped");
     assert!(is_executable(KERNEL_TEXT));
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_text_range_unmapped_boot_stub_stays() {
+    assert!(pc_is_high(), "post-MMU continuation must run at a high PC");
+    assert!(identity_range_ready(), "dedicated identity text range must unmap");
+    let lo = ident_tear_page();
+    let hi = ident_tear_end();
+    assert_eq!(lo & 0xfff, 0);
+    assert_eq!(hi & 0xfff, 0);
+    assert!(hi >= lo + 4 * PAGE, "range must be at least 16 KiB");
+    assert!(hi <= data_start());
+    assert!(torn_text_pages() >= 4, "more identity torn than ADR-018's one page");
+    assert!(!is_mapped(lo), "first torn page must be absent from TTBR0");
+    assert!(!user_mapped(lo), "user TTBR0 must omit the torn range");
+    assert!(!is_mapped(hi - PAGE), "last torn page must be absent");
+    assert!(is_mapped(KERNEL_TEXT), "boot stub stays identity-mapped");
+    assert!(is_executable(KERNEL_TEXT));
+    assert!(
+        is_mapped(boot_stub_end()),
+        "live .text after the stub stays mapped (rustc fmt vtables)"
+    );
+    assert!(
+        is_executable(crate::exception::vector_table_addr()),
+        "identity vectors page stays (VBAR is the high alias)"
+    );
+    let high = to_high_va(lo);
+    assert!(high_mapped(high), "high twin of torn range must stay");
+    assert!(high_is_executable(high));
+    assert!(
+        !is_torn_identity_va(KERNEL_TEXT),
+        "boot stub is not in the torn set"
+    );
+    assert!(is_torn_identity_va(lo));
 }

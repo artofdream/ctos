@@ -83,7 +83,12 @@ impl Scheduler {
             return None;
         }
         unsafe {
-            write_initial_frame(frame, task_trampoline as *const () as u64);
+            // Identity `.text` is torn after the boot stub (ADR-019).
+            // The first `ret` from context_switch must land on the high alias.
+            write_initial_frame(
+                frame,
+                crate::paging::to_high_va(task_trampoline as *const () as u64),
+            );
         }
         self.tasks[slot] = Task {
             sp: frame,
@@ -214,7 +219,7 @@ extern "C" fn task_trampoline() {
         s.tasks[cur].entry.take()
     };
     if let Some(entry) = entry {
-        entry();
+        crate::paging::invoke_high(entry);
     }
     {
         let mut s = SCHED.lock();
