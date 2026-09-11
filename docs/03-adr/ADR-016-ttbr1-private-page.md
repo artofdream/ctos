@@ -31,4 +31,4 @@ Say “TTBR1 maps a kernel-private page EL0 cannot access” only when the seria
 
 - `paging::init` programs `TTBR1_EL1` and leaves `EPD1` clear. `src/ttbr1.rs` owns the probe.
 - Standing EL0 (ADR-013) is a separate mile. Umbrella isolation stays Planned while PAN is unclaimed.
-- A later ADR may relocate `.text` / VBAR / stacks and unmap the identity image. That work is not this cut.
+- [ADR-017](ADR-017-ttbr1-high-el1-exec.md) aliases identity RAM in TTBR1 and fetches a real EL1 path (plus high `VBAR_EL1`). Full identity teardown is still Planned.

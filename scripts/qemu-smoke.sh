@@ -2,7 +2,8 @@
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
 # EL0 no-kernel-read + standing EL0 + ASID isolation + TTBR1 private page +
-# CNTPCT baseline + boot-delta + IRQ-to-handler delta + host ELF size +
+# TTBR1 high-VA EL1 exec + CNTPCT baseline + boot-delta + IRQ-to-handler
+# delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
@@ -218,7 +219,19 @@ if ! grep -q "ttbr1: no el0" "$log"; then
     echo "qemu-smoke: missing 'ttbr1: no el0' on serial (EL0 high-page DABORT, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: TTBR1 private-page strings present"
+if grep -q "ttbr1: exec missed" "$log"; then
+    echo "qemu-smoke: ttbr1 exec missed (EL1 high-VA fetch path did not run)" >&2
+    exit 1
+fi
+if ! grep -q "ttbr1: el1 exec" "$log"; then
+    echo "qemu-smoke: missing 'ttbr1: el1 exec' on serial (EL1 TTBR1 fetch, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ttbr1: vbar" "$log"; then
+    echo "qemu-smoke: missing 'ttbr1: vbar' on serial (VBAR high alias, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: TTBR1 private-page + high-VA exec strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1
