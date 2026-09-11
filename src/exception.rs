@@ -18,10 +18,13 @@
 //! Execute-from-heap / execute-from-`.data` / write-to-RO-text are
 //! caught here. Lower-EL AArch64 sync is live for the EL0 first mile,
 //! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), the
-//! TTBR1 private-page DABORT (ADR-016), and EL1 fetch from the TTBR1
-//! RAM alias (ADR-017): SVC, IABORT, DABORT.
+//! TTBR1 private-page DABORT (ADR-016), EL1 fetch from the TTBR1
+//! RAM alias (ADR-017), and the ADR-018 identity-tear IABORT / EL0
+//! DABORT: SVC, IABORT, DABORT.
 //! Other lower-EL slots still park. After paging::init, `VBAR_EL1` is
 //! the high alias of this table. Identity `_start` stays at `0x4008_0000`.
+//! One dedicated identity text page is unmapped; the rest of the
+//! identity image stays. Not “the kernel moved.”
 
 use core::arch::global_asm;
 use core::fmt::Write;
@@ -79,6 +82,10 @@ static EL0_STANDING_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_RESTORED_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_TTBR1_DABORT: AtomicBool = AtomicBool::new(false);
 static TTBR1_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_IDENT_TEAR: AtomicBool = AtomicBool::new(false);
+static IDENT_TEAR_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_IDENT_EL0: AtomicBool = AtomicBool::new(false);
+static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
 static EL0_KSP: AtomicU64 = AtomicU64::new(0);
 
@@ -632,6 +639,28 @@ pub fn ttbr1_dabort_caught() -> bool {
     TTBR1_DABORT_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm EL1 fetch of the torn identity text page (ADR-018).
+pub fn arm_ident_tear() {
+    IDENT_TEAR_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_IDENT_TEAR.store(true, Ordering::SeqCst);
+}
+
+pub fn ident_tear_caught() -> bool {
+    EXPECT_IDENT_TEAR.store(false, Ordering::SeqCst);
+    IDENT_TEAR_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// Arm EL0 load of the torn identity text page (ADR-018).
+pub fn arm_ident_el0() {
+    IDENT_EL0_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_IDENT_EL0.store(true, Ordering::SeqCst);
+}
+
+pub fn ident_el0_caught() -> bool {
+    EXPECT_IDENT_EL0.store(false, Ordering::SeqCst);
+    IDENT_EL0_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// `ERET` to EL0 at `user_pc` with `x0 = user_arg` and `SP_EL0 = user_sp`.
 /// Returns after the lower-EL handler sends us back to EL1t.
 ///
@@ -739,6 +768,13 @@ fn stay_at_el0(_ctx: &mut ExceptionContext) {
             options(nostack, preserves_flags),
         );
     }
+}
+
+fn is_trans_iabort(esr: u64) -> bool {
+    let ec = (esr >> 26) & 0x3f;
+    let ifsc = esr & 0x3f;
+    ec == ESR_EC_IABORT_CURRENT
+        && (ifsc == ESR_IFSC_TRANS_L1 || ifsc == ESR_IFSC_TRANS_L2 || ifsc == ESR_IFSC_TRANS_L3)
 }
 
 fn is_perm_iabort(esr: u64) -> bool {
@@ -905,6 +941,15 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }
+    if is_trans_iabort(ctx.esr)
+        && EXPECT_IDENT_TEAR.swap(false, Ordering::SeqCst)
+        && (ctx.elr & !0xfff) == crate::paging::ident_tear_page()
+    {
+        IDENT_TEAR_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("ident: fault\n");
+        ctx.elr = ctx.lr;
+        return;
+    }
     let ec = (ctx.esr >> 26) & 0x3f;
     if ec == ESR_EC_BRK_A64 {
         BRK_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -976,6 +1021,15 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
     {
         TTBR1_DABORT_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("ttbr1: no el0\n");
+        return_from_el0(ctx);
+        return;
+    }
+    if is_el0_kernel_read(ctx.esr)
+        && EXPECT_IDENT_EL0.swap(false, Ordering::SeqCst)
+        && (far_el1() & !0xfff) == crate::paging::ident_tear_page()
+    {
+        IDENT_EL0_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("ident: no el0\n");
         return_from_el0(ctx);
         return;
     }

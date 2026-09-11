@@ -2,7 +2,7 @@
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
 # EL0 no-kernel-read + standing EL0 + ASID isolation + TTBR1 private page +
-# TTBR1 high-VA EL1 exec + CNTPCT baseline + boot-delta + IRQ-to-handler
+# TTBR1 high-VA EL1 exec + identity-tear first cut + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
@@ -25,6 +25,7 @@ RO="${CTOS_RO_STRING:-ro: ok}"
 EL0="${CTOS_EL0_STRING:-el0: ok}"
 ASID="${CTOS_ASID_STRING:-asid: ok}"
 TTBR1="${CTOS_TTBR1_STRING:-ttbr1: ok}"
+IDENT="${CTOS_IDENT_STRING:-ident: ok}"
 BOOTDELTA="${CTOS_BOOTDELTA_STRING:-perf: boot-delta}"
 ELFSIZE="${CTOS_ELFSIZE_STRING:-perf: elf-size}"
 TICK="${CTOS_TICK_STRING:-timer: tick}"
@@ -232,6 +233,35 @@ if ! grep -q "ttbr1: vbar" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: TTBR1 private-page + high-VA exec strings present"
+if ! grep -q "$IDENT" "$log"; then
+    echo "qemu-smoke: missing '$IDENT' on serial (NFR-10 identity-tear mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "ident: probe missed" "$log"; then
+    echo "qemu-smoke: ident probe missed (split / torn-page path did not run)" >&2
+    exit 1
+fi
+if grep -q "ident: leaked" "$log"; then
+    echo "qemu-smoke: ident leaked (torn identity page was still usable)" >&2
+    exit 1
+fi
+if ! grep -q "ident: split" "$log"; then
+    echo "qemu-smoke: missing 'ident: split' on serial (TTBR1 RAM clone, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: fault" "$log"; then
+    echo "qemu-smoke: missing 'ident: fault' on serial (EL1 identity IABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: high" "$log"; then
+    echo "qemu-smoke: missing 'ident: high' on serial (EL1 high twin after tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: no el0" "$log"; then
+    echo "qemu-smoke: missing 'ident: no el0' on serial (EL0 torn-page DABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: identity-tear strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1

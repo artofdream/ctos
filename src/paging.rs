@@ -16,13 +16,17 @@
 //! RAM block. ASID isolation (`src/asid.rs`) uses a second L1 with `nG`
 //! probe pages and does **not** `TLBI VMALLE1` on the switch.
 //!
-//! TTBR1 (ADR-016 first cut + ADR-017 exec mile) is enabled with the
-//! same 39-bit T1SZ. One kernel-private page lives at `TTBR1_PRIV`
-//! (EL1 RW, EL0 none). `L1_HIGH[1]` aliases the identity RAM tables so
-//! EL1 can fetch `.text` at `identity + TTBR1_BASE`. `VBAR_EL1` is
-//! moved to that high alias after the MMU is on. `_start` and the
-//! QEMU `-kernel` load stay at `0x4008_0000`. Full identity teardown
-//! is Planned. Not a DTB walker. Not Raspberry Pi. Not “EL0 isolated.”
+//! TTBR1 (ADR-016 first cut + ADR-017 exec mile + ADR-018 split) is
+//! enabled with the same 39-bit T1SZ. One kernel-private page lives at
+//! `TTBR1_PRIV` (EL1 RW, EL0 none). `L1_HIGH[1]` points at a **clone**
+//! of the identity RAM tables (`L2_HIGH_RAM`) so EL1 can fetch `.text`
+//! at `identity + TTBR1_BASE` after an identity page is unmapped.
+//! `VBAR_EL1` is moved to that high alias after the MMU is on. One
+//! dedicated identity text page (`__ident_tear_*`) is then unmapped
+//! from TTBR0 (kernel + user). `_start` and the QEMU `-kernel` load
+//! stay at `0x4008_0000`. Full identity teardown (all `.text`/`.data`/
+//! heap) is still Planned. Not a DTB walker. Not Raspberry Pi. Not
+//! “EL0 isolated.” Not “the kernel moved.”
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -130,25 +134,46 @@ static mut L1_ASID_B: Table = empty_table();
 static mut L2_ASID_B: Table = empty_table();
 static mut L3_ASID_B: Table = empty_table();
 /// TTBR1 L1/L2/L3 for the kernel-private high page (ADR-016 first cut).
-/// L1_HIGH[1] aliases `L2_RAM` so kernel text is fetchable at high VA.
+/// L1_HIGH[1] points at `L2_HIGH_RAM` (clone of identity RAM, ADR-018).
 static mut L1_HIGH: Table = empty_table();
 static mut L2_HIGH: Table = empty_table();
 static mut L3_HIGH: Table = empty_table();
+/// Independent RAM L2/L3 for TTBR1 so unmap-identity does not drop high.
+static mut L2_HIGH_RAM: Table = empty_table();
+static mut L3_HIGH_RAM: [Table; L3_KERNEL_CAP] = [empty_table(); L3_KERNEL_CAP];
+static mut L3_HIGH_RAM_USED: usize = 0;
 static USER_MAP_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static TTBR1_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static HIGH_ALIAS_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
+static HIGH_SPLIT_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+static IDENTITY_TEAR_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 static TABLES: Mutex<()> = Mutex::new(());
 
 unsafe extern "C" {
     static __data_start: u8;
+    static __ident_tear_start: u8;
+    static __ident_tear_end: u8;
 }
 
 /// First byte of `.data` (page-aligned). `.text`/`.rodata` end here.
 pub fn data_start() -> u64 {
     identity_pa(core::ptr::addr_of!(__data_start) as usize as u64)
+}
+
+/// Dedicated identity text page unmapped after high VBAR (ADR-018).
+/// `_start` at `KERNEL_TEXT` stays mapped.
+pub fn ident_tear_page() -> u64 {
+    identity_pa(core::ptr::addr_of!(__ident_tear_start) as usize as u64)
+}
+
+/// Byte past the torn page. Must be `ident_tear_page() + 4096`.
+pub fn ident_tear_end() -> u64 {
+    identity_pa(core::ptr::addr_of!(__ident_tear_end) as usize as u64)
 }
 
 fn l1_pa() -> u64 {
@@ -207,6 +232,14 @@ fn l3_high_pa() -> u64 {
     identity_pa(addr_of!(L3_HIGH) as usize as u64)
 }
 
+fn l2_high_ram_pa() -> u64 {
+    identity_pa(addr_of!(L2_HIGH_RAM) as usize as u64)
+}
+
+fn l3_high_ram_pa(i: usize) -> u64 {
+    unsafe { identity_pa(addr_of!(L3_HIGH_RAM[i]) as usize as u64) }
+}
+
 unsafe fn l1_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L1.entries).cast::<u64>().add(i)
 }
@@ -255,6 +288,10 @@ unsafe fn l3_high_slot(i: usize) -> *mut u64 {
     addr_of_mut!(L3_HIGH.entries).cast::<u64>().add(i)
 }
 
+unsafe fn l2_high_ram_slot(i: usize) -> *mut u64 {
+    addr_of_mut!(L2_HIGH_RAM.entries).cast::<u64>().add(i)
+}
+
 unsafe fn alloc_kernel_l3() -> Option<u64> {
     let n = L3_KERNEL_USED;
     if n >= L3_KERNEL_CAP {
@@ -263,6 +300,16 @@ unsafe fn alloc_kernel_l3() -> Option<u64> {
     L3_KERNEL_USED = n + 1;
     addr_of_mut!(L3_KERNEL[n].entries).write([0; 512]);
     Some(l3_kernel_pa(n))
+}
+
+unsafe fn alloc_high_ram_l3() -> Option<u64> {
+    let n = L3_HIGH_RAM_USED;
+    if n >= L3_KERNEL_CAP {
+        return None;
+    }
+    L3_HIGH_RAM_USED = n + 1;
+    addr_of_mut!(L3_HIGH_RAM[n].entries).write([0; 512]);
+    Some(l3_high_ram_pa(n))
 }
 
 unsafe fn alloc_user_l3() -> Option<u64> {
@@ -461,6 +508,18 @@ pub fn high_alias_ready() -> bool {
     HIGH_ALIAS_OK.load(core::sync::atomic::Ordering::SeqCst)
 }
 
+/// TTBR1 RAM tables are a clone of identity (ADR-018). Shared `L2_RAM` is gone.
+#[allow(dead_code)]
+pub fn high_split_ready() -> bool {
+    HIGH_SPLIT_OK.load(core::sync::atomic::Ordering::SeqCst)
+}
+
+/// Dedicated identity text page unmapped; high twin still mapped (ADR-018).
+#[allow(dead_code)]
+pub fn identity_tear_ready() -> bool {
+    IDENTITY_TEAR_OK.load(core::sync::atomic::Ordering::SeqCst)
+}
+
 #[allow(dead_code)]
 pub fn user_map_ready() -> bool {
     USER_MAP_OK.load(core::sync::atomic::Ordering::SeqCst)
@@ -581,6 +640,70 @@ unsafe fn unmap_identity_page(va: u64) -> bool {
     };
     let l3i = ((va >> 12) & 0x1ff) as usize;
     l3_write(l3_pa, l3i, 0);
+    true
+}
+
+/// Split a user L2 block into L3 so one 4 KiB slot can be cleared.
+unsafe fn l3_pa_for_user_block(l2_index: usize) -> Option<u64> {
+    let l2e = l2_user_slot(l2_index).read();
+    if l2e & DESC_VALID == 0 {
+        return None;
+    }
+    if l2e & DESC_TABLE != 0 {
+        return Some(l2e & !0xfff);
+    }
+    let exec = l2e & DESC_PXN == 0;
+    let writable = l2e & DESC_AP_RO == 0;
+    let block_va = frame::VIRT_RAM_BASE + (l2_index as u64) * L2_BLOCK;
+    let l3_pa = alloc_user_l3()?;
+    for p in 0..512 {
+        let page_va = block_va + p as u64 * PAGE;
+        l3_write(l3_pa, p, l3_page_flags(page_va, exec, writable));
+    }
+    l2_user_slot(l2_index).write(table_desc(l3_pa));
+    Some(l3_pa)
+}
+
+/// Clear the user-TTBR0 L3 slot for `va`. Independent of identity `L2_RAM`.
+unsafe fn unmap_user_ram_page(va: u64) -> bool {
+    if va & (PAGE - 1) != 0 {
+        return false;
+    }
+    let l2i = ((va >> 21) & 0x1ff) as usize;
+    let Some(l3_pa) = l3_pa_for_user_block(l2i) else {
+        return false;
+    };
+    let l3i = ((va >> 12) & 0x1ff) as usize;
+    l3_write(l3_pa, l3i, 0);
+    true
+}
+
+/// Clone identity RAM L2/L3 into `L2_HIGH_RAM` so TTBR1 can keep a page
+/// after identity unmaps it (ADR-018). L2 block descriptors are copied;
+/// L3 tables are duplicated.
+unsafe fn clone_ram_tables_for_high() -> bool {
+    addr_of_mut!(L2_HIGH_RAM.entries).write([0; 512]);
+    L3_HIGH_RAM_USED = 0;
+    for i in 0..512 {
+        let e = l2_ram_slot(i).read();
+        if e & DESC_VALID == 0 {
+            l2_high_ram_slot(i).write(0);
+            continue;
+        }
+        if e & DESC_TABLE == 0 {
+            l2_high_ram_slot(i).write(e);
+            continue;
+        }
+        let src = e & !0xfff;
+        let Some(dst) = alloc_high_ram_l3() else {
+            return false;
+        };
+        for p in 0..512 {
+            let d = core::ptr::read((src as *const u64).add(p));
+            core::ptr::write((dst as *mut u64).add(p), d);
+        }
+        l2_high_ram_slot(i).write(table_desc(dst));
+    }
     true
 }
 
@@ -755,87 +878,145 @@ fn window_index(va: u64) -> Option<usize> {
 
 /// Fill identity L1 blocks + the map window, then turn the MMU on.
 pub fn init() {
-    let _g = TABLES.lock();
     let user_ok;
-    unsafe {
-        addr_of_mut!(L1.entries).write([0; 512]);
-        addr_of_mut!(L2.entries).write([0; 512]);
-        addr_of_mut!(L3.entries).write([0; 512]);
-        addr_of_mut!(L2_RAM.entries).write([0; 512]);
-        L3_KERNEL_USED = 0;
-        L3_USER_USED = 0;
-        // 0x0000_0000–0x3FFF_FFFF: virt MMIO (UART, GIC, flash).
-        l1_slot(0).write(l1_block(0x0000_0000, ATTR_DEVICE, false));
-        // 0x4000_0000–0x7FFF_FFFF: L2 RAM (text RO+X, data/stacks/heap RW+NX).
-        l1_slot(1).write(table_desc(l2_ram_pa()));
-        fill_ram_wx();
-        if !install_stack_guards() {
-            // Leave tables as-is; the hello / test probe will fail closed.
+    let split_ok;
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            addr_of_mut!(L1.entries).write([0; 512]);
+            addr_of_mut!(L2.entries).write([0; 512]);
+            addr_of_mut!(L3.entries).write([0; 512]);
+            addr_of_mut!(L2_RAM.entries).write([0; 512]);
+            L3_KERNEL_USED = 0;
+            L3_USER_USED = 0;
+            L3_HIGH_RAM_USED = 0;
+            // 0x0000_0000–0x3FFF_FFFF: virt MMIO (UART, GIC, flash).
+            l1_slot(0).write(l1_block(0x0000_0000, ATTR_DEVICE, false));
+            // 0x4000_0000–0x7FFF_FFFF: L2 RAM (text RO+X, data/stacks/heap RW+NX).
+            l1_slot(1).write(table_desc(l2_ram_pa()));
+            fill_ram_wx();
+            if !install_stack_guards() {
+                // Leave tables as-is; the hello / test probe will fail closed.
+            }
+            // 0x8000_0000–0xBFFF_FFFF: L2/L3 window for 4 KiB maps.
+            l1_slot(2).write(table_desc(l2_pa()));
+            l2_slot(0).write(table_desc(l3_pa()));
+            user_ok = fill_user_map();
+            // TTBR1: empty L3 behind a live table walk (ADR-016). Probe maps
+            // TTBR1_PRIV later. L1[1] uses a **clone** of identity RAM so
+            // unmap-identity does not drop the high twin (ADR-018).
+            addr_of_mut!(L1_HIGH.entries).write([0; 512]);
+            addr_of_mut!(L2_HIGH.entries).write([0; 512]);
+            addr_of_mut!(L3_HIGH.entries).write([0; 512]);
+            l1_high_slot(0).write(table_desc(l2_high_pa()));
+            l2_high_slot(0).write(table_desc(l3_high_pa()));
+            split_ok = clone_ram_tables_for_high();
+            if split_ok {
+                l1_high_slot(1).write(table_desc(l2_high_ram_pa()));
+            } else {
+                // Fail closed on the tear mile; keep ADR-017 fetch alive.
+                l1_high_slot(1).write(table_desc(l2_ram_pa()));
+            }
         }
-        // 0x8000_0000–0xBFFF_FFFF: L2/L3 window for 4 KiB maps.
-        l1_slot(2).write(table_desc(l2_pa()));
-        l2_slot(0).write(table_desc(l3_pa()));
-        user_ok = fill_user_map();
-        // TTBR1: empty L3 behind a live table walk (ADR-016). Probe maps
-        // TTBR1_PRIV later. L1[1] aliases identity RAM so EL1 can fetch
-        // .text at high VA (ADR-017). Same L2_RAM: unmap identity = unmap
-        // the alias. Full teardown needs split tables (Planned).
-        addr_of_mut!(L1_HIGH.entries).write([0; 512]);
-        addr_of_mut!(L2_HIGH.entries).write([0; 512]);
-        addr_of_mut!(L3_HIGH.entries).write([0; 512]);
-        l1_high_slot(0).write(table_desc(l2_high_pa()));
-        l2_high_slot(0).write(table_desc(l3_high_pa()));
-        l1_high_slot(1).write(table_desc(l2_ram_pa()));
-    }
-    dsb_ish();
+        dsb_ish();
 
-    let tcr = TCR_T0SZ
-        | TCR_IRGN0_WBWA
-        | TCR_ORGN0_WBWA
-        | TCR_SH0_INNER
-        | TCR_T1SZ
-        | TCR_IRGN1_WBWA
-        | TCR_ORGN1_WBWA
-        | TCR_SH1_INNER
-        | TCR_IPS_40;
-    let ttbr = l1_pa();
-    let ttbr1 = l1_high_pa();
-    unsafe {
-        core::arch::asm!(
-            "msr mair_el1, {mair}",
-            "msr tcr_el1, {tcr}",
-            "msr ttbr0_el1, {ttbr}",
-            "msr ttbr1_el1, {ttbr1}",
-            "msr tpidr_el1, {ttbr}",
-            "isb",
-            mair = in(reg) MAIR,
-            tcr = in(reg) tcr,
-            ttbr = in(reg) ttbr,
-            ttbr1 = in(reg) ttbr1,
-        );
-    }
-    tlbi_all();
+        let tcr = TCR_T0SZ
+            | TCR_IRGN0_WBWA
+            | TCR_ORGN0_WBWA
+            | TCR_SH0_INNER
+            | TCR_T1SZ
+            | TCR_IRGN1_WBWA
+            | TCR_ORGN1_WBWA
+            | TCR_SH1_INNER
+            | TCR_IPS_40;
+        let ttbr = l1_pa();
+        let ttbr1 = l1_high_pa();
+        unsafe {
+            core::arch::asm!(
+                "msr mair_el1, {mair}",
+                "msr tcr_el1, {tcr}",
+                "msr ttbr0_el1, {ttbr}",
+                "msr ttbr1_el1, {ttbr1}",
+                "msr tpidr_el1, {ttbr}",
+                "isb",
+                mair = in(reg) MAIR,
+                tcr = in(reg) tcr,
+                ttbr = in(reg) ttbr,
+                ttbr1 = in(reg) ttbr1,
+            );
+        }
+        tlbi_all();
 
-    let mut sctlr: u64;
-    unsafe {
-        core::arch::asm!("mrs {v}, sctlr_el1", v = out(reg) sctlr);
-        // WXN: writable → XN. Text is RO so it stays executable (ADR-015).
-        sctlr |= SCTLR_M | SCTLR_C | SCTLR_SA | SCTLR_I | SCTLR_WXN;
-        core::arch::asm!(
-            "msr sctlr_el1, {v}",
-            "isb",
-            v = in(reg) sctlr,
-        );
+        let mut sctlr: u64;
+        unsafe {
+            core::arch::asm!("mrs {v}, sctlr_el1", v = out(reg) sctlr);
+            // WXN: writable → XN. Text is RO so it stays executable (ADR-015).
+            sctlr |= SCTLR_M | SCTLR_C | SCTLR_SA | SCTLR_I | SCTLR_WXN;
+            core::arch::asm!(
+                "msr sctlr_el1, {v}",
+                "isb",
+                v = in(reg) sctlr,
+            );
+        }
+        // Same class as the boot-delta mark: a pre-MMU `.bss` store can be
+        // invisible to a later cached read (PR #20 test image; cts-ai Docker
+        // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.
+        USER_MAP_OK.store(user_ok, core::sync::atomic::Ordering::SeqCst);
+        TTBR1_OK.store(true, core::sync::atomic::Ordering::SeqCst);
+        HIGH_ALIAS_OK.store(true, core::sync::atomic::Ordering::SeqCst);
+        HIGH_SPLIT_OK.store(split_ok, core::sync::atomic::Ordering::SeqCst);
     }
-    // Same class as the boot-delta mark: a pre-MMU `.bss` store can be
-    // invisible to a later cached read (PR #20 test image; cts-ai Docker
-    // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.
-    USER_MAP_OK.store(user_ok, core::sync::atomic::Ordering::SeqCst);
-    TTBR1_OK.store(true, core::sync::atomic::Ordering::SeqCst);
-    HIGH_ALIAS_OK.store(true, core::sync::atomic::Ordering::SeqCst);
     // Exception fetch from the high alias. Identity VBAR was installed
     // before the MMU; `_start` stays at 0x4008_0000 (ADR-017).
     let _ = crate::exception::install_vbar(to_high_va(crate::exception::vector_table_addr()));
+    // After MMU + high VBAR: unmap the dedicated identity text page.
+    // Skip if the high tables still share `L2_RAM` (clone failed).
+    let torn = split_ok && tear_identity_probe_page();
+    IDENTITY_TEAR_OK.store(torn, core::sync::atomic::Ordering::SeqCst);
+}
+
+/// Unmap the dedicated identity text page from kernel + user TTBR0.
+/// High twin stays. `_start` / remaining identity `.text` stay mapped.
+#[allow(dead_code)]
+pub fn tear_identity_probe_page() -> bool {
+    let va = ident_tear_page();
+    if va & (PAGE - 1) != 0 {
+        return false;
+    }
+    if ident_tear_end() != va + PAGE {
+        return false;
+    }
+    if va < KERNEL_TEXT || va >= data_start() {
+        return false;
+    }
+    // Do not tear the QEMU `-kernel` / `_start` page.
+    if va == KERNEL_TEXT {
+        return false;
+    }
+    if !is_mapped(va) || !user_mapped(va) {
+        return false;
+    }
+    let high = to_high_va(va);
+    if !high_mapped(high) || !high_is_executable(high) {
+        return false;
+    }
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            if !unmap_identity_page(va) {
+                return false;
+            }
+            if !unmap_user_ram_page(va) {
+                return false;
+            }
+        }
+        dsb_ish();
+        tlbi_va(va);
+    }
+    if is_mapped(va) || user_mapped(va) {
+        return false;
+    }
+    high_mapped(high) && high_is_executable(high)
 }
 
 pub fn mmu_enabled() -> bool {
@@ -1295,4 +1476,39 @@ fn high_alias_maps_kernel_text() {
         high_mapped(to_high_va(crate::exception::vector_table_addr())),
         "vector table must be aliased in TTBR1"
     );
+}
+
+#[cfg(test)]
+#[test_case]
+fn high_ram_tables_are_independent() {
+    assert!(high_split_ready(), "TTBR1 RAM tables must be a clone");
+    assert_ne!(
+        l2_ram_pa(),
+        l2_high_ram_pa(),
+        "identity L2_RAM and L2_HIGH_RAM must be distinct tables"
+    );
+    let _g = TABLES.lock();
+    let slot = unsafe { l1_high_slot(1).read() };
+    assert_eq!(
+        slot & !0xfff,
+        l2_high_ram_pa(),
+        "L1_HIGH[1] must point at the cloned RAM L2"
+    );
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_tear_page_unmapped_high_stays() {
+    assert!(identity_tear_ready(), "identity tear page must unmap after high VBAR");
+    let va = ident_tear_page();
+    assert_eq!(va & 0xfff, 0);
+    assert_ne!(va, KERNEL_TEXT, "must not tear the -kernel / _start page");
+    assert!(va > KERNEL_TEXT && va < data_start());
+    assert!(!is_mapped(va), "torn identity page must be absent from TTBR0");
+    assert!(!user_mapped(va), "user TTBR0 must also omit the torn page");
+    let high = to_high_va(va);
+    assert!(high_mapped(high), "high twin must stay after identity unmap");
+    assert!(high_is_executable(high), "high twin must stay PXN-clear");
+    assert!(is_mapped(KERNEL_TEXT), "boot stub page stays identity-mapped");
+    assert!(is_executable(KERNEL_TEXT));
 }
