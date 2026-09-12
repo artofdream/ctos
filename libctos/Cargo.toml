@@ -1,0 +1,11 @@
+[package]
+name = "libctos"
+version = "0.1.0"
+edition = "2021"
+description = "Freestanding CRT helpers for the ctos EL0 SVC ABI (ADR-022). Not glibc. Not POSIX."
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "libctos"
+path = "src/lib.rs"

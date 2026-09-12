@@ -14,6 +14,7 @@ mod frame;
 mod gic;
 mod guard;
 mod heap;
+mod libctos;
 mod paging;
 mod perf;
 mod qemu;
@@ -132,6 +133,11 @@ extern "C" fn kernel_main_high() -> ! {
         // Not app hosting. Not a Linux ABI.
         if !syscall::observe_probe() {
             uart::write_str_raw("svc: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (Track A / A2 / ADR-022): libctos CRT.
+        // Not an ELF loader. Not app hosting.
+        if !libctos::observe_probe() {
+            uart::write_str_raw("libctos: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {

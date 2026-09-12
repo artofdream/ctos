@@ -95,6 +95,7 @@ Start here before adding kernel features:
 | [ADR-019](docs/03-adr/ADR-019-identity-text-range-tear.md) | High-VA continuation + 16 KiB dedicated identity text range |
 | [ADR-020](docs/03-adr/ADR-020-identity-fnptr-reloc.md) | High-VA vtable rewrite + live identity `.text` tear |
 | [ADR-021](docs/03-adr/ADR-021-svc-syscall-abi.md) | Minimal EL0 SVC ABI (exit / uart_write / yield); app hosting Planned |
+| [ADR-022](docs/03-adr/ADR-022-libctos-crt.md) | Freestanding CRT / `libctos`; not a guest ELF loader |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Track A](docs/04-roadmap/track-a.md) | Freestanding app hosting (epic #31). Subordinate to principles. |
 | [Track B](docs/04-roadmap/track-b.md) | Linux-compat research (epic #40). Subordinate to principles. |
@@ -102,9 +103,9 @@ Start here before adding kernel features:
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |
 | [Three pillars](docs/framework/pillars.md) | Antifragility, security, performance (NFR-05 / NFR-10 / NFR-07) |
 | [Antifragility SOP](docs/framework/antifragility.md) | Ratchet repeated failures into sensors |
-| [Security](docs/framework/security.md) | Threat-model v1.9; not a “secure OS” claim |
-| [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear + SVC ABI; isolation Planned |
-| [Syscall ABI](docs/framework/syscall.md) | Track A A1 numbers 16–18; app hosting Planned |
+| [Security](docs/framework/security.md) | Threat-model v1.10; not a “secure OS” claim |
+| [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear + SVC ABI + libctos CRT; isolation Planned |
+| [Syscall ABI](docs/framework/syscall.md) | Track A A1 numbers 16–18 + A2 `libctos`; app hosting Planned |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
 | [Docs website + DNS](docs/website.md) | mdBook + Pages; `https://ctos.artof.link` HTTPS Verified after #30 |

@@ -82,6 +82,8 @@ const DESC_UXN: u64 = 1 << 54;
 const DESC_PXN: u64 = 1 << 53;
 /// AP[2:1] = 0b10: EL1 read-only, EL0 no data access.
 const DESC_AP_RO: u64 = 1 << 7;
+/// AP[1]: EL0 may access the page (with AP[2] clear → EL0 RW).
+const DESC_AP_EL0: u64 = 1 << 6;
 
 const ATTR_DEVICE: u64 = 0;
 const ATTR_NORMAL: u64 = 1;
@@ -748,6 +750,8 @@ pub fn first_ram_l2_end() -> u64 {
 }
 
 /// EL0-executable, EL1-NX page (UXN clear, PXN set). Used for the first mile.
+/// AP[2:1] = 00: EL0 may *fetch* (UXN clear) but not load/store. A1 trampolines
+/// never touch SP. A2 puts the Rust CRT stack on a separate EL0-RW page.
 fn l3_page_el0_exec(pa: u64) -> u64 {
     (pa & !0xfff)
         | DESC_VALID
@@ -756,6 +760,19 @@ fn l3_page_el0_exec(pa: u64) -> u64 {
         | DESC_SH_INNER
         | DESC_AF
         | DESC_PXN
+}
+
+/// EL0-writable stack page (UXN + PXN). AP[2:1] = 01. WXN keeps it NX.
+fn l3_page_el0_rw(pa: u64) -> u64 {
+    (pa & !0xfff)
+        | DESC_VALID
+        | DESC_TABLE
+        | (ATTR_NORMAL << 2)
+        | DESC_SH_INNER
+        | DESC_AF
+        | DESC_PXN
+        | DESC_UXN
+        | DESC_AP_EL0
 }
 
 /// Split an L2 block into L3 so a single 4 KiB slot can be invalidated.
@@ -1531,6 +1548,26 @@ pub fn ttbr1_walks_enabled() -> bool {
 #[allow(dead_code)]
 pub fn l1_table_addr() -> u64 {
     l1_pa()
+}
+
+/// Map a 4 KiB frame at `va` in the dedicated window as EL0-writable NX (stack).
+pub fn map_el0_rw(va: u64, pa: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_slot(i).write(l3_page_el0_rw(pa));
+    }
+    dsb_ish();
+    tlbi_va(va);
+    true
 }
 
 /// Map a 4 KiB frame at `va` in the dedicated window as EL0-executable (PXN, UXN clear).

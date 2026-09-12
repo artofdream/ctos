@@ -29,16 +29,16 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Rese
 
 | Gap | Why it blocks hosting | Status |
 | --- | --- | --- |
-| **Stable SVC ABI** | A1 documented `exit` / `uart_write` / `yield` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). That is a **kernel** contract, not a CRT or loader. | **ABI mile** — Verified only when the ledger has `svc: ok` on this tip. Not app hosting. A2–A9 stay **Planned**. |
-| **ELF / user loader** | No loader for a freestanding user-mode binary, let alone a Linux ELF | Not built |
+| **Stable SVC ABI** | A1 documented `exit` / `uart_write` / `yield` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). That is a **kernel** contract, not a loader. | **ABI mile** — Verified only when the ledger has `svc: ok` on this tip. Not app hosting. |
+| **libctos / CRT** | A2: `libctos` wrappers + `_start` CRT. Hello is host-built and copied onto the standing EL0 page ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). | **CRT mile** — Verified only when the ledger has `libctos: ok` on this tip. Not a guest loader. |
+| **ELF / user loader** | No loader for a freestanding user-mode binary, let alone a Linux ELF | Not built (A3) |
 | **Standing user mode as normal** | Standing enter/leave is a stub mile, not the default way code runs | First mile Verified; normal userspace **Planned** |
 | **Stronger isolation** | Umbrella user-mode isolation needs PAN + fuller identity teardown | **Planned** — do not say “EL0 isolated” |
 | **VFS + memfs** | No files, no paths; see [Filesystem](filesystem.md) | **Planned** |
-| **libctos / CRT** | Nothing to link a freestanding user-mode program against | Not built |
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
 | **Preemption / extra CPUs / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
-Until the first block has probes, “host an application” is a sentence we do not use. That first block is **Track A**. A1 landed the kernel SVC ABI only. The loader and CRT are still **Planned**. See [Immutability](advantages.md#immutability).
+Until the loader block has probes, “host an application” is a sentence we do not use. That block is **Track A**. A1 landed the kernel SVC ABI. A2 landed `libctos`. The loader is still **Planned**. See [Immutability](advantages.md#immutability).
 
 ## Containers
 

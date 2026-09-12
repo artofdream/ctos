@@ -48,6 +48,7 @@
 - [ADR-019 Identity text range tear](03-adr/ADR-019-identity-text-range-tear.md)
 - [ADR-020 Live identity text tear](03-adr/ADR-020-identity-fnptr-reloc.md)
 - [ADR-021 EL0 SVC ABI](03-adr/ADR-021-svc-syscall-abi.md)
+- [ADR-022 Freestanding CRT / libctos](03-adr/ADR-022-libctos-crt.md)
 
 # Roadmap
 

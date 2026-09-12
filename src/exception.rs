@@ -18,7 +18,7 @@
 //! Execute-from-heap / execute-from-`.data` / write-to-RO-text are
 //! caught here. Lower-EL AArch64 sync is live for the EL0 first mile,
 //! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), the
-//! public SVC ABI (ADR-021), the
+//! public SVC ABI (ADR-021), the libctos CRT payload (ADR-022), the
 //! TTBR1 private-page DABORT (ADR-016), EL1 fetch from the TTBR1
 //! RAM alias (ADR-017), and the ADR-018 identity-tear IABORT / EL0
 //! DABORT: SVC, IABORT, DABORT.
