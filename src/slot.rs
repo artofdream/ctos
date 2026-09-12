@@ -17,6 +17,7 @@ use crate::loader;
 use crate::paging;
 use crate::timer;
 use crate::uart;
+#[cfg(test)]
 use crate::vfs;
 
 const SLOT_PATH: &str = "/hello";
