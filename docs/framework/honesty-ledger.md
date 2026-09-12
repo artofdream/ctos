@@ -226,3 +226,6 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 1. Run or cite the probe (command, file path + revision, or `gh run` URL).
 2. Change only the rows you probed.
 3. If you could not run QEMU, leave boot **Unknown** and say so in the PR. A prior Verified row is one environment and one boot path; do not copy the 2026-09-08 x86 VGA probe forward.
+
+| Track B B6 decision documented (ADR-036 / never) | Read [ADR-036](../03-adr/ADR-036-linux-compat-decision.md) and [track-b.md](../04-roadmap/track-b.md) | Verified | Document inspection. Explicit **never**: no Linux-compat layer or reimplementation from B1–B5. Research ladder complete. **Not claiming Linux userspace.** Track A freestanding path stays. No `src/` change. Kernel `qemu-smoke` not run. |
+| mdBook docs site builds locally (B6 / Grok Bot docs path) | `./scripts/docs-build.sh` when available on a host with mdBook; else Pages GHA on the PR | Unknown | Generator probe deferred to GHA/`docs-build` on this PR. File presence of ADR-036 is document inspection only. |
