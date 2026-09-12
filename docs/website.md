@@ -60,7 +60,9 @@ Desktop content column stays `--content-max-width: 750px`. Do not treat this sec
 
 ### Narrow-viewport probe
 
-After `./scripts/docs-build.sh`, `./scripts/docs-mobile-probe.sh` serves `book/` and uses headless Chrome at **320**, **768**, and **1280** CSS pixels. It records whether `documentElement.scrollWidth` exceeds `clientWidth` on the landing, the honesty ledger, and this page. Internal `.table-wrapper` / `pre` / `.mermaid` scroll is allowed. A green local probe is not “https://ctos.artof.link is mobile-verified” until a post-merge Pages fetch repeats it.
+After `./scripts/docs-build.sh`, `./scripts/docs-mobile-probe.sh` serves `book/` and uses headless Chrome. An iframe forces the chapter width so `--dump-dom` cannot fake a wider layout. It records whether `documentElement.scrollWidth` exceeds `clientWidth` on the landing, the honesty ledger, and this page.
+
+2026-09-12 this cloud VM (`Google Chrome 148.0.7778.96`): landing overflow=no at **320 / 768 / 1280** (`client` = `scroll`); ledger and this page overflow=no at 320. Internal `.table-wrapper` / `pre` / `.mermaid` scroll is allowed. The numeric probe maps `cdn.jsdelivr.net` to `127.0.0.1` so mermaid.js cannot hang Chrome (diagrams stay as source text for that run). A green local probe is not “https://ctos.artof.link is mobile-verified” until a post-merge Pages fetch repeats it.
 
 ## Production URLs
 
@@ -119,7 +121,7 @@ curl -sSI https://ctos.artof.link   # expect HTTP 200 (Verified 2026-09-11)
 | Claim | Probe | Until then |
 | --- | --- | --- |
 | mdBook builds this tree | `./scripts/docs-build.sh` (or `mdbook build` with mermaid preprocessor) exit 0 | — |
-| Narrow viewport / mobile layout | `./scripts/docs-mobile-probe.sh` after a local build (320 / 768 / 1280; landing + ledger + this page) | See honesty ledger — local generator only until a post-merge Pages fetch |
+| Narrow viewport / mobile layout | `./scripts/docs-mobile-probe.sh` after a local build (320 / 768 / 1280; landing + ledger + this page) | **Verified** locally 2026-09-12 (iframe overflow=no). Not a live-site mobile claim until a post-merge Pages fetch. |
 | Pages workflow exists | Read `.github/workflows/pages.yml` | File presence only |
 | Pages workflow builds a PR | Green `pages` run on this branch (build job; deploy skipped) | See honesty ledger |
 | Docs website published | Green `pages` workflow on `main` **and** HTTPS fetch of `https://ctos.artof.link` | **Verified** — deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200 + Driving principles |

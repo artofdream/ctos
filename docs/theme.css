@@ -51,7 +51,7 @@
 .content h1,
 .content h2,
 .content h3 {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
 
 @media (max-width: 768px) {
