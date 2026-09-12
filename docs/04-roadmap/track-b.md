@@ -28,7 +28,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 | --- | --- | --- |
 | B1 | ADR: Linux-compat goals & non-goals | **Documented** ([#41](https://github.com/artofdream/ctos/issues/41), [ADR-031](../03-adr/ADR-031-linux-compat-goals.md)). ABI **subset** research; keep ctos specificity; **not claiming Linux userspace yet**. Cites [ADR-029](../03-adr/ADR-029-containers-nongoal.md); does not reopen containers as Planned. |
 | B2 | Syscall surface map (Linux aarch64 vs ctos SVC) | **Documented** ([#42](https://github.com/artofdream/ctos/issues/42), [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)). Inspection map only. No Linux numbers in `src/`. **Not claiming Linux userspace.** |
-| B3 | Process model vs Linux (fork/exec/wait) | **Planned** ([#43](https://github.com/artofdream/ctos/issues/43)) |
+| B3 | Process model vs Linux (fork/exec/wait) | **Documented** ([#43](https://github.com/artofdream/ctos/issues/43), [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)). Standing EL0 stays the ctos model. Linux `clone`/`execve`/`wait4` is a gap. Do not add those syscalls to `src/`. **Not claiming Linux userspace.** |
 | B4 | Linux ELF / auxv / `PT_INTERP` vs freestanding loader | **Documented** ([#44](https://github.com/artofdream/ctos/issues/44), [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). Gap ADR only. Track A loader stays reusable. **Does not accept `PT_INTERP`.** **Not claiming dynamic Linux ELF.** |
 | B5 | Linux VFS concepts vs thin ctos VFS | **Planned** ([#45](https://github.com/artofdream/ctos/issues/45)) |
 | B6 | Decision: compat layer vs reimplement vs never | **Planned** ([#46](https://github.com/artofdream/ctos/issues/46)) |
@@ -42,7 +42,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 
 **Out:** full Linux ABI as a promise; guest containers ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)); replacing SVC `#n` / `libctos` with Linux `x8` numbers in a research mile; claiming userspace because A3 loads ELF64 or A9 reads FAT `/hello`.
 
-B2 is **Documented** (syscall gap table). B4 is **Documented** (ELF / auxv / `PT_INTERP` gap). B3 / B5 / B6 stay **Planned** research. They compare process / VFS concepts and then decide (compat layer vs reimplement vs **never**). This page does not implement them. File presence of ADR-031, the B2 note, or ADR-033 is not a Linux userspace probe.
+B2 is **Documented** (syscall gap table). B3 is **Documented** (process-model stance). B4 is **Documented** (ELF / auxv / `PT_INTERP` gap). B5 / B6 stay **Planned** research. They compare VFS concepts and then decide (compat layer vs reimplement vs **never**). This page does not implement them. File presence of ADR-031, the B2 note, ADR-033, or ADR-035 is not a Linux userspace probe.
 
 ## B2 — syscall gap map
 
@@ -52,6 +52,16 @@ B2 is **Documented** (syscall gap table). B4 is **Documented** (ELF / auxv / `PT
 
 B3–B6 must not treat this table as an implementation backlog. B6 may choose **never**.
 
+## B3 — process model vs standing EL0
+
+[ADR-035](../03-adr/ADR-035-process-model-standing-el0.md) compares Linux `fork` / `exec` / `wait` to ctos standing EL0 ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) and the EL1 cooperative scheduler ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md)).
+
+**Keep:** standing EL0 is one loaded trip until `exit`. EL1 coop workers are not Linux threads. A1–A9 probes stay. Do not add `clone` / `execve` / `wait*` to `src/` this mile.
+
+**Out:** treating A4 or A9 FAT `/hello` as `execve`; treating `SYS_EXIT` as `exit_group`; a pid table; `CLONE_NEW*` (already **never-per-ADR-031**).
+
+On Linux AArch64, userspace `fork()` is `clone`. There is no `fork` syscall. B4 is **Documented** ([ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). B5 / B6 stay **Planned**. B6 may choose **never**. File presence of ADR-035 is not a Linux process table.
+
 ## B4 — Linux ELF / auxv / PT_INTERP vs the freestanding loader
 
 [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md) compares Linux `exec` of an ELF (interpreter + auxv + `PT_DYNAMIC`) with today’s A3 loader ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)).
@@ -60,7 +70,7 @@ B3–B6 must not treat this table as an implementation backlog. B6 may choose **
 
 **Out:** accepting `PT_INTERP` in `src/`; claiming musl/glibc or dynamic Linux ELF; treating A9 FAT `/hello` as `execve`.
 
-Static musl still needs a Linux stack/auxv and the B2 syscall surface. Dynamic musl/glibc also need an interpreter. **Not claiming dynamic Linux ELF.** B3 / B5 / B6 stay Planned. B6 may choose **never**.
+Static musl still needs a Linux stack/auxv and the B2 syscall surface. Dynamic musl/glibc also need an interpreter. **Not claiming dynamic Linux ELF.** B3 is **Documented**. B5 / B6 stay Planned. B6 may choose **never**.
 
 ## B7 — containers are a non-goal
 
