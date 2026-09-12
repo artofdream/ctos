@@ -15,10 +15,10 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.1
 
 ## Do next
 
-1. MRC re-grep of this-SHA GHA after the rebase. Author does not merge (ADR-002). GitHub author of #64 is **`artofdream`**; merge hat is **`cursor[bot]`**. Owner / this PAT must not merge.
+1. Author does not merge (ADR-002). GitHub author of #64 is **`artofdream`**; merge hat is **`cursor[bot]`**. Owner / this PAT must not merge. MRC already grepped `7b68d08`. Later ledger-only SHA is not that probe.
 2. Still Planned: PAN enable; identity `.data`/heap tear (SP + allocator still identity); lower-EL IRQ while standing; EL0 without `TLBI VMALLE1`; umbrella isolation; slot-load **delta**; product app hosting.
 
 ## Honesty
 
-- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca` and post-#62 `6abcb1b`. GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). Rebase onto `522c543` (#63) makes this-SHA GHA **Unknown** until grepped.
+- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca` and post-#62 `6abcb1b`. GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). GHA Verified on `7b68d08` (after #63) is push [34702218168](https://github.com/artofdream/ctos/actions/runs/34702218168) + PR [34702220491](https://github.com/artofdream/ctos/actions/runs/34702220491). Later ledger-only SHA is not that probe.
 - Did not claim “EL0 isolated,” PAN enable, “apps update independently,” or “app hosting is done.”
