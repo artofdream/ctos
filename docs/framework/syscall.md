@@ -1,8 +1,8 @@
 # SVC syscall ABI (Track A / A1 / ADR-021)
 
-**ABI + CRT + loader + standing-task + memfs miles.** App hosting (on-disk FS, OS/app slots) stays **Planned**. Track A is still incomplete after A6. Not Linux. Not POSIX.
+**ABI + CRT + loader + standing-task + memfs + FAT16 miles.** App hosting (sample apps, OS/app slots) stays **Planned**. Track A is still incomplete after A7. Not Linux. Not POSIX.
 
-Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Thin VFS + memfs: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). A4: [issue #35](https://github.com/artofdream/ctos/issues/35). A6: [issue #37](https://github.com/artofdream/ctos/issues/37). Code: `src/syscall.rs`, `src/vfs.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`, `src/el0.rs`.
+Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Thin VFS + memfs: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md). virtio-blk + FAT16: [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). A4: [issue #35](https://github.com/artofdream/ctos/issues/35). A6: [issue #37](https://github.com/artofdream/ctos/issues/37). Code: `src/syscall.rs`, `src/vfs.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`, `src/el0.rs`.
 
 ## Calling convention
 
@@ -43,8 +43,12 @@ The A3 loader is how a payload appears. A4 makes standing EL0 the **supported pa
 
 ## memfs (A6)
 
-In-RAM named buffers behind a thin VFS ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md), [filesystem.md](filesystem.md)). Serial `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok`. File presence is not that probe. Not FAT. Not virtio-blk.
+In-RAM named buffers behind a thin VFS ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md), [filesystem.md](filesystem.md)). Serial `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok`. File presence is not that probe.
+
+## FAT16 (A7)
+
+Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `blk: ok` / `fat: ok`. `/probe` is the known FAT16 file. Write on a FAT handle is `ReadOnly`. File presence is not that probe.
 
 ## Still Planned (Track A)
 
-virtio-blk + FAT or xv6-like, sample apps, OS/app slots (A7–A9 on #31). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.
+Documented sample apps, OS/app slots (A8–A9 on #31). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.

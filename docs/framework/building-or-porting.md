@@ -46,7 +46,7 @@ A Linux, musl, or glibc binary will **not** run. Missing, among other things:
 
 - `exec` / ELF loader / dynamic linker
 - syscall table (`read` / `write` / `open` / `mmap` / `clone` / …)
-- filesystem as Linux defines it (memfs is a thin VFS mile — [filesystem.md](filesystem.md); Planned virtio-blk → FAT/xv6-like), signals, sockets, `environ`, TLS as Linux defines them
+- filesystem as Linux defines it (thin VFS + memfs + read-only FAT16 is not POSIX `open` — [filesystem.md](filesystem.md)), signals, sockets, `environ`, TLS as Linux defines them
 - a C runtime (`crt0`, libgcc helpers as a POSIX process)
 
 Do not publish a “port busybox / musl to ctos” guide that skips those gaps. That work would be many ADRs, not a weekend `#ifdef`. Frozen Out list: [fr-nfr.md](../02-requirements/fr-nfr.md) (userspace processes, POSIX, networking).
@@ -76,7 +76,7 @@ That is **not** a process, not POSIX, and not “EL0 isolated.”
 **Still Planned:**
 
 1. Isolation miles: PAN **enable** (absent on `cortex-a57` — [ADR-026](../03-adr/ADR-026-pan-capability.md)), identity `.data` / heap tear (`.rodata` is [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)), umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5 took the `.rodata` + PAN ID-field cut.
-2. virtio-blk + FAT or xv6-like, sample apps, OS/app slots (A7–A9). memfs is A6.
+2. Sample apps, OS/app slots (A8–A9). memfs is A6. virtio-blk + FAT16 is A7.
 
 “Write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 

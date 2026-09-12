@@ -1,7 +1,7 @@
-//! Thin VFS + in-RAM memfs (Track A / A6 / ADR-027).
+//! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028).
 //!
-//! One backend this mile: named heap buffers. Not Linux VFS. Not POSIX.
-//! Not virtio-blk. Not FAT. Not app hosting.
+//! One `open` story. memfs is in-RAM named buffers. FAT16 is a second
+//! backend on virtio-blk. Not Linux VFS. Not POSIX. Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -34,9 +34,10 @@ pub enum FsError {
     Full,
     BadHandle,
     TooBig,
+    ReadOnly,
 }
 
-/// Thin VFS. A later block FS may implement the same five calls.
+/// Thin VFS. memfs and FAT16 implement the same five calls.
 pub trait VfsOps {
     fn create(&mut self, path: &str) -> Result<u32, FsError>;
     fn open(&mut self, path: &str) -> Result<u32, FsError>;
@@ -250,24 +251,54 @@ pub fn valid_path(path: &str) -> bool {
     })
 }
 
+/// FAT fds are tagged so the router does not invent a second `open`.
+const FAT_FD_TAG: u32 = 0x100;
+
+fn is_fat_fd(fd: u32) -> bool {
+    fd & FAT_FD_TAG != 0
+}
+
+fn fat_inner(fd: u32) -> u32 {
+    fd & !FAT_FD_TAG
+}
+
 pub fn create(path: &str) -> Result<u32, FsError> {
+    if crate::fat::has_name(path) {
+        return Err(FsError::Exists);
+    }
     FS.lock().create(path)
 }
 
 pub fn open(path: &str) -> Result<u32, FsError> {
-    FS.lock().open(path)
+    match FS.lock().open(path) {
+        Ok(fd) => Ok(fd),
+        Err(FsError::Missing) => crate::fat::open(path).map(|fd| fd | FAT_FD_TAG),
+        Err(e) => Err(e),
+    }
 }
 
 pub fn read(fd: u32, buf: &mut [u8]) -> Result<usize, FsError> {
-    FS.lock().read(fd, buf)
+    if is_fat_fd(fd) {
+        crate::fat::read(fat_inner(fd), buf)
+    } else {
+        FS.lock().read(fd, buf)
+    }
 }
 
 pub fn write(fd: u32, buf: &[u8]) -> Result<usize, FsError> {
-    FS.lock().write(fd, buf)
+    if is_fat_fd(fd) {
+        crate::fat::write(fat_inner(fd), buf)
+    } else {
+        FS.lock().write(fd, buf)
+    }
 }
 
 pub fn close(fd: u32) -> Result<(), FsError> {
-    FS.lock().close(fd)
+    if is_fat_fd(fd) {
+        crate::fat::close(fat_inner(fd))
+    } else {
+        FS.lock().close(fd)
+    }
 }
 
 fn kernel_roundtrip() -> bool {
@@ -358,7 +389,7 @@ fn el0_roundtrip() -> bool {
     true
 }
 
-/// Serial proof: kernel + EL0 create/write/read/close. Not FAT. Not app hosting.
+/// Serial proof: kernel + EL0 create/write/read/close. FAT is a later observe.
 #[allow(dead_code)] // hello kernel only; cargo test uses the cases below.
 pub fn observe_probe() -> bool {
     if !paging::mmu_enabled() || !paging::user_map_ready() {
@@ -431,4 +462,11 @@ fn vfs_paths_and_caps_are_documented() {
     assert!(!valid_path("/Probe"));
     assert_eq!(PATH_MAX, 16);
     assert_eq!(FILE_MAX, 256);
+}
+
+#[cfg(test)]
+#[test_case]
+fn vfs_fat_probe_is_same_open() {
+    assert_eq!(open("/probe").map(|_| true), Ok(true));
+    assert_eq!(create("/probe"), Err(FsError::Exists));
 }

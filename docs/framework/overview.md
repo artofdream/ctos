@@ -46,7 +46,7 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
 - **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`); a loaded `libctos` hello as a standing **task** until `exit` (`el0: task-ok`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
-- **Cannot run:** Linux ELF, shell, Python, network, on-disk filesystem, SMP, isolated userspace. Isolation / PAN enable / identity `.data`/heap tear stay **Planned**. Filesystem stance: [filesystem.md](filesystem.md) (memfs this mile; virtio-blk → FAT/xv6-like Planned). Gaps to host apps + **containers: no**: [host-apps.md](host-apps.md).
+- **Cannot run:** Linux ELF, shell, Python, network, POSIX disk apps, SMP, isolated userspace. Isolation / PAN enable / identity `.data`/heap tear stay **Planned**. Filesystem stance: [filesystem.md](filesystem.md) (memfs + read-only FAT16). Gaps to host apps + **containers: no**: [host-apps.md](host-apps.md).
 
 ## Building or porting
 
@@ -85,7 +85,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 ## Drawbacks
 
 - QEMU `virt` only. No Raspberry Pi or board claim
-- Not POSIX, not multi-tenant, not a product runtime. memfs is in-RAM only ([filesystem.md](filesystem.md)). Not a container host ([host-apps.md](host-apps.md)); host `docker-smoke` ≠ guest Docker.
+- Not POSIX, not multi-tenant, not a product runtime. memfs + read-only FAT16 ([filesystem.md](filesystem.md)). Not a container host ([host-apps.md](host-apps.md)); host `docker-smoke` ≠ guest Docker.
 - Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); identity `.rodata` is torn (ADR-025); `.data`/heap stay; PAN enable stays Planned (`pan: absent` on `-cpu cortex-a57`)
 - Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot disconnect** (A9) is **Planned** after Track A ABI/loader — still one ELF today.
 - Performance numbers are guest counter deltas, not a latency budget

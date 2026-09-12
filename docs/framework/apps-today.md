@@ -103,7 +103,7 @@ Explicit **no**. Do not paper over these with a “porting guide.”
 | A shell (`sh`, bash) or line-oriented TTY | RX probe is one injected byte. No line discipline. |
 | Python, Node, or any hosted interpreter | Needs a process ABI, heap policy, and usually a filesystem. |
 | Network / sockets / HTTP | No virtio-net, no stack, no sockets. |
-| On-disk filesystem / FAT / virtio-blk | memfs is an A6 mile (in-RAM only). No block device, no FAT. **Planned** (A7): virtio-blk → FAT or xv6-like. Stance: [filesystem.md](filesystem.md). |
+| On-disk filesystem / FAT / virtio-blk | memfs (A6) + read-only FAT16 on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Not POSIX. Not FAT32. Stance: [filesystem.md](filesystem.md). |
 | SMP / a second CPU / preemptive threads | M9 is cooperative EL1 on one vCPU. |
 | Isolated userspace / “an app you compile and exec” | Standing EL0 is a stub. PAN **enable** + `.data`/heap tear + umbrella isolation stay **Planned**. Identity `.rodata` is torn (ADR-025). Gaps: [host-apps.md](host-apps.md). |
 | OCI / Docker / k8s **in the guest** | **No.** Host `docker-smoke.sh` only builds the kernel. |

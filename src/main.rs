@@ -10,6 +10,7 @@ extern crate alloc;
 mod asid;
 mod el0;
 mod exception;
+mod fat;
 mod frame;
 mod gic;
 mod guard;
@@ -28,6 +29,7 @@ mod timer;
 mod ttbr1;
 mod uart;
 mod vfs;
+mod virtio;
 mod wx;
 
 use core::arch::global_asm;
@@ -99,6 +101,8 @@ extern "C" fn kernel_main_high() -> ! {
     frame::init();
     heap::init();
     vfs::init();
+    virtio::init();
+    fat::init();
     sched::init();
     gic::init();
     timer::init();
@@ -169,6 +173,16 @@ extern "C" fn kernel_main_high() -> ! {
         // + memfs create/write/read/close. Not FAT. Not app hosting.
         if !vfs::observe_probe() {
             uart::write_str_raw("fs: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (Track A / A7 / ADR-028): virtio-blk
+        // sector R/W. Host `-drive` without this guest path is not a probe.
+        if !virtio::observe_probe() {
+            uart::write_str_raw("blk: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (Track A / A7 / ADR-028): FAT16
+        // `/probe` through the same VFS `open`. Not a second open story.
+        if !fat::observe_probe() {
+            uart::write_str_raw("fat: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {

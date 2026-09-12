@@ -1,8 +1,8 @@
 # Filesystem: new vs extend
 
-**Today: in-RAM memfs behind a thin VFS.** Named buffers on the first-fit heap. Create / open / read / write / close of a flat path (`/name`). That mile is [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md) / Track A A6. It is **not** a disk, **not** FAT, **not** POSIX `open`, and **not** Linux VFS.
+**Today: thin VFS with two backends.** In-RAM **memfs** (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) and **FAT16 on virtio-blk** (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same `open` / `read` / `write` / `close`. FAT is **read-only**. Not POSIX `open`, not Linux VFS, not FAT32, not xv6.
 
-Do not say “supports FAT,” “has ext,” or “ctos has files” as if a host-visible volume existed. Hub: [honesty ledger](../framework/honesty-ledger.md), [What can run today](what-can-run.md). Extra stance: [filesystem.md](../framework/filesystem.md).
+Do not say “supports FAT” as a product. Say the guest read a known FAT16 file when the ledger has `fat: ok`. Hub: [honesty ledger](../framework/honesty-ledger.md), [What can run today](what-can-run.md). Extra stance: [filesystem.md](../framework/filesystem.md).
 
 ## New vs extend
 
@@ -10,44 +10,42 @@ Do not say “supports FAT,” “has ext,” or “ctos has files” as if a ho
 
 | Fit | What | Why |
 | --- | --- | --- |
-| This mile | **Ramdisk / memfs** | Named buffers on the existing heap. Create / lookup / read / write **without** DMA or a disk image. |
-| Best next on-disk | **virtio-blk** + **FAT16/32** or a **tiny xv6-like inode FS** | FAT if we want a host-visible image; xv6-like if we want a teaching inode layout. Pick in the A7 ADR — this page does not ship a format. |
-| Later, optional | ctos-specific **virtual mounts** (memfs + one on-disk FS under one VFS) | Only after a block FS has probes. Not a new magic format. |
+| Landed | **Ramdisk / memfs** | Named heap buffers. Create / lookup / read / write without DMA. |
+| This mile | **virtio-blk** + **FAT16** | Host-visible raw image (`scripts/mkfat16.py`). xv6-like was rejected so the host can inspect the volume. |
+| Later, optional | ctos-specific **virtual mounts** | Prefix / tree mounts. Not a new magic format. A8 is sample apps, not this. |
 
 ## Avoid early
 
 Do **not** start with **ext4**, **btrfs**, **ZFS**, or **NTFS**. Those are large, journaled or feature-heavy, and hide the block mile. They are not a first cut.
 
-Host QEMU `-drive` without guest code is not a filesystem.
+Host QEMU `-drive` without guest virtio + a VFS read is not a filesystem.
 
 ## Roadmap order
 
-One milestone → one branch → one PR. Do not stack a later step on an open earlier one.
+One milestone → one branch → one PR.
 
 ```mermaid
 flowchart LR
-  V["1. VFS ADR<br/>ADR-027"] --> M["2. memfs<br/>this mile"]
-  M --> B["3. virtio-blk<br/>Planned"]
-  B --> F["4. FAT or xv6-like<br/>Planned"]
-  F --> H["5. host image probe<br/>Planned"]
+  V["1. VFS ADR<br/>ADR-027"] --> M["2. memfs<br/>A6"]
+  M --> B["3. virtio-blk<br/>this mile"]
+  B --> F["4. FAT16<br/>this mile"]
+  F --> H["5. host image + guest read<br/>this mile"]
 ```
 
-*VFS + memfs are this PR. Do not say “supports FAT.”*
+*A7 is virtio-blk + FAT16. A8–A9 stay Planned. Do not say “supports FAT” as a product.*
 
-1. **VFS ADR** — thin interface (create / open / read / write / close of a path). IDs unchanged.
-2. **memfs** — in-RAM named buffers; serial `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` plus `#[test_case]`.
-3. **virtio-blk** — virtqueues + sector I/O on QEMU `virt`. **Planned** (A7).
-4. **On-disk FS** — FAT16/32 **or** tiny xv6-like, as that ADR decides. **Planned** (A7).
-5. **Host-checkable image probe** — a disk image the host can inspect (for FAT) or a guest round-trip the smoke script greps. Invent `blk: ok` **with** that PR, fail-closed.
-
-Until those later probes exist, on-disk status stays **Planned**.
+1. **VFS ADR** — thin interface (create / open / read / write / close of a path).
+2. **memfs** — in-RAM named buffers; serial `fs: ok`.
+3. **virtio-blk** — virtqueues + sector I/O on QEMU `virt`. Serial `blk: ok`.
+4. **On-disk FS** — FAT16 ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `fat: ok`.
+5. **Host-checkable image** — `scripts/mkfat16.py` writes `target/fat16.img`; smoke attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Guest `vfs::open("/probe")` must read `fat-hi`.
 
 ## Honesty
 
 | Claim | Probe | Status |
 | --- | --- | --- |
-| Thin VFS + memfs create/write/read/close | Serial `fs: ok` + `#[test_case]` | **Verified** on this tip (honesty ledger) |
-| virtio-blk | QEMU disk + guest driver + marker | **Planned** |
-| FAT or xv6-like | Format + read-back / host image check | **Planned** |
+| Thin VFS + memfs create/write/read/close | Serial `fs: ok` + `#[test_case]` | **Verified** (A6; honesty ledger) |
+| virtio-blk sector R/W | Serial `blk: ok` + `#[test_case]` | **Verified** on this tip when the ledger has the probe |
+| FAT16 `/probe` via the same `open` | Serial `fat: ok` + `#[test_case]` | **Verified** on this tip when the ledger has the probe |
 
 Do not claim compatibility with anyone’s existing disk.

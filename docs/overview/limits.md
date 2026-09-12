@@ -14,9 +14,9 @@ QEMU `-kernel` and `_start` stay at `0x4008_0000`. High-address work (kernel pag
 
 **PAN** is a hardware feature that would stop the kernel from casually reading user memory. Default probe CPU is `-cpu cortex-a57` (ARMv8.0). Do not claim PAN. The [ledger](../framework/honesty-ledger.md) row stays **Planned** until the CPU reports the feature **and** an access fault is probed. Do not silently switch `-cpu`.
 
-## No network, disk, or DMA
+## No network; disk is virtio-blk + FAT16 only
 
-There is no NIC driver, no virtio-net, no block device, no VFS, and no DMA API. Input on virt is serial receive. Timer is the virt interrupt controller plus the generic timer. That is the I/O surface. Filesystem direction (Planned only): [Filesystem: new vs extend](filesystem.md).
+There is no NIC driver and no virtio-net. A7 programs virtio-mmio block and reads a host-built FAT16 image through the thin VFS ([Filesystem](filesystem.md)). That is not a general DMA API, not virtio-pci, and not a Linux rootfs. Input on virt is serial receive. Timer is the virt interrupt controller plus the generic timer.
 
 ## No real userspace apps
 

@@ -14,7 +14,7 @@ Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). 
 | --- | --- | --- |
 | A process you `exec` | One linked kernel ELF. Standing EL0 is a dual-SVC stub plus A1 kernel ABI, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same embedded ELF, and an A4 standing **task** until `exit` | **Planned** (VFS / slots). A1–A4 are ABI + CRT + loader + standing-task miles only. Not a Linux `exec`. |
 | POSIX / glibc / musl | Custom `aarch64-ctos.json`, `os: none`, no libc | Not easy, not started. |
-| Files (`open` / a disk) | memfs is in-RAM only | **memfs mile** (A6). virtio-blk / FAT **Planned** |
+| Files (`open` / a disk) | Thin VFS: memfs + read-only FAT16 | **memfs + FAT miles** (A6/A7). Not POSIX. |
 | Sockets / HTTP | No virtio-net, no stack | **Planned** at best; not a Now mile |
 | Shell / TTY / Python | One injected UART byte; no interpreter | **No** until ABI + FS + line discipline |
 | Isolated userspace | First miles + live `.text` tear; PAN / full teardown missing | Isolation **Planned** |
