@@ -19,6 +19,8 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# Pins must stay in lockstep with scripts/docs-build.sh.
+# This job is ubuntu-24.04 (x86_64); Darwin triples live only in the script.
 env:
   MDBOOK_VERSION: "0.5.4"
   MDBOOK_MERMAID_VERSION: "0.17.1"

@@ -30,6 +30,8 @@ mdbook build                     # writes ./book/
 mdbook serve                     # http://localhost:3000
 ```
 
+Auto-install keys on `uname -s`:`uname -m`. Linux stays `x86_64-unknown-linux-gnu` / `aarch64-unknown-linux-musl`. macOS uses the published `x86_64-apple-darwin` / `aarch64-apple-darwin` tarballs for mdBook and mdbook-mermaid. Other hosts: install both pins yourself. `mdbook --version` prints `mdbook v0.5.4`; the script strips the leading `v` before comparing to pin `0.5.4`.
+
 `create-missing` is off: a `SUMMARY.md` link to a missing file fails the build. Output directory `book/` is gitignored.
 
 A successful local `mdbook build` is a **generator** probe. It is not a new “the website is published” claim. The live URL is a separate ledger row.

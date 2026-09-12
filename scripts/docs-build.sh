@@ -17,18 +17,21 @@ ensure_tmp() {
   fi
 }
 
-linux_triple() {
+# Official GitHub release triples. Linux ARM assets are musl.
+host_triple() {
   local tool="$1"
-  local arch
+  local os arch
+  os="$(uname -s)"
   arch="$(uname -m)"
-  case "$arch" in
-    x86_64|amd64) echo "x86_64-unknown-linux-gnu" ;;
-    aarch64|arm64)
-      # Official mdBook + mdbook-mermaid Linux ARM assets are musl.
-      echo "aarch64-unknown-linux-musl"
-      ;;
+  case "${os}:${arch}" in
+    Linux:x86_64|Linux:amd64) echo "x86_64-unknown-linux-gnu" ;;
+    Linux:aarch64|Linux:arm64) echo "aarch64-unknown-linux-musl" ;;
+    Darwin:x86_64) echo "x86_64-apple-darwin" ;;
+    Darwin:arm64) echo "aarch64-apple-darwin" ;;
     *)
-      echo "docs-build: install $tool for $arch, then re-run" >&2
+      echo "docs-build: install $tool for ${os}/${arch}, then re-run" >&2
+      echo "  mdBook: https://github.com/rust-lang/mdBook/releases/tag/v${MDBOOK_VERSION}" >&2
+      echo "  mermaid: https://github.com/badboy/mdbook-mermaid/releases/tag/v${MDBOOK_MERMAID_VERSION}" >&2
       exit 1
       ;;
   esac
@@ -39,6 +42,8 @@ if ! command -v mdbook >/dev/null 2>&1; then
   need_mdbook=1
 else
   have="$(mdbook --version | awk '{print $2}')"
+  # clap prints "mdbook v0.5.4"; pin is 0.5.4
+  have="${have#v}"
   if [ "$have" != "$MDBOOK_VERSION" ]; then
     echo "docs-build: found mdbook $have (want $MDBOOK_VERSION); using PATH binary anyway" >&2
   fi
@@ -46,7 +51,7 @@ fi
 
 if [ "$need_mdbook" -eq 1 ]; then
   ensure_tmp
-  triple="$(linux_triple "mdBook $MDBOOK_VERSION")"
+  triple="$(host_triple "mdBook $MDBOOK_VERSION")"
   archive="mdbook-v${MDBOOK_VERSION}-${triple}.tar.gz"
   echo "docs-build: downloading mdBook ${MDBOOK_VERSION} (${triple})"
   curl -sSL "https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/${archive}" \
@@ -61,7 +66,7 @@ fi
 
 if [ "$need_mermaid" -eq 1 ]; then
   ensure_tmp
-  triple="$(linux_triple "mdbook-mermaid $MDBOOK_MERMAID_VERSION")"
+  triple="$(host_triple "mdbook-mermaid $MDBOOK_MERMAID_VERSION")"
   archive="mdbook-mermaid-v${MDBOOK_MERMAID_VERSION}-${triple}.tar.gz"
   echo "docs-build: downloading mdbook-mermaid ${MDBOOK_MERMAID_VERSION} (${triple})"
   curl -sSL "https://github.com/badboy/mdbook-mermaid/releases/download/v${MDBOOK_MERMAID_VERSION}/${archive}" \
