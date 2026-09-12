@@ -2,13 +2,13 @@
 
 ## Where we stopped
 
-Ready PR https://github.com/artofdream/ctos/pull/65 (`cursor/b2-linux-syscall-gap-c35b`) rebased onto `main` `522c543` (#63 mobile theme). One docs-only PR: [linux-aarch64-syscall-gap.md](../../docs/research/linux-aarch64-syscall-gap.md) maps Linux AArch64 syscalls vs ctos SVC (reserved 0–2, public 16–23). No new ADR (not decision-grade; B6 is the decision). No new FR/NFR IDs. No B3–B6 implementation. No `src/` change. Ledger kept #63 mobile rows **and** B2 rows.
+Ready PR https://github.com/artofdream/ctos/pull/65 (`cursor/b2-linux-syscall-gap-c35b`) rebased onto `main` `faf10d0` (#64 Track A leftovers / ADR-032). One docs-only PR: [linux-aarch64-syscall-gap.md](../../docs/research/linux-aarch64-syscall-gap.md) maps Linux AArch64 syscalls vs ctos SVC (reserved 0–2, public 16–23). No new ADR (not decision-grade; B6 is the decision). No new FR/NFR IDs. No B3–B6 implementation. No `src/` change. Ledger kept ADR-032 leftover rows **and** B2 rows.
 
 B2 is **Documented** on [track-b.md](../../docs/04-roadmap/track-b.md). Scratch: [random-thoughts/2026-09-12-session-memory-b2-syscall-gap.md](../random-thoughts/2026-09-12-session-memory-b2-syscall-gap.md).
 
 ## Do next
 
-1. Separate MRC session already left `COMMENT` on #65. Author does not merge (ADR-002). GitHub lists this PR as `artofdream`-opened; merge hat is `cursor[bot]` after this-tip grepped checks and Bugbot resolved-or-declined. #63 merged; #64 still open and still shares the ledger.
+1. Separate MRC session already left `COMMENT` on #65. Author does not merge (ADR-002). GitHub lists this PR as `artofdream`-opened; merge hat is `cursor[bot]` after this-tip grepped checks and Bugbot resolved-or-declined. #63 and #64 are on `main`.
 2. Close [issue #42](https://github.com/artofdream/ctos/issues/42) after merge (`Closes #42` is on the PR).
 3. B3 ([#43](https://github.com/artofdream/ctos/issues/43)) is process model vs `fork`/`exec`/`wait`. Do not add those syscalls.
 
