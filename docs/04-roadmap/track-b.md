@@ -31,7 +31,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 | B3 | Process model vs Linux (fork/exec/wait) | **Documented** ([#43](https://github.com/artofdream/ctos/issues/43), [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)). Standing EL0 stays the ctos model. Linux `clone`/`execve`/`wait4` is a gap. Do not add those syscalls to `src/`. **Not claiming Linux userspace.** |
 | B4 | Linux ELF / auxv / `PT_INTERP` vs freestanding loader | **Documented** ([#44](https://github.com/artofdream/ctos/issues/44), [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). Gap ADR only. Track A loader stays reusable. **Does not accept `PT_INTERP`.** **Not claiming dynamic Linux ELF.** |
 | B5 | Linux VFS concepts vs thin ctos VFS | **Documented** ([#45](https://github.com/artofdream/ctos/issues/45), [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)). Concept compare only. No POSIX flags / dentries in `src/`. **Not claiming a Linux filesystem.** |
-| B6 | Decision: compat layer vs reimplement vs never | **Planned** ([#46](https://github.com/artofdream/ctos/issues/46)) |
+| B6 | Decision: compat layer vs reimplement vs never | **Decided (never)** ([#46](https://github.com/artofdream/ctos/issues/46), [ADR-036](../03-adr/ADR-036-linux-compat-decision.md)). Research ladder complete. No Linux-compat implementation epic from B1–B5. Track A freestanding path stays. |
 | B7 | Containers remain a non-goal (OCI needs a Linux host) | **Documented** ([#47](https://github.com/artofdream/ctos/issues/47), [ADR-029](../03-adr/ADR-029-containers-nongoal.md)). Site: [hosting-apps.md](../overview/hosting-apps.md) (extra: [host-apps.md](../framework/host-apps.md)). Ledger: absence **Verified**; not Planned. |
 
 ## B1 — Linux-compat frame
@@ -42,7 +42,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 
 **Out:** full Linux ABI as a promise; guest containers ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)); replacing SVC `#n` / `libctos` with Linux `x8` numbers in a research mile; claiming userspace because A3 loads ELF64 or A9 reads FAT `/hello`.
 
-B2 is **Documented** (syscall gap table). B3 is **Documented** (process-model stance). B4 is **Documented** (ELF / auxv / `PT_INTERP` gap). B5 is **Documented** (VFS concept compare). B6 stays **Planned** research (compat layer vs reimplement vs **never**). This page does not implement it. File presence of ADR-031, the B2 note, ADR-033, ADR-034, or ADR-035 is not a Linux userspace probe.
+B2 is **Documented** (syscall gap table). B3 is **Documented** (process-model stance). B4 is **Documented** (ELF / auxv / `PT_INTERP` gap). B5 is **Documented** (VFS concept compare). B6 is **Decided (never)** ([ADR-036](../03-adr/ADR-036-linux-compat-decision.md)): no Linux-compat layer or reimplementation from this ladder. File presence of these ADRs is not a Linux userspace probe.
 
 ## B2 — syscall gap map
 
@@ -50,7 +50,7 @@ B2 is **Documented** (syscall gap table). B3 is **Documented** (process-model st
 
 **Keep:** no Linux `svc #0` / `x8` numbers in `src/` this mile. Track A `SVC #<n>` stays. **No row is `present`** (convention + number space both miss). Related Track A SVCs are **partial**. Namespace/mount stay **never-per-ADR-031** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
 
-B3–B6 must not treat this table as an implementation backlog. B6 may choose **never**.
+B3–B5 must not treat this table as an implementation backlog. B6 chose **never** ([ADR-036](../03-adr/ADR-036-linux-compat-decision.md)).
 
 ## B3 — process model vs standing EL0
 
@@ -60,7 +60,7 @@ B3–B6 must not treat this table as an implementation backlog. B6 may choose **
 
 **Out:** treating A4 or A9 FAT `/hello` as `execve`; treating `SYS_EXIT` as `exit_group`; a pid table; `CLONE_NEW*` (already **never-per-ADR-031**).
 
-On Linux AArch64, userspace `fork()` is `clone`. There is no `fork` syscall. B4 is **Documented** ([ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). B5 is **Documented** ([ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)). B6 stays **Planned**. B6 may choose **never**. File presence of ADR-035 is not a Linux process table.
+On Linux AArch64, userspace `fork()` is `clone`. There is no `fork` syscall. B4 is **Documented** ([ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). B5 is **Documented** ([ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)). B6 is **Decided (never)** ([ADR-036](../03-adr/ADR-036-linux-compat-decision.md)). File presence of ADR-035 is not a Linux process table.
 
 ## B4 — Linux ELF / auxv / PT_INTERP vs the freestanding loader
 
@@ -70,7 +70,7 @@ On Linux AArch64, userspace `fork()` is `clone`. There is no `fork` syscall. B4 
 
 **Out:** accepting `PT_INTERP` in `src/`; claiming musl/glibc or dynamic Linux ELF; treating A9 FAT `/hello` as `execve`.
 
-Static musl still needs a Linux stack/auxv and the B2 syscall surface. Dynamic musl/glibc also need an interpreter. **Not claiming dynamic Linux ELF.** B3 is **Documented**. B5 is **Documented**. B6 stays Planned. B6 may choose **never**.
+Static musl still needs a Linux stack/auxv and the B2 syscall surface. Dynamic musl/glibc also need an interpreter. **Not claiming dynamic Linux ELF.** B3 is **Documented**. B5 is **Documented**. B6 is **Decided (never)** ([ADR-036](../03-adr/ADR-036-linux-compat-decision.md)).
 
 ## B5 — Linux VFS vs thin ctos VFS
 
@@ -78,7 +78,7 @@ Static musl still needs a Linux stack/auxv and the B2 syscall surface. Dynamic m
 
 **Keep:** no POSIX `open` flags, dentries, cwd, or `mount(2)` in `src/` this mile. Track A `VfsOps` stays five calls. **No Linux VFS object is `present`.** Path strings and handles are **partial**. Mount / overlay stay **never-per-ADR-031**. File-descriptor numbers stay on the [B2 gap map](../research/linux-aarch64-syscall-gap.md) (`openat` / `read` / `write` / `close` **partial**).
 
-B6 must not treat this compare as an implementation backlog. B3 and B4 are Documented. B6 may choose **never**. **Not claiming a Linux filesystem.**
+B6 chose **never** ([ADR-036](../03-adr/ADR-036-linux-compat-decision.md)) — this compare is not an implementation backlog. B3 and B4 are Documented. **Not claiming a Linux filesystem.**
 
 ## B7 — containers are a non-goal
 
@@ -87,3 +87,14 @@ B6 must not treat this compare as an implementation backlog. B3 and B4 are Docum
 **Today the arrow is reversed:** a Linux host may run Docker/`docker-smoke.sh` to **build and QEMU-smoke** the ctos image. That is a host harness (NFR-04 / NFR-05), not a guest runtime.
 
 Do not claim a Docker/OCI host. Do not treat this as far-later work waiting on Track B. Reopen only with a **new GitHub epic** plus a new ADR — not a Track B “win,” and not a new FR/NFR ID.
+
+
+## B6 — decision (never)
+
+[ADR-036](../03-adr/ADR-036-linux-compat-decision.md) records the Track B outcome: **never** start a Linux-compat layer or Linux-like reimplementation from B1–B5.
+
+**Keep:** Track A freestanding path; B1–B5 / B7 as the honesty record of the gap; principles over tracks.
+
+**Out:** treating the research tables as a backlog; accepting `PT_INTERP` / Linux `x8` / `clone`/`execve` / POSIX VFS / guest containers “later on Track B.”
+
+Reopen only with a **new** epic + ADR + named workload probe.
