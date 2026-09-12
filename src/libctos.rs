@@ -15,6 +15,7 @@ use crate::syscall;
 use crate::uart;
 
 include!(concat!(env!("OUT_DIR"), "/hello_libctos_meta.rs"));
+const _: () = assert!(HELLO_ELF_LEN > HELLO_LEN);
 
 const HELLO_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/hello-libctos.bin"));
 

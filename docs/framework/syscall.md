@@ -1,8 +1,8 @@
 # SVC syscall ABI (Track A / A1 / ADR-021)
 
-**ABI + CRT miles.** App hosting (loader, VFS, OS/app slots) stays **Planned**. Track A is still incomplete after A2. Not Linux. Not POSIX.
+**ABI + CRT + loader miles.** App hosting (standing-as-normal, VFS, OS/app slots) stays **Planned**. Track A is still incomplete after A3. Not Linux. Not POSIX.
 
-Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). Code: `src/syscall.rs`, `libctos/`, `user/hello-libctos/`.
+Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). Code: `src/syscall.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`.
 
 ## Calling convention
 
@@ -26,8 +26,12 @@ Serial `svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`. `#
 
 ## `libctos` (A2)
 
-A `no_std` crate wraps the three public numbers. A hello payload linked against it is copied onto the standing EL0 page (not a guest ELF loader). Serial `libctos: hi` / `libctos: ok` / `libctos: linked`. File presence is not that probe.
+A `no_std` crate wraps the three public numbers. A hello payload linked against it is copied onto the standing EL0 page (A2) **and** parsed as ELF64 `PT_LOAD` on the guest (A3). Serial `libctos: hi` / `libctos: ok` / `libctos: linked`. File presence is not that probe.
+
+## Guest loader (A3)
+
+The kernel parses the embedded hello ELF, maps each `PT_LOAD` into the user map-window, and `ERET`s to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Serial `loader: mapped` / `loader: ok`. Not a Linux ELF ABI. Not `PT_INTERP`. The image is still bundled (no VFS). File presence is not that probe.
 
 ## Still Planned (Track A)
 
-ELF loader, standing EL0 as normal mode, isolation completion, VFS / memfs, virtio-blk, sample apps, OS/app slots (A3–A9 on #31).
+Standing EL0 as normal mode, isolation completion, VFS / memfs, virtio-blk, sample apps, OS/app slots (A4–A9 on #31).

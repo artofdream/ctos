@@ -54,7 +54,7 @@ First-class page: [building-or-porting.md](building-or-porting.md). Short honest
 
 - **Easiest** = in-tree `no_std` coop EL1 on `aarch64-ctos.json`, proven with `cargo` / `qemu-smoke` / `docker-smoke`.
 - **POSIX / glibc** = not easy, not started.
-- **SVC ABI + `libctos`** for freestanding EL0 = A1 ABI + A2 CRT miles (standing dual-SVC is still a stub; not a syscall table; loader stays **Planned**).
+- **SVC ABI + `libctos` + guest `PT_LOAD`** for freestanding EL0 = A1 ABI + A2 CRT + A3 loader miles (standing dual-SVC is still a stub; not a syscall table; standing-as-normal stays **Planned**).
 
 ## OS image vs app payloads (A9)
 

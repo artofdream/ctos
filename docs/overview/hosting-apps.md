@@ -31,14 +31,14 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Rese
 | --- | --- | --- |
 | **Stable SVC ABI** | A1 documented `exit` / `uart_write` / `yield` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). That is a **kernel** contract, not a loader. | **ABI mile** — Verified only when the ledger has `svc: ok` on this tip. Not app hosting. |
 | **libctos / CRT** | A2: `libctos` wrappers + `_start` CRT. Hello is host-built and copied onto the standing EL0 page ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). | **CRT mile** — Verified only when the ledger has `libctos: ok` on this tip. Not a guest loader. |
-| **ELF / user loader** | No loader for a freestanding user-mode binary, let alone a Linux ELF | Not built (A3) |
+| **ELF / user loader** | A3: guest ELF64 `PT_LOAD` into user TTBR0, then `ERET` to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Image is still embedded. Not a Linux ELF ABI. | **Loader mile** — Verified only when the ledger has `loader: ok` on this tip. Not app hosting. |
 | **Standing user mode as normal** | Standing enter/leave is a stub mile, not the default way code runs | First mile Verified; normal userspace **Planned** |
 | **Stronger isolation** | Umbrella user-mode isolation needs PAN + fuller identity teardown | **Planned** — do not say “EL0 isolated” |
 | **VFS + memfs** | No files, no paths; see [Filesystem](filesystem.md) | **Planned** |
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
 | **Preemption / extra CPUs / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
-Until the loader block has probes, “host an application” is a sentence we do not use. That block is **Track A**. A1 landed the kernel SVC ABI. A2 landed `libctos`. The loader is still **Planned**. See [Immutability](advantages.md#immutability).
+Until standing-as-normal + VFS + slots have probes, “host an application” is a sentence we do not use. That block is **Track A**. A1 landed the kernel SVC ABI. A2 landed `libctos`. A3 landed a guest `PT_LOAD` loader (embedded image, not a filesystem `exec`). A4–A9 stay **Planned**. See [Immutability](advantages.md#immutability).
 
 ## Containers
 

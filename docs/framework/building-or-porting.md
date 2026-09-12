@@ -1,6 +1,6 @@
 # Building or porting
 
-Honesty first: there is a tiny `libctos` CRT for the A1 SVC ABI, and **no** libc. ctos is a freestanding `no_std` kernel on a custom target. Status words need a probe in the [honesty ledger](honesty-ledger.md).
+Honesty first: there is a tiny `libctos` CRT for the A1 SVC ABI, a guest `PT_LOAD` loader for that in-tree ELF, and **no** libc. ctos is a freestanding `no_std` kernel on a custom target. Status words need a probe in the [honesty ledger](honesty-ledger.md).
 
 What already runs: [apps-today.md](apps-today.md). KPIs and trade-offs: [overview.md](overview.md).
 
@@ -61,15 +61,18 @@ Standing EL0 is still a **dual-SVC stub** (`SVC #1` stay / `SVC #2` restore) plu
 | `libctos/src/crt0.S` | `_start` → `main` → `ctos_exit`. No argv / environ. |
 | `user/hello-libctos/` | Hello that prints `libctos: hi` / `libctos: ok` via `uart_write`. |
 
-That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-built and copied onto the standing EL0 page ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). File presence is not the probe — see the ledger for `libctos: ok`.
+That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-built. A2 copies the flattened `PT_LOAD` onto the standing EL0 page ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). A3 parses the **same ELF** on the guest and maps `PT_LOAD` into user TTBR0 ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). File presence is not the probe — see the ledger for `libctos: ok` and `loader: ok`.
+
+## Guest loader (A3)
+
+`src/loader.rs` walks ELF64 LE AArch64 `ET_EXEC` program headers, maps `PT_LOAD` pages in the user map-window, and `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. The ELF is still `include_bytes!` (no VFS). Not a Linux ABI.
 
 **Still Planned:**
 
 1. Isolation miles: PAN (usually absent on `cortex-a57`), identity `.rodata` / `.data` / heap tear, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)).
-2. An ELF/raw loader into user TTBR0 (A3).
-3. Standing EL0 as normal mode (A4).
+2. Standing EL0 as normal mode (A4).
 
-Until the loader exists, “write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
+Until A4, “write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 
 A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) is **Planned after** that ABI/loader. Today is still one linked ELF — not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
 

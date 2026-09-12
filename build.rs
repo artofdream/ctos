@@ -44,16 +44,25 @@ fn main() {
 
     let bin_path = out_dir.join("hello-libctos.bin");
     fs::write(&bin_path, &image).unwrap();
+    // A3 guest loader consumes the ELF bytes (not the host-flattened image).
+    let elf_path = out_dir.join("hello-libctos.elf");
+    if elf.len() > 64 * 1024 {
+        panic!("hello ELF {} bytes is > 64 KiB (keep the A3 embed small)", elf.len());
+    }
+    fs::write(&elf_path, &elf).unwrap();
     fs::write(
         out_dir.join("hello_libctos_meta.rs"),
         format!(
             "pub const HELLO_LOAD_VA: u64 = {EL0_PAGE:#x};\n\
-             pub const HELLO_LEN: usize = {};\n",
-            image.len()
+             pub const HELLO_LEN: usize = {};\n\
+             pub const HELLO_ELF_LEN: usize = {};\n",
+            image.len(),
+            elf.len()
         ),
     )
     .unwrap();
     println!("cargo:rustc-env=CTOS_HELLO_LIBCTOS_LEN={}", image.len());
+    println!("cargo:rustc-env=CTOS_HELLO_LIBCTOS_ELF_LEN={}", elf.len());
 }
 
 fn build_hello_rust(root: &Path, hello_dir: &Path, out_dir: &Path) -> Result<Vec<u8>, String> {
