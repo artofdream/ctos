@@ -8,7 +8,7 @@ Named Track A A1–A9 same-login merge as a **historical exception** in [ADR-002
 
 `gh pr view --json author,mergedBy` on 2026-09-12: #49, #52–#57, #59, #60 were `artofdream` / `artofdream`. Not rewritten. Distinct-identity merge on this repo stays **Unknown**.
 
-No `src/` edit. Kernel `qemu-smoke` not run.
+Cloud `./scripts/docs-build.sh` **Verified** (`mdbook v0.5.4`, mermaid 0.17.1, Linux auto-install, `docs-build: ok`). No `src/` edit. Kernel `qemu-smoke` not run. GitHub author of this PR is `artofdream`; merge hat is `cursor[bot]`.
 
 ## Do next
 
