@@ -63,6 +63,7 @@
 - [ADR-034 Linux VFS vs thin ctos VFS](03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)
 - [ADR-035 Process model vs standing EL0](03-adr/ADR-035-process-model-standing-el0.md)
 - [ADR-036 Linux-compat decision (never)](03-adr/ADR-036-linux-compat-decision.md)
+- [ADR-037 Identity .data tear](03-adr/ADR-037-identity-data-tear.md)
 
 # Roadmap
 

@@ -43,5 +43,7 @@ Say “the same published `hello-libctos.elf` loaded on this OS and on `ba6541c`
 
 ## Consequences
 
+- [ADR-037](ADR-037-identity-data-tear.md) supersedes the `.data` stay marker with an honest `.data`/stack tear; `ident: heap-stay` remains until a high allocator exists.
+
 - Code: `fat::read_file`, loader/libctos FAT path, teardown stay markers, `scripts/qemu-smoke.sh` embed + cross-update + stay greps.
 - Docs: this ADR, [ADR-030](ADR-030-os-app-slots.md), A2–A4 ADRs (payload source), [ADR-025](ADR-025-identity-rodata-tear.md) / [ADR-026](ADR-026-pan-capability.md) (still Planned), ledger, Track A, threat-model v1.17.

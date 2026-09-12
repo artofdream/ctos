@@ -548,16 +548,36 @@ if ! grep -q "ident: no el0" "$log"; then
     echo "qemu-smoke: missing 'ident: no el0' on serial (EL0 torn-page DABORT, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-if grep -q "ident: miss data-stay" "$log"; then
-    echo "qemu-smoke: identity .data vanished (tear is Planned; SP/statics still need it)" >&2
+if grep -q "ident: data-reloc missed" "$log"; then
+    echo "qemu-smoke: ident data-reloc missed (.data pointer rewrite did not run)" >&2
+    exit 1
+fi
+if grep -q "ident: sp-high missed" "$log"; then
+    echo "qemu-smoke: ident sp-high missed (SP was not relocated to the high twin)" >&2
+    exit 1
+fi
+if grep -q "ident: data missed" "$log"; then
+    echo "qemu-smoke: ident data missed (identity .data/.bss/stacks stayed mapped)" >&2
     exit 1
 fi
 if grep -q "ident: miss heap-stay" "$log"; then
     echo "qemu-smoke: identity heap vanished (tear is Planned; allocator still identity)" >&2
     exit 1
 fi
-if ! grep -q "ident: data-stay" "$log"; then
-    echo "qemu-smoke: missing 'ident: data-stay' on serial (identity .data still mapped, qemu exit $qemu_ec)" >&2
+if ! grep -q "ident: data-reloc" "$log"; then
+    echo "qemu-smoke: missing 'ident: data-reloc' on serial (identity .data pointer rewrite, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: data lo=" "$log"; then
+    echo "qemu-smoke: missing 'ident: data' on serial (identity .data tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: data-fault" "$log"; then
+    echo "qemu-smoke: missing 'ident: data-fault' on serial (EL1 identity .data DABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: data-high" "$log"; then
+    echo "qemu-smoke: missing 'ident: data-high' on serial (EL1 high .data load, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 if ! grep -q "ident: heap-stay" "$log"; then

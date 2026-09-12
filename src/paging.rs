@@ -31,12 +31,14 @@
 //! aliases and unmaps live identity `.text` after the `_start` page.
 //! [ADR-025](../docs/03-adr/ADR-025-identity-rodata-tear.md) rewrites
 //! identity pointers *to* `.rodata` and unmaps identity `.rodata`.
-//! `.data` / heap / linker stacks stay identity-mapped (SP and
-//! `GlobalAlloc` still use those VAs). `_start` and the QEMU `-kernel`
-//! load stay at `0x4008_0000`. Full identity teardown (`.data`/heap)
-//! is still Planned. PAN enable is [ADR-026](../docs/03-adr/ADR-026-pan-capability.md)
-//! and stays Planned on `-cpu cortex-a57`. Not a DTB walker. Not
-//! Raspberry Pi. Not “EL0 isolated.” Not “the kernel moved.”
+//! [ADR-037](../docs/03-adr/ADR-037-identity-data-tear.md) rewrites
+//! identity pointers *into* `.data`/`.bss`/linker stacks, relocates SP
+//! to the high twin, then unmaps those identity pages. Heap stays
+//! identity-mapped (`GlobalAlloc` still returns identity VAs). `_start`
+//! and the QEMU `-kernel` load stay at `0x4008_0000`. Heap tear and PAN
+//! enable stay Planned ([ADR-026](../docs/03-adr/ADR-026-pan-capability.md)
+//! on `-cpu cortex-a57`). Not a DTB walker. Not Raspberry Pi. Not
+//! “EL0 isolated.” Not “the kernel moved.”
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -176,6 +178,8 @@ static IDENTITY_LIVE_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static IDENTITY_RODATA_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
+static IDENTITY_DATA_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 static TORN_TEXT_PAGES: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TORN_LIVE_PAGES: core::sync::atomic::AtomicU64 =
@@ -185,6 +189,10 @@ static TORN_RODATA_PAGES: core::sync::atomic::AtomicU64 =
 static RELOC_COUNT: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static RODATA_RELOC_COUNT: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static DATA_RELOC_COUNT: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static TORN_DATA_PAGES: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TABLES: Mutex<()> = Mutex::new(());
 
@@ -280,7 +288,14 @@ pub fn is_torn_identity_va(va: u64) -> bool {
         }
     }
     if load_flag(&IDENTITY_RODATA_OK) {
-        return page >= rodata_start() && page < ident_tear_page();
+        if page >= rodata_start() && page < ident_tear_page() {
+            return true;
+        }
+    }
+    if load_flag(&IDENTITY_DATA_OK) {
+        let kend = frame::kernel_end();
+        let kend_page = (kend + PAGE - 1) & !(PAGE - 1);
+        return page >= data_start() && page < kend_page;
     }
     false
 }
@@ -464,8 +479,19 @@ unsafe fn alloc_user_l3() -> Option<u64> {
     Some(l3_user_pa(n))
 }
 
+/// CPU VA for a page-table PA. After the high split, prefer the TTBR1
+/// twin so identity `.bss` (where the tables live) can be torn (ADR-037).
+fn table_cpu_va(pa: u64) -> u64 {
+    let pa = identity_pa(pa);
+    if high_split_ready() {
+        to_high_va(pa)
+    } else {
+        pa
+    }
+}
+
 unsafe fn l3_write(l3_pa: u64, index: usize, desc: u64) {
-    core::ptr::write((l3_pa as *mut u64).add(index), desc);
+    core::ptr::write((table_cpu_va(l3_pa) as *mut u64).add(index), desc);
 }
 
 fn l1_block(pa: u64, attr: u64, exec: bool) -> u64 {
@@ -531,7 +557,7 @@ fn align_up(addr: u64, align: u64) -> u64 {
 }
 
 unsafe fn desc_at(table_pa: u64, index: usize) -> u64 {
-    core::ptr::read((table_pa as *const u64).add(index))
+    core::ptr::read((table_cpu_va(table_pa) as *const u64).add(index))
 }
 
 /// Drop the TTBR1 tag. Page-table and linker VAs are physical at identity.
@@ -633,6 +659,38 @@ pub fn high_pxn_for(va: u64) -> Option<bool> {
     walk_leaf(l1_high_pa(), va).map(|d| d & DESC_PXN != 0)
 }
 
+/// Walk TTBR1. `Some(true)` = AP[2] set on the high alias.
+#[allow(dead_code)]
+pub fn high_readonly_for(va: u64) -> Option<bool> {
+    if !is_high_va(va) {
+        return None;
+    }
+    let _g = TABLES.lock();
+    walk_leaf(l1_high_pa(), va).map(|d| d & DESC_AP_RO != 0)
+}
+
+/// Attributes for a kernel image VA. After ADR-037, `.data`/stacks are
+/// high-only — walk TTBR1 for those pages.
+#[allow(dead_code)]
+pub fn image_pxn_for(va: u64) -> Option<bool> {
+    let ia = identity_pa(va);
+    if identity_data_ready() && ia >= data_start() && ia < frame::kernel_end() {
+        high_pxn_for(to_high_va(ia))
+    } else {
+        pxn_for(ia)
+    }
+}
+
+#[allow(dead_code)]
+pub fn image_readonly_for(va: u64) -> Option<bool> {
+    let ia = identity_pa(va);
+    if identity_data_ready() && ia >= data_start() && ia < frame::kernel_end() {
+        high_readonly_for(to_high_va(ia))
+    } else {
+        readonly_for(ia)
+    }
+}
+
 #[allow(dead_code)]
 pub fn high_is_executable(va: u64) -> bool {
     matches!(high_pxn_for(va), Some(false))
@@ -686,6 +744,12 @@ pub fn identity_rodata_ready() -> bool {
     load_flag(&IDENTITY_RODATA_OK)
 }
 
+/// Identity `.data`/`.bss`/linker stacks unmapped; high twin stays (ADR-037).
+#[allow(dead_code)]
+pub fn identity_data_ready() -> bool {
+    load_flag(&IDENTITY_DATA_OK)
+}
+
 /// How many `.rodata`/`.data` words were rewritten to a high alias.
 #[allow(dead_code)]
 pub fn reloc_count() -> u64 {
@@ -708,6 +772,18 @@ pub fn torn_live_pages() -> u64 {
 #[allow(dead_code)]
 pub fn torn_rodata_pages() -> u64 {
     load_u64_flag(&TORN_RODATA_PAGES)
+}
+
+/// How many identity pointers *into* `.data`/stacks were rewritten (ADR-037).
+#[allow(dead_code)]
+pub fn data_reloc_count() -> u64 {
+    load_u64_flag(&DATA_RELOC_COUNT)
+}
+
+/// How many identity `.data`/`.bss`/stack pages were unmapped (ADR-037).
+#[allow(dead_code)]
+pub fn torn_data_pages() -> u64 {
+    load_u64_flag(&TORN_DATA_PAGES)
 }
 
 #[allow(dead_code)]
@@ -918,8 +994,8 @@ unsafe fn clone_ram_tables_for_high() -> bool {
             return false;
         };
         for p in 0..512 {
-            let d = core::ptr::read((src as *const u64).add(p));
-            core::ptr::write((dst as *mut u64).add(p), d);
+            let d = core::ptr::read((table_cpu_va(src) as *const u64).add(p));
+            core::ptr::write((table_cpu_va(dst) as *mut u64).add(p), d);
         }
         l2_high_ram_slot(i).write(table_desc(dst));
     }
@@ -1065,40 +1141,57 @@ fn dcache_civac(va: u64) {
 
 /// Publish a `.bss` atomic so an identity load sees a high-VA store
 /// (and the reverse). Same class as the PR #20 / Docker `.bss` miss.
+fn flag_cpu_va(flag_addr: u64) -> u64 {
+    let ident = identity_pa(flag_addr);
+    if high_split_ready() {
+        to_high_va(ident)
+    } else {
+        ident
+    }
+}
+
 fn publish_flag(flag: &core::sync::atomic::AtomicBool, val: bool) {
     let ident = identity_pa(flag as *const _ as u64);
+    let cpu = flag_cpu_va(ident);
     unsafe {
-        (*(ident as *const core::sync::atomic::AtomicBool))
+        (*(cpu as *const core::sync::atomic::AtomicBool))
             .store(val, core::sync::atomic::Ordering::SeqCst);
     }
-    dcache_civac(ident);
-    dcache_civac(to_high_va(ident));
+    dcache_civac(cpu);
+    if cpu != ident && is_mapped(ident) {
+        dcache_civac(ident);
+    }
     dsb_ish();
 }
 
 fn load_flag(flag: &core::sync::atomic::AtomicBool) -> bool {
     let ident = identity_pa(flag as *const _ as u64);
+    let cpu = flag_cpu_va(ident);
     unsafe {
-        (*(ident as *const core::sync::atomic::AtomicBool))
+        (*(cpu as *const core::sync::atomic::AtomicBool))
             .load(core::sync::atomic::Ordering::SeqCst)
     }
 }
 
 fn publish_u64(flag: &core::sync::atomic::AtomicU64, val: u64) {
     let ident = identity_pa(flag as *const _ as u64);
+    let cpu = flag_cpu_va(ident);
     unsafe {
-        (*(ident as *const core::sync::atomic::AtomicU64))
+        (*(cpu as *const core::sync::atomic::AtomicU64))
             .store(val, core::sync::atomic::Ordering::SeqCst);
     }
-    dcache_civac(ident);
-    dcache_civac(to_high_va(ident));
+    dcache_civac(cpu);
+    if cpu != ident && is_mapped(ident) {
+        dcache_civac(ident);
+    }
     dsb_ish();
 }
 
 fn load_u64_flag(flag: &core::sync::atomic::AtomicU64) -> u64 {
     let ident = identity_pa(flag as *const _ as u64);
+    let cpu = flag_cpu_va(ident);
     unsafe {
-        (*(ident as *const core::sync::atomic::AtomicU64))
+        (*(cpu as *const core::sync::atomic::AtomicU64))
             .load(core::sync::atomic::Ordering::SeqCst)
     }
 }
@@ -1669,6 +1762,178 @@ pub fn tear_identity_rodata() -> bool {
     true
 }
 
+/// True when `w` is an 8-byte-aligned identity address in `.data` /
+/// `.bss` / linker stacks (`[__data_start, __kernel_end)`). Excludes
+/// valid page-table descriptors (those have low bits set).
+fn is_identity_data_ptr(w: u64) -> bool {
+    if is_high_va(w) || w & 7 != 0 {
+        return false;
+    }
+    let p = identity_pa(w);
+    let kend = frame::kernel_end();
+    p >= data_start() && p < kend
+}
+
+/// First page past `__kernel_end` (exclusive end of the data/stack tear).
+fn data_tear_end() -> u64 {
+    let kend = frame::kernel_end();
+    (kend + PAGE - 1) & !(PAGE - 1)
+}
+
+/// Rewrite identity pointers *into* `.data`/`.bss`/stacks (ADR-037).
+///
+/// Runs **before** the `.rodata` tear so identity `.rodata` is still
+/// walkable. `n == 0` is allowed. Does not unmap. Heap is not in range.
+#[allow(dead_code)]
+pub fn rewrite_identity_data_ptrs() -> bool {
+    if !high_split_ready() || !pc_is_high() || !identity_live_ready() {
+        return false;
+    }
+    if identity_rodata_ready() || identity_data_ready() {
+        return false;
+    }
+    let ro_lo = rodata_start();
+    let ro_hi = ident_tear_page();
+    if ro_lo < text_end() || ro_hi <= ro_lo || ro_hi > data_start() {
+        return false;
+    }
+    if !is_mapped(ro_lo) {
+        return false;
+    }
+    let dlo = data_start();
+    let dhi = data_tear_end();
+    if dhi <= dlo || (dlo & (PAGE - 1)) != 0 {
+        return false;
+    }
+    let mut n = rewrite_ptr_range(ro_lo, ro_hi, true, is_identity_data_ptr);
+    n += rewrite_ptr_range(dlo, dhi, false, is_identity_data_ptr);
+    publish_u64(&DATA_RELOC_COUNT, n);
+    let mut w = uart::raw();
+    let _ = writeln!(w, "ident: data-reloc n={}", n);
+    true
+}
+
+/// Move SP (SP_EL0) and SP_EL1 to the TTBR1 twins of the same pages.
+///
+/// Call only while identity stack pages are still mapped. Physical
+/// contents are unchanged; only the VA tag moves.
+#[allow(dead_code)]
+pub fn relocate_stacks_high() -> bool {
+    if !high_split_ready() || !pc_is_high() {
+        return false;
+    }
+    let mut sp: u64;
+    unsafe {
+        core::arch::asm!("mov {s}, sp", s = out(reg) sp, options(nomem, nostack, preserves_flags));
+    }
+    let sp_ia = identity_pa(sp);
+    let thr_lo = crate::exception::thread_stack_bottom();
+    let thr_hi = crate::exception::thread_stack_top();
+    if sp_ia < thr_lo || sp_ia > thr_hi {
+        return false;
+    }
+    let sp_high = to_high_va(sp_ia);
+    let exc_high = to_high_va(crate::exception::exc_stack_top());
+    if !high_mapped(sp_high) || !high_mapped(exc_high - 1) {
+        return false;
+    }
+    unsafe {
+        core::arch::asm!(
+            "msr spsel, #1",
+            "mov sp, {exc}",
+            "msr spsel, #0",
+            "mov sp, {thr}",
+            "isb",
+            exc = in(reg) exc_high,
+            thr = in(reg) sp_high,
+            options(preserves_flags),
+        );
+    }
+    let mut sp2: u64;
+    unsafe {
+        core::arch::asm!("mov {s}, sp", s = out(reg) sp2, options(nomem, nostack, preserves_flags));
+    }
+    is_high_va(sp2)
+}
+
+/// Unmap identity `.data`/`.bss`/linker stacks (ADR-037). High twins stay.
+///
+/// Requires the data pointer rewrite and a high SP. Heap at/after
+/// `__kernel_end` stays identity-mapped. Must run after the `.rodata` tear.
+#[allow(dead_code)]
+pub fn tear_identity_data() -> bool {
+    if !high_split_ready() || !pc_is_high() || !identity_rodata_ready() {
+        return false;
+    }
+    if identity_data_ready() {
+        return false;
+    }
+    let mut sp: u64;
+    unsafe {
+        core::arch::asm!("mov {s}, sp", s = out(reg) sp, options(nomem, nostack, preserves_flags));
+    }
+    if !is_high_va(sp) {
+        return false;
+    }
+    let lo = data_start();
+    let hi = data_tear_end();
+    if lo & (PAGE - 1) != 0 || hi & (PAGE - 1) != 0 || hi <= lo {
+        return false;
+    }
+    if !is_mapped(lo) {
+        return false;
+    }
+    if !high_mapped(to_high_va(lo)) {
+        return false;
+    }
+    let pages = (hi - lo) / PAGE;
+    if pages < 1 {
+        return false;
+    }
+    {
+        let _g = TABLES.lock();
+        let mut va = lo;
+        unsafe {
+            while va < hi {
+                // Guard holes are already clear; clearing again is fine.
+                if !unmap_identity_page(va) {
+                    return false;
+                }
+                let _ = unmap_user_ram_page(va);
+                va += PAGE;
+            }
+        }
+        dsb_ish();
+    }
+    let mut va = lo;
+    while va < hi {
+        tlbi_va(va);
+        va += PAGE;
+    }
+    if is_mapped(lo) || is_mapped(hi - PAGE) {
+        return false;
+    }
+    if !is_mapped(KERNEL_TEXT) || !is_executable(KERNEL_TEXT) {
+        return false;
+    }
+    // Heap / frames start at __kernel_end — must stay identity-mapped.
+    if !is_mapped(frame::kernel_end()) {
+        return false;
+    }
+    if !high_mapped(to_high_va(lo)) {
+        return false;
+    }
+    publish_u64(&TORN_DATA_PAGES, pages);
+    publish_flag(&IDENTITY_DATA_OK, true);
+    let mut w = uart::raw();
+    let _ = writeln!(
+        w,
+        "ident: data lo={:#x} hi={:#x} pages={}",
+        lo, hi, pages
+    );
+    true
+}
+
 pub fn mmu_enabled() -> bool {
     sctlr_el1() & SCTLR_M != 0
 }
@@ -2082,11 +2347,11 @@ fn data_and_linker_stacks_are_nx_writable() {
     let data = data_start();
     assert!(data > KERNEL_TEXT);
     assert_eq!(data & 0xfff, 0, "__data_start must be 4 KiB aligned");
-    assert_eq!(pxn_for(data), Some(true), ".data must be PXN");
-    assert_eq!(readonly_for(data), Some(false), ".data must stay writable");
+    assert_eq!(image_pxn_for(data), Some(true), ".data must be PXN");
+    assert_eq!(image_readonly_for(data), Some(false), ".data must stay writable");
     let stack = crate::exception::thread_stack_bottom();
-    assert_eq!(pxn_for(stack), Some(true), "live linker stack must be PXN");
-    assert_eq!(readonly_for(stack), Some(false));
+    assert_eq!(image_pxn_for(stack), Some(true), "live linker stack must be PXN");
+    assert_eq!(image_readonly_for(stack), Some(false));
 }
 
 #[cfg(test)]
@@ -2095,10 +2360,17 @@ fn user_ttbr0_omits_kernel_data() {
     assert!(user_map_ready(), "user TTBR0 window failed to build");
     assert_eq!(user_ttbr0() >> 48, USER_ASID);
     assert!(user_mapped(KERNEL_TEXT), "user map must include kernel text");
-    assert!(
-        user_mapped(crate::exception::exc_stack_bottom()),
-        "user map must include the exception stack (handler SP_EL1)"
-    );
+    let exc_ia = identity_pa(crate::exception::exc_stack_bottom());
+    if identity_data_ready() {
+        // ADR-037 unmaps identity stacks from user TTBR0 too; EL1 restores
+        // kernel TTBR0 before the handler touches SP_EL1.
+        assert!(!user_mapped(exc_ia), "torn identity stacks leave user TTBR0");
+    } else {
+        assert!(
+            user_mapped(exc_ia),
+            "user map must include the exception stack (handler SP_EL1)"
+        );
+    }
     assert!(
         !user_mapped(data_start()),
         "user TTBR0 must omit kernel .data"
@@ -2118,15 +2390,20 @@ fn layout_stress_crosses_first_ram_l2() {
     );
     assert!(is_executable(KERNEL_TEXT));
     assert!(is_readonly(KERNEL_TEXT));
-    assert_eq!(pxn_for(data_start()), Some(true));
+    assert_eq!(image_pxn_for(data_start()), Some(true));
     assert!(is_mapped(frame::kernel_end()));
     assert!(
-        crate::exception::exc_stack_top() > first_ram_l2_end(),
+        identity_pa(crate::exception::exc_stack_top()) > first_ram_l2_end(),
         "exception stack must also leave the first RAM 2 MiB"
     );
     assert!(user_map_ready());
     assert!(user_mapped(KERNEL_TEXT));
-    assert!(user_mapped(crate::exception::exc_stack_bottom()));
+    let exc_ia = identity_pa(crate::exception::exc_stack_bottom());
+    if identity_data_ready() {
+        assert!(!user_mapped(exc_ia));
+    } else {
+        assert!(user_mapped(exc_ia));
+    }
     assert!(!user_mapped(data_start()));
 }
 
@@ -2314,9 +2591,34 @@ fn identity_rodata_unmapped_high_stays() {
     assert!(!user_mapped(lo), "user TTBR0 must omit identity .rodata");
     assert!(!is_mapped(hi - PAGE), "last .rodata page must be absent");
     assert!(is_mapped(KERNEL_TEXT), "boot stub stays identity-mapped");
-    assert!(is_mapped(data_start()), ".data stays identity-mapped (SP / alloc)");
     let high = to_high_va(lo);
     assert!(high_mapped(high), "high twin of .rodata must stay");
     assert!(is_torn_identity_va(lo));
-    assert!(!is_torn_identity_va(data_start()));
+    if identity_data_ready() {
+        assert!(!is_mapped(data_start()), "identity .data torn (ADR-037)");
+        assert!(high_mapped(to_high_va(data_start())), "high .data twin stays");
+        assert!(is_torn_identity_va(data_start()));
+        assert!(is_mapped(frame::kernel_end()), "heap/frames stay identity");
+    } else {
+        assert!(is_mapped(data_start()), ".data stays until ADR-037");
+        assert!(!is_torn_identity_va(data_start()));
+    }
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_data_unmapped_heap_stays() {
+    assert!(pc_is_high());
+    assert!(identity_data_ready(), "identity .data must unmap (ADR-037)");
+    let lo = data_start();
+    let hi = data_tear_end();
+    assert!(torn_data_pages() >= 1, "at least one identity .data page");
+    assert!(!is_mapped(lo), "first .data page must be absent from TTBR0");
+    assert!(!is_mapped(hi - PAGE), "last data/stack page must be absent");
+    assert!(high_mapped(to_high_va(lo)), "high .data twin stays");
+    assert!(is_mapped(KERNEL_TEXT), "boot stub stays");
+    assert!(is_mapped(frame::kernel_end()), "heap/frames stay identity");
+    assert!(!is_high_va(crate::heap::heap_base()), "heap VAs stay identity");
+    assert!(is_mapped(crate::heap::heap_base()), "identity heap stays");
+    assert!(is_torn_identity_va(lo));
 }

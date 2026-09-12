@@ -26,7 +26,7 @@ After the ADR-019 high-VA jump, new PC-relative accesses (ADRP) already reach th
 3. **Keep `.data` / heap / linker stacks identity-mapped.** SP and the first-fit heap still use those VAs. Do not yank them here.
 4. **Keep `_start` / QEMU `-kernel` at `0x4008_0000`.** Do not change default `-cpu`. Do not claim PAN.
 5. **Fail-closed probe.** Existing `ident:*` markers stay. New `ident: ro-reloc` / `ident: rodata` / `ident: rodata-fault` / `ident: rodata-high`. EL1 `LDR` of a torn identity `.rodata` VA is a current-EL translation DABORT. EL1 `LDR` of the high twin still returns a known `.rodata` magic. `scripts/qemu-smoke.sh` greps those strings and rejects `ident: rodata missed` / `ident: ro-reloc missed`. `#[test_case]` covers the unmap.
-6. **Still Planned.** Identity `.data` / heap tear (needs SP relocate + high allocator VAs). [ADR-032](ADR-032-track-a-leftovers.md) prints `ident: data-stay` / `ident: heap-stay` so that gap stays fail-closed; it does **not** yank those pages. PAN enable on `-cpu cortex-a57`; EL0 entry without `TLBI VMALLE1`; lower-EL IRQ while standing; umbrella EL0 isolation.
+6. **Still Planned (at accept time).** Identity `.data` / heap tear. Superseded in part by [ADR-037](ADR-037-identity-data-tear.md) (`.data`/stacks torn; heap stay). PAN enable on `-cpu cortex-a57`; EL0 entry without `TLBI VMALLE1`; lower-EL IRQ while standing; umbrella EL0 isolation.
 7. **NFR-10 text** is revised in place (ID unchanged). Do not mint NFR-15+.
 
 ## Honesty

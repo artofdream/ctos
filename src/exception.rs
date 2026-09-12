@@ -29,9 +29,10 @@
 //! the high alias of this table. Identity `_start` stays at `0x4008_0000`.
 //! A dedicated identity text range plus live identity `.text` after the
 //! boot stub are unmapped (ADR-019 / ADR-020). Identity `.rodata` is
-//! unmapped after a pointer rewrite (ADR-025). `.data` / heap stay.
-//! PAN enable stays Planned on `-cpu cortex-a57` (ADR-026). Not “the
-//! kernel moved.”
+//! unmapped after a pointer rewrite (ADR-025). Identity `.data` /
+//! `.bss` / linker stacks are unmapped after SP relocate (ADR-037);
+//! heap stays. PAN enable stays Planned on `-cpu cortex-a57` (ADR-026).
+//! Not “the kernel moved.”
 
 use core::arch::global_asm;
 use core::fmt::Write;
@@ -93,6 +94,8 @@ static EXPECT_IDENT_TEAR: AtomicBool = AtomicBool::new(false);
 static IDENT_TEAR_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_RODATA: AtomicBool = AtomicBool::new(false);
 static IDENT_RODATA_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_IDENT_DATA: AtomicBool = AtomicBool::new(false);
+static IDENT_DATA_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_EL0: AtomicBool = AtomicBool::new(false);
 static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
@@ -355,7 +358,8 @@ sync_current_el:
     // x0 = vector kind. Switch SP before any further stores.
     .global fatal_enter
 fatal_enter:
-    ldr x3, =__fatal_stack_top
+    adrp x3, __fatal_stack_top
+    add x3, x3, :lo12:__fatal_stack_top
     mov sp, x3
     mov x3, x0
     mrs x0, esr_el1
@@ -397,11 +401,13 @@ ensure_el1:
     // First exception uses SP_EL1. Handler nests a second BRK → fatal_enter.
     .global trigger_fatal_nested_asm
 trigger_fatal_nested_asm:
-    ldr x0, =__stack_bottom
+    adrp x0, __stack_bottom
+    add x0, x0, :lo12:__stack_bottom
     add x0, x0, #64
     mov sp, x0
     brk #0
-    ldr x0, =__stack_top
+    adrp x0, __stack_top
+    add x0, x0, :lo12:__stack_top
     mov sp, x0
     b fatal_probe_missed
     "#
@@ -416,16 +422,26 @@ fn linker_sym(sym: *const u8) -> u64 {
     (sym as usize as u64) & ((1u64 << 39) - 1)
 }
 
+/// Live stack VAs are high after ADR-037. Guard holes stay identity
+/// (FAR_EL1 on an identity store).
+fn stack_va(ident: u64) -> u64 {
+    if crate::paging::identity_data_ready() {
+        crate::paging::to_high_va(ident)
+    } else {
+        ident
+    }
+}
+
 pub fn thread_stack_guard() -> u64 {
     linker_sym(core::ptr::addr_of!(__stack_guard))
 }
 
 pub fn thread_stack_bottom() -> u64 {
-    linker_sym(core::ptr::addr_of!(__stack_bottom))
+    stack_va(linker_sym(core::ptr::addr_of!(__stack_bottom)))
 }
 
 pub fn thread_stack_top() -> u64 {
-    linker_sym(core::ptr::addr_of!(__stack_top))
+    stack_va(linker_sym(core::ptr::addr_of!(__stack_top)))
 }
 
 pub fn exc_stack_guard() -> u64 {
@@ -433,11 +449,11 @@ pub fn exc_stack_guard() -> u64 {
 }
 
 pub fn exc_stack_bottom() -> u64 {
-    linker_sym(core::ptr::addr_of!(__exc_stack_bottom))
+    stack_va(linker_sym(core::ptr::addr_of!(__exc_stack_bottom)))
 }
 
 pub fn exc_stack_top() -> u64 {
-    linker_sym(core::ptr::addr_of!(__exc_stack_top))
+    stack_va(linker_sym(core::ptr::addr_of!(__exc_stack_top)))
 }
 
 pub fn fatal_stack_guard() -> u64 {
@@ -445,7 +461,7 @@ pub fn fatal_stack_guard() -> u64 {
 }
 
 pub fn fatal_stack_bottom() -> u64 {
-    linker_sym(core::ptr::addr_of!(__fatal_stack_bottom))
+    stack_va(linker_sym(core::ptr::addr_of!(__fatal_stack_bottom)))
 }
 
 /// 4 KiB holes punched under each linker stack (ADR-014).
@@ -471,7 +487,7 @@ fn va_in_guard(va: u64) -> bool {
 }
 
 pub fn fatal_stack_top() -> u64 {
-    linker_sym(core::ptr::addr_of!(__fatal_stack_top))
+    stack_va(linker_sym(core::ptr::addr_of!(__fatal_stack_top)))
 }
 
 pub fn vector_table_addr() -> u64 {
@@ -670,6 +686,17 @@ pub fn ident_rodata_caught() -> bool {
     IDENT_RODATA_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm EL1 load of a torn identity `.data` VA (ADR-037).
+pub fn arm_ident_data() {
+    IDENT_DATA_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_IDENT_DATA.store(true, Ordering::SeqCst);
+}
+
+pub fn ident_data_caught() -> bool {
+    EXPECT_IDENT_DATA.store(false, Ordering::SeqCst);
+    IDENT_DATA_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// Arm EL0 load of a torn identity text VA (ADR-018 / ADR-019).
 pub fn arm_ident_el0() {
     IDENT_EL0_CAUGHT.store(false, Ordering::SeqCst);
@@ -688,8 +715,9 @@ pub fn ident_el0_caught() -> bool {
 /// GPRs are saved on the kernel thread stack across the trip.
 #[allow(dead_code)] // hello + `#[test_case]` via `src/el0.rs`.
 pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
-    let kslot = crate::paging::identity_pa(EL0_KSP.as_ptr() as u64);
-    let cslot = crate::paging::identity_pa(EL0_CONT.as_ptr() as u64);
+    // After ADR-037 identity `.bss` is unmapped — store via the high twin.
+    let kslot = crate::paging::to_high_va(crate::paging::identity_pa(EL0_KSP.as_ptr() as u64));
+    let cslot = crate::paging::to_high_va(crate::paging::identity_pa(EL0_CONT.as_ptr() as u64));
     core::arch::asm!(
         "stp x19, x20, [sp, #-16]!",
         "stp x21, x22, [sp, #-16]!",
@@ -976,6 +1004,15 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
     {
         IDENT_RODATA_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("ident: rodata-fault\n");
+        ctx.elr = ctx.elr.wrapping_add(4);
+        return;
+    }
+    if is_trans_dabort(ctx.esr)
+        && EXPECT_IDENT_DATA.swap(false, Ordering::SeqCst)
+        && crate::paging::is_torn_identity_va(far_el1())
+    {
+        IDENT_DATA_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("ident: data-fault\n");
         ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }

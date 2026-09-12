@@ -245,7 +245,8 @@ fn svc_roundtrip() -> bool {
 fn kernel_data_iabort() -> bool {
     with_el0_page(|ptr, va| {
         write_instr(ptr, BR_X0_A64);
-        let bait = core::ptr::addr_of!(KERNEL_DATA_BAIT) as u64;
+        // EL0 uses TTBR0 only — pass the identity VA of kernel .data.
+        let bait = paging::identity_pa(core::ptr::addr_of!(KERNEL_DATA_BAIT) as u64);
         let user_sp = va + 4096;
         exception::arm_el0_iabort();
         unsafe {
@@ -289,7 +290,7 @@ fn kernel_data_read_fault() -> bool {
     if !paging::user_map_ready() {
         return false;
     }
-    let bait = core::ptr::addr_of!(KERNEL_DATA_BAIT) as u64;
+    let bait = paging::identity_pa(core::ptr::addr_of!(KERNEL_DATA_BAIT) as u64);
     if paging::user_mapped(bait) {
         return false;
     }

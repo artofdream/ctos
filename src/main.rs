@@ -66,8 +66,10 @@ pub extern "C" fn kernel_main() -> ! {
     paging::init();
     // After MMU + high VBAR: fetch the rest from the TTBR1 alias
     // (ADR-019). ADR-020 rewrites rustc vtables then unmaps live
-    // identity `.text`. ADR-025 unmaps identity `.rodata`. `_start`
-    // stays at 0x40080000. Not “the kernel moved.”
+    // identity `.text`. ADR-037 rewrites `.data` pointers then
+    // ADR-025 unmaps identity `.rodata`; ADR-037 relocates SP and
+    // unmaps identity `.data`/stacks. Heap stays. `_start` stays at
+    // 0x40080000. Not “the kernel moved.”
     paging::jump_high(kernel_main_high as *const () as usize as u64);
 }
 
@@ -84,11 +86,22 @@ extern "C" fn kernel_main_high() -> ! {
     if !paging::tear_live_identity_text() {
         uart::write_str_raw("ident: live missed\n");
     }
+    // ADR-037 pointer rewrite before ADR-025 so identity `.rodata`
+    // is still walkable for ABS64 words that point into `.data`.
+    if !paging::rewrite_identity_data_ptrs() {
+        uart::write_str_raw("ident: data-reloc missed\n");
+    }
     if !paging::rewrite_identity_rodata_ptrs() {
         uart::write_str_raw("ident: ro-reloc missed\n");
     }
     if !paging::tear_identity_rodata() {
         uart::write_str_raw("ident: rodata missed\n");
+    }
+    if !paging::relocate_stacks_high() {
+        uart::write_str_raw("ident: sp-high missed\n");
+    }
+    if !paging::tear_identity_data() {
+        uart::write_str_raw("ident: data missed\n");
     }
     // ADR-026: read ID_AA64MMFR1_EL1.PAN. Does not MSR PAN.
     // Prints `pan: id=` / `pan: absent` on `-cpu cortex-a57`.
@@ -201,10 +214,10 @@ extern "C" fn kernel_main_high() -> ! {
             uart::write_str_raw("ttbr1: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019 + ADR-020
-        // + ADR-025): split tables + 16 KiB dedicated range + high jump +
-        // vtable reloc + live identity `.text` tear + identity `.rodata`
-        // tear. `.data` / heap stay (`ident: data-stay` / `ident: heap-stay`).
-        // Not “the kernel moved.”
+        // + ADR-025 + ADR-037): split tables + 16 KiB dedicated range +
+        // high jump + vtable reloc + live identity `.text` tear +
+        // identity `.rodata` tear + identity `.data`/stack tear. Heap
+        // stays (`ident: heap-stay`). Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
         }

@@ -27,13 +27,21 @@ fn guards_unmapped() -> bool {
         if paging::is_mapped(va) {
             return false;
         }
+        // High twins were cloned after the identity holes (ADR-014/018).
+        if paging::high_mapped(paging::to_high_va(va)) {
+            return false;
+        }
         if va & 0xfff != 0 {
             return false;
         }
     }
-    exception::thread_stack_guard() + 4096 == exception::thread_stack_bottom()
-        && exception::exc_stack_guard() + 4096 == exception::exc_stack_bottom()
-        && exception::fatal_stack_guard() + 4096 == exception::fatal_stack_bottom()
+    // Guards stay identity VAs; live stack bottoms may be high after ADR-037.
+    let thr_b = paging::identity_pa(exception::thread_stack_bottom());
+    let exc_b = paging::identity_pa(exception::exc_stack_bottom());
+    let fat_b = paging::identity_pa(exception::fatal_stack_bottom());
+    exception::thread_stack_guard() + 4096 == thr_b
+        && exception::exc_stack_guard() + 4096 == exc_b
+        && exception::fatal_stack_guard() + 4096 == fat_b
 }
 
 fn store_to_thread_guard_caught() -> bool {
