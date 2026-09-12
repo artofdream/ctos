@@ -2,7 +2,7 @@
 
 What is missing before ctos could **host** an application (a loaded user-mode binary with a stable ABI), and whether it can host **containers**.
 
-Today you **extend the kernel** ([Building or porting](porting.md)). Samples that exist: [What can run today](what-can-run.md). Isolation notes: [el0.md](../framework/el0.md).
+Today you **extend the kernel** ([Building or porting](porting.md)). Samples that exist: [What can run today](what-can-run.md). Isolation notes: [el0.md](../framework/el0.md). Kernel SVC numbers: [syscall.md](../framework/syscall.md).
 
 Do not say ctos is an app host or a container runtime.
 
@@ -25,11 +25,11 @@ flowchart TD
 
 These are missing pieces, not a schedule. Rows without a probe stay **Planned** or unbuilt. “Later” is not a promise.
 
-A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Today’s `SVC #1` / `#2` are test miles, not a documented syscall contract.
+A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Reserved `SVC #0`–`#2` stay test miles. A1 documented `exit` / `uart_write` / `yield` ([syscall.md](../framework/syscall.md)). That is not a CRT or loader.
 
 | Gap | Why it blocks hosting | Status |
 | --- | --- | --- |
-| **Stable SVC ABI** | Need documented syscall numbers, not the test pair | Planned (direction on the porting page) |
+| **Stable SVC ABI** | A1 documented `exit` / `uart_write` / `yield` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). That is a **kernel** contract, not a CRT or loader. | **ABI mile** — Verified only when the ledger has `svc: ok` on this tip. Not app hosting. A2–A9 stay **Planned**. |
 | **ELF / user loader** | No loader for a freestanding user-mode binary, let alone a Linux ELF | Not built |
 | **Standing user mode as normal** | Standing enter/leave is a stub mile, not the default way code runs | First mile Verified; normal userspace **Planned** |
 | **Stronger isolation** | Umbrella user-mode isolation needs PAN + fuller identity teardown | **Planned** — do not say “EL0 isolated” |
@@ -38,7 +38,7 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Toda
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
 | **Preemption / extra CPUs / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
-Until the first block has probes, “host an application” is a sentence we do not use. That first block is **Track A**. See [Immutability](advantages.md#immutability).
+Until the first block has probes, “host an application” is a sentence we do not use. That first block is **Track A**. A1 landed the kernel SVC ABI only. The loader and CRT are still **Planned**. See [Immutability](advantages.md#immutability).
 
 ## Containers
 

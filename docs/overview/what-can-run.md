@@ -19,7 +19,7 @@ flowchart TD
 
 *The stub is not a process. Umbrella “EL0 isolated” stays Planned.*
 
-A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel for something. Today’s `SVC #1` / `#2` are test miles, not a public syscall list.
+A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel for something. Reserved `SVC #0`–`#2` stay test miles. A1 documented `exit` / `uart_write` / `yield` ([syscall.md](../framework/syscall.md)). That is not a process ABI.
 
 ## 1. Cooperative UART workers
 
@@ -35,9 +35,9 @@ That is a byte in, a line out. **No TTY, no line editor, no canonical mode, no v
 
 ## 3. Standing EL0 stub
 
-A short payload in **user mode (EL0)** that does an SVC round-trip and returns. Same class as `el0: standing` / `el0: restored` ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md), [el0.md](../framework/el0.md)).
+A short payload in **user mode (EL0)** that does an SVC round-trip and returns. Same class as `el0: standing` / `el0: restored` ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md), [el0.md](../framework/el0.md)). After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`) then parks ([syscall.md](../framework/syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)).
 
-This is **not** a process. There is no libc, no files, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
+This is **not** a process. There is no libc, no files, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**. The ABI mile is not app hosting.
 
 ## What cannot run
 

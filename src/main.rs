@@ -19,6 +19,7 @@ mod perf;
 mod qemu;
 mod ro;
 mod sched;
+mod syscall;
 mod teardown;
 mod timer;
 mod ttbr1;
@@ -126,6 +127,11 @@ extern "C" fn kernel_main_high() -> ! {
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): EL0 first mile + read.
         if !el0::observe_probe() {
             uart::write_str_raw("el0: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (Track A / A1 / ADR-021): SVC ABI.
+        // Not app hosting. Not a Linux ABI.
+        if !syscall::observe_probe() {
+            uart::write_str_raw("svc: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {

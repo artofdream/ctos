@@ -47,6 +47,7 @@
 - [ADR-018 Identity-tear first cut](03-adr/ADR-018-identity-teardown-first-cut.md)
 - [ADR-019 Identity text range tear](03-adr/ADR-019-identity-text-range-tear.md)
 - [ADR-020 Live identity text tear](03-adr/ADR-020-identity-fnptr-reloc.md)
+- [ADR-021 EL0 SVC ABI](03-adr/ADR-021-svc-syscall-abi.md)
 
 # Roadmap
 
@@ -63,6 +64,7 @@
 - [Antifragility](framework/antifragility.md)
 - [Security](framework/security.md)
 - [EL0](framework/el0.md)
+- [SVC ABI](framework/syscall.md)
 - [Performance](framework/performance.md)
 - [Overview (extra stance)](framework/overview.md)
 - [What can run today (extra)](framework/apps-today.md)
