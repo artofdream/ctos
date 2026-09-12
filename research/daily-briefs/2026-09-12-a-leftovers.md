@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-Ready PR https://github.com/artofdream/ctos/pull/64 (`cursor/track-a-leftovers-d2ee`) rebased onto `main` `e6255c0` (#62 ADR-031 Linux-compat + #61 ADR-002 exception). One PR: [ADR-032](../../docs/03-adr/ADR-032-track-a-leftovers.md) leftover mile. ADR-031 stays Linux-compat. No new FR/NFR IDs. MRC asked for this rebase because the PR was dirty vs `main`.
+Ready PR https://github.com/artofdream/ctos/pull/64 (`cursor/track-a-leftovers-d2ee`) rebased onto `main` `522c543` (#63 mobile theme, plus #62 ADR-031 Linux-compat + #61). One PR: [ADR-032](../../docs/03-adr/ADR-032-track-a-leftovers.md) leftover mile. ADR-031 stays Linux-compat. No new FR/NFR IDs. MRC asked for this rebase because #63 made the PR dirty again.
 
 Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`):
 
@@ -20,5 +20,5 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.1
 
 ## Honesty
 
-- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca` and post-rebase `6abcb1b`. GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). Rebase onto `e6255c0` makes this-SHA GHA **Unknown** until grepped.
+- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca` and post-#62 `6abcb1b`. GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). Rebase onto `522c543` (#63) makes this-SHA GHA **Unknown** until grepped.
 - Did not claim “EL0 isolated,” PAN enable, “apps update independently,” or “app hosting is done.”
