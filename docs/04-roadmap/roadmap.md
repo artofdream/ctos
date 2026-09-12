@@ -55,7 +55,7 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. **Track A stays incomple
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
 | A1 | Stable SVC ABI + docs ([#32](https://github.com/artofdream/ctos/issues/32), ADR-021) | `svc: yield` + `svc: user-hi` + `svc: uart` + `svc: exit` + `svc: ok`; `#[test_case]` | **ABI mile Verified:** 2026-09-11 cloud `qemu-smoke` on `8846bc5` (onto `aa46219` / #29). App hosting stays **Planned**. |
-| A2 | Freestanding CRT / `libctos` ([#33](https://github.com/artofdream/ctos/issues/33), ADR-022) | `libctos: hi` + `libctos: ok` + `libctos: linked`; `#[test_case]` | **CRT mile** — Verified only when the ledger has those strings on this tip. App hosting stays **Planned**. |
+| A2 | Freestanding CRT / `libctos` ([#33](https://github.com/artofdream/ctos/issues/33), ADR-022) | `libctos: hi` + `libctos: ok` + `libctos: linked`; `#[test_case]` | **CRT mile Verified:** 2026-09-12 cloud `qemu-smoke` on `c9b292b`. App hosting stays **Planned**. |
 | A3 | ELF (or raw image) loader into user TTBR0 | loaded image runs at EL0 | **Planned** |
 | A4 | Standing EL0 as normal mode | not only a smoke probe | **Planned** |
 | A5 | Isolation completion | remaining identity tear / PAN only with ADR | **Planned** |
