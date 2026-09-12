@@ -1,6 +1,6 @@
 # Filesystem stance
 
-**Thin VFS with two backends.** memfs (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) is in-RAM named buffers. FAT16 on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) is a read-only on-disk volume. Same `vfs::open` / `read` / `write` / `close`. No directory tree, no POSIX `mount`, no FAT32, no xv6-like inode FS.
+**Thin VFS with two backends.** memfs (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) is in-RAM named buffers. FAT16 on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) is a read-only on-disk volume. Same `vfs::open` / `read` / `write` / `close`. No directory tree, no POSIX `mount`, no FAT32, no xv6-like inode FS. Linux VFS objects vs this thin surface: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md) (Track B B5). **Not claiming a Linux filesystem.**
 
 Do not say “ctos has files” as if it were a Linux volume. Do not mint a new FR/NFR ID in chat. Frozen Out list already names POSIX / userspace as later ([fr-nfr.md](../02-requirements/fr-nfr.md)). Hub: [overview.md](overview.md). Samples that do run: [apps-today.md](apps-today.md).
 

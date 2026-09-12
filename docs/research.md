@@ -2,7 +2,7 @@
 
 Session memory lives in git under [`research/`](https://github.com/artofdream/ctos/tree/main/research), not on a wiki. This page is a **curated landing** for the published book. Daily briefs and scratch notes stay on GitHub so the site does not pretend every session log is product documentation.
 
-Published Track B research in the book (not session scratch): [Linux AArch64 syscall gap (B2)](research/linux-aarch64-syscall-gap.md) (inspection only), [ADR-035](03-adr/ADR-035-process-model-standing-el0.md) (B3 process-model stance), and [ADR-033](03-adr/ADR-033-linux-elf-auxv-pt-interp.md) (B4 ELF / auxv / `PT_INTERP` gap). **Not claiming Linux userspace.** **Not claiming dynamic Linux ELF.**
+Published Track B research in the book (not session scratch): [Linux AArch64 syscall gap (B2)](research/linux-aarch64-syscall-gap.md) (inspection only), [ADR-035](03-adr/ADR-035-process-model-standing-el0.md) (B3 process-model stance), [ADR-033](03-adr/ADR-033-linux-elf-auxv-pt-interp.md) (B4 ELF / auxv / `PT_INTERP` gap), and [ADR-034](03-adr/ADR-034-linux-vfs-vs-thin-ctos.md) (B5 VFS concept compare). **Not claiming Linux userspace.** **Not claiming dynamic Linux ELF.** **Not claiming a Linux filesystem.**
 
 | Vault | Where | Job |
 | --- | --- | --- |

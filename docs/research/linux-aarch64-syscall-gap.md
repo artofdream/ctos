@@ -94,7 +94,7 @@ Numbers from Linux **v6.10** `asm-generic/unistd.h`. AArch64 has **no** `fork`, 
 | 178 | `gettid` | **absent** | No tid. |
 | 96 | `set_tid_address` | **absent** | Typical musl/glibc `_start` requirement. |
 
-### File descriptors and I/O (B5)
+### File descriptors and I/O (B5 concept compare: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md))
 
 | Linux # | Name | ctos status | Notes |
 | --- | --- | --- | --- |
@@ -158,7 +158,7 @@ Numbers from Linux **v6.10** `asm-generic/unistd.h`. AArch64 has **no** `fork`, 
 | --- | --- | --- | --- |
 | 97 | `unshare` | **never-per-ADR-031** | Linux namespaces. Guest OCI is a **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)). |
 | 268 | `setns` | **never-per-ADR-031** | Same. |
-| 40 | `mount` | **never-per-ADR-031** | Linux mount/overlay class. A7 FAT is not `mount(2)`. B5 may compare *concepts*; it must not grow POSIX mount. |
+| 40 | `mount` | **never-per-ADR-031** | Linux mount/overlay class. A7 FAT is not `mount(2)`. Concept compare: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md) (B5). Must not grow POSIX mount. |
 | 39 | `umount2` | **never-per-ADR-031** | Same. |
 | 41 | `pivot_root` | **never-per-ADR-031** | Same. |
 
@@ -173,7 +173,7 @@ Issue #42 asked to prioritize a minimal subset **if any**. This is a research hi
 3. **The smallest *named* research slice** (only if B6 chooses a compat path, and only with a probe) would still be: **convention translation** + `exit`/`exit_group` + `write` to a console fd. `openat`/`read`/`close` are the next file slice. `brk`/`mmap` are the next heap slice. `clone`/`execve`/`wait4` are the process gap ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)); they are not a small add-on.
 4. **Do not start with ioctl, sockets, or mount.** ioctl is a device encyclopedia. Sockets need a stack. mount/unshare stay **never-per-ADR-031**.
 
-B3–B5 stay document-first. They must not add Linux numbers to `src/`. B6 may choose **never**.
+B3 is **Documented** ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)). B4 is **Documented** ([ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). B5 is **Documented** ([ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)). They must not add Linux numbers to `src/`. B6 may choose **never**.
 
 ## Honesty
 
