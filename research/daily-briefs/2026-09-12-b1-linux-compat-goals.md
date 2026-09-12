@@ -8,7 +8,7 @@ B1 is **Documented** on [track-b.md](../../docs/04-roadmap/track-b.md). Scratch:
 
 ## Do next
 
-1. Separate MRC session (`COMMENT` only). Author does not merge (ADR-002). This cloud PR is `cursor[bot]`-authored; merge hat is `artofdream`.
+1. Separate MRC session (`COMMENT` only). Author does not merge (ADR-002). GitHub lists this PR as `artofdream`-opened; merge hat is `cursor[bot]` after this-run green checks (when CI exists) and Bugbot resolved-or-declined.
 2. Close [issue #41](https://github.com/artofdream/ctos/issues/41) after merge (`Closes #41` is on the PR).
 3. B2 ([#42](https://github.com/artofdream/ctos/issues/42)) is the syscall gap map. Do not add Linux syscall numbers to `src/` in that child.
 

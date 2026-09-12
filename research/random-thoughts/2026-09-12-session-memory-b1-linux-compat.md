@@ -9,5 +9,6 @@ Docs + `research/` only on `cursor/b1-linux-compat-goals-9374` off `main` `ba654
 - Explicit sentence: **not claiming Linux userspace yet.** A3 rejects `PT_INTERP`; A9 FAT `/hello` is not `execve`.
 - Did not implement B2–B6. Did not mint FR/NFR IDs. Did not rewrite large ledger tables (append-only rows).
 - Did not run kernel `qemu-smoke` (no `src/` edit).
+- GitHub lists PR #62 as `artofdream`-opened (cloud tool). Merge hat is `cursor[bot]`. Do not self-merge.
 
 Do not treat this file as the honesty ledger.
