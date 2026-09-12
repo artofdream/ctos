@@ -16,6 +16,6 @@ B3 / B4 / B5 are **Documented** on [track-b.md](../../docs/04-roadmap/track-b.md
 
 - Docs + file-read of `src/vfs.rs` / `src/fat.rs` + B2 gap table only. Did not run QEMU. Did not claim Linux userspace, a Linux filesystem, or a new Pages deploy.
 - **No Linux VFS object is `present`.** Path strings and handles are **partial**. Mount / overlay stay **never-per-ADR-031**.
-- Prior local docs-build **Verified** after rebase onto `774c672`. This-tip after rebase onto `d81a53a` is a separate probe.
+- Local docs-build **Verified** after rebase onto `d81a53a` (mdBook 0.5.4 + mermaid 0.17.1; `docs-build: ok`; `book/CNAME` = `ctos.artof.link`; generated ADR-033 + ADR-034 + ADR-035 present; track-b B3/B4/B5 **Documented**). Generator only.
 - Ledger: B3 + B4 rows from `d81a53a` / `774c672` + B5 inspection + prior-SHA GHA. Existing tables not rewritten. “Guest runs host apps” stays **Planned**.
 - Rebase-tip `0cd62c2` smoke **Verified** (onto `774c672`): push [34714163309](https://github.com/artofdream/ctos/actions/runs/34714163309) + PR [34714165232](https://github.com/artofdream/ctos/actions/runs/34714165232). This-tip GHA after rebase onto `d81a53a` is Unknown until grepped.
