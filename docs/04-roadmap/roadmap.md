@@ -68,7 +68,7 @@ On-disk filesystem work is this A7 mile (FAT16, not xv6-like). See [Filesystem: 
 
 ## Tracks (subordinate to principles)
 
-[Track A](track-a.md) (freestanding apps, [#31](https://github.com/artofdream/ctos/issues/31)) and [Track B](track-b.md) (Linux-compat research, [#40](https://github.com/artofdream/ctos/issues/40)) do **not** override [principles.md](../framework/principles.md). A9 is after Track A ABI/loader. Track B B1: Linux-compat **subset** research frame ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)) — **not claiming Linux userspace yet**. Track B B7: guest OCI/Docker is a **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
+[Track A](track-a.md) (freestanding apps, [#31](https://github.com/artofdream/ctos/issues/31)) and [Track B](track-b.md) (Linux-compat research, [#40](https://github.com/artofdream/ctos/issues/40)) do **not** override [principles.md](../framework/principles.md). A9 is after Track A ABI/loader. Track B B1: Linux-compat **subset** research frame ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)) — **not claiming Linux userspace yet**. Track B B2: Linux AArch64 vs ctos SVC gap map ([linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)) — inspection only; no Linux numbers in `src/`. Track B B7: guest OCI/Docker is a **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
 
 ## Docs website
 

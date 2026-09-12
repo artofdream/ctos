@@ -25,6 +25,8 @@ Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#
 
 Unknown `SVC` immediates park (fail-closed). Not POSIX. Not Linux VFS.
 
+Track B B2 maps these numbers against Linux AArch64 (`svc #0`, `x8`): [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md). That page is inspection only. **Not claiming Linux userspace.** Do not retarget 16–23 to Linux `x8`.
+
 ## Probe
 
 Serial `svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`. `#[test_case]` `el0_svc_abi_yield_uart_exit` + `el0_uart_write_rejects_kernel_data` + `el0_uart_write_rejects_high_alias`. File presence is not that probe.

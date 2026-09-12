@@ -66,6 +66,10 @@
 - [Track A (subordinate)](04-roadmap/track-a.md)
 - [Track B (subordinate)](04-roadmap/track-b.md)
 
+# Research
+
+- [Linux AArch64 syscall gap (B2)](research/linux-aarch64-syscall-gap.md)
+
 # Framework
 
 - [Core principles](framework/principles.md)
