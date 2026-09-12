@@ -51,6 +51,8 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Host-apps handoff: [daily-briefs/2026-09-11-host-apps-containers.md](daily-briefs/2026-09-11-host-apps-containers.md)
 - B7 containers non-goal scratch: [random-thoughts/2026-09-12-session-memory-b7-containers.md](random-thoughts/2026-09-12-session-memory-b7-containers.md)
 - B7 containers non-goal handoff: [daily-briefs/2026-09-12-b7-containers-nongoal.md](daily-briefs/2026-09-12-b7-containers-nongoal.md)
+- B1 Linux-compat goals scratch: [random-thoughts/2026-09-12-session-memory-b1-linux-compat.md](random-thoughts/2026-09-12-session-memory-b1-linux-compat.md)
+- B1 Linux-compat goals handoff: [daily-briefs/2026-09-12-b1-linux-compat-goals.md](daily-briefs/2026-09-12-b1-linux-compat-goals.md)
 - Immutability scratch: [random-thoughts/2026-09-11-session-memory-immutability.md](random-thoughts/2026-09-11-session-memory-immutability.md)
 - Immutability handoff: [daily-briefs/2026-09-11-immutability-scoped.md](daily-briefs/2026-09-11-immutability-scoped.md)
 - A9 OS/app slot handoff (docs-only): [daily-briefs/2026-09-11-a9-os-app-slots.md](daily-briefs/2026-09-11-a9-os-app-slots.md)

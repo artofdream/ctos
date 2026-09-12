@@ -88,7 +88,7 @@ flowchart LR
 | What is in vs out (rebuild recipes) | [What can run today](overview/what-can-run.md) · [Drawbacks / limits](overview/limits.md) |
 | Why POSIX does not port | [Building or porting](overview/porting.md) |
 | Files (memfs + FAT16) | [Filesystem](overview/filesystem.md) |
-| App host / containers | [Hosting apps](overview/hosting-apps.md) — containers: **non-goal** ([ADR-029](03-adr/ADR-029-containers-nongoal.md)) |
+| App host / containers | [Hosting apps](overview/hosting-apps.md) — containers: **non-goal** ([ADR-029](03-adr/ADR-029-containers-nongoal.md)). Linux-compat frame: [ADR-031](03-adr/ADR-031-linux-compat-goals.md) (not userspace). |
 | How we measure | [KPIs](overview/measure.md) |
 | Why the repo is run this way | [Advantages](overview/advantages.md) |
 | Deep dives | [Vision](01-vision/product-vision.md) · [FR / NFR](02-requirements/fr-nfr.md) · [Architecture](02-architecture/technical-architecture.md) · [Roadmap](04-roadmap/roadmap.md) · [Ledger](framework/honesty-ledger.md) |

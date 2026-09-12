@@ -66,4 +66,5 @@ Container support is **not Planned** on this page. Do not add a Planned row. Reo
 | --- | --- |
 | ctos hosts third-party apps | **No** — gaps above |
 | ctos hosts OCI/Docker containers | **No** — **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)) |
+| Linux-compat research (Track B) | Frame only ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)). **Not claiming Linux userspace yet.** |
 | Host Docker runs `ctos-smoke` | Separate ledger row (host tool, not a guest runtime) |

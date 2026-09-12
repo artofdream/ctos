@@ -28,7 +28,7 @@ The **goal** of this stance (sponsor clarification) is to **disconnect OS update
 
 **Today (first cut):** two host artifacts (kernel ELF + `target/hello-libctos.elf`) and a FAT16 `/hello` load path. A2–A4 still embed a copy so their markers stay. Cross-update (same app on OS n and n+1) is **Planned**. Do not say “apps update independently.” Performance: `perf: app-load` is a measurement; a Verified *delta* vs the embed stays Planned ([performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench)).
 
-[Track B #40](https://github.com/artofdream/ctos/issues/40) must not use Linux-compat research to claim an immutable or container host. Containers stay a [non-goal](host-apps.md) ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
+[Track B #40](https://github.com/artofdream/ctos/issues/40) must not use Linux-compat research to claim an immutable or container host. Frame: [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) (**not claiming Linux userspace yet**). Containers stay a [non-goal](host-apps.md) ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
 
 ## Claim gate (ADR-style, no new ADR here)
 
