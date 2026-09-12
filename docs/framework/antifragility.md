@@ -8,7 +8,7 @@ When the same failure happens twice, **strengthen the strongest layer** (a senso
 
 - Unprobed boot → Unknown, not Verified.
 - Missing nightly / rust-src / QEMU → say the environment blocked the probe; do not invent success.
-- MRC / author conflict → do not merge.
+- MRC / author conflict → do not merge. GitHub `author` == `mergedBy` is a process miss after the 2026-09-12 ADR-002 amendment (Track A A1–A9 is a named historical exception, not a going-forward allowance).
 
 ## Ratchet
 
@@ -24,7 +24,12 @@ These are **history rows**, not a claim that the current tip is broken.
 - **cts-ai Docker on `b2bbb99` Failed** after PR #20 (`paging: probe missed` / `heap: probe missed` / `sched: probe missed` / `el0: probe missed` while guard/RO still printed). Same class as the PR #20 pre-MMU `.bss` miss plus a single shared L3 / first-2-MiB user map. **Sensor:** layout L3 pool + post-MMU frame init (#21). Docker on `71ee15f` then **Verified**. Keep the Failed row in the [honesty ledger](honesty-ledger.md).
 - **Live identity `.text` yank Failed** (unhandled sync on first `println!` — rustc `dyn Write` vtables are identity fn pointers). **Sensor / cut:** ADR-019 kept live `.text` and tore a 16 KiB dedicated range. ADR-020 then rewrote those vtables to high aliases and tore live `.text`. cts-ai Docker + GHA on `e80dc93` **Verified** that cut (`ident: reloc n=12`, live pages=37, 50 tests). Keep the Failed first yank.
 - **PR #27 `ac3ad0b` GHA Failed** (`ident: range` then `ident: probe missed` — init still required a 4 KiB tear page). **Sensor:** 16 KiB range + relaxed init. Merge `24d94e6` GHA [34640667227](https://github.com/artofdream/ctos/actions/runs/34640667227) **Verified**. Keep the Failed SHA.
+- **Track A same-login merge (A1–A9, 2026-09-11–2026-09-12).** `gh pr view --json author,mergedBy` on #49, #52–#57, #59, #60 showed `artofdream` on both hats (commits typically `cursoragent` + `Co-authored-by: artofdream`). **Sensor / docs ratchet:** named historical exception in [ADR-002](../03-adr/ADR-002-pr-identity-split.md); MRC must read the GitHub `author` field, not a brief’s “expected bot.” **Gate going forward:** owner-opened → `cursor[bot]` merges; bot-opened → `artofdream` merges. Same-login merge is a miss. Keep this history row; do not rewrite those PRs.
 
 ## No self-approval / no self-merge
 
-The author does not `APPROVE` or merge their own PR. Same GitHub login is not a second identity. MRC writes `COMMENT` and names author / reviewer / merger. Merge hat is the *other* identity (`artofdream` vs `cursor[bot]`). See [ADR-002](../03-adr/ADR-002-pr-identity-split.md) and `.cursor/skills/ctos-mr-coordinator/SKILL.md`. Do not enable GitHub author self-APPROVE to make the gate “count.”
+The author does not `APPROVE` or merge their own PR. Same GitHub login is not a second identity. `Co-authored-by` / `cursoragent` on commits does not change the GitHub author.
+
+**Going forward:** GitHub shows `artofdream` as author → `cursor[bot]` merges (owner must not). GitHub shows `cursor[bot]` as author → `artofdream` merges (bot must not). MRC writes `COMMENT` and names author / reviewer / merger from `gh`, not from chat. See [ADR-002](../03-adr/ADR-002-pr-identity-split.md) and `.cursor/skills/ctos-mr-coordinator/SKILL.md`. Do not enable GitHub author self-APPROVE to make the gate “count.”
+
+**Historical (Track A A1–A9 only):** same-login merges listed in ADR-002. Named exception; not a license to repeat.

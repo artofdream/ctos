@@ -7,9 +7,10 @@ alwaysApply: true
 
 GitHub same-login **cannot** `APPROVE` its own PR. Do not enable author self-APPROVE.
 
-- Author does **not** merge their own PR.
-- `artofdream` opened it → `cursor[bot]` may merge after this-run green checks (when CI exists) and Bugbot resolved-or-declined. Owner must not Approve or merge that PR.
+- Author does **not** merge their own PR. Use the GitHub `author` login, not `Co-authored-by` / `cursoragent`.
+- `artofdream` opened it (including cloud PRs attributed to the owner) → `cursor[bot]` may merge after this-run green checks (when CI exists) and Bugbot resolved-or-declined. Owner must not Approve or merge that PR.
 - `cursor[bot]` opened it → owner `artofdream` merges. The bot must not merge it.
 - MRC writes `COMMENT` / `REQUEST_CHANGES` and names author / reviewer / merger. That is the review-in-the-room.
 - If App `APPROVE` is 403, do not block a valid `cursor[bot]` merge of an owner-authored PR. Do not treat missing Approve as failure.
+- Track A A1–A9 same-login merges (2026-09-11–2026-09-12) are a **named historical exception** in ADR-002, not permission to self-merge again.
 - Do not install a second GitHub App for this. See `docs/03-adr/ADR-002-pr-identity-split.md`.

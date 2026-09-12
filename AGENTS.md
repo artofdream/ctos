@@ -41,14 +41,18 @@ Quality is the **notation of roles** plus a **distinct merger**: who authored, w
 
 **Second reviewer:** a **new** Cursor session with `ctos-mr-coordinator` (not the authoring session). It writes `COMMENT` / `REQUEST_CHANGES` (ledger vs probes, frozen FR/NFR). It does not merge.
 
-**Who merges** — `artofdream` (owner) vs `cursor[bot]` (Cursor GitHub App):
+**Who merges** — `artofdream` (owner) vs `cursor[bot]` (Cursor GitHub App). Use the GitHub PR **`author` login** (`gh pr view --json author`), not `Co-authored-by` and not a brief that “expects” the bot.
 
-| Who opened the PR | Who writes the review | Who merges |
+| Who GitHub shows as author | Who writes the review | Who merges |
 | --- | --- | --- |
 | `artofdream` | New MRC session (`COMMENT`) | `cursor[bot]` after this-run green checks (when CI exists) and Bugbot resolved-or-declined. Owner must not Approve or merge. |
-| `cursor[bot]` | Owner, optionally plus MRC `COMMENT` | **`artofdream`** |
+| `cursor[bot]` | Owner, optionally plus MRC `COMMENT` | **`artofdream`**. The bot must not merge. |
 
-If `cursor[bot]` `APPROVE` returns 403, do not block a valid bot merge of an owner-authored PR. Missing Approve is not a fail. CI on ctos is still **Planned** — do not claim green checks that were not probed here.
+Cloud agents often open PRs as `artofdream` (commits may list `cursoragent`). That is still owner-opened → **`cursor[bot]` merges**. No self-merge.
+
+**Historical exception (Track A A1–A9, 2026-09-11–2026-09-12):** #49, #52–#57, #59, #60 were `author=artofdream` and `mergedBy=artofdream`. Named in [ADR-002](docs/03-adr/ADR-002-pr-identity-split.md). Do not rewrite those PRs. Do not repeat the pattern.
+
+If `cursor[bot]` `APPROVE` returns 403, do not block a valid bot merge of an owner-authored PR. Missing Approve is not a fail. Smoke CI exists (ledger); do not claim green checks that were not probed on **this** PR.
 
 Copy-paste to start MRC:
 
