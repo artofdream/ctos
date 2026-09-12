@@ -263,6 +263,31 @@ if ! grep -q "el0: task-ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: standing-task (A4) strings present"
+if grep -q "fs: probe missed" "$log"; then
+    echo "qemu-smoke: fs probe missed (memfs create/read/write trip did not run)" >&2
+    exit 1
+fi
+if ! grep -q "fs: create" "$log"; then
+    echo "qemu-smoke: missing 'fs: create' on serial (kernel memfs create, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fs: write" "$log"; then
+    echo "qemu-smoke: missing 'fs: write' on serial (kernel memfs write, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fs: read" "$log"; then
+    echo "qemu-smoke: missing 'fs: read' on serial (kernel memfs read-back, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fs: el0" "$log"; then
+    echo "qemu-smoke: missing 'fs: el0' on serial (EL0 memfs SVC trip, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fs: ok" "$log"; then
+    echo "qemu-smoke: missing 'fs: ok' on serial (A6 thin VFS + memfs mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: thin VFS + memfs (A6) strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1

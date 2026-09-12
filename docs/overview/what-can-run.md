@@ -37,7 +37,7 @@ That is a byte in, a line out. **No TTY, no line editor, no canonical mode, no v
 
 A short payload in **user mode (EL0)** that does an SVC round-trip and returns. Same class as `el0: standing` / `el0: restored` ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md), [el0.md](../framework/el0.md)). After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`). After A2 a **linked `libctos` hello** prints `libctos: hi` / `libctos: ok` then parks. After A3 the same ELF is also **parsed on the guest** and mapped via `PT_LOAD` (`loader: mapped` / `loader: ok`). After A4 that loaded image is a standing **task** until `exit` (`el0: task-ok`) ([syscall.md](../framework/syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md), [ADR-022](../03-adr/ADR-022-libctos-crt.md), [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md), [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)).
 
-This is **not** a process. There is no libc, no files, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**. The ABI + CRT + loader + standing-task miles are not app hosting.
+This is **not** a process. There is no libc, no argv, no loader for a foreign ELF. In-RAM memfs (A6) is named buffers, not a volume. “EL0 isolated” stays **Planned**. The ABI + CRT + loader + standing-task + memfs miles are not app hosting.
 
 ## What cannot run
 
@@ -46,7 +46,7 @@ flowchart TD
   Q{"Want to run it on ctos today?"}
   Q -->|UART worker / echo / stub| Y["Yes — extend the kernel in-tree"]
   Q -->|Linux binary, shell, Python| N1["No"]
-  Q -->|Network server or files| N2["No — no NIC, no filesystem"]
+  Q -->|Network server or on-disk files| N2["No — no NIC, no disk"]
   Q -->|Docker / OCI container| N3["No — not a goal"]
 ```
 
@@ -58,7 +58,7 @@ Do not imply these work:
 - A shell
 - Python (or any hosted language runtime)
 - Network servers (no NIC, no sockets, no DMA)
-- Filesystem apps (no block device, no VFS — [Filesystem (Planned)](filesystem.md))
+- On-disk filesystem apps (memfs is in-RAM only — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** ([Hosting apps / containers](hosting-apps.md)).

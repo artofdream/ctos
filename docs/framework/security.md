@@ -1,8 +1,8 @@
-# Security — threat model v1.13 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026)
+# Security — threat model v1.14 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.13** (2026-09-12). Slice/update of v1.12 (adds identity `.rodata` tear after a pointer rewrite; `.data`/heap stay; PAN ID-field probe on `-cpu cortex-a57` with enable still Planned; not “EL0 isolated”; app hosting stays Planned). Not a v2 model and not “secure.”
+Version: **v1.14** (2026-09-12). Slice/update of v1.13 (adds thin VFS + in-RAM memfs; not POSIX; not FAT; app hosting stays Planned). Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -35,6 +35,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | `libctos` CRT | Wrappers + `_start` CRT. Hello payload copied onto the standing EL0 page. Must not issue SVC #0–#2. | `libctos/` + `src/libctos.rs` ([ADR-022](../03-adr/ADR-022-libctos-crt.md)) |
 | Guest ELF PT_LOAD loader | Guest parses embedded ELF64 `ET_EXEC`, maps `PT_LOAD` into the user map-window, `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. Not a Linux ABI. | `src/loader.rs` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)) |
 | Standing EL0 as normal mode | Loaded image stands until `SYS_EXIT`. `is_active()` is a task flag. Unexpected lower-EL sync restores fail-closed. Not a process table. | `src/el0.rs` ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) |
+| Thin VFS + memfs | Named heap buffers. Create / open / read / write / close. User path/I/O pointers must be user-mapped **and** kernel-mapped. Not POSIX. Not a disk. | `src/vfs.rs` ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) |
 | Console / sensors | PL011 is how we see whether a probe ran. | Device MMIO `0x0900_0000` |
 
 ## Adversaries
@@ -76,7 +77,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 
 | Mitigation | Probe | Ledger |
 | --- | --- | --- |
-| Threat-model v1.13 written | Read this file | Verified (file + review). Still no “secure OS”. |
+| Threat-model v1.14 written | Read this file | Verified (file + review). Still no “secure OS”. |
 | Device MMIO XN (L1 block 0) | `pxn_for(0x0900_0000) == Some(true)` | Covered by the W^X tests when they run. |
 | Heap + coop stacks PXN | Serial `wx: ok`; `#[test_case]` flags + execute-from-heap IABORT | Verified: 2026-09-10 cloud `qemu-smoke` (honesty ledger). |
 | Kernel text still executable | `is_executable(0x4008_0000)` | Same W^X probe. |
@@ -102,10 +103,11 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: ok`; user buffer + kernel-`.data` / TTBR1-alias reject | ABI mile ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). Not app hosting. |
 | `libctos` CRT | Serial `libctos: hi` / `libctos: ok` / `libctos: linked` | CRT mile ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). Not app hosting. |
 | Guest ELF PT_LOAD loader | Serial `loader: mapped` / `loader: ok` | Loader mile ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Not a Linux ABI. Not app hosting. |
+| Thin VFS + memfs | Serial `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` | memfs mile ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). Not POSIX. Not FAT. Not app hosting. |
 | RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | Verified: 2026-09-11 cloud `qemu-smoke` (honesty ledger). |
 
 ## Claim gate
 
-A PR may say “threat-model v1.13 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” “a 16 KiB dedicated identity text range was unmapped,” “rustc vtables were rewritten to high aliases,” “live identity `.text` after the boot stub was unmapped,” “identity `.rodata` was unmapped,” “`ID_AA64MMFR1_EL1.PAN` is 0 on `-cpu cortex-a57`,” “EL0 issued the documented SVC ABI,” “a program linked against libctos issued that ABI,” “the guest mapped PT_LOAD and ERETed to e_entry,” or “a loaded image stood at EL0 until exit with fail-closed restore” only for the mile that actually passed.
+A PR may say “threat-model v1.14 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” “a 16 KiB dedicated identity text range was unmapped,” “rustc vtables were rewritten to high aliases,” “live identity `.text` after the boot stub was unmapped,” “identity `.rodata` was unmapped,” “`ID_AA64MMFR1_EL1.PAN` is 0 on `-cpu cortex-a57`,” “EL0 issued the documented SVC ABI,” “a program linked against libctos issued that ABI,” “the guest mapped PT_LOAD and ERETed to e_entry,” or “a loaded image stood at EL0 until exit with fail-closed restore,” or “the guest created, wrote, and read a named in-RAM file” only for the mile that actually passed.
 
 It may **not** say “secure OS,” “hardened,” “EL0 works,” “EL0 isolated,” “the kernel moved,” “immutable OS,” or “app hosting is done.” Scoped RO is [immutability.md](immutability.md). Unprobed stays **Unknown**. https://ctos.artof.link HTTPS is **Verified** (2026-09-11 after #30; see the [honesty ledger](honesty-ledger.md)).

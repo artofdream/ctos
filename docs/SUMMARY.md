@@ -7,7 +7,7 @@
 - [What can run today](overview/what-can-run.md)
 - [Prerequisites](overview/prerequisites.md)
 - [Building or porting](overview/porting.md)
-- [Filesystem (Planned)](overview/filesystem.md)
+- [Filesystem (memfs mile)](overview/filesystem.md)
 - [Hosting apps / containers](overview/hosting-apps.md)
 - [KPIs / how we measure](overview/measure.md)
 - [Advantages](overview/advantages.md)
@@ -53,6 +53,7 @@
 - [ADR-024 Standing EL0 as normal mode](03-adr/ADR-024-standing-el0-normal.md)
 - [ADR-025 Identity .rodata tear](03-adr/ADR-025-identity-rodata-tear.md)
 - [ADR-026 PAN capability](03-adr/ADR-026-pan-capability.md)
+- [ADR-027 Thin VFS + memfs](03-adr/ADR-027-thin-vfs-memfs.md)
 
 # Roadmap
 

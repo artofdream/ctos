@@ -115,6 +115,11 @@ fn libctos_numbers_match_a1_abi() {
     assert_eq!(syscall::SYS_EXIT, 16);
     assert_eq!(syscall::SYS_UART_WRITE, 17);
     assert_eq!(syscall::SYS_YIELD, 18);
+    assert_eq!(syscall::SYS_FS_CREATE, 19);
+    assert_eq!(syscall::SYS_FS_OPEN, 20);
+    assert_eq!(syscall::SYS_FS_READ, 21);
+    assert_eq!(syscall::SYS_FS_WRITE, 22);
+    assert_eq!(syscall::SYS_FS_CLOSE, 23);
     assert_ne!(syscall::SYS_EXIT, syscall::SVC_PROBE_RETURN);
     assert_ne!(syscall::SYS_EXIT, syscall::SVC_PROBE_STANDING);
     assert_ne!(syscall::SYS_EXIT, syscall::SVC_PROBE_RESTORE);
