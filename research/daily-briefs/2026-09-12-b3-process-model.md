@@ -18,5 +18,5 @@ B3 is **Documented** on [track-b.md](../../docs/04-roadmap/track-b.md). B4 stays
 
 - Docs + file-read of ADR-024 / ADR-010 / ADR-021 / B2 gap map / ADR-033 ELF only. Did not run QEMU. Did not claim Linux userspace, a process table, or a new Pages deploy.
 - Standing EL0 is not `execve`. A9 FAT `/hello` is an EL1 load path. `SYS_EXIT` is not `exit_group`. EL1 coop workers are not Linux threads.
-- Local docs-build is a later row on this PR after `./scripts/docs-build.sh`. Generator only.
-- Ledger: B4 rows from main kept; B3 ADR-035 inspection row appended. Existing tables not rewritten. “Guest runs host apps” stays **Planned**.
+- Local `./scripts/docs-build.sh` Verified on this cloud VM after the rebase (`mdbook v0.5.4`; `docs-build: ok`; `book/CNAME` = `ctos.artof.link`). Generator only. Pages GHA on this PR is a separate row.
+- Ledger: B4 rows from main kept; B3 ADR-035 inspection + docs-build rows appended. Existing tables not rewritten. “Guest runs host apps” stays **Planned**.
