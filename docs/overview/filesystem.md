@@ -46,7 +46,7 @@ Until those later probes exist, on-disk status stays **Planned**.
 
 | Claim | Probe | Status |
 | --- | --- | --- |
-| Thin VFS + memfs create/write/read/close | Serial `fs: ok` + `#[test_case]` | This mile (ledger after `qemu-smoke`) |
+| Thin VFS + memfs create/write/read/close | Serial `fs: ok` + `#[test_case]` | **Verified** on this tip (honesty ledger) |
 | virtio-blk | QEMU disk + guest driver + marker | **Planned** |
 | FAT or xv6-like | Format + read-back / host image check | **Planned** |
 

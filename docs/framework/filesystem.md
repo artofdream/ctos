@@ -12,7 +12,7 @@ Each later step is one milestone → one branch → one PR, with its own ADR whe
 
 | Step | What it is | Why this order | Status |
 | --- | --- | --- | --- |
-| 1. **memfs** | In-RAM named buffers on the existing first-fit heap (`src/heap.rs`). Create / lookup / read / write of a path without DMA. | Same “easiest in-tree” shape as a coop EL1 task. No virtqueue, no disk image. | **This mile (A6 / ADR-027).** Serial `fs: ok`. |
+| 1. **memfs** | In-RAM named buffers on the existing first-fit heap (`src/heap.rs`). Create / lookup / read / write of a path without DMA. | Same “easiest in-tree” shape as a coop EL1 task. No virtqueue, no disk image. | **Verified** (A6 / ADR-027). Serial `fs: ok`. |
 | 2. **virtio-blk** | QEMU `virt` virtio block: virtqueues, a guest-visible disk, read/write sectors. | Paging and a heap already exist, but virtio-mmio / DMA is its own mile. Do not pretend PL011 RX is a block device. | **Planned** (A7). |
 | 3. **FAT or xv6-like** | An on-disk layout on top of the block device. FAT if we want a host-visible image; xv6-like if we want a tiny teaching inode FS. | Choose in the ADR that lands it. This page does **not** pick. | **Planned** (A7). |
 
@@ -29,7 +29,7 @@ Each later step is one milestone → one branch → one PR, with its own ADR whe
 
 | Claim | Probe | Status |
 | --- | --- | --- |
-| memfs create/write/read/close | Serial `fs: ok` + `#[test_case]` | This mile (ledger after `qemu-smoke`) |
+| memfs create/write/read/close | Serial `fs: ok` + `#[test_case]` | **Verified** on this tip (honesty ledger) |
 | No virtio-blk / FAT / inode in this tree | Source: no virtio-blk / FAT in `src/` | Verified (absence) |
 | virtio-blk works | QEMU disk + guest driver + marker | **Planned** |
 | FAT or xv6-like on a block device | Format + read-back probe | **Planned** |
