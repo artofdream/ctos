@@ -1,4 +1,5 @@
 /target
+/user/hello-libctos/target
 /book
 **/*.bin
 .idea/

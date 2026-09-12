@@ -1,6 +1,6 @@
 # Building or porting
 
-Honesty first: there is **no** userspace ABI to compile against, and no libc. ctos is a freestanding `no_std` kernel on a custom target. Status words need a probe in the [honesty ledger](honesty-ledger.md).
+Honesty first: there is a tiny `libctos` CRT for the A1 SVC ABI, and **no** libc. ctos is a freestanding `no_std` kernel on a custom target. Status words need a probe in the [honesty ledger](honesty-ledger.md).
 
 What already runs: [apps-today.md](apps-today.md). KPIs and trade-offs: [overview.md](overview.md).
 
@@ -51,19 +51,25 @@ A Linux, musl, or glibc binary will **not** run. Missing, among other things:
 
 Do not publish a “port busybox / musl to ctos” guide that skips those gaps. That work would be many ADRs, not a weekend `#ifdef`. Frozen Out list: [fr-nfr.md](../02-requirements/fr-nfr.md) (userspace processes, POSIX, networking).
 
-## Later Planned — `libctos` + loader (freestanding EL0)
+## `libctos` (A2) — freestanding EL0 CRT
 
-Standing EL0 is a **dual-SVC stub** (`SVC #1` stay / `SVC #2` restore) plus first-mile `SVC #0`, plus the A1 public ABI trip (`exit` / `uart_write` / `yield`). It is not a libc.
+Standing EL0 is still a **dual-SVC stub** (`SVC #1` stay / `SVC #2` restore) plus first-mile `SVC #0`, plus the A1 public ABI trip. A2 adds a `no_std` crate you can link:
 
-A1 documented a **kernel** SVC ABI ([syscall.md](syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). That is not an application porting target.
+| Piece | What it is |
+| --- | --- |
+| `libctos/` | Wrappers `exit` / `uart_write` / `yield_now` over `SVC #16` / `#17` / `#18`. Must not issue `#0`–`#2`. |
+| `libctos/src/crt0.S` | `_start` → `main` → `ctos_exit`. No argv / environ. |
+| `user/hello-libctos/` | Hello that prints `libctos: hi` / `libctos: ok` via `uart_write`. |
+
+That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-built and copied onto the standing EL0 page ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). File presence is not the probe — see the ledger for `libctos: ok`.
 
 **Still Planned:**
 
 1. Isolation miles: PAN (usually absent on `cortex-a57`), identity `.rodata` / `.data` / heap tear, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)).
-2. A freestanding **`libctos`** (no crate today) that a future EL0 program could link against `no_std`, talking that ABI. Still not glibc. Still not `exec` of a Linux ELF.
-3. An ELF/raw loader into user TTBR0.
+2. An ELF/raw loader into user TTBR0 (A3).
+3. Standing EL0 as normal mode (A4).
 
-Until those probes exist, “write a user program for ctos” is **Planned**. The easiest thing you can do today remains an in-tree EL1 task.
+Until the loader exists, “write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 
 A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) is **Planned after** that ABI/loader. Today is still one linked ELF — not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
 

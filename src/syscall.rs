@@ -191,7 +191,7 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
     }
 }
 
-fn reset_probe_flags() {
+pub(crate) fn reset_probe_flags() {
     YIELD_COUNT.store(0, Ordering::SeqCst);
     EXIT_STATUS.store(u64::MAX, Ordering::SeqCst);
     UART_LAST.store(u64::MAX, Ordering::SeqCst);
@@ -342,6 +342,21 @@ pub fn last_uart_write() -> u64 {
 #[allow(dead_code)]
 pub fn last_exit_status() -> u64 {
     EXIT_STATUS.load(Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub(crate) fn yield_seen() -> bool {
+    YIELD_OK.load(Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub(crate) fn uart_seen() -> bool {
+    UART_OK.load(Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub(crate) fn exit_seen() -> bool {
+    EXIT_OK.load(Ordering::SeqCst)
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + ASID isolation + TTBR1 private page +
+# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + ASID isolation + TTBR1 private page +
 # TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
@@ -204,6 +204,23 @@ if ! grep -q "svc: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: SVC ABI strings present"
+if grep -q "libctos: probe missed" "$log"; then
+    echo "qemu-smoke: libctos probe missed (linked hello trip did not run)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: hi" "$log"; then
+    echo "qemu-smoke: missing 'libctos: hi' on serial (libctos uart_write, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: ok" "$log"; then
+    echo "qemu-smoke: missing 'libctos: ok' on serial (libctos uart_write, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: linked" "$log"; then
+    echo "qemu-smoke: missing 'libctos: linked' on serial (A2 CRT mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: libctos CRT strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1

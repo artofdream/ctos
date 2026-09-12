@@ -24,8 +24,8 @@ One loop unit each. Each row needs a fail-closed ledger probe.
 
 | ID | Work | Status (2026-09-11) |
 | --- | --- | --- |
-| A1 | Stable SVC / syscall ABI + docs | **ABI mile Verified** on `8846bc5` ([#32](https://github.com/artofdream/ctos/issues/32), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md), [syscall.md](../framework/syscall.md)). Not app hosting. A2–A9 stay **Planned**. |
-| A2 | Freestanding CRT / `libctos` | **Planned** ([#33](https://github.com/artofdream/ctos/issues/33)) |
+| A1 | Stable SVC / syscall ABI + docs | **ABI mile Verified** on `8846bc5` ([#32](https://github.com/artofdream/ctos/issues/32), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md), [syscall.md](../framework/syscall.md)). Not app hosting. |
+| A2 | Freestanding CRT / `libctos` | **CRT mile** — Verified only when the ledger has `libctos: ok` on this tip ([#33](https://github.com/artofdream/ctos/issues/33), [ADR-022](../03-adr/ADR-022-libctos-crt.md)). Not app hosting. A3–A9 stay **Planned**. |
 | A3 | ELF (or raw) loader into user TTBR0 | **Planned** ([#34](https://github.com/artofdream/ctos/issues/34)) |
 | A4 | Standing EL0 as normal mode | **Planned** ([#35](https://github.com/artofdream/ctos/issues/35)) |
 | A5 | Isolation completion (remaining identity tear; PAN only if CPU + ADR) | **Planned** ([#36](https://github.com/artofdream/ctos/issues/36)) |
