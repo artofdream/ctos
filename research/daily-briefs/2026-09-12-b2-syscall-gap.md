@@ -16,4 +16,5 @@ B2 is **Documented** on [track-b.md](../../docs/04-roadmap/track-b.md). Scratch:
 
 - Docs + file-read of `src/syscall.rs` + Linux v6.10 `asm-generic/unistd.h` only. Did not run QEMU. Did not claim Linux userspace, a Linux ABI, or a new Pages deploy.
 - **No Linux syscall is `present`.** Related Track A SVCs are **partial**. Namespace/mount are **never-per-ADR-031**.
+- Local docs-build **Verified** on this cloud VM (mdBook 0.5.4 + mermaid 0.17.1; `docs-build: ok`; `book/CNAME` = `ctos.artof.link`; generated gap + track-b pages include **never-per-ADR-031**). Generator only.
 - Ledger: two additive rows (inspection + docs-build). Existing tables not rewritten. “Guest runs host apps” stays **Planned**.
