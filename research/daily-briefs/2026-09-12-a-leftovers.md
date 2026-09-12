@@ -21,5 +21,5 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.1
 
 ## Honesty
 
-- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca` and post-#62 `6abcb1b`. GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). GHA Verified on `7b68d08` (after #63) is push [34702218168](https://github.com/artofdream/ctos/actions/runs/34702218168) + PR [34702220491](https://github.com/artofdream/ctos/actions/runs/34702220491). Later ledger-only SHA is not that probe.
+- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca`, post-#62 `6abcb1b`, and `7f52572` (Docker-git / portable-sha256 ratchet). GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). GHA Verified on `7b68d08` (after #63) is push [34702218168](https://github.com/artofdream/ctos/actions/runs/34702218168) + PR [34702220491](https://github.com/artofdream/ctos/actions/runs/34702220491). GHA on `7f52572` is **Unknown** until grepped. Docker leftover and Darwin `shasum` stay Unknown (`command -v docker` empty here).
 - Did not claim “EL0 isolated,” PAN enable, “apps update independently,” or “app hosting is done.”
