@@ -28,7 +28,7 @@ QEMU flags (smoke + cargo runner):
 - Not virtio-net, 9p, or a Linux rootfs.
 - Not “we have a disk because QEMU can attach one.” Host `-drive` without guest virtio + a VFS read is not a probe.
 - Not writeable FAT. Guest `write` on a FAT handle is `ReadOnly`.
-- Not app hosting. A8 is documented sample apps.
+- Not app hosting. A8 is documented sample **rebuild recipes** ([what-can-run.md](../overview/what-can-run.md)).
 
 ## Honesty
 

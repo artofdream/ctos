@@ -4,13 +4,17 @@ Do not say “applications run on ctos.” These are the **probed guest examples
 
 Hub: [overview.md](overview.md). How to add something: [building-or-porting.md](building-or-porting.md). Frozen IDs: [FR-08](../02-requirements/fr-nfr.md) (UART RX), [FR-11](../02-requirements/fr-nfr.md) (coop yield).
 
-Site source of truth: [What can run today](../overview/what-can-run.md). This page is extra stance (sample walkthroughs). HTTPS at https://ctos.artof.link is **Verified** (2026-09-11 after #30).
+Site source of truth: [What can run today](../overview/what-can-run.md) (A8 rebuild recipes). In-tree index: `user/README.md`. This page is extra stance (walkthroughs). HTTPS at https://ctos.artof.link is **Verified** (2026-09-11 after #30).
+
+**One rebuild for every sample:** `cargo build` then `./scripts/qemu-smoke.sh`. There is no separate app runner. A8 documents that path. It does not add markers. A9 (OS vs app slot) stays **Planned**.
 
 ## Sample: cooperative EL1 UART workers (M9)
 
 **What it is.** Two heap-backed EL1 workers take turns. Each prints one UART line, then the idle thread sees both flags and prints `sched: ok`. Cooperative only — a task runs until it returns or calls `yield_now()`. Not a timer slice. Not SMP. Not EL0.
 
 **Where.** `src/sched.rs` (`task_a` / `task_b` / `run_two_tasks`). Decision: [ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md).
+
+**Rebuild.** Edit those functions. `cargo build` then `./scripts/qemu-smoke.sh`. Recipe hub: [what-can-run.md](../overview/what-can-run.md).
 
 **How it works.**
 
@@ -40,6 +44,8 @@ That variant is **not** in `src/sched.rs` today. There is no `sched: beat` smoke
 **What it is.** The guest polls the virt PL011 RX FIFO and prints the first byte the host injects. On the smoke path that byte is `0x41` (`'A'`). That is one-shot observe, not a line editor and not a shell.
 
 **Where.** `src/uart.rs` (`observe_rx` / `observe_probe_byte`). Host inject: `scripts/qemu-serial-inject.py` (default `CTOS_INPUT_BYTE=0x41`). Decision: [ADR-007](../03-adr/ADR-007-pl011-uart-rx.md).
+
+**Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh` (the script injects `0x41`). Recipe: [what-can-run.md](../overview/what-can-run.md).
 
 **How it works.**
 
@@ -80,18 +86,48 @@ This is **not** interactive echo, virtio-keyboard, or a TTY. A later line-orient
 
 `#[test_case]` `standing_el0_enter_leave` closes enter/leave. After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`) — [syscall.md](syscall.md). After A2 a hello **linked against `libctos`** prints `libctos: hi` / `libctos: ok` ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). After A3 the same ELF is guest-parsed (`loader: ok`, [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). After A4 that loaded image is a standing **task** until `exit` (`el0: task-ok`, [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)); an unexpected fault restores fail-closed (`el0: restore-fail`). Lower-EL IRQ still parks. PAN on `-cpu cortex-a57` is **Planned**. This is **not** a user process, not POSIX, and not “EL0 isolated.” The ABI + CRT + loader + standing-task miles are not app hosting.
 
+**Rebuild the hello.** Source is `user/hello-libctos/` (`user/hello-libctos/README.md`). A kernel `cargo build` embeds it via `build.rs`. Standalone:
+
+```bash
+cargo build --release \
+  --manifest-path user/hello-libctos/Cargo.toml \
+  --target user/hello-libctos/aarch64-ctos-user.json
+```
+
+That ELF still has to be re-embedded to run. The hello does **not** call `fs_open`. The Verified EL0 VFS trip is `/eprobe` (`fs: el0`).
+
+## Sample: memfs named-buffer probe (A6)
+
+**What it is.** Thin VFS + in-RAM buffers. Kernel creates `/kprobe`, writes, reads. An EL0 trampoline does the same for `/eprobe` (`memfs-el0`). Not POSIX. Not a directory tree.
+
+**Where.** `src/vfs.rs`, `src/syscall.rs` (`el0_fs_svc_roundtrip`). Decision: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md).
+
+**Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh`.
+
+**Probe.** `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok`. File presence is not that probe.
+
+## Sample: FAT16 `/probe` on virtio-blk (A7)
+
+**What it is.** Guest programs virtio-mmio block and `vfs::open("/probe")` reads `fat-hi` from a host-built FAT16 image. Same `open` as memfs. FAT is **read-only**.
+
+**Where.** `src/virtio.rs`, `src/fat.rs`, `scripts/mkfat16.py`. Decision: [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md).
+
+**Rebuild.** Same smoke. The script writes `target/fat16.img` and attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Host `-drive` without `fat: ok` is not the probe.
+
+**Probe.** `blk: virtio` / `blk: cap` / `blk: rw` / `blk: ok` and `fat: mount` / `fat: read` / `fat: ok`. Do not say “supports FAT.”
+
 ## Also on the same hello path
 
-These are kernel sensors, not apps. They still print on a Verified `e80dc93` smoke:
+These are kernel sensors, not apps. Cite the ledger SHA if you quote a number. Recent A7 smoke still printed:
 
 - UART `Hello World!`
 - `paging: ok`, `heap: ok` (`Box` / `Vec` on the first-fit heap)
 - `timer: tick` (GICv2 + CNTP)
 - `wx: ok`, `guard: ok`, `ro: ok`
-- `ident: reloc` / `ident: live` / `ident: ok` (ADR-020 live `.text` tear)
+- `ident: reloc` / `ident: live` / `ident: rodata` / `ident: ok`
+- `svc: ok` / `libctos: ok` / `loader: ok` / `el0: task-ok`
+- `fs: ok` / `blk: ok` / `fat: ok`
 - `exception: sync BRK` then `exception: fatal nested`
-
-Cite the ledger SHA if you quote a number.
 
 ## What cannot run today
 
@@ -103,7 +139,7 @@ Explicit **no**. Do not paper over these with a “porting guide.”
 | A shell (`sh`, bash) or line-oriented TTY | RX probe is one injected byte. No line discipline. |
 | Python, Node, or any hosted interpreter | Needs a process ABI, heap policy, and usually a filesystem. |
 | Network / sockets / HTTP | No virtio-net, no stack, no sockets. |
-| On-disk filesystem / FAT / virtio-blk | memfs (A6) + read-only FAT16 on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Not POSIX. Not FAT32. Stance: [filesystem.md](filesystem.md). |
+| POSIX / Linux disk apps | memfs (A6) + one read-only FAT16 file on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Not POSIX. Not FAT32. Stance: [filesystem.md](filesystem.md). |
 | SMP / a second CPU / preemptive threads | M9 is cooperative EL1 on one vCPU. |
 | Isolated userspace / “an app you compile and exec” | Standing EL0 is a stub. PAN **enable** + `.data`/heap tear + umbrella isolation stay **Planned**. Identity `.rodata` is torn (ADR-025). Gaps: [host-apps.md](host-apps.md). |
 | OCI / Docker / k8s **in the guest** | **No — non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)). Host `docker-smoke.sh` only builds the kernel. |

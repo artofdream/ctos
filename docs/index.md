@@ -38,13 +38,13 @@ flowchart TD
 
 ## What runs today
 
-Three samples that already have probes. Details: [What can run today](overview/what-can-run.md).
+Rebuild recipes for samples that already have probes. Details: [What can run today](overview/what-can-run.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md).
 
 1. **Two kernel tasks that take turns** — they print on the serial port and yield. Not preemptive. Not two CPUs.
 2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
-3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc, no files, no apps.
+3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc. Optional recipes: memfs named buffers and one FAT16 file on virtio-blk.
 
-**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**).
+**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot is **A9 Planned**.
 
 ```mermaid
 flowchart LR
@@ -85,7 +85,7 @@ flowchart LR
 
 | If you want… | Go here |
 | --- | --- |
-| What is in vs out | [What can run today](overview/what-can-run.md) · [Drawbacks / limits](overview/limits.md) |
+| What is in vs out (rebuild recipes) | [What can run today](overview/what-can-run.md) · [Drawbacks / limits](overview/limits.md) |
 | Why POSIX does not port | [Building or porting](overview/porting.md) |
 | Files (memfs + FAT16) | [Filesystem](overview/filesystem.md) |
 | App host / containers | [Hosting apps](overview/hosting-apps.md) — containers: **non-goal** ([ADR-029](03-adr/ADR-029-containers-nongoal.md)) |

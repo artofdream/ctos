@@ -2,7 +2,7 @@
 
 Honesty first: there is a tiny `libctos` CRT for the A1 SVC ABI, a guest `PT_LOAD` loader for that in-tree ELF, and **no** libc. ctos is a freestanding `no_std` kernel on a custom target. Status words need a probe in the [honesty ledger](honesty-ledger.md).
 
-What already runs: [apps-today.md](apps-today.md). KPIs and trade-offs: [overview.md](overview.md).
+What already runs: [apps-today.md](apps-today.md). Recipes: [What can run today](../overview/what-can-run.md), in-tree `user/README.md`. KPIs and trade-offs: [overview.md](overview.md).
 
 Site source of truth: [Building or porting](../overview/porting.md). This page is extra stance. HTTPS at https://ctos.artof.link is **Verified** (2026-09-11 after #30).
 
@@ -59,7 +59,7 @@ Standing EL0 is still a **dual-SVC stub** (`SVC #1` stay / `SVC #2` restore) plu
 | --- | --- |
 | `libctos/` | Wrappers `exit` / `uart_write` / `yield_now` over `SVC #16` / `#17` / `#18`. Must not issue `#0`–`#2`. |
 | `libctos/src/crt0.S` | `_start` → `main` → `ctos_exit`. No argv / environ. |
-| `user/hello-libctos/` | Hello that prints `libctos: hi` / `libctos: ok` via `uart_write`. |
+| `user/hello-libctos/` | Hello that prints `libctos: hi` / `libctos: ok` via `uart_write`. Recipe: `user/hello-libctos/README.md`. |
 
 That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-built. A2 copies the flattened `PT_LOAD` onto the standing EL0 page ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). A3 parses the **same ELF** on the guest and maps `PT_LOAD` into user TTBR0 ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). File presence is not the probe — see the ledger for `libctos: ok` and `loader: ok`.
 
@@ -76,11 +76,11 @@ That is **not** a process, not POSIX, and not “EL0 isolated.”
 **Still Planned:**
 
 1. Isolation miles: PAN **enable** (absent on `cortex-a57` — [ADR-026](../03-adr/ADR-026-pan-capability.md)), identity `.data` / heap tear (`.rodata` is [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)), umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5 took the `.rodata` + PAN ID-field cut.
-2. Sample apps, OS/app slots (A8–A9). memfs is A6. virtio-blk + FAT16 is A7.
+2. OS/app slots (A9). A6 memfs, A7 virtio-blk + FAT16, and A8 documented sample recipes are separate rows.
 
 “Write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 
-A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) is **Planned after** that ABI/loader. Today is still one linked ELF — not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
+A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) is **Planned**. Today is still one linked ELF — not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
 
 ## Do not invent
 

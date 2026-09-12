@@ -22,7 +22,7 @@ A **freestanding** (non-POSIX) application can be loaded and run with honest pro
 
 One loop unit each. Each row needs a fail-closed ledger probe.
 
-| ID | Work | Status (2026-09-11) |
+| ID | Work | Status (2026-09-12) |
 | --- | --- | --- |
 | A1 | Stable SVC / syscall ABI + docs | **ABI mile Verified** on `8846bc5` ([#32](https://github.com/artofdream/ctos/issues/32), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md), [syscall.md](../framework/syscall.md)). Not app hosting. |
 | A2 | Freestanding CRT / `libctos` | **CRT mile Verified** on `c9b292b` ([#33](https://github.com/artofdream/ctos/issues/33), [ADR-022](../03-adr/ADR-022-libctos-crt.md)). Not app hosting. |
@@ -30,9 +30,9 @@ One loop unit each. Each row needs a fail-closed ledger probe.
 | A4 | Standing EL0 as normal mode | **Standing-task mile Verified** on this tip ([#35](https://github.com/artofdream/ctos/issues/35), [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Loaded app until `exit`; fail-closed restore. Not isolation. Not app hosting. |
 | A5 | Isolation completion (remaining identity tear; PAN only if CPU + ADR) | **Identity `.rodata` tear Verified** on this tip ([#36](https://github.com/artofdream/ctos/issues/36), [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)). PAN **enable** stays **Planned** with CPU evidence ([ADR-026](../03-adr/ADR-026-pan-capability.md): `pan: absent` on `-cpu cortex-a57`). Not “EL0 isolated.” |
 | A6 | Thin VFS + memfs | **memfs mile Verified** ([#37](https://github.com/artofdream/ctos/issues/37), [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). In-RAM named buffers; create / write / read / close. Not POSIX. Not app hosting. |
-| A7 | virtio-blk + FAT16 | **block + FAT mile Verified** on this tip when the ledger has `blk: ok` / `fat: ok` ([#38](https://github.com/artofdream/ctos/issues/38), [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same VFS `open`. FAT read-only. Not POSIX. Not app hosting. A8–A9 stay **Planned**. |
-| A8 | Documented sample apps | **Planned** ([#39](https://github.com/artofdream/ctos/issues/39)). Pick up: an in-tree payload that uses the existing SVC + VFS (`fs_open` / `fs_read` of `/probe` or a memfs name). Not a new ABI. |
-| A9 | Disconnect OS image from app payloads | **Planned** after A1–A4 ([#48](https://github.com/artofdream/ctos/issues/48)). Today: one linked ELF — not Verified. |
+| A7 | virtio-blk + FAT16 | **block + FAT mile Verified** on this tip when the ledger has `blk: ok` / `fat: ok` ([#38](https://github.com/artofdream/ctos/issues/38), [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same VFS `open`. FAT read-only. Not POSIX. Not app hosting. |
+| A8 | Documented sample apps | **Recipes Verified** (docs + existing smoke markers) ([#39](https://github.com/artofdream/ctos/issues/39)). Rebuild recipes: [what-can-run.md](../overview/what-can-run.md), [apps-today.md](../framework/apps-today.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. No new ADR (docs-only). No new runtime markers. Not app hosting. A9 stays **Planned**. |
+| A9 | Disconnect OS image from app payloads | **Planned** after A1–A4 ([#48](https://github.com/artofdream/ctos/issues/48)). Today: one linked ELF — not Verified. Two artifacts + load path + cross-update probe. |
 
 ## Out of scope for Track A
 

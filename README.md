@@ -61,9 +61,9 @@ Start here before adding kernel features:
 | Doc | What it is |
 | --- | --- |
 | [KPIs / how we measure](docs/overview/measure.md) | Performance, stability, honest app-support scope |
-| [What can run today](docs/overview/what-can-run.md) | UART workers, RX echo, EL0 stub — not Linux/Python/net |
+| [What can run today](docs/overview/what-can-run.md) | Rebuild recipes: UART workers, RX echo, EL0/`libctos` hello; optional memfs + FAT16 |
 | [Building or porting](docs/overview/porting.md) | In-tree `no_std` today; no easy POSIX port |
-| [Filesystem](docs/overview/filesystem.md) | memfs (in-RAM); virtio-blk / FAT Planned; not FAT-supported |
+| [Filesystem](docs/overview/filesystem.md) | memfs + read-only FAT16 on virtio-blk; not POSIX / not “supports FAT” |
 | [Hosting apps / containers](docs/overview/hosting-apps.md) | Gaps table; guest containers: **non-goal** |
 | [Prerequisites](docs/overview/prerequisites.md) | Nightly Rust + QEMU virt; Pages not required for kernel work |
 | [Advantages](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
