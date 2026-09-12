@@ -26,8 +26,8 @@ One loop unit each. Each row needs a fail-closed ledger probe.
 | --- | --- | --- |
 | A1 | Stable SVC / syscall ABI + docs | **ABI mile Verified** on `8846bc5` ([#32](https://github.com/artofdream/ctos/issues/32), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md), [syscall.md](../framework/syscall.md)). Not app hosting. |
 | A2 | Freestanding CRT / `libctos` | **CRT mile Verified** on `c9b292b` ([#33](https://github.com/artofdream/ctos/issues/33), [ADR-022](../03-adr/ADR-022-libctos-crt.md)). Not app hosting. |
-| A3 | ELF (or raw) loader into user TTBR0 | **Loader mile Verified** on this tip ([#34](https://github.com/artofdream/ctos/issues/34), [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Not a Linux ABI. Not app hosting. A4–A9 stay **Planned**. |
-| A4 | Standing EL0 as normal mode | **Planned** ([#35](https://github.com/artofdream/ctos/issues/35)) |
+| A3 | ELF (or raw) loader into user TTBR0 | **Loader mile Verified** ([#34](https://github.com/artofdream/ctos/issues/34), [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Not a Linux ABI. Not app hosting. |
+| A4 | Standing EL0 as normal mode | **Standing-task mile Verified** on this tip ([#35](https://github.com/artofdream/ctos/issues/35), [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Loaded app until `exit`; fail-closed restore. Not isolation. Not app hosting. A5–A9 stay **Planned**. |
 | A5 | Isolation completion (remaining identity tear; PAN only if CPU + ADR) | **Planned** ([#36](https://github.com/artofdream/ctos/issues/36)) |
 | A6 | Thin VFS + memfs | **Planned** ([#37](https://github.com/artofdream/ctos/issues/37)) |
 | A7 | virtio-blk + FAT or xv6-like | **Planned** ([#38](https://github.com/artofdream/ctos/issues/38)) |

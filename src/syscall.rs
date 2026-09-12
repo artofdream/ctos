@@ -153,6 +153,7 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
     let nr = ctx.esr & 0xffff;
     match nr {
         SYS_YIELD => {
+            el0::note_active_while_standing();
             YIELD_COUNT.fetch_add(1, Ordering::SeqCst);
             YIELD_OK.store(true, Ordering::SeqCst);
             ctx.x[0] = 0;
@@ -160,6 +161,7 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
             Some(SvcAction::StayEl0)
         }
         SYS_UART_WRITE => {
+            el0::note_active_while_standing();
             let ptr = ctx.x[0];
             let len = ctx.x[1];
             let mut buf = [0u8; UART_WRITE_MAX as usize];

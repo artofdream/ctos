@@ -56,8 +56,8 @@ A path that is **not finished**. Call this **Track A** when talking about an OS 
 1. A **stable SVC ABI** — A1 is the kernel mile (`exit` / `uart_write` / `yield`).
 2. A freestanding CRT / `libctos` — A2. Still not a userspace compiler target for foreign ELFs.
 3. Link a freestanding AArch64 user-mode binary and **load** it (A3) — guest `PT_LOAD` map; the smoke image is still embedded
-4. Map it into the **user page table** and return to user mode as **normal** (A4)
+4. Map it into the **user page table** and return to user mode as **normal** (A4 / [ADR-024](../03-adr/ADR-024-standing-el0-normal.md))
 
-Until A4 has ledger probes, do not say applications “port to ctos.” You extend the kernel or link `libctos` in-tree. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are **no**: [Hosting apps / containers](hosting-apps.md).
+A4 has a standing-task probe (`el0: task-ok`) when the ledger says so. That is still not “applications port to ctos.” You extend the kernel or link `libctos` in-tree. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are **no**: [Hosting apps / containers](hosting-apps.md).
 
 A filesystem is the same story: **Planned**, not present. Direction: [Filesystem: new vs extend](filesystem.md).

@@ -35,9 +35,9 @@ That is a byte in, a line out. **No TTY, no line editor, no canonical mode, no v
 
 ## 3. Standing EL0 stub
 
-A short payload in **user mode (EL0)** that does an SVC round-trip and returns. Same class as `el0: standing` / `el0: restored` ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md), [el0.md](../framework/el0.md)). After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`). After A2 a **linked `libctos` hello** prints `libctos: hi` / `libctos: ok` then parks. After A3 the same ELF is also **parsed on the guest** and mapped via `PT_LOAD` (`loader: mapped` / `loader: ok`) ([syscall.md](../framework/syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md), [ADR-022](../03-adr/ADR-022-libctos-crt.md), [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)).
+A short payload in **user mode (EL0)** that does an SVC round-trip and returns. Same class as `el0: standing` / `el0: restored` ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md), [el0.md](../framework/el0.md)). After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`). After A2 a **linked `libctos` hello** prints `libctos: hi` / `libctos: ok` then parks. After A3 the same ELF is also **parsed on the guest** and mapped via `PT_LOAD` (`loader: mapped` / `loader: ok`). After A4 that loaded image is a standing **task** until `exit` (`el0: task-ok`) ([syscall.md](../framework/syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md), [ADR-022](../03-adr/ADR-022-libctos-crt.md), [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md), [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)).
 
-This is **not** a process. There is no libc, no files, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**. The ABI + CRT miles are not app hosting.
+This is **not** a process. There is no libc, no files, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**. The ABI + CRT + loader + standing-task miles are not app hosting.
 
 ## What cannot run
 

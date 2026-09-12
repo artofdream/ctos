@@ -31,7 +31,7 @@ Options:
 5. **`uart_write` is fail-closed.** Length `0` or `> 64`, overflow, a non-canonical or TTBR1 alias, or a range that is not user-mapped **or** not kernel-mapped returns `0` and writes nothing. Kernel `.data` is rejected. Table walks mask to 39 bits — the pointer itself must already be a TTBR0 identity VA, or `copy_user` would load a tagged address. This is not a VFS.
 6. **Unknown immediates** stay unhandled (park). Do not silently succeed.
 7. **Fail-closed probe.** Hello serial `svc: yield` + user buffer `svc: user-hi` + `svc: uart` + `svc: exit` + `svc: ok`. `scripts/qemu-smoke.sh` greps those and rejects `svc: probe missed`. `#[test_case]` covers the success trip, a kernel-`.data` reject, and a TTBR1-alias reject. Existing `el0:` markers stay.
-8. **Honesty.** Say “EL0 issued the documented SVC ABI and the kernel performed the documented effect” only when the serial / tests pass. Do **not** say: app hosting is done, Linux ABI, POSIX, userspace, “EL0 isolated,” or “secure OS.” Track A A3–A9 stay Planned after A2 ([ADR-022](ADR-022-libctos-crt.md)).
+8. **Honesty.** Say “EL0 issued the documented SVC ABI and the kernel performed the documented effect” only when the serial / tests pass. Do **not** say: app hosting is done, Linux ABI, POSIX, userspace, “EL0 isolated,” or “secure OS.” Standing-as-normal is [ADR-024](ADR-024-standing-el0-normal.md). Track A A5–A9 stay Planned.
 9. **NFR-10 text** is revised in place (ID unchanged) to name this ABI mile. Do not mint FR-16+ or NFR-15+.
 
 ## Consequences

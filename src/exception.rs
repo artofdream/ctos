@@ -19,7 +19,8 @@
 //! caught here. Lower-EL AArch64 sync is live for the EL0 first mile,
 //! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), the
 //! public SVC ABI (ADR-021), the libctos CRT payload (ADR-022), the
-//! guest ELF PT_LOAD loader (ADR-023), the
+//! guest ELF PT_LOAD loader (ADR-023), standing EL0 as a task
+//! until `SYS_EXIT` (ADR-024), the
 //! TTBR1 private-page DABORT (ADR-016), EL1 fetch from the TTBR1
 //! RAM alias (ADR-017), and the ADR-018 identity-tear IABORT / EL0
 //! DABORT: SVC, IABORT, DABORT.
@@ -1014,7 +1015,7 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
             match action {
                 crate::syscall::SvcAction::StayEl0 => stay_at_el0(ctx),
                 crate::syscall::SvcAction::ReturnEl1 => {
-                    crate::el0::clear_active();
+                    crate::el0::restore_exit();
                     return_from_el0(ctx);
                 }
             }
@@ -1048,6 +1049,11 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
     {
         IDENT_EL0_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("ident: no el0\n");
+        return_from_el0(ctx);
+        return;
+    }
+    if crate::el0::restore_fault() {
+        uart::write_str_raw("el0: restore-fail\n");
         return_from_el0(ctx);
         return;
     }

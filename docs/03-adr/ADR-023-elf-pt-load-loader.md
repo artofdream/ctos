@@ -30,11 +30,11 @@ Existing A1 `svc:*` and A2 `libctos:*` markers stay. A4–A9 stay out of this PR
 5. **Embedded image.** `build.rs` still emits the A2 flattened `.bin` **and** the raw ELF (`hello-libctos.elf`). The kernel `include_bytes!` the ELF. No filesystem. Not a second QEMU `-kernel`.
 6. **ERET.** `el0::install_standing(e_entry, stack_top, user_ttbr0)` then `exception::eret_to_el0`. `SYS_EXIT` returns to EL1 as today. A2’s memcpy path stays so `libctos:*` markers remain.
 7. **Fail-closed probe.** Hello serial `loader: mapped` + `loader: ok` after a successful trip. The loaded payload still prints `libctos: hi` / `libctos: ok` via `uart_write`. `scripts/qemu-smoke.sh` greps those and rejects `loader: probe missed`. `#[test_case]` covers parse, `PT_INTERP` reject, W+X reject (flags and overlapping pages), RX+R union on the hello page, and the full map + `ERET` trip. Existing `svc:` / `libctos:` / `el0:` markers stay.
-8. **Honesty.** Say “the guest parsed a freestanding ELF64, mapped `PT_LOAD` into user TTBR0, and `ERET`ed to `e_entry`” only when the serial / tests pass. Do **not** say: Linux ELF ABI, `PT_INTERP`, glibc, app hosting is done, POSIX, userspace, “EL0 isolated,” or “secure OS.” Track A A4–A9 stay Planned.
+8. **Honesty.** Say “the guest parsed a freestanding ELF64, mapped `PT_LOAD` into user TTBR0, and `ERET`ed to `e_entry`” only when the serial / tests pass. Do **not** say: Linux ELF ABI, `PT_INTERP`, glibc, app hosting is done, POSIX, userspace, “EL0 isolated,” or “secure OS.” Standing-as-normal is [ADR-024](ADR-024-standing-el0-normal.md). Track A A5–A9 stay Planned.
 9. **NFR-10 text** is revised in place (ID unchanged) to name this loader mile. Do not mint FR-16+ or NFR-15+.
 
 ## Consequences
 
 - Code: `src/loader.rs`, `paging::map_el0_ro` / `window_range_ok` / `LOADER_STACK_VA`, `build.rs` emits the ELF, `scripts/qemu-smoke.sh`.
 - Docs: [el0.md](../framework/el0.md), [syscall.md](../framework/syscall.md), [building-or-porting.md](../framework/building-or-porting.md). Roadmap cites #34 / Track A #31.
-- A4 (standing EL0 as **normal** mode) may keep this loader as the way a payload appears. It is not this PR.
+- A4 (standing EL0 as **normal** mode) keeps this loader as the way a payload appears ([ADR-024](ADR-024-standing-el0-normal.md)).

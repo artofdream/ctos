@@ -2,11 +2,17 @@
 //!
 //! Deliberate `ERET` to EL0 on a one-page trampoline (UXN-clear, PXN).
 //! `eret_to_el0` switches to a user TTBR0 that omits kernel `.data`/heap.
-//! Four probes, then back to EL1:
+//! Four first-mile probes, then back to EL1:
 //! - `SVC #0` returns via the lower-EL sync slot (`el0: svc`)
 //! - `BR x0` to kernel `.data` must take a lower-EL IABORT (`el0: nx kernel`)
 //! - `LDR` from kernel `.data` must take a lower-EL DABORT (`el0: no kernel read`)
 //! - Standing dual-SVC on the user TTBR0 (`el0: standing` / `el0: restored`)
+//!
+//! Track A / A4 (ADR-024) promotes standing EL0 to the **supported path**
+//! for a loaded freestanding image: `is_active()` is a real-task flag,
+//! the A3 loader is how the payload appears, and the task runs until
+//! `SYS_EXIT`. Unexpected lower-EL sync while a task is standing
+//! restores fail-closed (`el0: restore-fail`) instead of parking.
 //!
 //! `is_active()` is true only while that standing context exists.
 //! Lower-EL IRQ/FIQ/SError still park (not exercised). PAN is typically
@@ -18,10 +24,11 @@
 
 use core::fmt::Write;
 use core::hint::black_box;
-use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 
 use crate::exception;
 use crate::frame;
+use crate::loader;
 use crate::paging;
 use crate::uart;
 
@@ -51,27 +58,108 @@ static ACTIVE: AtomicBool = AtomicBool::new(false);
 static USER_PC: AtomicU64 = AtomicU64::new(0);
 static USER_SP: AtomicU64 = AtomicU64::new(0);
 static USER_TTBR: AtomicU64 = AtomicU64::new(0);
+/// 0 = none, 1 = ADR-013 probe, 2 = A4 standing task (ADR-024).
+static KIND: AtomicU8 = AtomicU8::new(0);
+static TASK_ACTIVE_SEEN: AtomicBool = AtomicBool::new(false);
+static TASK_EXIT_SEEN: AtomicBool = AtomicBool::new(false);
+static RESTORE_FAIL_SEEN: AtomicBool = AtomicBool::new(false);
 
-/// True only while a standing user context is installed (ADR-013).
+const KIND_NONE: u8 = 0;
+const KIND_PROBE: u8 = 1;
+const KIND_TASK: u8 = 2;
+
+/// Unused map-window page. The A4 fault probe `BR`s here (unmapped).
+const TASK_FAULT_VA: u64 = paging::MAP_WINDOW + 8 * 4096;
+
+/// True only while a standing user context is installed (ADR-013 / ADR-024).
 #[allow(dead_code)] // hello build has no caller; `#[test_case]` + handler do.
 pub fn is_active() -> bool {
     ACTIVE.load(Ordering::SeqCst)
 }
 
+/// True while a loaded **task** (not the dual-SVC probe) is standing.
+#[allow(dead_code)]
+pub fn is_task() -> bool {
+    is_active() && KIND.load(Ordering::SeqCst) == KIND_TASK
+}
+
 /// Drop the standing flag and saved user PC/SP/TTBR0. Handler + teardown.
 pub(crate) fn clear_active() {
     ACTIVE.store(false, Ordering::SeqCst);
+    KIND.store(KIND_NONE, Ordering::SeqCst);
     USER_PC.store(0, Ordering::SeqCst);
     USER_SP.store(0, Ordering::SeqCst);
     USER_TTBR.store(0, Ordering::SeqCst);
 }
 
-/// Install a bounded standing user context (ADR-013 / ADR-021 ABI trip).
+/// Install a bounded standing **probe** context (ADR-013 / A1–A3 trips).
 pub(crate) fn install_standing(pc: u64, sp: u64, ttbr: u64) {
     USER_PC.store(pc, Ordering::SeqCst);
     USER_SP.store(sp, Ordering::SeqCst);
     USER_TTBR.store(ttbr, Ordering::SeqCst);
+    KIND.store(KIND_PROBE, Ordering::SeqCst);
     ACTIVE.store(true, Ordering::SeqCst);
+}
+
+/// Install a standing **task** (ADR-024). Payload comes from the A3 loader.
+pub(crate) fn install_task(pc: u64, sp: u64, ttbr: u64) {
+    USER_PC.store(pc, Ordering::SeqCst);
+    USER_SP.store(sp, Ordering::SeqCst);
+    USER_TTBR.store(ttbr, Ordering::SeqCst);
+    KIND.store(KIND_TASK, Ordering::SeqCst);
+    ACTIVE.store(true, Ordering::SeqCst);
+    uart::write_str_raw("el0: task-enter\n");
+}
+
+pub(crate) fn reset_task_flags() {
+    TASK_ACTIVE_SEEN.store(false, Ordering::SeqCst);
+    TASK_EXIT_SEEN.store(false, Ordering::SeqCst);
+    RESTORE_FAIL_SEEN.store(false, Ordering::SeqCst);
+}
+
+/// `SYS_YIELD` / `SYS_UART_WRITE` saw `is_active()` on a standing task.
+pub(crate) fn note_active_while_standing() {
+    if !is_task() {
+        return;
+    }
+    if !TASK_ACTIVE_SEEN.swap(true, Ordering::SeqCst) {
+        uart::write_str_raw("el0: task-active\n");
+    }
+}
+
+/// `SYS_EXIT` restore. Probe trips just clear; a task prints and records.
+pub(crate) fn restore_exit() {
+    if is_task() {
+        TASK_EXIT_SEEN.store(true, Ordering::SeqCst);
+        uart::write_str_raw("el0: task-exit\n");
+        uart::write_str_raw("el0: task-restored\n");
+    }
+    clear_active();
+}
+
+/// Unexpected lower-EL sync while a task is standing: restore, do not park.
+pub(crate) fn restore_fault() -> bool {
+    if !is_task() {
+        return false;
+    }
+    RESTORE_FAIL_SEEN.store(true, Ordering::SeqCst);
+    clear_active();
+    true
+}
+
+#[allow(dead_code)]
+pub(crate) fn task_active_seen() -> bool {
+    TASK_ACTIVE_SEEN.load(Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub(crate) fn task_exit_seen() -> bool {
+    TASK_EXIT_SEEN.load(Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub(crate) fn restore_fail_seen() -> bool {
+    RESTORE_FAIL_SEEN.load(Ordering::SeqCst)
 }
 
 /// True after a successful SVC round-trip on this boot (first mile only).
@@ -242,6 +330,41 @@ pub fn observe_probe() -> bool {
     true
 }
 
+/// A4 / ADR-024: loaded app as a standing task until exit, plus fail-closed
+/// restore on an unexpected EL0 fault. Not isolation. Not app hosting.
+fn fault_task_restores() -> bool {
+    if is_active() || !paging::user_map_ready() {
+        return false;
+    }
+    reset_task_flags();
+    with_el0_page(|ptr, va| {
+        write_instr(ptr, BR_X0_A64);
+        let user_sp = va + 4096;
+        install_task(va, user_sp, paging::user_ttbr0());
+        unsafe {
+            exception::eret_to_el0(black_box(va), TASK_FAULT_VA, user_sp);
+        }
+        !is_active() && restore_fail_seen()
+    })
+}
+
+/// Serial proof: standing task via the A3 loader + fail-closed fault restore.
+#[allow(dead_code)] // hello kernel only; cargo test uses the cases below.
+pub fn observe_standing_task() -> bool {
+    if !paging::mmu_enabled() || !paging::user_map_ready() {
+        return false;
+    }
+    if !loader::run_hello_as_task() {
+        return false;
+    }
+    if !fault_task_restores() {
+        return false;
+    }
+    let mut w = uart::raw();
+    let _ = writeln!(w, "el0: task-ok");
+    true
+}
+
 #[cfg(test)]
 #[test_case]
 fn el0_is_not_active_at_rest() {
@@ -260,6 +383,32 @@ fn standing_el0_enter_leave() {
         "standing user must SVC #1, run at EL0, SVC #2, then restore"
     );
     assert!(!is_active(), "teardown must clear is_active()");
+}
+
+#[cfg(test)]
+#[test_case]
+fn standing_task_runs_until_exit() {
+    assert!(!is_active(), "must start inactive");
+    assert!(
+        loader::run_hello_as_task(),
+        "loaded A3 hello must stand as a task until SYS_EXIT"
+    );
+    assert!(!is_active(), "exit must clear is_active()");
+    assert!(!is_task());
+    assert!(task_active_seen(), "yield/uart must see is_active() true");
+    assert!(task_exit_seen(), "SYS_EXIT must restore the standing task");
+}
+
+#[cfg(test)]
+#[test_case]
+fn standing_task_fault_restores() {
+    assert!(!is_active(), "must start inactive");
+    assert!(
+        fault_task_restores(),
+        "unexpected EL0 fault must restore fail-closed"
+    );
+    assert!(!is_active(), "fault restore must clear is_active()");
+    assert!(restore_fail_seen());
 }
 
 #[cfg(test)]
