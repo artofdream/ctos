@@ -1,6 +1,6 @@
 # Session memory — 2026-09-12 (Track B / B7 containers non-goal)
 
-Docs + `research/` only on `cursor/b7-containers-nongoal-6b58`. Parent `main` `ae7d2b8`.
+Docs + `research/` only on `cursor/b7-containers-nongoal-6b58`. Rebased onto `main` `e347983` (#50) after #58 conflicted.
 
 - **B7 / #47:** make explicit that OCI/Docker guests are a **non-goal**. They need a Linux host. Today Docker only hosts the ctos smoke image.
 - Honesty gaps that were still open-ended: Track B “far-later”; hosting-apps “not aiming at soon”; host-apps “on this horizon”; advantages grouping containers with “later” OTA.

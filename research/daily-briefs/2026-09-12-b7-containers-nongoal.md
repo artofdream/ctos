@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-Draft PR on `cursor/b7-containers-nongoal-6b58`. Parent is `main` `ae7d2b8` (A7 / ADR-028). One docs-only PR: [ADR-029](../../docs/03-adr/ADR-029-containers-nongoal.md) records that guest OCI/Docker/k8s is a **non-goal**. No new FR/NFR IDs. No container runtime.
+Draft/ready PR https://github.com/artofdream/ctos/pull/58 (`cursor/b7-containers-nongoal-6b58`). Rebased onto `main` `e347983` (#50 Darwin docs-build pin) after a ledger conflict. One docs-only PR: [ADR-029](../../docs/03-adr/ADR-029-containers-nongoal.md) records that guest OCI/Docker/k8s is a **non-goal**. No new FR/NFR IDs. No container runtime.
 
 Honesty gap closed: Track B no longer says containers are “far-later” or **Planned**. B7 is **Documented**. Site SoT: [hosting-apps.md](../../docs/overview/hosting-apps.md). Extra: [host-apps.md](../../docs/framework/host-apps.md). Ledger absence row still **Verified**; notes cite ADR-029. Scratch: [random-thoughts/2026-09-12-session-memory-b7-containers.md](../random-thoughts/2026-09-12-session-memory-b7-containers.md).
 
