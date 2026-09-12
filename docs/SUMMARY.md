@@ -51,6 +51,8 @@
 - [ADR-022 Freestanding CRT / libctos](03-adr/ADR-022-libctos-crt.md)
 - [ADR-023 Guest ELF PT_LOAD loader](03-adr/ADR-023-elf-pt-load-loader.md)
 - [ADR-024 Standing EL0 as normal mode](03-adr/ADR-024-standing-el0-normal.md)
+- [ADR-025 Identity .rodata tear](03-adr/ADR-025-identity-rodata-tear.md)
+- [ADR-026 PAN capability](03-adr/ADR-026-pan-capability.md)
 
 # Roadmap
 

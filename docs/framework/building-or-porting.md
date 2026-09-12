@@ -75,7 +75,7 @@ That is **not** a process, not POSIX, and not “EL0 isolated.”
 
 **Still Planned:**
 
-1. Isolation miles: PAN (usually absent on `cortex-a57`), identity `.rodata` / `.data` / heap tear, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5.
+1. Isolation miles: PAN **enable** (absent on `cortex-a57` — [ADR-026](../03-adr/ADR-026-pan-capability.md)), identity `.data` / heap tear (`.rodata` is [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)), umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5 took the `.rodata` + PAN ID-field cut.
 2. VFS / memfs, virtio-blk, sample apps, OS/app slots (A6–A9).
 
 “Write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.

@@ -17,7 +17,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on the M8 PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 
-M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). Pillar work through ADR-020 (#17–#28) plus docs #30/#51/#29, A1 (#49 / ADR-021), A2 (#52 / ADR-022), and A3 (#53 / ADR-023) are on `main`. This PR is Track A / A4 ([issue #35](https://github.com/artofdream/ctos/issues/35), parent [issue #31](https://github.com/artofdream/ctos/issues/31)): ADR-024 standing EL0 as normal mode. Merge is still a human/MRC job (ADR-002).
+M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). Pillar work through ADR-020 (#17–#28) plus docs #30/#51/#29, A1 (#49 / ADR-021), A2 (#52 / ADR-022), A3 (#53 / ADR-023), and A4 (#54 / ADR-024) are on `main`. This PR is Track A / A5 ([issue #36](https://github.com/artofdream/ctos/issues/36), parent [issue #31](https://github.com/artofdream/ctos/issues/31)): ADR-025 identity `.rodata` tear + ADR-026 PAN capability (enable Planned). Merge is still a human/MRC job (ADR-002).
 
 ## Pillars (post-M9)
 
@@ -42,15 +42,15 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3g | Identity-tear first cut (ADR-018) | `ident: split` + `ident: fault` + `ident: high` + `ident: no el0` + `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Full identity teardown / PAN / umbrella isolation stay **Planned**. Do not claim “the kernel moved.” |
 | P-SEC-3h | High-VA jump + 16 KiB identity text range (ADR-019) | `ident: jump` + `ident: range` + `ident: text` + existing `ident: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` + cts-ai Docker on `24d94e6` (see honesty ledger). Do not claim “the kernel moved.” |
 | P-SEC-3i | High-VA vtable rewrite + live identity `.text` tear (ADR-020) | `ident: reloc` + `ident: live` + existing `ident: ok`; `println!` after the tear | **Verified:** 2026-09-11 cloud `qemu-smoke` + cts-ai Docker on `e80dc93` + GHA merge-commit [34651404108](https://github.com/artofdream/ctos/actions/runs/34651404108) (see honesty ledger). `.rodata` / `.data` / heap stay. Do not claim “the kernel moved.” |
-| P-SEC-3j | Identity `.rodata` / `.data` / heap tear | Those identity ranges unmapped; accesses proven high-only | **Planned.** After live `.text` (ADR-020), not instead of it. |
-| P-SEC-3k | PAN on virt `cortex-a57` | `ID_AA64MMFR1_EL1.PAN != 0` **and** an EL1-vs-EL0 access fault | **Planned.** ARMv8.0 `cortex-a57`. Do not switch `-cpu` silently. |
+| P-SEC-3j | Identity `.rodata` / `.data` / heap tear | `.rodata` unmapped + high-only access (`ident: rodata` / `ident: rodata-fault` / `ident: rodata-high`). `.data` / heap still Planned. | **Partial (this PR):** `.rodata` Verified only after `qemu-smoke`. `.data` / heap stay mapped (SP + allocator still identity). [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md). Do not claim “the kernel moved.” |
+| P-SEC-3k | PAN on virt `cortex-a57` | `ID_AA64MMFR1_EL1.PAN != 0` **and** an EL1-vs-EL0 access fault | **Planned** (ADR-026). ID-field probe prints `pan: absent` on `-cpu cortex-a57`. Do not switch `-cpu` silently. |
 | P-SEC-3l | Umbrella EL0 isolation | Standing + PAN + full TTBR1 / identity teardown | **Planned.** Specific miles (P-SEC-3…P-SEC-3k) are not this row. Do not claim “EL0 isolated.” |
 
 Hub: [pillars.md](../framework/pillars.md). ABI contract: [syscall.md](../framework/syscall.md).
 
 ## Track A — freestanding app hosting ([#31](https://github.com/artofdream/ctos/issues/31))
 
-A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_LOAD loader mile. A4 is standing EL0 as **normal** mode for a loaded image. **Track A stays incomplete** after A4 (A5–A9 Planned). Not Linux containers. Not glibc. One child issue → one PR. Do not round A1–A4 Verified up to “app hosting is done.”
+A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_LOAD loader mile. A4 is standing EL0 as **normal** mode for a loaded image. A5 is isolation completion (identity `.rodata` tear + PAN ID-field; PAN enable Planned). **Track A stays incomplete** after A5 (A6–A9 Planned). Not Linux containers. Not glibc. One child issue → one PR. Do not round A1–A5 Verified up to “app hosting is done.”
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
@@ -58,7 +58,7 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_L
 | A2 | Freestanding CRT / `libctos` ([#33](https://github.com/artofdream/ctos/issues/33), ADR-022) | `libctos: hi` + `libctos: ok` + `libctos: linked`; `#[test_case]` | **CRT mile Verified:** 2026-09-12 cloud `qemu-smoke` on `c9b292b`. App hosting stays **Planned**. |
 | A3 | ELF (or raw image) loader into user TTBR0 ([#34](https://github.com/artofdream/ctos/issues/34), ADR-023) | `loader: mapped` + `loader: ok`; payload `libctos: hi` / `libctos: ok`; `#[test_case]` | **Loader mile Verified:** 2026-09-12 cloud `qemu-smoke` (see honesty ledger). Not a Linux ABI. App hosting stays **Planned**. |
 | A4 | Standing EL0 as normal mode ([#35](https://github.com/artofdream/ctos/issues/35), ADR-024) | `el0: task-enter` + `el0: task-active` + `el0: task-exit` + `el0: task-restored` + `el0: restore-fail` + `el0: task-ok`; `#[test_case]` | **Standing-task mile Verified:** 2026-09-12 cloud `qemu-smoke` (see honesty ledger). Not isolation. App hosting stays **Planned**. |
-| A5 | Isolation completion | remaining identity tear / PAN only with ADR | **Planned** |
+| A5 | Isolation completion ([#36](https://github.com/artofdream/ctos/issues/36), ADR-025 / ADR-026) | `ident: rodata` + `ident: rodata-fault` + `ident: rodata-high`; `pan: id=` + `pan: absent` | **This PR** — `.rodata` tear Verified only after `qemu-smoke`. PAN enable **Planned**. Not “EL0 isolated.” |
 | A6 | Thin VFS + memfs | path walk + read probe | **Planned** |
 | A7 | virtio-blk + FAT or xv6-like FS | block + fs probe | **Planned** |
 | A8–A9 | Sample in-tree coop UART / standing EL0 app | documented sample serial | **Planned** |

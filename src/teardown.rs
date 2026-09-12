@@ -1,18 +1,21 @@
-//! Identity-teardown cuts (ADR-018 + ADR-019).
+//! Identity-teardown cuts (ADR-018 + ADR-019 + ADR-020 + ADR-025).
 //!
 //! After MMU + high VBAR, the post-MMU continuation jumps to its
 //! TTBR1 alias (`ident: jump`), rewrites rustc vtable / fn-pointer
 //! words to high aliases (`ident: reloc`), unmaps a dedicated 16 KiB
-//! identity text range (`__ident_tear_*`), then unmaps live identity
-//! `.text` after the `_start` page (`ident: live`, ADR-020).
-//! High twins stay executable (`L2_HIGH_RAM` clone). `.rodata` /
-//! `.data` / heap stay identity-mapped.
+//! identity text range (`__ident_tear_*`), unmaps live identity
+//! `.text` after the `_start` page (`ident: live`, ADR-020), rewrites
+//! identity pointers to `.rodata` (`ident: ro-reloc`), then unmaps
+//! identity `.rodata` (`ident: rodata`, ADR-025). High twins stay
+//! (`L2_HIGH_RAM` clone). `.data` / heap stay identity-mapped.
 //!
 //! Probes: EL1 fetch of a torn identity VA faults (`ident: fault`);
 //! EL1 fetch of the high twin still runs (`ident: high` / `ident: text`);
-//! EL0 load of a torn VA faults (`ident: no el0`). `_start` / QEMU
-//! `-kernel` stay at `0x4008_0000`. Not “the kernel moved.” Not
-//! “EL0 isolated.” PAN unclaimed. Full teardown stays Planned.
+//! EL0 load of a torn VA faults (`ident: no el0`); EL1 load of torn
+//! `.rodata` faults (`ident: rodata-fault`); high `.rodata` still
+//! loads (`ident: rodata-high`). `_start` / QEMU `-kernel` stay at
+//! `0x4008_0000`. Not “the kernel moved.” Not “EL0 isolated.” PAN
+//! enable stays Planned (ADR-026). `.data`/heap teardown stays Planned.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -25,6 +28,10 @@ use crate::uart;
 
 /// AArch64 `LDR X1, [X0]`.
 const LDR_X1_X0_A64: u32 = 0xF9400001;
+
+/// Known `.rodata` word. Identity load must fault after ADR-025; high load stays.
+#[used]
+static IDENT_RODATA_MAGIC: u64 = 0x4354_4F53_524F_4441;
 
 fn sync_icache(ptr: *const u32) {
     let x = ptr as u64;
@@ -156,6 +163,38 @@ fn run_text_fault() -> bool {
     exception::ident_tear_caught()
 }
 
+fn rodata_magic_ident() -> u64 {
+    paging::identity_pa(core::ptr::addr_of!(IDENT_RODATA_MAGIC) as usize as u64)
+}
+
+fn run_rodata_high() -> bool {
+    let ident = rodata_magic_ident();
+    if ident < paging::rodata_start() || ident >= paging::ident_tear_page() {
+        return false;
+    }
+    let high = paging::to_high_va(ident);
+    if !paging::is_high_va(high) || !paging::high_mapped(high) {
+        return false;
+    }
+    let word = unsafe { core::ptr::read_volatile(high as *const u64) };
+    if word != IDENT_RODATA_MAGIC {
+        return false;
+    }
+    uart::write_str_raw("ident: rodata-high\n");
+    true
+}
+
+fn run_rodata_fault() -> bool {
+    let ident = rodata_magic_ident();
+    if paging::is_mapped(ident) {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    exception::arm_ident_rodata();
+    let _ = black_box(unsafe { core::ptr::read_volatile(ident as *const u64) });
+    exception::ident_rodata_caught()
+}
+
 fn el0_load_torn() -> bool {
     let Some(code_pa) = frame::alloc() else {
         return false;
@@ -204,6 +243,10 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss live-ready\n");
         return false;
     }
+    if !paging::identity_rodata_ready() {
+        uart::write_str_raw("ident: miss rodata-ready\n");
+        return false;
+    }
     // After ADR-020 the probe itself is only reachable via the high
     // alias. The jump is also proven by serial `ident: jump`.
     let va = paging::ident_tear_page();
@@ -226,6 +269,23 @@ fn run_probe() -> bool {
     }
     if paging::torn_live_pages() < 8 {
         uart::write_str_raw("ident: miss live-pages\n");
+        return false;
+    }
+    if paging::is_mapped(paging::rodata_start()) || paging::user_mapped(paging::rodata_start())
+    {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    if !paging::high_mapped(paging::to_high_va(paging::rodata_start())) {
+        uart::write_str_raw("ident: miss rodata-high-map\n");
+        return false;
+    }
+    if paging::torn_rodata_pages() < 1 {
+        uart::write_str_raw("ident: miss rodata-pages\n");
+        return false;
+    }
+    if paging::is_mapped(paging::data_start()) != true {
+        uart::write_str_raw("ident: miss data-stay\n");
         return false;
     }
     if paging::reloc_count() == 0 {
@@ -261,6 +321,14 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss el0\n");
         return false;
     }
+    if !run_rodata_fault() {
+        uart::write_str_raw("ident: miss rodata-fault\n");
+        return false;
+    }
+    if !run_rodata_high() {
+        uart::write_str_raw("ident: miss rodata-high\n");
+        return false;
+    }
     true
 }
 
@@ -283,8 +351,9 @@ fn identity_tear_el1_faults_high_stays() {
     assert!(paging::identity_range_ready());
     assert!(paging::identity_reloc_ready());
     assert!(paging::identity_live_ready());
+    assert!(paging::identity_rodata_ready());
     assert!(
         run_probe(),
-        "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT"
+        "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT; torn .rodata"
     );
 }

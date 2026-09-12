@@ -26,7 +26,7 @@ This ADR investigates that failure and takes the largest honest Verified cut tow
 4. **Keep `.rodata` / `.data` / heap identity-mapped.** String literals and rewritten vtables still live there. Do not yank them here.
 5. **Keep `_start` / QEMU `-kernel` at `0x4008_0000`.** Do not change default `-cpu`. Do not claim PAN.
 6. **Fail-closed probe.** Existing `ident: jump` / `range` / `split` / `fault` / `high` / `text` / `no el0` / `ok` stay. New `ident: reloc` / `ident: live`. `scripts/qemu-smoke.sh` greps those strings and rejects `ident: reloc missed` / `ident: live missed`. `#[test_case]` covers the rewrite and the live unmap.
-7. **Still Planned.** Unmap identity `.rodata` / `.data` / heap after those accesses are proven high-only; PAN on `-cpu cortex-a57`; umbrella EL0 isolation.
+7. **Still Planned (this ADR).** Unmap identity `.rodata` / `.data` / heap after those accesses are proven high-only; PAN on `-cpu cortex-a57`; umbrella EL0 isolation. [ADR-025](ADR-025-identity-rodata-tear.md) takes the `.rodata` cut. [ADR-026](ADR-026-pan-capability.md) probes the PAN ID field (enable stays Planned).
 8. **NFR-10 text** is revised in place (ID unchanged). Do not mint NFR-15+.
 
 ## Honesty
