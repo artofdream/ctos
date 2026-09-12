@@ -1,4 +1,4 @@
-# ADR-031 — Track A leftovers: cross-update, FAT-only hello, isolation honesty
+# ADR-032 — Track A leftovers: cross-update, FAT-only hello, isolation honesty
 
 - Status: Accepted (leftover mile when the serial / host smoke / tests pass)
 - Date: 2026-09-12
@@ -11,7 +11,7 @@ Track A children A1–A9 have first cuts. After [ADR-030](ADR-030-os-app-slots.m
 2. **Embed honesty.** A2–A4 still `include_bytes!` a hello copy while A9 loaded FAT `/hello`. Dual path or remove the embed.
 3. **Isolation leftovers.** After A5: identity `.data` / heap tear if safe; PAN enable only if `ID_AA64MMFR1_EL1.PAN != 0` on default `-cpu cortex-a57`. Do not claim “EL0 isolated.”
 
-No new FR/NFR IDs. Author does not merge ([ADR-002](ADR-002-pr-identity-split.md)).
+No new FR/NFR IDs. Author does not merge ([ADR-002](ADR-002-pr-identity-split.md)). The number is **032** because open [#62](https://github.com/artofdream/ctos/pull/62) already claimed ADR-031 for Linux-compat goals.
 
 ## Hypotheses
 

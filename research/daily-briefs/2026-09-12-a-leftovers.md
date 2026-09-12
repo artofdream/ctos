@@ -1,8 +1,8 @@
-# Daily brief — 2026-09-12 (Track A leftovers / ADR-031)
+# Daily brief — 2026-09-12 (Track A leftovers / ADR-032)
 
 ## Where we stopped
 
-Draft-then-ready PR https://github.com/artofdream/ctos/pull/64 (`cursor/track-a-leftovers-d2ee`). Parent is `main` `ba6541c` (A9 / ADR-030). One PR: [ADR-031](../../docs/03-adr/ADR-031-track-a-leftovers.md) leftover mile. No new FR/NFR IDs.
+Ready PR https://github.com/artofdream/ctos/pull/64 (`cursor/track-a-leftovers-d2ee`). Parent is `main` `ba6541c` (A9 / ADR-030). One PR: [ADR-032](../../docs/03-adr/ADR-032-track-a-leftovers.md) leftover mile (number is 032 because #62 claimed ADR-031). No new FR/NFR IDs. MRC COMMENTs blocked hats (inverted), ADR collision, and GHA shallow-clone miss of `ba6541c`.
 
 Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`):
 
@@ -15,7 +15,7 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.1
 
 ## Do next
 
-1. Human or MRC review. Author does not merge (ADR-002). GitHub author of #64 is `cursor[bot]`; merge hat is **`artofdream`**.
+1. Human or MRC review. Author does not merge (ADR-002). GitHub author of #64 is **`artofdream`**; merge hat is **`cursor[bot]`** after this-run green checks (when CI exists) and Bugbot resolved-or-declined. Owner / this PAT must not merge.
 2. Still Planned: PAN enable; identity `.data`/heap tear (SP + allocator still identity); lower-EL IRQ while standing; EL0 without `TLBI VMALLE1`; umbrella isolation; slot-load **delta**; product app hosting.
 
 ## Honesty

@@ -50,7 +50,7 @@ fn main() {
         panic!("hello ELF {} bytes is > 64 KiB (keep the A3 embed small)", elf.len());
     }
     fs::write(&elf_path, &elf).unwrap();
-    // A9 / ADR-030 + leftover mile (ADR-031): publish a host app
+    // A9 / ADR-030 + leftover mile (ADR-032): publish a host app
     // artifact next to the OS image. The kernel no longer
     // `include_bytes!` this file; A2–A4 and A9 read FAT `/hello`.
     // A kernel rebuild still compiles the payload here.

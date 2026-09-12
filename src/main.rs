@@ -155,7 +155,7 @@ extern "C" fn kernel_main_high() -> ! {
             uart::write_str_raw("svc: probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A2 / ADR-022): libctos CRT.
-        // Bytes from FAT `/hello` (ADR-031). Not an ELF loader. Not app hosting.
+        // Bytes from FAT `/hello` (ADR-032). Not an ELF loader. Not app hosting.
         if !libctos::observe_probe() {
             uart::write_str_raw("libctos: probe missed\n");
         }
@@ -187,7 +187,7 @@ extern "C" fn kernel_main_high() -> ! {
         }
         // Serial proof for qemu-smoke (Track A / A9 / ADR-030): FAT
         // `/hello` app slot + A3 PT_LOAD. No embed fallback. Host
-        // cross-update is a second QEMU (ADR-031). Not app hosting.
+        // cross-update is a second QEMU (ADR-032). Not app hosting.
         if !slot::observe_probe() {
             uart::write_str_raw("slot: probe missed\n");
         }

@@ -94,7 +94,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to be re-embedded to run. The hello does **not** call `fs_open`. The Verified EL0 VFS trip is `/eprobe` (`fs: el0`).
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. The Verified EL0 VFS trip is `/eprobe` (`fs: el0`).
 
 ## Sample: memfs named-buffer probe (A6)
 

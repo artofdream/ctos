@@ -5,7 +5,7 @@
 //! That is **not** the A2 host extract + memcpy onto `EL0_PAGE`.
 //! A4 / ADR-024 reuses this loader as the way a standing **task**
 //! appears (`run_hello_as_task`). A9 / ADR-030 reuses `run_image` on
-//! the same FAT `/hello` bytes. Leftover mile (ADR-031): A2–A4 read
+//! the same FAT `/hello` bytes. Leftover mile (ADR-032): A2–A4 read
 //! that FAT file instead of `include_bytes!`. Not a Linux ELF ABI.
 //! Not `PT_INTERP`. Not glibc. Not app hosting.
 

@@ -2,7 +2,7 @@
 //!
 //! The kernel copies a host-built image (linked against `libctos`) onto
 //! `paging::EL0_PAGE` and `ERET`s to it — same standing-EL0 style as A1.
-//! Leftover mile (ADR-031): bytes come from FAT `/hello` (flatten
+//! Leftover mile (ADR-032): bytes come from FAT `/hello` (flatten
 //! `PT_LOAD`), not `include_bytes!`. Still not an ELF loader (A3).
 //! Not app hosting. Not POSIX.
 

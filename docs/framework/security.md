@@ -1,4 +1,4 @@
-# Security — threat model v1.17 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-031)
+# Security — threat model v1.17 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
@@ -37,7 +37,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Standing EL0 as normal mode | Loaded image stands until `SYS_EXIT`. `is_active()` is a task flag. Unexpected lower-EL sync restores fail-closed. Not a process table. | `src/el0.rs` ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) |
 | Thin VFS + memfs | Named heap buffers. Create / open / read / write / close. User path/I/O pointers must be user-mapped **and** kernel-mapped. Not POSIX. | `src/vfs.rs` ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) |
 | virtio-blk + FAT16 | Guest programs a virtio-mmio DMA master. Image is host-built FAT16. FAT is read-only. Same VFS `open`. Not a trusted disk. | `src/virtio.rs` + `src/fat.rs` ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) |
-| OS/app slots | Host kernel ELF + published app ELF. Guest reads FAT `/hello` and maps `PT_LOAD`. A2–A4 use the same file (no embed). Cross-update is a host two-boot probe. Not a trusted disk. | `src/slot.rs` ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-031](../03-adr/ADR-031-track-a-leftovers.md)) |
+| OS/app slots | Host kernel ELF + published app ELF. Guest reads FAT `/hello` and maps `PT_LOAD`. A2–A4 use the same file (no embed). Cross-update is a host two-boot probe. Not a trusted disk. | `src/slot.rs` ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)) |
 | Console / sensors | PL011 is how we see whether a probe ran. | Device MMIO `0x0900_0000` |
 
 ## Adversaries
@@ -101,7 +101,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Identity text range tear | Serial `ident: jump` / `ident: range` / `ident: text` | Range cut ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)). |
 | High-VA vtable rewrite + live `.text` tear | Serial `ident: reloc` / `ident: live` | Live `.text` cut ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). |
 | Identity `.rodata` tear | Serial `ident: rodata` / `ident: rodata-fault` / `ident: rodata-high` | `.rodata` cut ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)). `.data`/heap stay. |
-| Identity `.data` / heap still mapped | Serial `ident: data-stay` / `ident: heap-stay` | Honesty markers ([ADR-031](../03-adr/ADR-031-track-a-leftovers.md)). Tear Planned. |
+| Identity `.data` / heap still mapped | Serial `ident: data-stay` / `ident: heap-stay` | Honesty markers ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Tear Planned. |
 | PAN ID field | Serial `pan: id=` / `pan: absent` | Capability probe ([ADR-026](../03-adr/ADR-026-pan-capability.md)). Enable Planned. |
 | SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: ok`; user buffer + kernel-`.data` / TTBR1-alias reject | ABI mile ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). Not app hosting. |
 | `libctos` CRT | Serial `libctos: hi` / `libctos: ok` / `libctos: linked` | CRT mile ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). Not app hosting. |
@@ -109,7 +109,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Thin VFS + memfs | Serial `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` | memfs mile ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). Not POSIX. Not app hosting. |
 | virtio-blk + FAT16 | Serial `blk: ok` / `fat: ok`; VFS `/probe` | block + FAT mile ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Host `-drive` alone is not the probe. Not app hosting. |
 | OS/app slot first cut | Serial `slot: fat` / `slot: mapped` / `slot: ok` | Slot mile ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). A2–A4 load FAT (no embed). |
-| A9 cross-update | Host smoke: same app `sha256` on this OS and `ba6541c` | Leftover ([ADR-031](../03-adr/ADR-031-track-a-leftovers.md)). Not “apps update independently.” |
+| A9 cross-update | Host smoke: same app `sha256` on this OS and `ba6541c` | Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Not “apps update independently.” |
 | RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | Verified: 2026-09-11 cloud `qemu-smoke` (honesty ledger). |
 
 ## Claim gate

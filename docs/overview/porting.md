@@ -61,7 +61,7 @@ A1–A7 are probed. A8 is **docs**: the recipes on [what-can-run.md](what-can-ru
 5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN **enable** Planned.
 6. Thin VFS + memfs — A6. Recipe 4.
 7. virtio-blk + FAT16 — A7. Recipe 5.
-8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Leftover cross-update — [ADR-031](../03-adr/ADR-031-track-a-leftovers.md).
+8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Leftover cross-update — [ADR-032](../03-adr/ADR-032-track-a-leftovers.md).
 
 Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
 
@@ -69,4 +69,4 @@ A POSIX filesystem is the same story: **not present**. Thin VFS + memfs + read-o
 
 ## Later (A9 remaining)
 
-An **OS image vs app payload** *cross-update* ([A9 #48](https://github.com/artofdream/ctos/issues/48), [ADR-031](../03-adr/ADR-031-track-a-leftovers.md)): same `hello-libctos.elf` on this OS and documented prior OS `ba6541c`. The first cut (two artifacts + FAT `/hello`) is a different row. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).
+An **OS image vs app payload** *cross-update* ([A9 #48](https://github.com/artofdream/ctos/issues/48), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): same `hello-libctos.elf` on this OS and documented prior OS `ba6541c`. The first cut (two artifacts + FAT `/hello`) is a different row. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).

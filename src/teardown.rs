@@ -9,7 +9,7 @@
 //! identity `.rodata` (`ident: rodata`, ADR-025). High twins stay
 //! (`L2_HIGH_RAM` clone). `.data` / heap stay identity-mapped
 //! (`ident: data-stay` / `ident: heap-stay`). Tear of those is still
-//! Planned (SP + allocator are identity VAs; ADR-031).
+//! Planned (SP + allocator are identity VAs; ADR-032).
 //!
 //! Probes: EL1 fetch of a torn identity VA faults (`ident: fault`);
 //! EL1 fetch of the high twin still runs (`ident: high` / `ident: text`);

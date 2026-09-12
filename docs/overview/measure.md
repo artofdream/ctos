@@ -22,7 +22,7 @@ QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not 
 
 ### OS slot vs app slot (performance)
 
-[ADR-030](../03-adr/ADR-030-os-app-slots.md) first cut exists: FAT `/hello` + `perf: app-load`. [ADR-031](../03-adr/ADR-031-track-a-leftovers.md) removes the A2–A4 embed. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.” A Verified *delta* vs the old embed stays **Planned**.
+[ADR-030](../03-adr/ADR-030-os-app-slots.md) first cut exists: FAT `/hello` + `perf: app-load`. [ADR-032](../03-adr/ADR-032-track-a-leftovers.md) removes the A2–A4 embed. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.” A Verified *delta* vs the old embed stays **Planned**.
 
 | Kind | Honest guess | What would make it a claim |
 | --- | --- | --- |

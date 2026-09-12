@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Cross-update builds documented prior OS ba6541c (A9 / ADR-030).
+          # Default depth 1 cannot see that SHA; fail-closed is correct,
+          # but the clone must be deep enough (or qemu-smoke fetches it).
+          fetch-depth: 0
 
       - name: Install nightly + rust-src
         uses: dtolnay/rust-toolchain@nightly

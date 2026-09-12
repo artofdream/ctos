@@ -8,7 +8,7 @@
 # virtio-blk + FAT16 (ADR-028): host builds target/fat16.img and QEMU
 # attaches `-drive if=none,file=...,id=hd0 -device virtio-blk-device,drive=hd0`.
 # A9 / ADR-030: the same image also carries FAT /hello (app ELF).
-# Leftover mile (ADR-031): A2–A4 also load that FAT file (no embed);
+# Leftover mile (ADR-032): A2–A4 also load that FAT file (no embed);
 # host smoke then boots the same app ELF on documented prior OS
 # ba6541c (A9 merge — earliest main tip with the slot path).
 # Host `-drive` without guest virtio + VFS read is not a probe.
@@ -640,6 +640,14 @@ this_os=$(git rev-parse HEAD)
 if [ "$this_os" = "$PRIOR_OS_SHA" ]; then
     echo "qemu-smoke: cross-update needs this OS != prior $PRIOR_OS_SHA" >&2
     exit 1
+fi
+if ! git cat-file -e "${PRIOR_OS_SHA}^{commit}" 2>/dev/null; then
+    echo "qemu-smoke: prior OS $PRIOR_OS_SHA not in this clone; fetching from origin"
+    # Shallow fetch of that SHA only. Do not invent a stored kernel blob.
+    if ! git fetch --depth=1 origin "$PRIOR_OS_SHA"; then
+        echo "qemu-smoke: missing prior OS commit $PRIOR_OS_SHA (do not invent a kernel blob)" >&2
+        exit 1
+    fi
 fi
 if ! git cat-file -e "${PRIOR_OS_SHA}^{commit}"; then
     echo "qemu-smoke: missing prior OS commit $PRIOR_OS_SHA (do not invent a kernel blob)" >&2
