@@ -13,7 +13,9 @@ Draft PR on `cursor/a8-documented-sample-apps-6be5` from `main` `ae7d2b8` (A7 / 
 
 Hub: [what-can-run.md](../../docs/overview/what-can-run.md). Walkthroughs: [apps-today.md](../../docs/framework/apps-today.md). In-tree: `user/README.md`, `user/hello-libctos/README.md`.
 
-No new FR/NFR IDs. No “app hosting done.” A9 stays **Planned**. A1–A7 smoke markers unchanged (no kernel edit).
+Cloud `./scripts/docs-build.sh` **Verified** on `f93d5de` (`mdbook v0.5.4`, mermaid 0.17.1, `docs-build: ok`, `book/CNAME` `ctos.artof.link`). Kernel `qemu-smoke` not re-run (no `src/` edit). A1–A7 smoke markers unchanged.
+
+No new FR/NFR IDs. No “app hosting done.” A9 stays **Planned**.
 
 ## Do next
 
