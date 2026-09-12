@@ -15,10 +15,10 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.1
 
 ## Do next
 
-1. Human or MRC review. Author does not merge (ADR-002). GitHub author of #64 is **`artofdream`**; merge hat is **`cursor[bot]`** after this-run green checks (when CI exists) and Bugbot resolved-or-declined. Owner / this PAT must not merge.
+1. MRC re-review of hats + ADR-032 + grepped GHA. Author does not merge (ADR-002). GitHub author of #64 is **`artofdream`**; merge hat is **`cursor[bot]`**. Owner / this PAT must not merge.
 2. Still Planned: PAN enable; identity `.data`/heap tear (SP + allocator still identity); lower-EL IRQ while standing; EL0 without `TLBI VMALLE1`; umbrella isolation; slot-load **delta**; product app hosting.
 
 ## Honesty
 
-- Cloud Verified is this QEMU virt guest on `800f52d`. Later ledger-only SHAs are not that probe.
+- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca`. GHA Verified is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001) on `17778ca` (both matrices grepped). Later ledger-only SHAs are not those probes.
 - Did not claim “EL0 isolated,” PAN enable, “apps update independently,” or “app hosting is done.”

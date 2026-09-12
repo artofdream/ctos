@@ -57,12 +57,8 @@
 - [ADR-028 virtio-blk + FAT16](03-adr/ADR-028-virtio-blk-fat16.md)
 - [ADR-029 Guest containers non-goal](03-adr/ADR-029-containers-nongoal.md)
 - [ADR-030 OS vs app slots](03-adr/ADR-030-os-app-slots.md)
-<<<<<<< HEAD
 - [ADR-031 Linux-compat goals](03-adr/ADR-031-linux-compat-goals.md)
-- [ADR-031 Track A leftovers](03-adr/ADR-031-track-a-leftovers.md)
-=======
 - [ADR-032 Track A leftovers](03-adr/ADR-032-track-a-leftovers.md)
->>>>>>> 17778ca (fix: leftover mile is ADR-032; fetch prior OS on shallow clones)
 
 # Roadmap
 

@@ -10,6 +10,6 @@ Embed-off: `fat::read_file("/hello")`. A2 flattens `PT_LOAD` at/after `EL0_PAGE`
 
 Isolation: PAN ID still 0 on cortex-a57 — no `MSR PAN`. `.data`/heap stay; printed `ident: data-stay` / `ident: heap-stay`. Tear still needs SP relocate + high allocator VAs.
 
-83 tests. qemu-smoke ok on `800f52d`. GitHub author of #64 is `artofdream`; merge hat is `cursor[bot]`.
+83 tests. qemu-smoke ok on `800f52d` and `17778ca`. GHA push 34701455001 grepped green on both matrices (`slot:ok` + stay + cross-update + `qemu-smoke: ok`). GitHub author of #64 is `artofdream`; merge hat is `cursor[bot]`.
 
 Do not treat this file as the ledger.
