@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + ASID isolation + TTBR1 private page +
+# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + ASID isolation + TTBR1 private page +
 # TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.

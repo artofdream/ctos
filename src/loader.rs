@@ -65,7 +65,7 @@ enum Perm {
     Ro,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct LoadSeg {
     pub offset: u64,
     pub vaddr: u64,
@@ -74,7 +74,7 @@ pub(crate) struct LoadSeg {
     pub flags: u32,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Image {
     pub entry: u64,
     pub segs: [LoadSeg; MAX_SEGS],
@@ -558,8 +558,8 @@ fn loader_rejects_wx_via_overlapping_pages() {
         64 + PHDR_SIZE,
         PT_LOAD,
         PF_W,
-        0x100,
-        paging::EL0_PAGE + 0x100,
+        0x80,
+        paging::EL0_PAGE + 0x80,
         4,
         4,
     );
@@ -591,7 +591,7 @@ fn loader_rejects_wx_pt_load() {
 fn loader_rejects_truncated() {
     assert_eq!(parse_elf64(b"\x7fELF"), Err(ParseError::Truncated));
     assert_eq!(
-        parse_elf64(b"notelf............notelf............notelf............notelf"),
+        parse_elf64(b"notelf............notelf............notelf............notelf...."),
         Err(ParseError::NotElf)
     );
 }

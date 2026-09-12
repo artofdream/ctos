@@ -56,7 +56,7 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_L
 | --- | --- | --- | --- |
 | A1 | Stable SVC ABI + docs ([#32](https://github.com/artofdream/ctos/issues/32), ADR-021) | `svc: yield` + `svc: user-hi` + `svc: uart` + `svc: exit` + `svc: ok`; `#[test_case]` | **ABI mile Verified:** 2026-09-11 cloud `qemu-smoke` on `8846bc5` (onto `aa46219` / #29). App hosting stays **Planned**. |
 | A2 | Freestanding CRT / `libctos` ([#33](https://github.com/artofdream/ctos/issues/33), ADR-022) | `libctos: hi` + `libctos: ok` + `libctos: linked`; `#[test_case]` | **CRT mile Verified:** 2026-09-12 cloud `qemu-smoke` on `c9b292b`. App hosting stays **Planned**. |
-| A3 | ELF (or raw image) loader into user TTBR0 ([#34](https://github.com/artofdream/ctos/issues/34), ADR-023) | `loader: mapped` + `loader: ok`; payload `libctos: hi` / `libctos: ok`; `#[test_case]` | **Loader mile** — Verified only when the ledger has `loader: ok` on this tip. Not a Linux ABI. App hosting stays **Planned**. |
+| A3 | ELF (or raw image) loader into user TTBR0 ([#34](https://github.com/artofdream/ctos/issues/34), ADR-023) | `loader: mapped` + `loader: ok`; payload `libctos: hi` / `libctos: ok`; `#[test_case]` | **Loader mile Verified:** 2026-09-12 cloud `qemu-smoke` (see honesty ledger). Not a Linux ABI. App hosting stays **Planned**. |
 | A4 | Standing EL0 as normal mode | not only a smoke probe | **Planned** |
 | A5 | Isolation completion | remaining identity tear / PAN only with ADR | **Planned** |
 | A6 | Thin VFS + memfs | path walk + read probe | **Planned** |
