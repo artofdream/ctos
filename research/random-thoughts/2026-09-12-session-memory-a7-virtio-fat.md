@@ -22,6 +22,10 @@ Hello: `blk: cap sectors=8192` then `fat: ok`.
 
 QEMU flags: `-drive if=none,file=target/fat16.img,format=raw,id=hd0 -device virtio-blk-device,drive=hd0`
 
+## Bugbot
+
+Medium: pre-notify `cache_sync` was 4 KiB from `desc` (page 0). `req`/`status`/`data` sit after `used` on page 1. Post-complete invalidate was 256 bytes (not a full sector). Fixed by syncing `size_of::<Dma>()` and invalidating from `used` through the end.
+
 ## A8 pickup
 
 Documented sample apps (#39): payload that `fs_open("/probe")` / `fs_read` (or a memfs name) via existing SVC 19–23. Not a second FS. Not POSIX.

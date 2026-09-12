@@ -6,7 +6,9 @@ PR #57 (`cursor/a7-virtio-blk-fat-a587`) — Track A / A7 / [ADR-028](../../docs
 
 Chose **FAT16** (host-visible 4 MiB image) over xv6-like / FAT32. Same thin VFS `open` as memfs. FAT is read-only.
 
-Cloud `qemu-smoke` **Verified** on this tip: `blk: virtio` / `blk: cap sectors=8192` / `blk: rw` / `blk: ok` / `fat: mount` / `fat: read` / `fat: ok`. 79 tests + force-fail. QEMU `virt` virtio-mmio is **legacy v1** (first hello attempt Failed: modern-only scan). Host `-drive` is not the probe.
+Cloud `qemu-smoke` **Verified** on `b4903e8`: `blk: virtio` / `blk: cap sectors=8192` / `blk: rw` / `blk: ok` / `fat: mount` / `fat: read` / `fat: ok`. 79 tests + force-fail. QEMU `virt` virtio-mmio is **legacy v1** (first hello attempt Failed: modern-only scan). GHA on that SHA also Verified (PR [34687722316](https://github.com/artofdream/ctos/actions/runs/34687722316) both matrices). Host `-drive` is not the probe.
+
+Bugbot Medium: `cache_sync` only covered page 0. Follow-up syncs the whole `Dma` (desc/avail + used/req/status/data).
 
 Author does not merge (ADR-002). A8–A9 stay Planned.
 

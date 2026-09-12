@@ -102,6 +102,7 @@ struct BlkReq {
 const AVAIL_BYTES: usize = 4 + 2 * QSZ;
 const DESC_BYTES: usize = 16 * QSZ;
 const LEGACY_PAD: usize = PAGE - DESC_BYTES - AVAIL_BYTES;
+const _: () = assert!(LEGACY_PAD > 0);
 
 #[repr(C, align(4096))]
 struct Dma {
@@ -351,12 +352,16 @@ fn xfer(dev: &BlkDev, write: bool, sector: u64, buf: &mut [u8; SECTOR]) -> bool 
         (*dma).avail.ring[(aidx as usize) % QSZ] = 0;
         dsb();
         (*dma).avail.idx = aidx.wrapping_add(1);
-        cache_sync(addr_of!((*dma).desc) as u64, 4096);
+        // Whole `Dma`: desc+avail (page 0) and used+req+status+data (page 1+).
+        // Page-0-only sync leaves the device a stale request/payload (Bugbot).
+        cache_sync(addr_of!(*dma) as u64, core::mem::size_of::<Dma>());
         mmio_write(dev.base, REG_QUEUE_NOTIFY, 0);
 
         let timeout = timer::cntpct().saturating_add(timer_ticks(2));
+        let used_off = core::mem::offset_of!(Dma, used);
+        let used_span = core::mem::size_of::<Dma>() - used_off;
         loop {
-            cache_sync(addr_of!((*dma).used) as u64, 256);
+            cache_sync(addr_of!((*dma).used) as u64, used_span);
             if (*dma).used.idx != last {
                 break;
             }
