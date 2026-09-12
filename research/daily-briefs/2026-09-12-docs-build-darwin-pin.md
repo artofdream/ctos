@@ -14,5 +14,6 @@ Rebase of conflicting draft [#50](https://github.com/artofdream/ctos/pull/50) on
 
 ## Honesty
 
+- Linux auto-install + PATH pin-strip: Verified on this VM (`Linux`/`x86_64`, tip `8d14d08`).
 - Release-asset names existing is not a Darwin download probe.
 - Pages / `https://ctos.artof.link` stays the existing Verified row. This PR does not republish that claim as Unknown.
