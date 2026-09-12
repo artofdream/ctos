@@ -15,4 +15,6 @@ Honesty gap closed: Track B no longer says containers are “far-later” or **P
 ## Honesty
 
 - Docs + source-absence probe only. Did not run QEMU. Did not claim a guest container runtime or a new Pages deploy.
+- Local `./scripts/docs-build.sh` **Verified** on this cloud VM (mdBook 0.5.4 + mermaid 0.17.1; `docs-build: ok`; `book/CNAME` = `ctos.artof.link`). Generator only.
+- Pages GHA on this PR: **Unknown** until a green run URL is recorded.
 - Host `docker-smoke.sh` remains a harness (Docker hosts ctos), not the reverse.
