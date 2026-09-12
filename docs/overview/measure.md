@@ -16,18 +16,19 @@ What we measure **today** on QEMU `virt` (serial markers + tests, fail-closed in
 | IRQ-to-handler delta (`perf: irq-delta`) | Counter minus the timer’s compare value; min / max / spread on several ticks | A latency SLA, SPEC, or a comparison to other kernels |
 | Boot-delta (`perf: boot-delta`) | Cycle count from after paging init to after `Hello World!` | QEMU process start time, a boot budget, or a published bench |
 | Host ELF size (`perf: elf-size`) | Byte size of the debug `ctos` ELF after `cargo build` | A size budget or “smaller is better” |
+| App-load (`perf: app-load`) | Cycle count around FAT `/hello` read + A3 map + `ERET` (A9) | A delta vs the embed, a budget, or “slots are free” |
 
 QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
 ### OS slot vs app slot (performance)
 
-Direction only — Track A is **not built**. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.”
+[ADR-030](../03-adr/ADR-030-os-app-slots.md) first cut exists: FAT `/hello` + `perf: app-load`. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.” A Verified *delta* vs the A3 embed stays **Planned**.
 
-| Kind | Honest guess (unmeasured) | What would make it a claim |
+| Kind | Honest guess | What would make it a claim |
 | --- | --- | --- |
-| Possible **cost** | Extra return-to-user / supervisor call, a user page-table switch, mapping an app slot — vs today’s in-tree function call | Cycle-counter (or irq-delta) around a real load + enter/leave once Track A exists |
+| Possible **cost** | Extra VFS/FAT read, ELF parse, user map fills, SVC, ASID/TTBR switch | Compared `perf: app-load` vs the embed on the same guest. Marker alone is not a delta. |
 | Possible **neutral** | Steady-state UART print / yield after the app is mapped, if the hot path stays similar | Same probes on the new path vs the in-tree workers; no win claimed without a delta |
-| Build-time, not a bench | Kernel ELF no longer contains the “app”; you rebuild slots separately | `perf: elf-size` is still one image’s byte count, not “smaller is better” |
+| Build-time, not a bench | Two host artifacts; FAT slot can change without a kernel rebuild | `perf: elf-size` is still one image’s byte count. A2–A4 still embed, so a kernel rebuild still compiles the hello. |
 
 **Measure first** ([NFR-07](../02-requirements/fr-nfr.md)). Do not tune a loader “for speed” on a hunch. Do not copy QEMU ticks into a product slide.
 

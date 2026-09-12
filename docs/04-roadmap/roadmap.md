@@ -50,7 +50,7 @@ Hub: [pillars.md](../framework/pillars.md). ABI contract: [syscall.md](../framew
 
 ## Track A — freestanding app hosting ([#31](https://github.com/artofdream/ctos/issues/31))
 
-A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_LOAD loader mile. A4 is standing EL0 as **normal** mode for a loaded image. A5 is isolation completion (identity `.rodata` tear + PAN ID-field; PAN enable Planned). A6 is thin VFS + in-RAM memfs. A7 is virtio-blk + FAT16. A8 is documented sample **rebuild recipes** (no new runtime). **Track A stays incomplete** after A8 (A9 Planned). Not Linux containers. Not glibc. One child issue → one PR. Do not round A1–A8 Verified up to “app hosting is done.”
+A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_LOAD loader mile. A4 is standing EL0 as **normal** mode for a loaded image. A5 is isolation completion (identity `.rodata` tear + PAN ID-field; PAN enable Planned). A6 is thin VFS + in-RAM memfs. A7 is virtio-blk + FAT16. A8 is documented sample **rebuild recipes** (no new runtime). A9 is the OS/app **slot first cut**. **Track A children A1–A9 have a first cut**; cross-update and “app hosting is done” stay unclaimed. Not Linux containers. Not glibc. One child issue → one PR. Do not round A1–A9 Verified up to “app hosting is done.”
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
@@ -62,7 +62,7 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_L
 | A6 | Thin VFS + memfs ([#37](https://github.com/artofdream/ctos/issues/37), ADR-027) | `fs: create` + `fs: write` + `fs: read` + `fs: el0` + `fs: ok`; `#[test_case]` | **memfs mile Verified** (see honesty ledger). Not POSIX. App hosting stays **Planned**. |
 | A7 | virtio-blk + FAT16 ([#38](https://github.com/artofdream/ctos/issues/38), ADR-028) | `blk: virtio` + `blk: cap` + `blk: rw` + `blk: ok`; `fat: mount` + `fat: read` + `fat: ok`; `#[test_case]` | **block + FAT mile Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Same VFS `open`. Not POSIX. Not FAT32. App hosting stays **Planned**. |
 | A8 | Documented sample apps ([#39](https://github.com/artofdream/ctos/issues/39)) | recipes cite only existing serial markers; docs-build | **Recipes Verified** (docs; smoke markers unchanged). Hub: [what-can-run.md](../overview/what-can-run.md). No new ADR. Not app hosting. |
-| A9 | OS–app slots ([#48](https://github.com/artofdream/ctos/issues/48)) | two artifacts + load path + cross-update probe | **Planned.** Today: one linked ELF — not Verified. |
+| A9 | OS–app slots ([#48](https://github.com/artofdream/ctos/issues/48), ADR-030) | host OS ELF + `hello-libctos.elf`; FAT `/hello`; `slot: fat` + `slot: mapped` + `slot: ok` + `perf: app-load`; `#[test_case]` | **First cut** when this tip’s `qemu-smoke` passes (see honesty ledger). A2–A4 still embed. Cross-update **Planned**. Not app hosting. |
 
 On-disk filesystem work is this A7 mile (FAT16, not xv6-like). See [Filesystem: new vs extend](../overview/filesystem.md).
 

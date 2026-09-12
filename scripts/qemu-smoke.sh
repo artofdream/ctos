@@ -7,6 +7,7 @@
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # virtio-blk + FAT16 (ADR-028): host builds target/fat16.img and QEMU
 # attaches `-drive if=none,file=...,id=hd0 -device virtio-blk-device,drive=hd0`.
+# A9 / ADR-030: the same image also carries FAT /hello (app ELF).
 # Host `-drive` without guest virtio + VFS read is not a probe.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
@@ -60,11 +61,29 @@ if [ -z "$elf_bytes" ] || [ "$elf_bytes" -lt 4096 ]; then
 fi
 echo "qemu-smoke: host ELF size present ($elf_bytes bytes)"
 
-# A7 host-visible FAT16 (ADR-028). Guest virtio + VFS read is the probe.
+# A9 host artifacts: OS image (already $elf) + published app ELF.
+app="${CTOS_APP_ELF:-$ROOT/target/hello-libctos.elf}"
+if [ ! -f "$app" ]; then
+    echo "qemu-smoke: missing app payload $app (A9 / ADR-030; cargo build publishes it)" >&2
+    exit 1
+fi
+app_bytes=$(wc -c < "$app" | tr -d ' ')
+if [ -z "$app_bytes" ] || [ "$app_bytes" -lt 64 ]; then
+    echo "qemu-smoke: app ELF implausibly small ($app_bytes)" >&2
+    exit 1
+fi
+if cmp -s "$elf" "$app"; then
+    echo "qemu-smoke: OS image and app payload are the same file" >&2
+    exit 1
+fi
+echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes)"
+
+# A7 host-visible FAT16 (ADR-028) + A9 /hello app slot.
 img="${CTOS_BLK_IMAGE:-$ROOT/target/fat16.img}"
-python3 "$ROOT/scripts/mkfat16.py" "$img"
-python3 "$ROOT/scripts/mkfat16.py" --check "$img"
+python3 "$ROOT/scripts/mkfat16.py" --app "$app" "$img"
+python3 "$ROOT/scripts/mkfat16.py" --check --require-app "$img"
 export CTOS_BLK_IMAGE="$img"
+export CTOS_APP_ELF="$app"
 echo "qemu-smoke: FAT16 image $img (host-visible; not a guest probe)"
 
 log=$(mktemp)
@@ -336,6 +355,35 @@ if ! grep -q "fat: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: FAT16 (A7) strings present"
+if grep -q "slot: probe missed" "$log"; then
+    echo "qemu-smoke: slot probe missed (FAT /hello load path did not run)" >&2
+    exit 1
+fi
+if grep -q "slot: embed" "$log"; then
+    echo "qemu-smoke: slot used the A3 embed (A9 path must be FAT /hello)" >&2
+    exit 1
+fi
+if ! grep -q "slot: fat" "$log"; then
+    echo "qemu-smoke: missing 'slot: fat' on serial (A9 FAT /hello read, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "slot: mapped" "$log"; then
+    echo "qemu-smoke: missing 'slot: mapped' on serial (A9 PT_LOAD map, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "slot: ok" "$log"; then
+    echo "qemu-smoke: missing 'slot: ok' on serial (A9 OS/app slot first cut, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "perf: app-load missed" "$log"; then
+    echo "qemu-smoke: app-load probe missed (CNTPCT around FAT load did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: app-load" "$log"; then
+    echo "qemu-smoke: missing 'perf: app-load' on serial (A9 load CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: OS/app slot (A9) strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1

@@ -23,6 +23,7 @@ mod perf;
 mod qemu;
 mod ro;
 mod sched;
+mod slot;
 mod syscall;
 mod teardown;
 mod timer;
@@ -183,6 +184,12 @@ extern "C" fn kernel_main_high() -> ! {
         // `/probe` through the same VFS `open`. Not a second open story.
         if !fat::observe_probe() {
             uart::write_str_raw("fat: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (Track A / A9 / ADR-030): FAT
+        // `/hello` app slot + A3 PT_LOAD. No embed fallback. Not
+        // cross-update. Not app hosting.
+        if !slot::observe_probe() {
+            uart::write_str_raw("slot: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {

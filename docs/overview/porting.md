@@ -37,10 +37,10 @@ That is **rebuild the kernel**, not “port an app.” The new code lives in `sr
 ```mermaid
 flowchart LR
   R["rustup nightly"] --> C["cargo build"] --> S["qemu-smoke"]
-  S --> E["one linked ELF<br/>Verified today"]
+  S --> E["OS ELF + published app ELF<br/>A9 first cut"]
 ```
 
-*One image, one `-kernel` load. An OS slot vs a separate app slot is Planned.*
+*Two host artifacts. QEMU still `-kernel`s the OS ELF. FAT `/hello` is the app slot. A2–A4 still embed. Cross-update is Planned.*
 
 ## Not easy
 
@@ -61,11 +61,12 @@ A1–A7 are probed. A8 is **docs**: the recipes on [what-can-run.md](what-can-ru
 5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN **enable** Planned.
 6. Thin VFS + memfs — A6. Recipe 4.
 7. virtio-blk + FAT16 — A7. Recipe 5.
+8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Cross-update Planned.
 
 Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
 
 A POSIX filesystem is the same story: **not present**. Thin VFS + memfs + read-only FAT16 are not Linux `open`. Direction: [Filesystem: new vs extend](filesystem.md).
 
-## Later (A9 — Planned)
+## Later (A9 remaining)
 
-An **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)): two artifacts + a load path + a cross-update probe. Today is still one linked ELF — not Verified. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).
+An **OS image vs app payload** *cross-update* ([A9 #48](https://github.com/artofdream/ctos/issues/48)): same `hello-libctos.elf` on this OS and a documented prior OS. The first cut (two artifacts + FAT `/hello`) is a different row. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).

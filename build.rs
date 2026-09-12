@@ -50,6 +50,14 @@ fn main() {
         panic!("hello ELF {} bytes is > 64 KiB (keep the A3 embed small)", elf.len());
     }
     fs::write(&elf_path, &elf).unwrap();
+    // A9 / ADR-030: publish a host app artifact next to the OS image.
+    // The kernel still embeds a copy for A2–A4 markers; this file is
+    // the separate payload `mkfat16.py --app` puts on FAT `/hello`.
+    let published = manifest_dir.join("target/hello-libctos.elf");
+    if let Some(parent) = published.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::write(&published, &elf).unwrap();
     fs::write(
         out_dir.join("hello_libctos_meta.rs"),
         format!(

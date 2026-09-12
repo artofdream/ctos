@@ -12,7 +12,7 @@ Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). 
 
 | Need (typical host app) | On ctos today | Status |
 | --- | --- | --- |
-| A process you `exec` | One linked kernel ELF. Standing EL0 is a dual-SVC stub plus A1 kernel ABI, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same embedded ELF, and an A4 standing **task** until `exit` | **Planned** (slots / A9). A1–A8 are ABI + CRT + loader + standing-task + VFS + documented recipes. Not a Linux `exec`. |
+| A process you `exec` | Standing EL0 + A1 ABI + A2 `libctos` + A3 `PT_LOAD` (still embedded for A2–A4) + A4 standing **task** + A9 FAT `/hello` first cut | **Planned** as Linux `exec`. A9 is two artifacts + a FAT load path, not a process table. |
 | POSIX / glibc / musl | Custom `aarch64-ctos.json`, `os: none`, no libc | Not easy, not started. |
 | Files (`open` / a disk) | Thin VFS: memfs + read-only FAT16 | **memfs + FAT miles** (A6/A7). Not POSIX. |
 | Sockets / HTTP | No virtio-net, no stack | **Planned** at best; not a Now mile |

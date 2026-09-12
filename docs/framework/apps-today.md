@@ -6,7 +6,7 @@ Hub: [overview.md](overview.md). How to add something: [building-or-porting.md](
 
 Site source of truth: [What can run today](../overview/what-can-run.md) (A8 rebuild recipes). In-tree index: `user/README.md`. This page is extra stance (walkthroughs). HTTPS at https://ctos.artof.link is **Verified** (2026-09-11 after #30).
 
-**One rebuild for every sample:** `cargo build` then `./scripts/qemu-smoke.sh`. There is no separate app runner. A8 documents that path. It does not add markers. A9 (OS vs app slot) stays **Planned**.
+**One rebuild for every sample:** `cargo build` then `./scripts/qemu-smoke.sh`. There is no separate app runner. A8 documents that path. A9 first cut adds `slot:*` when FAT `/hello` loads. Cross-update stays **Planned**.
 
 ## Sample: cooperative EL1 UART workers (M9)
 

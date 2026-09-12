@@ -46,19 +46,19 @@ That is **kernel_main-entry to after-init** on this QEMU virt guest. It is not a
 
 ## OS/app slot disconnect (A9) — expected shape, not a bench
 
-[A9 #48](https://github.com/artofdream/ctos/issues/48) would load a **separate app payload** after the OS image ([immutability.md](immutability.md), site [measure.md](../overview/measure.md)). That is **Planned after Track A ABI/loader**. Today is still **one linked ELF**. There is **no Verified delta**. Do not invent a “faster/slower than linked-in” number.
+[A9 #48](https://github.com/artofdream/ctos/issues/48) / [ADR-030](../03-adr/ADR-030-os-app-slots.md) loads a **separate app payload** from FAT `/hello` after the OS image ([immutability.md](immutability.md), site [measure.md](../overview/measure.md)). The load path prints `perf: app-load ticks=<n>`. That is a **measurement**, not a bench. There is **no Verified delta** vs the A3 embed. Do not invent a “faster/slower than linked-in” number.
 
-| Class | What we expect (hypothesis, unmeasured) | Honesty |
+| Class | What we expect (hypothesis) | Honesty |
 | --- | --- | --- |
-| **Costs** | Extra boot/load work; each SVC crossing; ASID/TTBR0 switches into the app map; optional COW later if payloads are shared | Cost only after a probe. Not a budget. |
-| **Neutral / wins** | Steady EL0 compute (once mapped) should look like today’s standing stub, not like a new ISA. Smaller OS updates are an **operational** win (rebuild kernel without apps), not a CNTPCT win | Operational ≠ measured latency. |
-| **Gate** | Keep `perf: boot-delta`. Add a **new** app-load CNTPCT probe (`perf: app-load` or similar) when the loader exists. Fail closed on miss | Marker does not exist today. |
+| **Costs** | Extra boot/load work; each SVC crossing; ASID/TTBR0 switches into the app map; optional COW later if payloads are shared | `perf: app-load` measures the FAT path. Cost vs embed is still uncompared. Not a budget. |
+| **Neutral / wins** | Steady EL0 compute (once mapped) should look like today’s standing stub, not like a new ISA. Smaller OS updates are an **operational** win (rebuild kernel without apps), not a CNTPCT win | Operational ≠ measured latency. A2–A4 still embed, so a kernel rebuild still compiles the hello. |
+| **Gate** | Keep `perf: boot-delta`. Fail closed on missing `perf: app-load` | Marker exists on the A9 path. A Verified *delta* stays Planned. |
 
-Until that app-load probe prints on a two-artifact boot, A9 performance stays **Planned**. QEMU TCG jitter is still one lab. No `criterion` crate. No “slot disconnect is free.”
+Until a compared pair exists, A9 performance *delta* stays **Planned**. QEMU TCG jitter is still one lab. No `criterion` crate. No “slot disconnect is free.”
 
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
-- App-load CNTPCT (A9) — only after a real loader; see the table above. Site KPI page: [measure.md](../overview/measure.md#os-slot-vs-app-slot-performance). Do not invent a percent.
+- App-load *delta* vs the A3 embed (A9) — marker exists; comparison does not. Site KPI page: [measure.md](../overview/measure.md#os-slot-vs-app-slot-performance). Do not invent a percent.
 
 Do not add a host `criterion` crate or a “bench.yml” that prints invented numbers.

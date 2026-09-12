@@ -19,10 +19,15 @@ TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "8"))
 
 
 def prepare_fat16(root: str) -> str:
-    """Host-visible FAT16 image for A7. Not a guest probe by itself."""
+    """Host-visible FAT16 image for A7 + A9 /hello. Not a guest probe by itself."""
     img = os.environ.get("CTOS_BLK_IMAGE") or os.path.join(root, "target", "fat16.img")
+    app = os.environ.get("CTOS_APP_ELF") or os.path.join(root, "target", "hello-libctos.elf")
     mk = os.path.join(root, "scripts", "mkfat16.py")
-    subprocess.check_call([sys.executable, mk, img], stdout=subprocess.DEVNULL)
+    if not os.path.isfile(app):
+        raise SystemExit(f"qemu-serial-inject: missing app ELF {app} (A9 / ADR-030)")
+    subprocess.check_call(
+        [sys.executable, mk, "--app", app, img], stdout=subprocess.DEVNULL
+    )
     return img
 
 

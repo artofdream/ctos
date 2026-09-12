@@ -14,7 +14,7 @@ Each step is one milestone → one branch → one PR.
 | --- | --- | --- | --- |
 | 1. **memfs** | In-RAM named buffers on the first-fit heap (`src/heap.rs`). Create / lookup / read / write of a path without DMA. | Same “easiest in-tree” shape as a coop EL1 task. | **Verified** (A6 / ADR-027). Serial `fs: ok`. |
 | 2. **virtio-blk** | QEMU `virt` virtio-mmio block: virtqueues, DMA, sector R/W. | Host `-drive` is not a probe. | **Verified** when the ledger has `blk: ok` (A7 / ADR-028). |
-| 3. **FAT16** | Host-visible 4 MiB raw image; guest opens `/probe` (`PROBE`) and reads `fat-hi`. | Chosen over xv6-like so the host can inspect the image (`scripts/mkfat16.py --check`). FAT32 / xv6 rejected this mile. | **Verified** when the ledger has `fat: ok`. Read-only. |
+| 3. **FAT16** | Host-visible 4 MiB raw image; guest opens `/probe` (`PROBE`) and reads `fat-hi`. A9 also stores the app ELF as `/hello`. | Chosen over xv6-like so the host can inspect the image (`scripts/mkfat16.py --check`). FAT32 / xv6 rejected this mile. | **Verified** when the ledger has `fat: ok`. Read-only. `/hello` is the A9 slot, not a second FS. |
 
 `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` stay fail-closed. A7 adds `blk: virtio` / `blk: cap` / `blk: rw` / `blk: ok` and `fat: mount` / `fat: read` / `fat: ok`.
 

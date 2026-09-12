@@ -32,13 +32,13 @@ flowchart LR
   F --> H["5. host image + guest read<br/>this mile"]
 ```
 
-*A7 is virtio-blk + FAT16. A8 is documented recipes. A9 stays Planned. Do not say “supports FAT” as a product.*
+*A7 is virtio-blk + FAT16. A8 is documented recipes. A9 uses the same volume for `/hello`. Do not say “supports FAT” as a product.*
 
 1. **VFS ADR** — thin interface (create / open / read / write / close of a path).
 2. **memfs** — in-RAM named buffers; serial `fs: ok`.
 3. **virtio-blk** — virtqueues + sector I/O on QEMU `virt`. Serial `blk: ok`.
 4. **On-disk FS** — FAT16 ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `fat: ok`.
-5. **Host-checkable image** — `scripts/mkfat16.py` writes `target/fat16.img`; smoke attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Guest `vfs::open("/probe")` must read `fat-hi`.
+5. **Host-checkable image** — `scripts/mkfat16.py` writes `target/fat16.img`; smoke attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Guest `vfs::open("/probe")` must read `fat-hi`. A9 adds `--app` so `/hello` is the published app ELF.
 
 ## Honesty
 
@@ -47,5 +47,6 @@ flowchart LR
 | Thin VFS + memfs create/write/read/close | Serial `fs: ok` + `#[test_case]` | **Verified** (A6; honesty ledger) |
 | virtio-blk sector R/W | Serial `blk: ok` + `#[test_case]` | **Verified** on this tip when the ledger has the probe |
 | FAT16 `/probe` via the same `open` | Serial `fat: ok` + `#[test_case]` | **Verified** on this tip when the ledger has the probe |
+| FAT16 `/hello` app slot (A9) | Serial `slot: ok` + `#[test_case]` | **First cut** when the ledger has the probe |
 
 Do not claim compatibility with anyone’s existing disk.
