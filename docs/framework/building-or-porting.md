@@ -84,7 +84,7 @@ A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdrea
 
 ## Do not invent
 
-- A porting guide that assumes POSIX, a shell, Python, or containers ([host-apps.md](host-apps.md): containers are **no**)
+- A porting guide that assumes POSIX, a shell, Python, or containers ([host-apps.md](host-apps.md): containers are a **non-goal**)
 - A claim about the docs URL that skips the [ledger](honesty-ledger.md) (HTTPS is Verified as of 2026-09-11; do not invent extra site KPIs)
 - “Secure OS,” “the kernel moved,” or “EL0 isolated”
 

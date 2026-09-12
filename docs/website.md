@@ -9,7 +9,7 @@ Required site chapters (sidebar + landing). A missing file fails `mdbook build` 
 | What can run today | `docs/overview/what-can-run.md` |
 | Building or porting | `docs/overview/porting.md` |
 | Filesystem (memfs + FAT16) | `docs/overview/filesystem.md` |
-| Hosting apps / containers | `docs/overview/hosting-apps.md` |
+| Hosting apps / containers | `docs/overview/hosting-apps.md` (guest OCI/Docker: **non-goal**, [ADR-029](03-adr/ADR-029-containers-nongoal.md)) |
 | KPIs / how we measure | `docs/overview/measure.md` |
 | Prerequisites | `docs/overview/prerequisites.md` |
 | Advantages | `docs/overview/advantages.md` |

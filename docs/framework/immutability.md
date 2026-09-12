@@ -28,7 +28,7 @@ The **goal** of this stance (sponsor clarification) is to **disconnect OS update
 
 **Today:** one linked kernel ELF. No OS-image artifact, no app payload slot, no cross-update probe. **Not Verified.** Performance impact is the same honesty: expected costs and a future app-load CNTPCT gate, **no Verified delta** ([performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench)).
 
-[Track B #40](https://github.com/artofdream/ctos/issues/40) must not use Linux-compat research to claim an immutable or container host. Containers stay a [non-goal](host-apps.md).
+[Track B #40](https://github.com/artofdream/ctos/issues/40) must not use Linux-compat research to claim an immutable or container host. Containers stay a [non-goal](host-apps.md) ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
 
 ## Claim gate (ADR-style, no new ADR here)
 

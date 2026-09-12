@@ -36,7 +36,7 @@ After the cooperative scheduler (M9), antifragility, security, and performance a
 
 **OS slot vs app slot (direction, not built).** The useful product meaning is: **update the OS without rebuilding the apps**, and the reverse. That needs a separate **OS slot** (the kernel image you `-kernel` today) and an **app slot** (a loaded user-mode binary that survives an OS swap). That slot split **depends on Track A**. A1 is a kernel SVC ABI mile ([syscall.md](../framework/syscall.md)). A2 is a `libctos` CRT mile. A3 is a guest `PT_LOAD` loader mile (embedded image). A4 is standing EL0 as normal mode for that loaded image. VFS / slots stay **Planned** on [Building or porting](porting.md) and [Hosting apps](hosting-apps.md). Until A9 has a probe, there is only one slot: in-tree kernel code.
 
-This is **not** containers, and **not** OTA / A-B firmware updates. Those are later and unclaimed. Do not say “immutable OS updates” until an OS-slot/app-slot probe exists.
+This is **not** containers ([ADR-029](../03-adr/ADR-029-containers-nongoal.md) — **non-goal**, not later), and **not** OTA / A-B firmware updates (later and unclaimed). Do not say “immutable OS updates” until an OS-slot/app-slot probe exists.
 
 Runtime cost vs neutral is **unmeasured**. Measure first; no invented numbers. [KPIs — OS slot vs app slot](measure.md#os-slot-vs-app-slot-performance).
 
