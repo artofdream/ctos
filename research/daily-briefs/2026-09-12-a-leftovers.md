@@ -20,5 +20,5 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.1
 
 ## Honesty
 
-- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca`. GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). Rebase onto `e6255c0` makes this-SHA GHA **Unknown** until grepped.
+- Cloud Verified is this QEMU virt guest on `800f52d`, re-probed on `17778ca` and post-rebase `6abcb1b`. GHA Verified on `17778ca` is push [34701455001](https://github.com/artofdream/ctos/actions/runs/34701455001). Rebase onto `e6255c0` makes this-SHA GHA **Unknown** until grepped.
 - Did not claim “EL0 isolated,” PAN enable, “apps update independently,” or “app hosting is done.”
