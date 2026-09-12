@@ -66,5 +66,5 @@ Container support is **not Planned** on this page. Do not add a Planned row. Reo
 | --- | --- |
 | ctos hosts third-party apps | **No** — gaps above |
 | ctos hosts OCI/Docker containers | **No** — **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)) |
-| Linux-compat research (Track B) | Frame ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)) + B2 gap map ([linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)). **Not claiming Linux userspace yet.** |
+| Linux-compat research (Track B) | Frame ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)) + B2 gap map ([linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)) + B4 ELF/auxv gap ([ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). **Not claiming Linux userspace yet.** **Not claiming dynamic Linux ELF.** |
 | Host Docker runs `ctos-smoke` | Separate ledger row (host tool, not a guest runtime) |
