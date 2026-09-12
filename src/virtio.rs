@@ -16,6 +16,7 @@ const MMIO_BASE: usize = 0x0a00_0000;
 const MMIO_STRIDE: usize = 0x200;
 const MMIO_COUNT: usize = 32;
 const MAGIC: u32 = 0x7472_6976; // "virt"
+const VERSION_LEGACY: u32 = 1;
 const VERSION_MODERN: u32 = 2;
 const DEV_BLK: u32 = 2;
 
@@ -26,10 +27,13 @@ const REG_DEV_FEAT: usize = 0x010;
 const REG_DEV_FEAT_SEL: usize = 0x014;
 const REG_DRV_FEAT: usize = 0x020;
 const REG_DRV_FEAT_SEL: usize = 0x024;
+const REG_GUEST_PAGE: usize = 0x028; // legacy
 const REG_QUEUE_SEL: usize = 0x030;
 const REG_QUEUE_NUM_MAX: usize = 0x034;
 const REG_QUEUE_NUM: usize = 0x038;
-const REG_QUEUE_READY: usize = 0x03c;
+const REG_QUEUE_READY: usize = 0x03c; // modern; legacy QueueAlign
+const REG_QUEUE_ALIGN: usize = 0x03c; // legacy
+const REG_QUEUE_PFN: usize = 0x040; // legacy
 const REG_QUEUE_NOTIFY: usize = 0x050;
 const REG_STATUS: usize = 0x070;
 const REG_DESC_LO: usize = 0x080;
@@ -39,6 +43,7 @@ const REG_AVAIL_HI: usize = 0x094;
 const REG_USED_LO: usize = 0x0a0;
 const REG_USED_HI: usize = 0x0a4;
 const REG_CONFIG: usize = 0x100;
+const PAGE: usize = 4096;
 
 const STATUS_ACK: u32 = 1;
 const STATUS_DRIVER: u32 = 2;
@@ -93,10 +98,16 @@ struct BlkReq {
     sector: u64,
 }
 
-#[repr(C, align(16))]
+/// Legacy virtio-mmio wants desc+avail in page 0 and used at the next page.
+const AVAIL_BYTES: usize = 4 + 2 * QSZ;
+const DESC_BYTES: usize = 16 * QSZ;
+const LEGACY_PAD: usize = PAGE - DESC_BYTES - AVAIL_BYTES;
+
+#[repr(C, align(4096))]
 struct Dma {
     desc: [Desc; QSZ],
     avail: Avail,
+    _pad: [u8; LEGACY_PAD],
     used: Used,
     req: BlkReq,
     status: u8,
@@ -116,6 +127,7 @@ impl Dma {
             idx: 0,
             ring: [0; QSZ],
         },
+        _pad: [0; LEGACY_PAD],
         used: Used {
             flags: 0,
             idx: 0,
@@ -185,77 +197,105 @@ fn dma_pa(va: *const u8) -> u64 {
     paging::identity_pa(va as u64)
 }
 
-fn find_blk() -> Option<usize> {
+fn find_blk() -> Option<(usize, u32)> {
     for i in 0..MMIO_COUNT {
         let base = MMIO_BASE + i * MMIO_STRIDE;
         unsafe {
             if mmio_read(base, REG_MAGIC) != MAGIC {
                 continue;
             }
-            if mmio_read(base, REG_VERSION) != VERSION_MODERN {
+            let ver = mmio_read(base, REG_VERSION);
+            if ver != VERSION_LEGACY && ver != VERSION_MODERN {
                 continue;
             }
             if mmio_read(base, REG_DEVICE_ID) == DEV_BLK {
-                return Some(base);
+                return Some((base, ver));
             }
         }
     }
     None
 }
 
-fn setup(base: usize) -> Option<u64> {
+fn setup_queue(base: usize, ver: u32) -> bool {
+    unsafe {
+        let dma = addr_of_mut!(DMA);
+        (*dma) = Dma::ZERO;
+        let desc_pa = dma_pa(addr_of!((*dma).desc) as *const u8);
+        mmio_write(base, REG_QUEUE_SEL, 0);
+        let max = mmio_read(base, REG_QUEUE_NUM_MAX);
+        if max < QSZ as u32 {
+            return false;
+        }
+        mmio_write(base, REG_QUEUE_NUM, QSZ as u32);
+        if ver == VERSION_LEGACY {
+            if desc_pa & (PAGE as u64 - 1) != 0 {
+                return false;
+            }
+            mmio_write(base, REG_GUEST_PAGE, PAGE as u32);
+            mmio_write(base, REG_QUEUE_ALIGN, PAGE as u32);
+            mmio_write(base, REG_QUEUE_PFN, (desc_pa / PAGE as u64) as u32);
+            dsb();
+            true
+        } else {
+            let avail_pa = dma_pa(addr_of!((*dma).avail) as *const u8);
+            let used_pa = dma_pa(addr_of!((*dma).used) as *const u8);
+            mmio_write(base, REG_DESC_LO, desc_pa as u32);
+            mmio_write(base, REG_DESC_HI, (desc_pa >> 32) as u32);
+            mmio_write(base, REG_AVAIL_LO, avail_pa as u32);
+            mmio_write(base, REG_AVAIL_HI, (avail_pa >> 32) as u32);
+            mmio_write(base, REG_USED_LO, used_pa as u32);
+            mmio_write(base, REG_USED_HI, (used_pa >> 32) as u32);
+            dsb();
+            mmio_write(base, REG_QUEUE_READY, 1);
+            mmio_read(base, REG_QUEUE_READY) == 1
+        }
+    }
+}
+
+fn setup(base: usize, ver: u32) -> Option<u64> {
     unsafe {
         mmio_write(base, REG_STATUS, 0);
         dsb();
         mmio_write(base, REG_STATUS, STATUS_ACK | STATUS_DRIVER);
 
-        mmio_write(base, REG_DEV_FEAT_SEL, 1);
-        let hi = mmio_read(base, REG_DEV_FEAT);
-        if hi & VIRTIO_F_VERSION_1 == 0 {
-            mmio_write(base, REG_STATUS, STATUS_FAILED);
-            return None;
+        if ver == VERSION_MODERN {
+            mmio_write(base, REG_DEV_FEAT_SEL, 1);
+            let hi = mmio_read(base, REG_DEV_FEAT);
+            if hi & VIRTIO_F_VERSION_1 == 0 {
+                mmio_write(base, REG_STATUS, STATUS_FAILED);
+                return None;
+            }
+            mmio_write(base, REG_DRV_FEAT_SEL, 0);
+            mmio_write(base, REG_DRV_FEAT, 0);
+            mmio_write(base, REG_DRV_FEAT_SEL, 1);
+            mmio_write(base, REG_DRV_FEAT, VIRTIO_F_VERSION_1);
+            mmio_write(
+                base,
+                REG_STATUS,
+                STATUS_ACK | STATUS_DRIVER | STATUS_FEATURES_OK,
+            );
+            if mmio_read(base, REG_STATUS) & STATUS_FEATURES_OK == 0 {
+                mmio_write(base, REG_STATUS, STATUS_FAILED);
+                return None;
+            }
+        } else {
+            // Legacy: HostFeatures / GuestFeatures at the same offsets, sel=0.
+            mmio_write(base, REG_DEV_FEAT_SEL, 0);
+            let _host = mmio_read(base, REG_DEV_FEAT);
+            mmio_write(base, REG_DRV_FEAT_SEL, 0);
+            mmio_write(base, REG_DRV_FEAT, 0);
         }
-        mmio_write(base, REG_DRV_FEAT_SEL, 0);
-        mmio_write(base, REG_DRV_FEAT, 0);
-        mmio_write(base, REG_DRV_FEAT_SEL, 1);
-        mmio_write(base, REG_DRV_FEAT, VIRTIO_F_VERSION_1);
-        mmio_write(base, REG_STATUS, STATUS_ACK | STATUS_DRIVER | STATUS_FEATURES_OK);
-        if mmio_read(base, REG_STATUS) & STATUS_FEATURES_OK == 0 {
+
+        if !setup_queue(base, ver) {
             mmio_write(base, REG_STATUS, STATUS_FAILED);
             return None;
         }
 
-        mmio_write(base, REG_QUEUE_SEL, 0);
-        let max = mmio_read(base, REG_QUEUE_NUM_MAX);
-        if max < QSZ as u32 {
-            mmio_write(base, REG_STATUS, STATUS_FAILED);
-            return None;
+        let mut st = STATUS_ACK | STATUS_DRIVER | STATUS_OK;
+        if ver == VERSION_MODERN {
+            st |= STATUS_FEATURES_OK;
         }
-        mmio_write(base, REG_QUEUE_NUM, QSZ as u32);
-
-        let dma = addr_of_mut!(DMA);
-        (*dma) = Dma::ZERO;
-        let desc_pa = dma_pa(addr_of!((*dma).desc) as *const u8);
-        let avail_pa = dma_pa(addr_of!((*dma).avail) as *const u8);
-        let used_pa = dma_pa(addr_of!((*dma).used) as *const u8);
-        mmio_write(base, REG_DESC_LO, desc_pa as u32);
-        mmio_write(base, REG_DESC_HI, (desc_pa >> 32) as u32);
-        mmio_write(base, REG_AVAIL_LO, avail_pa as u32);
-        mmio_write(base, REG_AVAIL_HI, (avail_pa >> 32) as u32);
-        mmio_write(base, REG_USED_LO, used_pa as u32);
-        mmio_write(base, REG_USED_HI, (used_pa >> 32) as u32);
-        dsb();
-        mmio_write(base, REG_QUEUE_READY, 1);
-        if mmio_read(base, REG_QUEUE_READY) != 1 {
-            mmio_write(base, REG_STATUS, STATUS_FAILED);
-            return None;
-        }
-
-        mmio_write(
-            base,
-            REG_STATUS,
-            STATUS_ACK | STATUS_DRIVER | STATUS_FEATURES_OK | STATUS_OK,
-        );
+        mmio_write(base, REG_STATUS, st);
 
         let lo = mmio_read(base, REG_CONFIG) as u64;
         let hi = mmio_read(base, REG_CONFIG + 4) as u64;
@@ -352,10 +392,10 @@ pub fn init() {
     RW_OK.store(false, Ordering::SeqCst);
     let mut dev = DEV.lock();
     *dev = BlkDev::empty();
-    let Some(base) = find_blk() else {
+    let Some((base, ver)) = find_blk() else {
         return;
     };
-    let Some(cap) = setup(base) else {
+    let Some(cap) = setup(base, ver) else {
         return;
     };
     dev.base = base;

@@ -392,6 +392,6 @@ fn fat16_missing_and_readonly() {
 fn fat16_path_maps_8_3() {
     assert_eq!(path_to_83("/probe"), Some(*b"PROBE      "));
     assert_eq!(path_to_83("/kprobe"), Some(*b"KPROBE     "));
-    assert!(path_to_83("/toolong1").is_none());
+    assert!(path_to_83("/toolong12").is_none());
     assert!(path_to_83("probe").is_none());
 }
