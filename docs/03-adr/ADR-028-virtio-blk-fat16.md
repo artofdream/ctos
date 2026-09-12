@@ -34,4 +34,4 @@ Host QEMU `-drive` without guest code is **not** a probe. memfs stays one backen
 
 - Code: `src/virtio.rs`, `src/fat.rs`, `src/vfs.rs` (dispatch + `ReadOnly`), `scripts/mkfat16.py`, QEMU `-drive` in the smoke / runner scripts.
 - Docs: [filesystem.md](../framework/filesystem.md), [overview/filesystem.md](../overview/filesystem.md), [track-a.md](../04-roadmap/track-a.md), threat-model v1.15. Roadmap cites #38 / Track A #31.
-- A8 (documented sample apps, [issue #39](https://github.com/artofdream/ctos/issues/39)) is not this PR. That mile should teach an in-tree payload that uses the existing SVC + VFS (`fs_open` / `fs_read` of `/probe` or a memfs name) — not a new ABI and not a second FS.
+- A8 (documented sample apps, [issue #39](https://github.com/artofdream/ctos/issues/39)) is not this PR. Follow-up A8 documented rebuild recipes ([what-can-run.md](../overview/what-can-run.md)); it did **not** add a new `libctos` hello that calls `fs_open`. The Verified EL0 VFS trip stays `/eprobe`. Not a new ABI and not a second FS.

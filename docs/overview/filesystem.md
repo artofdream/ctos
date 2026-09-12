@@ -12,7 +12,7 @@ Do not say “supports FAT” as a product. Say the guest read a known FAT16 fil
 | --- | --- | --- |
 | Landed | **Ramdisk / memfs** | Named heap buffers. Create / lookup / read / write without DMA. |
 | This mile | **virtio-blk** + **FAT16** | Host-visible raw image (`scripts/mkfat16.py`). xv6-like was rejected so the host can inspect the volume. |
-| Later, optional | ctos-specific **virtual mounts** | Prefix / tree mounts. Not a new magic format. A8 is sample apps, not this. |
+| Later, optional | ctos-specific **virtual mounts** | Prefix / tree mounts. Not a new magic format. A8 is sample **recipes**, not this. |
 
 ## Avoid early
 
@@ -32,7 +32,7 @@ flowchart LR
   F --> H["5. host image + guest read<br/>this mile"]
 ```
 
-*A7 is virtio-blk + FAT16. A8–A9 stay Planned. Do not say “supports FAT” as a product.*
+*A7 is virtio-blk + FAT16. A8 is documented recipes. A9 stays Planned. Do not say “supports FAT” as a product.*
 
 1. **VFS ADR** — thin interface (create / open / read / write / close of a path).
 2. **memfs** — in-RAM named buffers; serial `fs: ok`.

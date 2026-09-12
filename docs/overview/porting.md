@@ -2,7 +2,7 @@
 
 Plain English. There is **no easy POSIX port** today. ctos is a kernel you **extend in-tree**, not a host you drop apps onto.
 
-What already runs: [What can run today](what-can-run.md). How to build the kernel: [prerequisites](prerequisites.md). Probes: [honesty ledger](../framework/honesty-ledger.md).
+What already runs (rebuild recipes): [What can run today](what-can-run.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). How to build the kernel: [prerequisites](prerequisites.md). Probes: [honesty ledger](../framework/honesty-ledger.md).
 
 Do not claim an “easy port” path that does not exist.
 
@@ -18,11 +18,12 @@ A Linux, musl, or glibc program is a different contract. Recompiling it “for A
 
 Write **in-tree `no_std` Rust** and ship it as part of the kernel image.
 
-Typical shape:
+Typical shape (A8 recipes — [what-can-run.md](what-can-run.md)):
 
 - A cooperative **kernel task** (same class as `sched: task a/b`) or a small kernel module
 - Use UART / `println!` for output; `yield` to other tasks
 - Optional: serial receive for a byte-in gadget
+- Optional: link `libctos` like `user/hello-libctos` (still embedded; not a second `-kernel`)
 
 Rebuild the whole guest with the existing target:
 
@@ -49,15 +50,22 @@ flowchart LR
 
 Those need a loader and a userspace that ctos does not have. The standing user-mode stub is a **test mile** plus an A1 ABI trip and an A2 `libctos` hello, not that runtime ([el0.md](../framework/el0.md), [syscall.md](../framework/syscall.md)).
 
-## Later (Planned)
+## Track A miles that already have recipes
 
-A path that is **not finished**. Call this **Track A** when talking about an OS slot vs app slot ([Immutability](advantages.md#immutability)):
+A1–A7 are probed. A8 is **docs**: the recipes on [what-can-run.md](what-can-run.md). Still not “applications port to ctos.” You extend the kernel or link `libctos` in-tree.
 
-1. A **stable SVC ABI** — A1 is the kernel mile (`exit` / `uart_write` / `yield`).
-2. A freestanding CRT / `libctos` — A2. Still not a userspace compiler target for foreign ELFs.
-3. Link a freestanding AArch64 user-mode binary and **load** it (A3) — guest `PT_LOAD` map; the smoke image is still embedded
-4. Map it into the **user page table** and return to user mode as **normal** (A4 / [ADR-024](../03-adr/ADR-024-standing-el0-normal.md))
+1. A **stable SVC ABI** — A1 (`exit` / `uart_write` / `yield`).
+2. A freestanding CRT / `libctos` — A2.
+3. Guest `PT_LOAD` of that in-tree ELF — A3. Image still embedded.
+4. Standing EL0 as **normal** until `exit` — A4 / [ADR-024](../03-adr/ADR-024-standing-el0-normal.md).
+5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN **enable** Planned.
+6. Thin VFS + memfs — A6. Recipe 4.
+7. virtio-blk + FAT16 — A7. Recipe 5.
 
-A4 has a standing-task probe (`el0: task-ok`) when the ledger says so. That is still not “applications port to ctos.” You extend the kernel or link `libctos` in-tree. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
+Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
 
 A POSIX filesystem is the same story: **not present**. Thin VFS + memfs + read-only FAT16 are not Linux `open`. Direction: [Filesystem: new vs extend](filesystem.md).
+
+## Later (A9 — Planned)
+
+An **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)): two artifacts + a load path + a cross-update probe. Today is still one linked ELF — not Verified. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).

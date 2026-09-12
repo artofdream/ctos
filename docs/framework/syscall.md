@@ -1,6 +1,6 @@
 # SVC syscall ABI (Track A / A1 / ADR-021)
 
-**ABI + CRT + loader + standing-task + memfs + FAT16 miles.** App hosting (sample apps, OS/app slots) stays **Planned**. Track A is still incomplete after A7. Not Linux. Not POSIX.
+**ABI + CRT + loader + standing-task + memfs + FAT16 miles.** Sample **rebuild recipes** are A8 (docs). App hosting / OS–app slots stay **Planned** (A9). Track A is still incomplete after A8. Not Linux. Not POSIX.
 
 Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Thin VFS + memfs: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md). virtio-blk + FAT16: [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). A4: [issue #35](https://github.com/artofdream/ctos/issues/35). A6: [issue #37](https://github.com/artofdream/ctos/issues/37). Code: `src/syscall.rs`, `src/vfs.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`, `src/el0.rs`.
 
@@ -49,6 +49,10 @@ In-RAM named buffers behind a thin VFS ([ADR-027](../03-adr/ADR-027-thin-vfs-mem
 
 Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `blk: ok` / `fat: ok`. `/probe` is the known FAT16 file. Write on a FAT handle is `ReadOnly`. File presence is not that probe.
 
+## Sample recipes (A8)
+
+Rebuild recipes for the probed classes: [what-can-run.md](../overview/what-can-run.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. No new syscall numbers. File presence is not a new runtime.
+
 ## Still Planned (Track A)
 
-Documented sample apps, OS/app slots (A8–A9 on #31). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.
+OS/app slots (A9 on #31 / [#48](https://github.com/artofdream/ctos/issues/48)). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.
