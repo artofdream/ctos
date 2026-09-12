@@ -86,7 +86,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 
 - QEMU `virt` only. No Raspberry Pi or board claim
 - Not POSIX, not multi-tenant, not a product runtime. No filesystem today ([filesystem.md](filesystem.md)). Not a container host ([host-apps.md](host-apps.md)); host `docker-smoke` ≠ guest Docker.
-- Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); `.rodata`/`.data`/heap stay
+- Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); identity `.rodata` is torn (ADR-025); `.data`/heap stay; PAN enable stays Planned (`pan: absent` on `-cpu cortex-a57`)
 - Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot disconnect** (A9) is **Planned** after Track A ABI/loader — still one ELF today.
 - Performance numbers are guest counter deltas, not a latency budget
 - Docs website / custom domain: HTTPS serving the book is **Verified** ([website.md](../website.md))
