@@ -2,6 +2,8 @@
 
 Session memory lives in git under [`research/`](https://github.com/artofdream/ctos/tree/main/research), not on a wiki. This page is a **curated landing** for the published book. Daily briefs and scratch notes stay on GitHub so the site does not pretend every session log is product documentation.
 
+Published Track B research in the book (not session scratch): [Linux AArch64 syscall gap (B2)](research/linux-aarch64-syscall-gap.md). Inspection only. **Not claiming Linux userspace.**
+
 | Vault | Where | Job |
 | --- | --- | --- |
 | Procedure | [`.cursor/skills/ctos-*/`](https://github.com/artofdream/ctos/tree/main/.cursor/skills) | How to do a repeatable job |

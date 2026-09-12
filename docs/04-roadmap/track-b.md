@@ -27,7 +27,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 | ID | Work | Status (2026-09-12) |
 | --- | --- | --- |
 | B1 | ADR: Linux-compat goals & non-goals | **Documented** ([#41](https://github.com/artofdream/ctos/issues/41), [ADR-031](../03-adr/ADR-031-linux-compat-goals.md)). ABI **subset** research; keep ctos specificity; **not claiming Linux userspace yet**. Cites [ADR-029](../03-adr/ADR-029-containers-nongoal.md); does not reopen containers as Planned. |
-| B2 | Syscall surface map (Linux aarch64 vs ctos SVC) | **Planned** ([#42](https://github.com/artofdream/ctos/issues/42)) |
+| B2 | Syscall surface map (Linux aarch64 vs ctos SVC) | **Documented** ([#42](https://github.com/artofdream/ctos/issues/42), [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)). Inspection map only. No Linux numbers in `src/`. **Not claiming Linux userspace.** |
 | B3 | Process model vs Linux (fork/exec/wait) | **Planned** ([#43](https://github.com/artofdream/ctos/issues/43)) |
 | B4 | Linux ELF / auxv / `PT_INTERP` vs freestanding loader | **Planned** ([#44](https://github.com/artofdream/ctos/issues/44)) |
 | B5 | Linux VFS concepts vs thin ctos VFS | **Planned** ([#45](https://github.com/artofdream/ctos/issues/45)) |
@@ -42,7 +42,15 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 
 **Out:** full Linux ABI as a promise; guest containers ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)); replacing SVC `#n` / `libctos` with Linux `x8` numbers in a research mile; claiming userspace because A3 loads ELF64 or A9 reads FAT `/hello`.
 
-B2–B6 stay **Planned** research. They map gaps and then decide (compat layer vs reimplement vs **never**). This page does not implement them. File presence of ADR-031 is not a Linux userspace probe.
+B2 is **Documented** (gap table). B3–B6 stay **Planned** research. They compare process / ELF / VFS concepts and then decide (compat layer vs reimplement vs **never**). This page does not implement them. File presence of ADR-031 or the B2 note is not a Linux userspace probe.
+
+## B2 — syscall gap map
+
+[linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md) maps a representative Linux AArch64 set (`exit`, `write`, `read`, `openat`, `close`, `brk`/`mmap`, `clone`/`execve`/`wait4`, `ioctl`, plus CRT/namespace neighbors) onto today’s ctos SVC surface (reserved 0–2, public 16–23).
+
+**Keep:** no Linux `svc #0` / `x8` numbers in `src/` this mile. Track A `SVC #<n>` stays. **No row is `present`** (convention + number space both miss). Related Track A SVCs are **partial**. Namespace/mount stay **never-per-ADR-031** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
+
+B3–B6 must not treat this table as an implementation backlog. B6 may choose **never**.
 
 ## B7 — containers are a non-goal
 
