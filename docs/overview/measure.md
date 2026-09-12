@@ -22,13 +22,13 @@ QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not 
 
 ### OS slot vs app slot (performance)
 
-[ADR-030](../03-adr/ADR-030-os-app-slots.md) first cut exists: FAT `/hello` + `perf: app-load`. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.” A Verified *delta* vs the A3 embed stays **Planned**.
+[ADR-030](../03-adr/ADR-030-os-app-slots.md) first cut exists: FAT `/hello` + `perf: app-load`. [ADR-032](../03-adr/ADR-032-track-a-leftovers.md) removes the A2–A4 embed. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.” A Verified *delta* vs the old embed stays **Planned**.
 
 | Kind | Honest guess | What would make it a claim |
 | --- | --- | --- |
 | Possible **cost** | Extra VFS/FAT read, ELF parse, user map fills, SVC, ASID/TTBR switch | Compared `perf: app-load` vs the embed on the same guest. Marker alone is not a delta. |
 | Possible **neutral** | Steady-state UART print / yield after the app is mapped, if the hot path stays similar | Same probes on the new path vs the in-tree workers; no win claimed without a delta |
-| Build-time, not a bench | Two host artifacts; FAT slot can change without a kernel rebuild | `perf: elf-size` is still one image’s byte count. A2–A4 still embed, so a kernel rebuild still compiles the hello. |
+| Build-time, not a bench | Two host artifacts; FAT slot can change without a kernel rebuild | `perf: elf-size` is still one image’s byte count. A kernel rebuild still compiles the hello (`build.rs`); it no longer embeds the bytes. |
 
 **Measure first** ([NFR-07](../02-requirements/fr-nfr.md)). Do not tune a loader “for speed” on a hunch. Do not copy QEMU ticks into a product slide.
 

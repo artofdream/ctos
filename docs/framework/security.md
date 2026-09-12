@@ -1,8 +1,8 @@
-# Security — threat model v1.16 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030)
+# Security — threat model v1.17 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.16** (2026-09-12). Slice/update of v1.15 (adds OS/app slot first cut: two host artifacts + FAT `/hello` load; A2–A4 still embed; cross-update Planned; not OTA; not app hosting). Not a v2 model and not “secure.”
+Version: **v1.17** (2026-09-12). Slice/update of v1.16 (adds Track A leftover mile: A9 cross-update on `ba6541c`; A2–A4 load FAT `/hello` without `include_bytes!`; identity `.data`/heap stay markers; PAN enable still Planned). Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -30,14 +30,14 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Live identity `.text` | rustc vtables rewritten to high aliases; live identity `.text` after `_start` unmapped. High twins stay. Not a relocated kernel. | `[0x4008_1000, __text_end)` ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)) |
 | Identity `.rodata` | Identity `.rodata` unmapped after a pointer rewrite. High twin stays. `.data`/heap stay. Not a relocated kernel. | `[__rodata_start, __ident_tear_start)` ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)) |
 | PAN capability | `ID_AA64MMFR1_EL1.PAN` printed. Enable stays Planned on cortex-a57. | `src/pan.rs` ([ADR-026](../03-adr/ADR-026-pan-capability.md)) |
-| Remaining isolation gaps | Shared boot-stub text in the user table (handler must fetch if VBAR were still identity). No PAN enable on cortex-a57. EL0 trampoline still `TLBI VMALLE1` (`.data` leaves are global). Identity `.data`/heap still live. Lower-EL IRQ still parks. | User TTBR0 + ASID + TTBR1 first cut + exec mile + torn live `.text` + torn `.rodata` + SVC ABI; isolation Planned |
+| Remaining isolation gaps | Shared boot-stub text in the user table (handler must fetch if VBAR were still identity). No PAN enable on cortex-a57. EL0 trampoline still `TLBI VMALLE1` (`.data` leaves are global). Identity `.data`/heap still live (`ident: data-stay` / `ident: heap-stay`). Lower-EL IRQ still parks. | User TTBR0 + ASID + TTBR1 first cut + exec mile + torn live `.text` + torn `.rodata` + stay markers + SVC ABI; isolation Planned |
 | SVC ABI (exit / uart_write / yield) | Documented numbers 16–18. `uart_write` rejects a kernel `.data` pointer and a TTBR1 / non-canonical alias. Not Linux. Not app hosting. | `src/syscall.rs` ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)) |
 | `libctos` CRT | Wrappers + `_start` CRT. Hello payload copied onto the standing EL0 page. Must not issue SVC #0–#2. | `libctos/` + `src/libctos.rs` ([ADR-022](../03-adr/ADR-022-libctos-crt.md)) |
 | Guest ELF PT_LOAD loader | Guest parses embedded ELF64 `ET_EXEC`, maps `PT_LOAD` into the user map-window, `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. Not a Linux ABI. | `src/loader.rs` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)) |
 | Standing EL0 as normal mode | Loaded image stands until `SYS_EXIT`. `is_active()` is a task flag. Unexpected lower-EL sync restores fail-closed. Not a process table. | `src/el0.rs` ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) |
 | Thin VFS + memfs | Named heap buffers. Create / open / read / write / close. User path/I/O pointers must be user-mapped **and** kernel-mapped. Not POSIX. | `src/vfs.rs` ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) |
 | virtio-blk + FAT16 | Guest programs a virtio-mmio DMA master. Image is host-built FAT16. FAT is read-only. Same VFS `open`. Not a trusted disk. | `src/virtio.rs` + `src/fat.rs` ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) |
-| OS/app slots | Host kernel ELF + published app ELF. Guest reads FAT `/hello` and maps `PT_LOAD`. A2–A4 still embed. Not a trusted disk. Not cross-update. | `src/slot.rs` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) |
+| OS/app slots | Host kernel ELF + published app ELF. Guest reads FAT `/hello` and maps `PT_LOAD`. A2–A4 use the same file (no embed). Cross-update is a host two-boot probe. Not a trusted disk. | `src/slot.rs` ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)) |
 | Console / sensors | PL011 is how we see whether a probe ran. | Device MMIO `0x0900_0000` |
 
 ## Adversaries
@@ -73,13 +73,13 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 - Not **side-channel complete** (no cache/timing/Spectre story; QEMU TCG is the wrong lab).
 - Not a **product “the kernel is W^X”** sentence. The identity image on this virt guest is RO+X / RW+NX with WXN ([ADR-015](../03-adr/ADR-015-ro-nx-text-data.md)). Future mappings are not automatically covered. Guard pages remain **holes**.
 - Not **ASAN / canaries / heap-stack guards**. Coop worker stacks have no unmapped holes. Overflow there is still image-adjacent PXN RAM.
-- Not secure boot, PAN enable, or a fully torn-down identity map (ADR-020 unmaps live identity `.text`; ADR-025 unmaps identity `.rodata`; `.data`/heap stay; `_start` stays at `0x4008_0000`).
+- Not secure boot, PAN enable, or a fully torn-down identity map (ADR-020 unmaps live identity `.text`; ADR-025 unmaps identity `.rodata`; `.data`/heap stay — `ident: data-stay` / `ident: heap-stay`; `_start` stays at `0x4008_0000`).
 
 ## Mitigations mapped to probes
 
 | Mitigation | Probe | Ledger |
 | --- | --- | --- |
-| Threat-model v1.16 written | Read this file | Verified (file + review). Still no “secure OS”. |
+| Threat-model v1.17 written | Read this file | Verified (file + review). Still no “secure OS”. |
 | Device MMIO XN (L1 block 0) | `pxn_for(0x0900_0000) == Some(true)` | Covered by the W^X tests when they run. |
 | Heap + coop stacks PXN | Serial `wx: ok`; `#[test_case]` flags + execute-from-heap IABORT | Verified: 2026-09-10 cloud `qemu-smoke` (honesty ledger). |
 | Kernel text still executable | `is_executable(0x4008_0000)` | Same W^X probe. |
@@ -101,17 +101,19 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Identity text range tear | Serial `ident: jump` / `ident: range` / `ident: text` | Range cut ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)). |
 | High-VA vtable rewrite + live `.text` tear | Serial `ident: reloc` / `ident: live` | Live `.text` cut ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). |
 | Identity `.rodata` tear | Serial `ident: rodata` / `ident: rodata-fault` / `ident: rodata-high` | `.rodata` cut ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)). `.data`/heap stay. |
+| Identity `.data` / heap still mapped | Serial `ident: data-stay` / `ident: heap-stay` | Honesty markers ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Tear Planned. |
 | PAN ID field | Serial `pan: id=` / `pan: absent` | Capability probe ([ADR-026](../03-adr/ADR-026-pan-capability.md)). Enable Planned. |
 | SVC ABI (`exit` / `uart_write` / `yield`) | Serial `svc: ok`; user buffer + kernel-`.data` / TTBR1-alias reject | ABI mile ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). Not app hosting. |
 | `libctos` CRT | Serial `libctos: hi` / `libctos: ok` / `libctos: linked` | CRT mile ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). Not app hosting. |
 | Guest ELF PT_LOAD loader | Serial `loader: mapped` / `loader: ok` | Loader mile ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Not a Linux ABI. Not app hosting. |
 | Thin VFS + memfs | Serial `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` | memfs mile ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). Not POSIX. Not app hosting. |
 | virtio-blk + FAT16 | Serial `blk: ok` / `fat: ok`; VFS `/probe` | block + FAT mile ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Host `-drive` alone is not the probe. Not app hosting. |
-| OS/app slot first cut | Serial `slot: fat` / `slot: mapped` / `slot: ok` | Slot mile ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). A2–A4 still embed. Cross-update Planned. Not app hosting. |
+| OS/app slot first cut | Serial `slot: fat` / `slot: mapped` / `slot: ok` | Slot mile ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). A2–A4 load FAT (no embed). |
+| A9 cross-update | Host smoke: same app `sha256` on this OS and `ba6541c` | Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Not “apps update independently.” |
 | RO+NX text/data | Serial `ro: ok`; execute-from-`.data` + write-to-RO-text | Verified: 2026-09-11 cloud `qemu-smoke` (honesty ledger). |
 
 ## Claim gate
 
-A PR may say “threat-model v1.16 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” “a 16 KiB dedicated identity text range was unmapped,” “rustc vtables were rewritten to high aliases,” “live identity `.text` after the boot stub was unmapped,” “identity `.rodata` was unmapped,” “`ID_AA64MMFR1_EL1.PAN` is 0 on `-cpu cortex-a57`,” “EL0 issued the documented SVC ABI,” “a program linked against libctos issued that ABI,” “the guest mapped PT_LOAD and ERETed to e_entry,” or “a loaded image stood at EL0 until exit with fail-closed restore,” or “the guest created, wrote, and read a named in-RAM file,” or “the guest programmed virtio-blk and read a known FAT16 file through the thin VFS,” or “the guest loaded a separate app ELF from FAT `/hello` into user TTBR0” only for the mile that actually passed.
+A PR may say “threat-model v1.17 exists” after a file read. It may say “heap NX” / “identity image is W^X on this virt guest” only when the honesty ledger has a matching **Verified** QEMU probe. It may say “linker-stack guard faults” only with a matching translation-abort probe. It may say “EL0 entered and returned,” “EL0 cannot execute kernel data,” “EL0 cannot read kernel `.data`,” “standing EL0 context,” “ASID isolation,” “TTBR1 private page,” “EL1 fetched from a TTBR1 high VA,” “one identity text page was unmapped,” “a 16 KiB dedicated identity text range was unmapped,” “rustc vtables were rewritten to high aliases,” “live identity `.text` after the boot stub was unmapped,” “identity `.rodata` was unmapped,” “`ID_AA64MMFR1_EL1.PAN` is 0 on `-cpu cortex-a57`,” “EL0 issued the documented SVC ABI,” “a program linked against libctos issued that ABI,” “the guest mapped PT_LOAD and ERETed to e_entry,” or “a loaded image stood at EL0 until exit with fail-closed restore,” or “the guest created, wrote, and read a named in-RAM file,” or “the guest programmed virtio-blk and read a known FAT16 file through the thin VFS,” or “the guest loaded a separate app ELF from FAT `/hello` into user TTBR0,” or “the same published app ELF loaded on this OS and on `ba6541c`,” or “identity `.data` / heap are still mapped” only for the mile that actually passed.
 
 It may **not** say “secure OS,” “hardened,” “EL0 works,” “EL0 isolated,” “the kernel moved,” “immutable OS,” or “app hosting is done.” Scoped RO is [immutability.md](immutability.md). Unprobed stays **Unknown**. https://ctos.artof.link HTTPS is **Verified** (2026-09-11 after #30; see the [honesty ledger](honesty-ledger.md)).

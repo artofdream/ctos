@@ -23,7 +23,7 @@ Typical shape (A8 recipes — [what-can-run.md](what-can-run.md)):
 - A cooperative **kernel task** (same class as `sched: task a/b`) or a small kernel module
 - Use UART / `println!` for output; `yield` to other tasks
 - Optional: serial receive for a byte-in gadget
-- Optional: link `libctos` like `user/hello-libctos` (still embedded; not a second `-kernel`)
+- Optional: link `libctos` like `user/hello-libctos` (published + FAT `/hello`; not a second `-kernel`)
 
 Rebuild the whole guest with the existing target:
 
@@ -40,7 +40,7 @@ flowchart LR
   S --> E["OS ELF + published app ELF<br/>A9 first cut"]
 ```
 
-*Two host artifacts. QEMU still `-kernel`s the OS ELF. FAT `/hello` is the app slot. A2–A4 still embed. Cross-update is Planned.*
+*Two host artifacts. QEMU still `-kernel`s the OS ELF. FAT `/hello` is the app slot. A2–A4 load that file. Cross-update is the leftover two-boot smoke.*
 
 ## Not easy
 
@@ -56,12 +56,12 @@ A1–A7 are probed. A8 is **docs**: the recipes on [what-can-run.md](what-can-ru
 
 1. A **stable SVC ABI** — A1 (`exit` / `uart_write` / `yield`).
 2. A freestanding CRT / `libctos` — A2.
-3. Guest `PT_LOAD` of that in-tree ELF — A3. Image still embedded.
+3. Guest `PT_LOAD` of that in-tree ELF — A3. Image is FAT `/hello`.
 4. Standing EL0 as **normal** until `exit` — A4 / [ADR-024](../03-adr/ADR-024-standing-el0-normal.md).
 5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN **enable** Planned.
 6. Thin VFS + memfs — A6. Recipe 4.
 7. virtio-blk + FAT16 — A7. Recipe 5.
-8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Cross-update Planned.
+8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Leftover cross-update — [ADR-032](../03-adr/ADR-032-track-a-leftovers.md).
 
 Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
 
@@ -69,4 +69,4 @@ A POSIX filesystem is the same story: **not present**. Thin VFS + memfs + read-o
 
 ## Later (A9 remaining)
 
-An **OS image vs app payload** *cross-update* ([A9 #48](https://github.com/artofdream/ctos/issues/48)): same `hello-libctos.elf` on this OS and a documented prior OS. The first cut (two artifacts + FAT `/hello`) is a different row. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).
+An **OS image vs app payload** *cross-update* ([A9 #48](https://github.com/artofdream/ctos/issues/48), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): same `hello-libctos.elf` on this OS and documented prior OS `ba6541c`. The first cut (two artifacts + FAT `/hello`) is a different row. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).

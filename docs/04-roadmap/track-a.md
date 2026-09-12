@@ -12,7 +12,7 @@ This track is **subordinate** to ctos core principles ([principles.md](../framew
 - Performance — measure first; no invented benches
 - Document-first / one milestone → one branch → one PR
 
-A9 (OS/app slot disconnect) sits **after** A1–A4. It does not override the list above. The first cut does not claim cross-update.
+A9 (OS/app slot disconnect) sits **after** A1–A4. It does not override the list above. The first cut plus [ADR-032](../03-adr/ADR-032-track-a-leftovers.md) leftover mile: cross-update on `ba6541c`, no hello embed. Do not claim “app hosting is done.”
 
 ## Goal
 
@@ -28,11 +28,11 @@ One loop unit each. Each row needs a fail-closed ledger probe.
 | A2 | Freestanding CRT / `libctos` | **CRT mile Verified** on `c9b292b` ([#33](https://github.com/artofdream/ctos/issues/33), [ADR-022](../03-adr/ADR-022-libctos-crt.md)). Not app hosting. |
 | A3 | ELF (or raw) loader into user TTBR0 | **Loader mile Verified** ([#34](https://github.com/artofdream/ctos/issues/34), [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Not a Linux ABI. Not app hosting. |
 | A4 | Standing EL0 as normal mode | **Standing-task mile Verified** on this tip ([#35](https://github.com/artofdream/ctos/issues/35), [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Loaded app until `exit`; fail-closed restore. Not isolation. Not app hosting. |
-| A5 | Isolation completion (remaining identity tear; PAN only if CPU + ADR) | **Identity `.rodata` tear Verified** on this tip ([#36](https://github.com/artofdream/ctos/issues/36), [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)). PAN **enable** stays **Planned** with CPU evidence ([ADR-026](../03-adr/ADR-026-pan-capability.md): `pan: absent` on `-cpu cortex-a57`). Not “EL0 isolated.” |
+| A5 | Isolation completion (remaining identity tear; PAN only if CPU + ADR) | **Identity `.rodata` tear Verified** ([#36](https://github.com/artofdream/ctos/issues/36), [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)). Leftover honesty ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): `ident: data-stay` / `ident: heap-stay`. PAN **enable** stays **Planned** (`pan: absent` on `-cpu cortex-a57`). Not “EL0 isolated.” |
 | A6 | Thin VFS + memfs | **memfs mile Verified** ([#37](https://github.com/artofdream/ctos/issues/37), [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). In-RAM named buffers; create / write / read / close. Not POSIX. Not app hosting. |
 | A7 | virtio-blk + FAT16 | **block + FAT mile Verified** on this tip when the ledger has `blk: ok` / `fat: ok` ([#38](https://github.com/artofdream/ctos/issues/38), [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same VFS `open`. FAT read-only. Not POSIX. Not app hosting. |
 | A8 | Documented sample apps | **Recipes Verified** (docs + existing smoke markers) ([#39](https://github.com/artofdream/ctos/issues/39)). Rebuild recipes: [what-can-run.md](../overview/what-can-run.md), [apps-today.md](../framework/apps-today.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. No new ADR (docs-only). No new runtime markers. Not app hosting. |
-| A9 | Disconnect OS image from app payloads | **First cut** ([#48](https://github.com/artofdream/ctos/issues/48), [ADR-030](../03-adr/ADR-030-os-app-slots.md)): OS ELF + published `hello-libctos.elf` + FAT `/hello` load path. Serial `slot: ok`. A2–A4 still embed a copy. Cross-update (same app on OS n and n+1) stays **Planned**. Not OTA. Not “app hosting is done.” |
+| A9 | Disconnect OS image from app payloads | **First cut** ([#48](https://github.com/artofdream/ctos/issues/48), [ADR-030](../03-adr/ADR-030-os-app-slots.md)) + leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): OS ELF + published `hello-libctos.elf` + FAT `/hello`. A2–A4 load that file (no embed). Cross-update: same ELF on this OS and `ba6541c` when qemu-smoke prints both `cross-update … slot:ok` lines. Not OTA. Not “app hosting is done.” |
 
 ## Out of scope for Track A
 

@@ -1,10 +1,12 @@
 //! OS image vs app payload slot (Track A / A9 / ADR-030).
 //!
-//! First cut: the guest reads a **separate** app ELF from FAT16 `/hello`
-//! (same VFS `open` as A7) and maps it with the A3 loader. A2–A4 still
-//! `include_bytes!` the hello for their markers. This path has **no**
-//! embed fallback. Cross-update (same app on OS n and n+1) stays Planned.
-//! Not OTA. Not A-B flash. Not OCI. Not app hosting.
+//! First cut plus leftover mile: the guest reads a **separate** app ELF
+//! from FAT16 `/hello` (same VFS `open` as A7) and maps it with the A3
+//! loader. A2–A4 now use this same FAT file (no `include_bytes!`).
+//! This path has **no** embed fallback. Cross-update (same published
+//! ELF on this OS and documented prior OS `ba6541c`) is a host smoke
+//! probe, not a guest serial line. Not OTA. Not A-B flash. Not OCI.
+//! Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -15,37 +17,18 @@ use crate::loader;
 use crate::paging;
 use crate::timer;
 use crate::uart;
+#[cfg(test)]
 use crate::vfs;
 
 const SLOT_PATH: &str = "/hello";
 const SLOT_MAX: usize = 64 * 1024;
-const CHUNK: usize = vfs::FILE_MAX;
 
 static FAT_OK: AtomicBool = AtomicBool::new(false);
 static LOAD_OK: AtomicBool = AtomicBool::new(false);
 static APP_LOAD: AtomicU64 = AtomicU64::new(0);
 
 fn read_slot() -> Option<Vec<u8>> {
-    let Ok(fd) = vfs::open(SLOT_PATH) else {
-        return None;
-    };
-    let mut out = Vec::new();
-    let mut tmp = [0u8; CHUNK];
-    loop {
-        let Ok(n) = vfs::read(fd, &mut tmp) else {
-            let _ = vfs::close(fd);
-            return None;
-        };
-        if n == 0 {
-            break;
-        }
-        if out.len().saturating_add(n) > SLOT_MAX {
-            let _ = vfs::close(fd);
-            return None;
-        }
-        out.extend_from_slice(&tmp[..n]);
-    }
-    let _ = vfs::close(fd);
+    let out = fat::read_file(SLOT_PATH, SLOT_MAX)?;
     if out.len() < 64 || out[0] != 0x7f || &out[1..4] != b"ELF" {
         return None;
     }

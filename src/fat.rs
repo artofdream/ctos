@@ -4,6 +4,7 @@
 //! (8.3 `HELLO`, app ELF). Not FAT32. Not xv6. Not POSIX.
 //! Host image is `scripts/mkfat16.py`.
 
+use alloc::vec::Vec;
 use core::fmt::Write;
 use core::sync::atomic::{AtomicBool, Ordering};
 use spin::Mutex;
@@ -331,6 +332,38 @@ pub fn write(fd: u32, buf: &[u8]) -> Result<usize, FsError> {
 
 pub fn close(fd: u32) -> Result<(), FsError> {
     FAT.lock().close(fd)
+}
+
+/// Read a mounted FAT path through the same VFS `open` as A7 `/probe`
+/// and A9 `/hello`. Not an embed fallback. Caps at `max` bytes.
+pub fn read_file(path: &str, max: usize) -> Option<Vec<u8>> {
+    if !mounted() || !has_name(path) {
+        return None;
+    }
+    let Ok(fd) = vfs::open(path) else {
+        return None;
+    };
+    let mut out = Vec::new();
+    let mut tmp = [0u8; FILE_MAX];
+    loop {
+        let Ok(n) = vfs::read(fd, &mut tmp) else {
+            let _ = vfs::close(fd);
+            return None;
+        };
+        if n == 0 {
+            break;
+        }
+        if out.len().saturating_add(n) > max {
+            let _ = vfs::close(fd);
+            return None;
+        }
+        out.extend_from_slice(&tmp[..n]);
+    }
+    let _ = vfs::close(fd);
+    if out.is_empty() {
+        return None;
+    }
+    Some(out)
 }
 
 fn vfs_probe_read() -> bool {

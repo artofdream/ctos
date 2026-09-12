@@ -44,7 +44,7 @@ Rebuild recipes for samples that already have probes. Details: [What can run tod
 2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
 3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc. Optional recipes: memfs named buffers and one FAT16 file on virtio-blk.
 
-**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`); cross-update stays Planned.
+**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`) plus leftover cross-update on `ba6541c`. Product app hosting stays Planned.
 
 ```mermaid
 flowchart LR
