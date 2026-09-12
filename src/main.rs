@@ -145,6 +145,12 @@ extern "C" fn kernel_main_high() -> ! {
         if !loader::observe_probe() {
             uart::write_str_raw("loader: probe missed\n");
         }
+        // Serial proof for qemu-smoke (Track A / A4 / ADR-024): standing
+        // EL0 as normal mode for a loaded image until exit. Fail-closed
+        // restore. Not isolation. Not app hosting.
+        if !el0::observe_standing_task() {
+            uart::write_str_raw("el0: task missed\n");
+        }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {
             uart::write_str_raw("asid: probe missed\n");

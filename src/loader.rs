@@ -3,7 +3,9 @@
 //! The kernel parses an embedded ELF (the A2 `libctos` hello) and maps
 //! each `PT_LOAD` into the user map-window, then `ERET`s to `e_entry`.
 //! That is **not** the A2 host extract + memcpy onto `EL0_PAGE`.
-//! Not a Linux ELF ABI. Not `PT_INTERP`. Not glibc. Not app hosting.
+//! A4 / ADR-024 reuses this loader as the way a standing **task**
+//! appears (`run_hello_as_task`). Not a Linux ELF ABI. Not `PT_INTERP`.
+//! Not glibc. Not app hosting.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -432,6 +434,49 @@ fn run_loaded() -> bool {
         return false;
     }
     syscall::yield_seen()
+        && syscall::uart_seen()
+        && syscall::exit_seen()
+        && syscall::last_uart_write() == 12
+        && syscall::last_exit_status() == 0
+        && syscall::yield_count() >= 1
+}
+
+/// A4 / ADR-024: same A3 map, but standing **task** until `SYS_EXIT`.
+/// `is_active()` is true for the lifetime; leftover active is Failed.
+pub(crate) fn run_hello_as_task() -> bool {
+    if el0::is_active() || !paging::user_map_ready() {
+        return false;
+    }
+    let Ok(img) = parse_elf64(HELLO_ELF) else {
+        return false;
+    };
+    syscall::reset_probe_flags();
+    el0::reset_task_flags();
+    let Ok((entry, pages, stack)) = load_image(HELLO_ELF, &img) else {
+        return false;
+    };
+    let Some((stack_va, stack_pa)) = stack else {
+        teardown(&pages, None);
+        return false;
+    };
+    let user_sp = stack_va + PAGE;
+    el0::install_task(entry, user_sp, paging::user_ttbr0());
+    if !el0::is_active() || !el0::is_task() {
+        teardown(&pages, Some((stack_va, stack_pa)));
+        el0::clear_active();
+        return false;
+    }
+    unsafe {
+        exception::eret_to_el0(black_box(entry), 0, user_sp);
+    }
+    teardown(&pages, Some((stack_va, stack_pa)));
+    if el0::is_active() {
+        el0::clear_active();
+        return false;
+    }
+    el0::task_active_seen()
+        && el0::task_exit_seen()
+        && syscall::yield_seen()
         && syscall::uart_seen()
         && syscall::exit_seen()
         && syscall::last_uart_write() == 12

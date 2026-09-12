@@ -67,12 +67,18 @@ That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-bu
 
 `src/loader.rs` walks ELF64 LE AArch64 `ET_EXEC` program headers, maps `PT_LOAD` pages in the user map-window, and `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. The ELF is still `include_bytes!` (no VFS). Not a Linux ABI.
 
+## Standing EL0 as normal mode (A4)
+
+A4 keeps the A3 loader as the way a payload appears. `install_task` + `ERET` is the supported path: the loaded image runs until `exit`; `is_active()` is true only for that lifetime; an unexpected EL0 fault restores fail-closed ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Serial `el0: task-ok`. File presence is not that probe.
+
+That is **not** a process, not POSIX, and not “EL0 isolated.”
+
 **Still Planned:**
 
-1. Isolation miles: PAN (usually absent on `cortex-a57`), identity `.rodata` / `.data` / heap tear, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)).
-2. Standing EL0 as normal mode (A4).
+1. Isolation miles: PAN (usually absent on `cortex-a57`), identity `.rodata` / `.data` / heap tear, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5.
+2. VFS / memfs, virtio-blk, sample apps, OS/app slots (A6–A9).
 
-Until A4, “write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
+“Write a user program for ctos” still means: link `libctos` in-tree and embed like the hello payload, **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 
 A later **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) is **Planned after** that ABI/loader. Today is still one linked ELF — not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
 

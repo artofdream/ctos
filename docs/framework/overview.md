@@ -45,7 +45,7 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 
 Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
-- **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
+- **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`); a loaded `libctos` hello as a standing **task** until `exit` (`el0: task-ok`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
 - **Cannot run:** Linux ELF, shell, Python, network, filesystem, SMP, isolated userspace. Isolation / PAN / `.rodata`/`.data`/heap tear stay **Planned**. Filesystem stance: [filesystem.md](filesystem.md) (memfs → virtio-blk → FAT/xv6-like; none today). Gaps to host apps + **containers: no**: [host-apps.md](host-apps.md).
 
 ## Building or porting
@@ -54,7 +54,7 @@ First-class page: [building-or-porting.md](building-or-porting.md). Short honest
 
 - **Easiest** = in-tree `no_std` coop EL1 on `aarch64-ctos.json`, proven with `cargo` / `qemu-smoke` / `docker-smoke`.
 - **POSIX / glibc** = not easy, not started.
-- **SVC ABI + `libctos` + guest `PT_LOAD`** for freestanding EL0 = A1 ABI + A2 CRT + A3 loader miles (standing dual-SVC is still a stub; not a syscall table; standing-as-normal stays **Planned**).
+- **SVC ABI + `libctos` + guest `PT_LOAD` + standing-as-normal** for freestanding EL0 = A1 ABI + A2 CRT + A3 loader + A4 standing-task miles (dual-SVC stub still exists; not a syscall table; not isolation).
 
 ## OS image vs app payloads (A9)
 

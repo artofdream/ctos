@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + ASID isolation + TTBR1 private page +
+# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
 # TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
@@ -234,6 +234,35 @@ if ! grep -q "loader: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: guest ELF loader strings present"
+if grep -q "el0: task missed" "$log"; then
+    echo "qemu-smoke: standing-task probe missed (A4 loaded-app trip did not run)" >&2
+    exit 1
+fi
+if ! grep -q "el0: task-enter" "$log"; then
+    echo "qemu-smoke: missing 'el0: task-enter' on serial (A4 standing task enter, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "el0: task-active" "$log"; then
+    echo "qemu-smoke: missing 'el0: task-active' on serial (is_active while standing, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "el0: task-exit" "$log"; then
+    echo "qemu-smoke: missing 'el0: task-exit' on serial (SYS_EXIT from standing task, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "el0: task-restored" "$log"; then
+    echo "qemu-smoke: missing 'el0: task-restored' on serial (A4 exit restore, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "el0: restore-fail" "$log"; then
+    echo "qemu-smoke: missing 'el0: restore-fail' on serial (A4 fail-closed fault restore, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "el0: task-ok" "$log"; then
+    echo "qemu-smoke: missing 'el0: task-ok' on serial (A4 standing-as-normal mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: standing-task (A4) strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1
