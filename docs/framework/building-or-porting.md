@@ -65,7 +65,7 @@ That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-bu
 
 ## Guest loader (A3)
 
-`src/loader.rs` walks ELF64 LE AArch64 `ET_EXEC` program headers, maps `PT_LOAD` pages in the user map-window, and `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. A2–A4 and A9 read FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Not a Linux ABI.
+`src/loader.rs` walks ELF64 LE AArch64 `ET_EXEC` program headers, maps `PT_LOAD` pages in the user map-window, and `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. A2–A4 and A9 read FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Not a Linux ABI. Linux ELF / auxv / `PT_INTERP` gaps: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md). Do not claim dynamic Linux ELF.
 
 ## Standing EL0 as normal mode (A4)
 

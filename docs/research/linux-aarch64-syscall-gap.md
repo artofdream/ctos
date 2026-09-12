@@ -85,7 +85,7 @@ Numbers from Linux **v6.10** `asm-generic/unistd.h`. AArch64 has **no** `fork`, 
 | — | `fork` | **absent** | **Not in the Linux AArch64 table.** Userspace `fork()` is `clone`. Deeper compare is [B3 / #43](https://github.com/artofdream/ctos/issues/43). |
 | 220 | `clone` | **absent** | No child address space, no `CLONE_*`. Standing EL0 ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) is one loaded trip, not `clone`. `CLONE_NEW*` is **never-per-ADR-031** (see namespace rows). |
 | 435 | `clone3` | **absent** | Same class as `clone`. |
-| 221 | `execve` | **absent** | A3 maps freestanding `PT_LOAD` and **rejects `PT_INTERP`**. A9 FAT `/hello` is an EL1 load path, not `execve`. [B4 / #44](https://github.com/artofdream/ctos/issues/44). |
+| 221 | `execve` | **absent** | A3 maps freestanding `PT_LOAD` and **rejects `PT_INTERP`**. A9 FAT `/hello` is an EL1 load path, not `execve`. ELF / auxv / interpreter gap: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md) (B4). |
 | 281 | `execveat` | **absent** | Same class as `execve`. |
 | 260 | `wait4` | **absent** | No child to wait for. B3. |
 | 95 | `waitid` | **absent** | B3. |

@@ -25,7 +25,7 @@ Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#
 
 Unknown `SVC` immediates park (fail-closed). Not POSIX. Not Linux VFS.
 
-Track B B2 maps these numbers against Linux AArch64 (`svc #0`, `x8`): [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md). That page is inspection only. **Not claiming Linux userspace.** Do not retarget 16–23 to Linux `x8`.
+Track B B2 maps these numbers against Linux AArch64 (`svc #0`, `x8`): [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md). Track B B4 maps ELF / auxv / `PT_INTERP` against the freestanding loader: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md). Inspection only. **Not claiming Linux userspace.** **Not claiming dynamic Linux ELF.** Do not retarget 16–23 to Linux `x8`.
 
 ## Probe
 
@@ -37,7 +37,7 @@ A `no_std` crate wraps the three public numbers. A hello payload linked against 
 
 ## Guest loader (A3)
 
-The kernel parses the embedded hello ELF, maps each `PT_LOAD` into the user map-window, and `ERET`s to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Serial `loader: mapped` / `loader: ok`. Not a Linux ELF ABI. Not `PT_INTERP`. A2–A4 still bundle the image. File presence is not that probe.
+The kernel parses the hello ELF, maps each `PT_LOAD` into the user map-window, and `ERET`s to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Serial `loader: mapped` / `loader: ok`. Not a Linux ELF ABI. Not `PT_INTERP`. A2–A4 and A9 read FAT `/hello`. Linux ELF/auxv gaps: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md). File presence is not that probe.
 
 ## Standing task (A4)
 

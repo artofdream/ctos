@@ -43,5 +43,6 @@ Do not write a container roadmap. Track A gaps (ABI, FS, isolation) are not a pa
 | Guest is a container host | No OCI/runc/cgroup code | **Verified** absence; **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md); not a later Planned feature) |
 | Linux-compat goals documented (Track B B1) | Read [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) | **Documented** frame. Not Linux userspace. B3–B6 stay Planned research. |
 | Linux AArch64 vs ctos SVC gap (Track B B2) | Read [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md) | **Documented** inspection map. No Linux numbers in `src/`. Not a Linux ABI. |
+| Linux ELF / auxv / `PT_INTERP` vs freestanding loader (Track B B4) | Read [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md) | **Documented** gap ADR. Track A loader stays reusable. Does not accept `PT_INTERP`. Not dynamic Linux ELF. |
 
 File presence of this note is not an app runtime. See the [honesty ledger](honesty-ledger.md).

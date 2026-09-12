@@ -59,6 +59,7 @@
 - [ADR-030 OS vs app slots](03-adr/ADR-030-os-app-slots.md)
 - [ADR-031 Linux-compat goals](03-adr/ADR-031-linux-compat-goals.md)
 - [ADR-032 Track A leftovers](03-adr/ADR-032-track-a-leftovers.md)
+- [ADR-033 Linux ELF / auxv / PT_INTERP](03-adr/ADR-033-linux-elf-auxv-pt-interp.md)
 
 # Roadmap
 

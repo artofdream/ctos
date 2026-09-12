@@ -29,7 +29,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 | B1 | ADR: Linux-compat goals & non-goals | **Documented** ([#41](https://github.com/artofdream/ctos/issues/41), [ADR-031](../03-adr/ADR-031-linux-compat-goals.md)). ABI **subset** research; keep ctos specificity; **not claiming Linux userspace yet**. Cites [ADR-029](../03-adr/ADR-029-containers-nongoal.md); does not reopen containers as Planned. |
 | B2 | Syscall surface map (Linux aarch64 vs ctos SVC) | **Documented** ([#42](https://github.com/artofdream/ctos/issues/42), [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)). Inspection map only. No Linux numbers in `src/`. **Not claiming Linux userspace.** |
 | B3 | Process model vs Linux (fork/exec/wait) | **Planned** ([#43](https://github.com/artofdream/ctos/issues/43)) |
-| B4 | Linux ELF / auxv / `PT_INTERP` vs freestanding loader | **Planned** ([#44](https://github.com/artofdream/ctos/issues/44)) |
+| B4 | Linux ELF / auxv / `PT_INTERP` vs freestanding loader | **Documented** ([#44](https://github.com/artofdream/ctos/issues/44), [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)). Gap ADR only. Track A loader stays reusable. **Does not accept `PT_INTERP`.** **Not claiming dynamic Linux ELF.** |
 | B5 | Linux VFS concepts vs thin ctos VFS | **Planned** ([#45](https://github.com/artofdream/ctos/issues/45)) |
 | B6 | Decision: compat layer vs reimplement vs never | **Planned** ([#46](https://github.com/artofdream/ctos/issues/46)) |
 | B7 | Containers remain a non-goal (OCI needs a Linux host) | **Documented** ([#47](https://github.com/artofdream/ctos/issues/47), [ADR-029](../03-adr/ADR-029-containers-nongoal.md)). Site: [hosting-apps.md](../overview/hosting-apps.md) (extra: [host-apps.md](../framework/host-apps.md)). Ledger: absence **Verified**; not Planned. |
@@ -42,7 +42,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 
 **Out:** full Linux ABI as a promise; guest containers ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)); replacing SVC `#n` / `libctos` with Linux `x8` numbers in a research mile; claiming userspace because A3 loads ELF64 or A9 reads FAT `/hello`.
 
-B2 is **Documented** (gap table). B3–B6 stay **Planned** research. They compare process / ELF / VFS concepts and then decide (compat layer vs reimplement vs **never**). This page does not implement them. File presence of ADR-031 or the B2 note is not a Linux userspace probe.
+B2 is **Documented** (syscall gap table). B4 is **Documented** (ELF / auxv / `PT_INTERP` gap). B3 / B5 / B6 stay **Planned** research. They compare process / VFS concepts and then decide (compat layer vs reimplement vs **never**). This page does not implement them. File presence of ADR-031, the B2 note, or ADR-033 is not a Linux userspace probe.
 
 ## B2 — syscall gap map
 
@@ -51,6 +51,16 @@ B2 is **Documented** (gap table). B3–B6 stay **Planned** research. They compar
 **Keep:** no Linux `svc #0` / `x8` numbers in `src/` this mile. Track A `SVC #<n>` stays. **No row is `present`** (convention + number space both miss). Related Track A SVCs are **partial**. Namespace/mount stay **never-per-ADR-031** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
 
 B3–B6 must not treat this table as an implementation backlog. B6 may choose **never**.
+
+## B4 — Linux ELF / auxv / PT_INTERP vs the freestanding loader
+
+[ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md) compares Linux `exec` of an ELF (interpreter + auxv + `PT_DYNAMIC`) with today’s A3 loader ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)).
+
+**Keep:** the Track A parser reusable (`ET_EXEC`, `PT_LOAD`, reject `PT_INTERP`, reject W+X). In-tree `libctos` apps stay on that path.
+
+**Out:** accepting `PT_INTERP` in `src/`; claiming musl/glibc or dynamic Linux ELF; treating A9 FAT `/hello` as `execve`.
+
+Static musl still needs a Linux stack/auxv and the B2 syscall surface. Dynamic musl/glibc also need an interpreter. **Not claiming dynamic Linux ELF.** B3 / B5 / B6 stay Planned. B6 may choose **never**.
 
 ## B7 — containers are a non-goal
 

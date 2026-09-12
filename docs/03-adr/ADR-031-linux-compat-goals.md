@@ -35,7 +35,7 @@ This ADR does **not** implement B2–B6. It does **not** mint FR-16+ or NFR-15+.
    | --- | --- | --- |
    | B2 ([#42](https://github.com/artofdream/ctos/issues/42)) | Map Linux aarch64 syscalls vs today’s ctos SVC (16–23 + reserved 0–2) | Do not add Linux syscall numbers to `src/` |
    | B3 ([#43](https://github.com/artofdream/ctos/issues/43)) | Process model vs Linux `fork` / `exec` / `wait` | Do not add those syscalls |
-   | B4 ([#44](https://github.com/artofdream/ctos/issues/44)) | Linux ELF / auxv / `PT_INTERP` vs the freestanding loader | Do not accept `PT_INTERP` |
+   | B4 ([#44](https://github.com/artofdream/ctos/issues/44)) | Linux ELF / auxv / `PT_INTERP` vs the freestanding loader | Do not accept `PT_INTERP`. Gap ADR: [ADR-033](ADR-033-linux-elf-auxv-pt-interp.md). |
    | B5 ([#45](https://github.com/artofdream/ctos/issues/45)) | Linux VFS concepts vs the thin ctos VFS | Do not grow POSIX `open` flags / dentries |
    | B6 ([#46](https://github.com/artofdream/ctos/issues/46)) | Decision: compat layer vs reimplement vs **never** | Do not treat “compat layer” as already chosen |
 
@@ -79,6 +79,6 @@ This ADR does **not** implement B2–B6. It does **not** mint FR-16+ or NFR-15+.
 ## Consequences
 
 - Docs: [track-b.md](../04-roadmap/track-b.md) B1 becomes **Documented**. [SUMMARY.md](../SUMMARY.md) and [roadmap.md](../04-roadmap/roadmap.md) link here. Site extra: [hosting-apps.md](../overview/hosting-apps.md) / [host-apps.md](../framework/host-apps.md) point at the frame without a userspace claim.
-- B2–B6 stay **Planned** research. No `src/` change in this PR.
+- B2 is **Documented** (syscall gap note). B4 is **Documented** ([ADR-033](ADR-033-linux-elf-auxv-pt-interp.md)). B3 / B5 / B6 stay **Planned** research. No `src/` change in this PR.
 - Track A remains the product path for in-tree freestanding apps. Cross-update and “app hosting is done” stay unclaimed.
 - Honesty: document inspection only. Do not add a Verified Linux-userspace ledger row because this file exists.
