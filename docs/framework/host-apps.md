@@ -41,5 +41,6 @@ Do not write a container roadmap. Track A gaps (ABI, FS, isolation) are not a pa
 | Host `docker-smoke.sh` builds the kernel | Ledger Docker rows (sponsor / GHA) | Separate claim — host harness only |
 | A host app (Linux ELF, shell, Python) runs in the guest | No such serial marker | **Planned** |
 | Guest is a container host | No OCI/runc/cgroup code | **Verified** absence; **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md); not a later Planned feature) |
+| Linux-compat goals documented (Track B B1) | Read [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) | **Documented** frame. Not Linux userspace. B2–B6 stay Planned research. |
 
 File presence of this note is not an app runtime. See the [honesty ledger](honesty-ledger.md).

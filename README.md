@@ -98,7 +98,7 @@ Start here before adding kernel features:
 | [ADR-022](docs/03-adr/ADR-022-libctos-crt.md) | Freestanding CRT / `libctos`; not a guest ELF loader |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Track A](docs/04-roadmap/track-a.md) | Freestanding app hosting (epic #31). Subordinate to principles. |
-| [Track B](docs/04-roadmap/track-b.md) | Linux-compat research (epic #40). Subordinate to principles. |
+| [Track B](docs/04-roadmap/track-b.md) | Linux-compat research (epic #40, [ADR-031](docs/03-adr/ADR-031-linux-compat-goals.md)). Subordinate to principles. Not Linux userspace. |
 | [Harness map](docs/framework/formula.md) | Shared understanding, domain, outer harness — mapped to kernel work |
 | [Honesty ledger](docs/framework/honesty-ledger.md) | Status words need a probe |
 | [Three pillars](docs/framework/pillars.md) | Antifragility, security, performance (NFR-05 / NFR-10 / NFR-07) |

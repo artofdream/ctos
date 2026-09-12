@@ -188,6 +188,7 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | CI on GitHub (A9 slots / this branch) | `.github/workflows/smoke.yml` on `cursor/a9-os-app-slots-cf00` | Unknown | Cloud qemu-smoke Verified on `9ca7372`. No green `gh run` URL on this tip yet. |
 | mdBook docs site builds locally (A9 / this branch) | `./scripts/docs-build.sh` on `cursor/a9-os-app-slots-cf00` | Verified | 2026-09-12 this cloud VM: `mdbook v0.5.4`; `mdbook-mermaid 0.17.1`; `docs-build: ok`; `book/CNAME` is `ctos.artof.link`. Generator only. Pages GHA on this PR is a separate row. |
 | mdBook docs site builds locally (ADR-002 Track A merge-hat / this branch) | `./scripts/docs-build.sh` on `cursor/adr-002-track-a-merge-hat-0e11` | Verified | 2026-09-12 this cloud VM: `mdbook v0.5.4`; `mdbook-mermaid 0.17.1`; Linux auto-install `x86_64-unknown-linux-gnu`; `docs-build: ok`. Generator only. Kernel `qemu-smoke` not run (no `src/` edit). Distinct-identity merge stays Unknown. |
+| Linux-compat goals documented (ADR-031 / Track B B1) | Read [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) and [track-b.md](../04-roadmap/track-b.md) | Verified | Document inspection. ABI **subset** research frame. **Not claiming Linux userspace.** Guest containers stay **non-goal** (ADR-029). B2–B6 stay Planned. File presence is not a Linux ABI. Kernel `qemu-smoke` not run (no `src/` edit). |
 
 ## How to update
 
