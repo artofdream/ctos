@@ -2,7 +2,7 @@
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
 # EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
-# TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020) + CNTPCT baseline + boot-delta + IRQ-to-handler
+# TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
@@ -341,6 +341,14 @@ if grep -q "ident: live missed" "$log"; then
     echo "qemu-smoke: ident live missed (live identity .text after the stub stayed mapped)" >&2
     exit 1
 fi
+if grep -q "ident: ro-reloc missed" "$log"; then
+    echo "qemu-smoke: ident ro-reloc missed (.rodata pointer rewrite did not run)" >&2
+    exit 1
+fi
+if grep -q "ident: rodata missed" "$log"; then
+    echo "qemu-smoke: ident rodata missed (identity .rodata stayed mapped)" >&2
+    exit 1
+fi
 if ! grep -q "ident: jump" "$log"; then
     echo "qemu-smoke: missing 'ident: jump' on serial (high-VA continuation, qemu exit $qemu_ec)" >&2
     exit 1
@@ -355,6 +363,22 @@ if ! grep -q "ident: range" "$log"; then
 fi
 if ! grep -q "ident: live" "$log"; then
     echo "qemu-smoke: missing 'ident: live' on serial (live identity .text tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: ro-reloc" "$log"; then
+    echo "qemu-smoke: missing 'ident: ro-reloc' on serial (identity .rodata pointer rewrite, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: rodata" "$log"; then
+    echo "qemu-smoke: missing 'ident: rodata' on serial (identity .rodata tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: rodata-fault" "$log"; then
+    echo "qemu-smoke: missing 'ident: rodata-fault' on serial (EL1 identity .rodata DABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: rodata-high" "$log"; then
+    echo "qemu-smoke: missing 'ident: rodata-high' on serial (EL1 high .rodata load, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 if ! grep -q "ident: split" "$log"; then
@@ -378,6 +402,23 @@ if ! grep -q "ident: no el0" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: identity-tear strings present"
+if grep -q "pan: probe missed" "$log"; then
+    echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
+    exit 1
+fi
+if grep -q "pan: enabled" "$log"; then
+    echo "qemu-smoke: pan enabled (PSTATE.PAN must stay off on -cpu cortex-a57)" >&2
+    exit 1
+fi
+if ! grep -q "pan: id=" "$log"; then
+    echo "qemu-smoke: missing 'pan: id=' on serial (PAN capability ID field, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "pan: absent" "$log"; then
+    echo "qemu-smoke: missing 'pan: absent' on serial (PAN unimplemented on -cpu cortex-a57, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: PAN capability strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1

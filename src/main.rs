@@ -17,6 +17,7 @@ mod heap;
 mod libctos;
 mod loader;
 mod paging;
+mod pan;
 mod perf;
 mod qemu;
 mod ro;
@@ -61,8 +62,8 @@ pub extern "C" fn kernel_main() -> ! {
     paging::init();
     // After MMU + high VBAR: fetch the rest from the TTBR1 alias
     // (ADR-019). ADR-020 rewrites rustc vtables then unmaps live
-    // identity `.text`. `_start` stays at 0x40080000.
-    // Not “the kernel moved.”
+    // identity `.text`. ADR-025 unmaps identity `.rodata`. `_start`
+    // stays at 0x40080000. Not “the kernel moved.”
     paging::jump_high(kernel_main_high as *const () as usize as u64);
 }
 
@@ -78,6 +79,17 @@ extern "C" fn kernel_main_high() -> ! {
     }
     if !paging::tear_live_identity_text() {
         uart::write_str_raw("ident: live missed\n");
+    }
+    if !paging::rewrite_identity_rodata_ptrs() {
+        uart::write_str_raw("ident: ro-reloc missed\n");
+    }
+    if !paging::tear_identity_rodata() {
+        uart::write_str_raw("ident: rodata missed\n");
+    }
+    // ADR-026: read ID_AA64MMFR1_EL1.PAN. Does not MSR PAN.
+    // Prints `pan: id=` / `pan: absent` on `-cpu cortex-a57`.
+    if !pan::observe_probe() {
+        uart::write_str_raw("pan: probe missed\n");
     }
     // After MMU + D-cache (SCTLR.C). A pre-MMU store to .bss can be
     // invisible to later cached reads (PR #20 test image; cts-ai Docker
@@ -160,12 +172,17 @@ extern "C" fn kernel_main_high() -> ! {
         if !ttbr1::observe_probe() {
             uart::write_str_raw("ttbr1: probe missed\n");
         }
-        // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019 + ADR-020):
-        // split tables + 16 KiB dedicated range + high jump + vtable reloc
-        // + live identity `.text` tear. `.rodata` / `.data` / heap stay.
-        // Not “the kernel moved.”
+        // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019 + ADR-020
+        // + ADR-025): split tables + 16 KiB dedicated range + high jump +
+        // vtable reloc + live identity `.text` tear + identity `.rodata`
+        // tear. `.data` / heap stay. Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
+        }
+        // PAN ID was printed in kernel_main_high (ADR-026). Fail-closed
+        // if that cut did not publish `pan: absent`.
+        if !pan::pan_absent_ready() {
+            uart::write_str_raw("pan: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.
         if !perf::observe_probe() {

@@ -38,7 +38,7 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Rese
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
 | **Preemption / extra CPUs / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
-Until VFS + slots have probes, “host an application” is a sentence we do not use. That block is **Track A**. A1 landed the kernel SVC ABI. A2 landed `libctos`. A3 landed a guest `PT_LOAD` loader (embedded image, not a filesystem `exec`). A4 landed standing EL0 as the supported path for that loaded image. A5–A9 stay **Planned**. See [Immutability](advantages.md#immutability).
+Until VFS + slots have probes, “host an application” is a sentence we do not use. That block is **Track A**. A1 landed the kernel SVC ABI. A2 landed `libctos`. A3 landed a guest `PT_LOAD` loader (embedded image, not a filesystem `exec`). A4 landed standing EL0 as the supported path for that loaded image. A5 landed the identity `.rodata` tear and a PAN ID-field probe (enable Planned). A6–A9 stay **Planned**. See [Immutability](advantages.md#immutability).
 
 ## Containers
 

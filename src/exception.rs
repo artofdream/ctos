@@ -27,8 +27,10 @@
 //! Other lower-EL slots still park. After paging::init, `VBAR_EL1` is
 //! the high alias of this table. Identity `_start` stays at `0x4008_0000`.
 //! A dedicated identity text range plus live identity `.text` after the
-//! boot stub are unmapped (ADR-019 / ADR-020); `.rodata` / `.data` /
-//! heap stay. Not “the kernel moved.”
+//! boot stub are unmapped (ADR-019 / ADR-020). Identity `.rodata` is
+//! unmapped after a pointer rewrite (ADR-025). `.data` / heap stay.
+//! PAN enable stays Planned on `-cpu cortex-a57` (ADR-026). Not “the
+//! kernel moved.”
 
 use core::arch::global_asm;
 use core::fmt::Write;
@@ -88,6 +90,8 @@ static EXPECT_TTBR1_DABORT: AtomicBool = AtomicBool::new(false);
 static TTBR1_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_TEAR: AtomicBool = AtomicBool::new(false);
 static IDENT_TEAR_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_IDENT_RODATA: AtomicBool = AtomicBool::new(false);
+static IDENT_RODATA_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_EL0: AtomicBool = AtomicBool::new(false);
 static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
@@ -654,6 +658,17 @@ pub fn ident_tear_caught() -> bool {
     IDENT_TEAR_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm EL1 load of a torn identity `.rodata` VA (ADR-025).
+pub fn arm_ident_rodata() {
+    IDENT_RODATA_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_IDENT_RODATA.store(true, Ordering::SeqCst);
+}
+
+pub fn ident_rodata_caught() -> bool {
+    EXPECT_IDENT_RODATA.store(false, Ordering::SeqCst);
+    IDENT_RODATA_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// Arm EL0 load of a torn identity text VA (ADR-018 / ADR-019).
 pub fn arm_ident_el0() {
     IDENT_EL0_CAUGHT.store(false, Ordering::SeqCst);
@@ -952,6 +967,15 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         IDENT_TEAR_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("ident: fault\n");
         ctx.elr = ctx.lr;
+        return;
+    }
+    if is_trans_dabort(ctx.esr)
+        && EXPECT_IDENT_RODATA.swap(false, Ordering::SeqCst)
+        && crate::paging::is_torn_identity_va(far_el1())
+    {
+        IDENT_RODATA_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("ident: rodata-fault\n");
+        ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }
     let ec = (ctx.esr >> 26) & 0x3f;
