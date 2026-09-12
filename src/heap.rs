@@ -1,9 +1,11 @@
-//! Kernel heap: first-fit free list on identity-mapped frames (FR-10 / M8).
+//! Kernel heap: first-fit free list on TTBR1 high VAs (FR-10 / M8 / ADR-038).
 //!
-//! After the EL1 identity map is on, `init` takes a contiguous run of
-//! frames from the bump pool and treats that VA==PA window as the heap.
-//! `Box` / `Vec` go through `GlobalAlloc`. Not a growing heap, not a
-//! userspace allocator, not the scheduler. See ADR-009.
+//! After the EL1 identity map is on and the high split is ready, `init`
+//! takes a contiguous run of frames from the bump pool and installs the
+//! free list at the TTBR1 alias (`va + TTBR1_BASE`). `GlobalAlloc` then
+//! returns high VAs. Identity of that pool is unmapped later
+//! (`ident: heap`). Not a growing heap, not a userspace allocator, not
+//! the scheduler. See ADR-009 and ADR-038.
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -12,8 +14,14 @@ use core::fmt::Write;
 use core::ptr::{self, NonNull};
 use spin::Mutex;
 
+use core::sync::atomic::{AtomicU64, Ordering};
+
 use crate::frame;
+use crate::paging;
 use crate::uart;
+
+/// Physical / identity start of the heap pool. 0 until `init`.
+static HEAP_PA: AtomicU64 = AtomicU64::new(0);
 
 /// 16 frames = 64 KiB. Enough for Box/Vec smoke; not a general size claim.
 pub const HEAP_FRAMES: usize = 16;
@@ -21,6 +29,9 @@ pub const HEAP_SIZE: usize = HEAP_FRAMES * frame::FRAME_SIZE as usize;
 
 const ALIGN: usize = 16;
 const PROBE: u64 = 0x4354_4F53; // "CTOS"
+/// Known heap word for ADR-038 high-twin load after identity unmap.
+pub const IDENT_MAGIC: u64 = 0x4354_4F53_4845_4150;
+static HEAP_MAGIC_PA: AtomicU64 = AtomicU64::new(0);
 
 #[repr(C, align(16))]
 struct Header {
@@ -199,12 +210,49 @@ unsafe impl GlobalAlloc for LockedHeap {
 #[global_allocator]
 static ALLOCATOR: LockedHeap = LockedHeap(Mutex::new(Heap::empty()));
 
-/// Take a contiguous frame run and install one free block. MMU must be on.
+/// Take a contiguous frame run and install one free block at the TTBR1 alias.
+///
+/// Identity of the pool stays mapped until `paging::tear_identity_heap`.
+/// High split must already be ready (ADR-037 path). Fail-closed: leave
+/// the heap unready if the high twin is missing.
 pub fn init() {
     let Some(base) = frame::alloc_contiguous(HEAP_FRAMES) else {
         return;
     };
-    ALLOCATOR.0.lock().init(base as usize, HEAP_SIZE);
+    let high = paging::to_high_va(base);
+    if !paging::is_high_va(high) || !paging::high_mapped(high) {
+        return;
+    }
+    HEAP_PA.store(base, Ordering::SeqCst);
+    ALLOCATOR.0.lock().init(high as usize, HEAP_SIZE);
+    // Leak one Box so the high twin still holds a known word after tear.
+    let boxed = Box::new(IDENT_MAGIC);
+    let raw = Box::into_raw(boxed);
+    HEAP_MAGIC_PA.store(paging::identity_pa(raw as u64), Ordering::SeqCst);
+}
+
+/// Identity / PA start of the heap pool. 0 if `init` did not publish.
+#[allow(dead_code)]
+pub fn heap_pa() -> u64 {
+    // PA even if a later pointer rewrite tagged the stored word high.
+    paging::identity_pa(HEAP_PA.load(Ordering::SeqCst))
+}
+
+/// Identity PA of the leaked ident-magic Box. 0 if init did not plant.
+#[allow(dead_code)]
+pub fn ident_magic_pa() -> u64 {
+    paging::identity_pa(HEAP_MAGIC_PA.load(Ordering::SeqCst))
+}
+
+/// First byte past the heap pool (identity / PA).
+#[allow(dead_code)]
+pub fn heap_pa_end() -> u64 {
+    let lo = heap_pa();
+    if lo == 0 {
+        0
+    } else {
+        lo + HEAP_SIZE as u64
+    }
 }
 
 #[allow(dead_code)] // `#[test_case]` + hello probe.
@@ -272,10 +320,16 @@ pub fn observe_probe() -> bool {
 fn heap_lives_in_frame_pool() {
     assert!(is_ready());
     let base = heap_base();
-    assert_eq!(base & (frame::FRAME_SIZE - 1), 0);
-    assert!(base >= frame::pool_start());
+    assert!(
+        paging::is_high_va(base),
+        "GlobalAlloc base must be a TTBR1 VA (ADR-038)"
+    );
+    let pa = paging::identity_pa(base);
+    assert_eq!(pa, heap_pa());
+    assert_eq!(pa & (frame::FRAME_SIZE - 1), 0);
+    assert!(pa >= frame::pool_start());
     assert_eq!(heap_end(), base + HEAP_SIZE as u64);
-    assert!(heap_end() <= frame::pool_end());
+    assert!(paging::identity_pa(heap_end()) <= frame::pool_end());
 }
 
 #[cfg(test)]

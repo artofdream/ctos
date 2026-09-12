@@ -28,7 +28,7 @@ After the ADR-019 high-VA jump, PC-relative accesses (ADRP) already reach the TT
 6. **Keep heap identity-mapped.** Frames at/after `__kernel_end` stay. Print `ident: heap-stay`. Do not claim a high allocator.
 7. **Keep `_start` / QEMU `-kernel` at `0x4008_0000`.** Do not change default `-cpu`. Do not claim PAN.
 8. **Fail-closed probe.** New `ident: data-reloc` / `ident: data` / `ident: data-fault` / `ident: data-high`. EL1 `LDR` of a torn identity `.data` VA is a current-EL translation DABORT. EL1 `LDR` of the high twin still returns a known `.data` magic. `scripts/qemu-smoke.sh` greps those strings and rejects missed markers. Replace `ident: data-stay`. Split `#[test_case]` into heap-still-mapped vs data-torn.
-9. **Still Planned.** Identity heap tear (high allocator VAs). PAN enable on `-cpu cortex-a57`; EL0 entry without `TLBI VMALLE1`; lower-EL IRQ while standing; umbrella EL0 isolation.
+9. **Still Planned (at accept time).** Identity heap tear (high allocator VAs). Superseded by [ADR-038](ADR-038-identity-heap-tear.md). PAN enable on `-cpu cortex-a57`; EL0 entry without `TLBI VMALLE1`; lower-EL IRQ while standing; umbrella EL0 isolation.
 10. **NFR-10 text** is revised in place (ID unchanged). Do not mint NFR-15+.
 
 ## Honesty
@@ -43,4 +43,4 @@ Say “identity `.data`/`.bss`/linker stacks were unmapped while the high twin a
 ## Consequences
 
 - `paging::rewrite_identity_data_ptrs` / `paging::relocate_stacks_high` / `paging::tear_identity_data` own the cut. [ADR-025](ADR-025-identity-rodata-tear.md) remains the `.rodata` tear. [ADR-032](ADR-032-track-a-leftovers.md) stay markers for `.data` are superseded by this tear; heap stay markers remain.
-- A later ADR may return high heap VAs, then unmap identity heap. That work is not this cut.
+- [ADR-038](ADR-038-identity-heap-tear.md) returns high heap VAs and unmaps identity heap. That work is not this cut.

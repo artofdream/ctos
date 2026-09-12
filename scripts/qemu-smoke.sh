@@ -2,7 +2,7 @@
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
 # EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
-# TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
+# TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025/037/038) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # virtio-blk + FAT16 (ADR-028): host builds target/fat16.img and QEMU
@@ -560,8 +560,20 @@ if grep -q "ident: data missed" "$log"; then
     echo "qemu-smoke: ident data missed (identity .data/.bss/stacks stayed mapped)" >&2
     exit 1
 fi
-if grep -q "ident: miss heap-stay" "$log"; then
-    echo "qemu-smoke: identity heap vanished (tear is Planned; allocator still identity)" >&2
+if grep -q "ident: heap-reloc missed" "$log"; then
+    echo "qemu-smoke: ident heap-reloc missed (heap pointer rewrite did not run)" >&2
+    exit 1
+fi
+if grep -q "ident: heap missed" "$log"; then
+    echo "qemu-smoke: ident heap missed (identity heap stayed mapped)" >&2
+    exit 1
+fi
+if grep -q "ident: miss heap-ready" "$log"; then
+    echo "qemu-smoke: identity heap tear did not publish" >&2
+    exit 1
+fi
+if grep -q "ident: heap-stay" "$log"; then
+    echo "qemu-smoke: ident heap-stay still printed (heap should be torn)" >&2
     exit 1
 fi
 if ! grep -q "ident: data-reloc" "$log"; then
@@ -580,8 +592,20 @@ if ! grep -q "ident: data-high" "$log"; then
     echo "qemu-smoke: missing 'ident: data-high' on serial (EL1 high .data load, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-if ! grep -q "ident: heap-stay" "$log"; then
-    echo "qemu-smoke: missing 'ident: heap-stay' on serial (identity heap still mapped, qemu exit $qemu_ec)" >&2
+if ! grep -q "ident: heap-reloc" "$log"; then
+    echo "qemu-smoke: missing 'ident: heap-reloc' on serial (identity heap pointer rewrite, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: heap lo=" "$log"; then
+    echo "qemu-smoke: missing 'ident: heap' on serial (identity heap tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: heap-fault" "$log"; then
+    echo "qemu-smoke: missing 'ident: heap-fault' on serial (EL1 identity heap DABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: heap-high" "$log"; then
+    echo "qemu-smoke: missing 'ident: heap-high' on serial (EL1 high heap load, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 echo "qemu-smoke: identity-tear strings present"

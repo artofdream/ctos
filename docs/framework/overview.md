@@ -46,7 +46,7 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
 - **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`); a loaded `libctos` hello as a standing **task** until `exit` (`el0: task-ok`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
-- **Cannot run:** Linux ELF, shell, Python, network, POSIX disk apps, SMP, isolated userspace. Isolation / PAN enable / identity `.data`/heap tear stay **Planned**. Filesystem stance: [filesystem.md](filesystem.md) (memfs + read-only FAT16). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
+- **Cannot run:** Linux ELF, shell, Python, network, POSIX disk apps, SMP, isolated userspace. Isolation / PAN enable stay **Planned**. Identity `.data`/heap tears are ADR-037/038. Filesystem stance: [filesystem.md](filesystem.md) (memfs + read-only FAT16). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
 
 ## Building or porting
 

@@ -30,3 +30,4 @@ Options:
 - `scripts/qemu-smoke.sh` requires `heap: ok` after `paging: ok`, then still requires M2–M7 strings.
 - The frame pool shrinks by 64 KiB at boot. M7 frame/map tests still have the rest of the 128 MiB guest.
 - This ADR does not claim Raspberry Pi or a production allocator. M9 task stacks on this heap are [ADR-010](ADR-010-cooperative-rr-el1.md).
+- [ADR-038](ADR-038-identity-heap-tear.md) keeps the first-fit algorithm and moves the pool VAs to the TTBR1 alias, then unmaps identity heap. The 64 KiB size is unchanged.

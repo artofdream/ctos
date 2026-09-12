@@ -61,4 +61,4 @@ Host kernel ELF + published `hello-libctos.elf`. Guest reads FAT `/hello` throug
 
 ## Still Planned (Track A)
 
-A9 cross-update (same app on OS n and n+1). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.
+A9 cross-update (same app on OS n and n+1). Isolation **enable** (PAN) stays Planned. Identity `.data`/heap tears are ADR-037/038.

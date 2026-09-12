@@ -75,7 +75,7 @@ That is **not** a process, not POSIX, and not “EL0 isolated.”
 
 **Still Planned:**
 
-1. Isolation miles: PAN **enable** (absent on `cortex-a57` — [ADR-026](../03-adr/ADR-026-pan-capability.md)), identity `.data` / heap tear (`.rodata` is [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)), umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5 took the `.rodata` + PAN ID-field cut.
+1. Isolation miles: PAN **enable** (absent on `cortex-a57` — [ADR-026](../03-adr/ADR-026-pan-capability.md)), remaining identity RAM after the heap / `_start`, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5 took `.rodata` (ADR-025), `.data` (ADR-037), heap (ADR-038), and the PAN ID-field cut.
 2. Product app hosting. Leftover cross-update is the two-boot smoke on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). A2–A4 load FAT `/hello`.
 
 “Write a user program for ctos” still means: link `libctos` in-tree, publish `target/hello-libctos.elf`, and put it on FAT `/hello` — **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.

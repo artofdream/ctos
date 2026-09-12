@@ -68,7 +68,8 @@ pub extern "C" fn kernel_main() -> ! {
     // (ADR-019). ADR-020 rewrites rustc vtables then unmaps live
     // identity `.text`. ADR-037 rewrites `.data` pointers then
     // ADR-025 unmaps identity `.rodata`; ADR-037 relocates SP and
-    // unmaps identity `.data`/stacks. Heap stays. `_start` stays at
+    // unmaps identity `.data`/stacks. ADR-038 installs the heap at
+    // the TTBR1 alias and unmaps identity heap. `_start` stays at
     // 0x40080000. Not “the kernel moved.”
     paging::jump_high(kernel_main_high as *const () as usize as u64);
 }
@@ -114,6 +115,14 @@ extern "C" fn kernel_main_high() -> ! {
     perf::mark_early();
     frame::init();
     heap::init();
+    // ADR-038: high GlobalAlloc VAs, then unmap identity heap.
+    // Must run after heap::init and after the `.data` tear.
+    if !paging::rewrite_identity_heap_ptrs() {
+        uart::write_str_raw("ident: heap-reloc missed\n");
+    }
+    if !paging::tear_identity_heap() {
+        uart::write_str_raw("ident: heap missed\n");
+    }
     vfs::init();
     virtio::init();
     fat::init();
@@ -214,10 +223,10 @@ extern "C" fn kernel_main_high() -> ! {
             uart::write_str_raw("ttbr1: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019 + ADR-020
-        // + ADR-025 + ADR-037): split tables + 16 KiB dedicated range +
-        // high jump + vtable reloc + live identity `.text` tear +
-        // identity `.rodata` tear + identity `.data`/stack tear. Heap
-        // stays (`ident: heap-stay`). Not “the kernel moved.”
+        // + ADR-025 + ADR-037 + ADR-038): split tables + 16 KiB dedicated
+        // range + high jump + vtable reloc + live identity `.text` tear +
+        // identity `.rodata` tear + identity `.data`/stack tear + identity
+        // heap tear. Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
         }
