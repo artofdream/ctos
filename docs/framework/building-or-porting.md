@@ -65,7 +65,7 @@ That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-bu
 
 ## Guest loader (A3)
 
-`src/loader.rs` walks ELF64 LE AArch64 `ET_EXEC` program headers, maps `PT_LOAD` pages in the user map-window, and `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. A2–A4 still `include_bytes!`. A9 also reads FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). Not a Linux ABI.
+`src/loader.rs` walks ELF64 LE AArch64 `ET_EXEC` program headers, maps `PT_LOAD` pages in the user map-window, and `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. A2–A4 and A9 read FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-031](../03-adr/ADR-031-track-a-leftovers.md)). Not a Linux ABI.
 
 ## Standing EL0 as normal mode (A4)
 
@@ -76,11 +76,11 @@ That is **not** a process, not POSIX, and not “EL0 isolated.”
 **Still Planned:**
 
 1. Isolation miles: PAN **enable** (absent on `cortex-a57` — [ADR-026](../03-adr/ADR-026-pan-capability.md)), identity `.data` / heap tear (`.rodata` is [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)), umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5 took the `.rodata` + PAN ID-field cut.
-2. A9 cross-update (same app on OS n and n+1). The first cut is two artifacts + FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). A2–A4 still embed.
+2. Product app hosting. Leftover cross-update is the two-boot smoke on this OS and `ba6541c` ([ADR-031](../03-adr/ADR-031-track-a-leftovers.md)). A2–A4 load FAT `/hello`.
 
 “Write a user program for ctos” still means: link `libctos` in-tree, publish `target/hello-libctos.elf`, and put it on FAT `/hello` — **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 
-The **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) has a first cut. Cross-update is not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
+The **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) has a first cut plus leftover two-boot smoke. Product app hosting is not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
 
 ## Do not invent
 

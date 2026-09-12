@@ -10,14 +10,14 @@ This is **not** a hosted app, not glibc, not `exec` of a file on disk.
 
 ## Rebuild
 
-The kernel `build.rs` already builds this crate and `include_bytes!` the ELF plus a flattened `PT_LOAD` image. The usual guest rebuild is enough:
+The kernel `build.rs` already builds this crate and publishes `target/hello-libctos.elf`. A2–A4 and A9 read FAT `/hello`. The usual guest rebuild is enough:
 
 ```bash
 cargo build                 # from the repo root
 ./scripts/qemu-smoke.sh
 ```
 
-Standalone (same target the kernel uses; still must be re-embedded to run on the guest):
+Standalone (same target the kernel uses; publish + FAT `/hello` to run on the guest):
 
 ```bash
 cargo build --release \
@@ -37,6 +37,6 @@ Do not use `aarch64-unknown-linux-gnu`. A Linux `ET_DYN` will not load.
 
 - No `fs_open` / `fs_read`. `libctos` exports those wrappers; this hello does not call them.
 - No argv, environ, or libc.
-- A2–A4 still bundle a copy into `target/aarch64-ctos/debug/ctos`. A9 also publishes `target/hello-libctos.elf` onto FAT `/hello` (`slot: ok`). Cross-update stays Planned.
+- A2–A4 and A9 load `target/hello-libctos.elf` from FAT `/hello` (`libctos:*` / `loader:*` / `el0: task-*` / `slot: ok`). Cross-update is the leftover two-boot smoke on this OS and `ba6541c`.
 
 Catalog: [user/README.md](../README.md). Site: [What can run today](../../docs/overview/what-can-run.md).

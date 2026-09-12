@@ -2,27 +2,36 @@
 //!
 //! The kernel copies a host-built image (linked against `libctos`) onto
 //! `paging::EL0_PAGE` and `ERET`s to it — same standing-EL0 style as A1.
-//! Not an ELF loader (A3). Not app hosting. Not POSIX.
+//! Leftover mile (ADR-031): bytes come from FAT `/hello` (flatten
+//! `PT_LOAD`), not `include_bytes!`. Still not an ELF loader (A3).
+//! Not app hosting. Not POSIX.
 
+use alloc::vec::Vec;
 use core::fmt::Write;
 use core::hint::black_box;
 
 use crate::el0;
 use crate::exception;
 use crate::frame;
+use crate::loader;
 use crate::paging;
 use crate::syscall;
 use crate::uart;
 
 include!(concat!(env!("OUT_DIR"), "/hello_libctos_meta.rs"));
 const _: () = assert!(HELLO_ELF_LEN > HELLO_LEN);
-
-const HELLO_BIN: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/hello-libctos.bin"));
-
 const _: () = assert!(HELLO_LOAD_VA == paging::EL0_PAGE);
 const _: () = assert!(HELLO_LEN > 0);
 const _: () = assert!(HELLO_LEN <= 3584);
-const _: () = assert!(HELLO_BIN.len() == HELLO_LEN);
+
+fn hello_bin() -> Option<Vec<u8>> {
+    let elf = loader::hello_elf()?;
+    let image = loader::flatten_pt_load(&elf)?;
+    if image.len() != HELLO_LEN {
+        return None;
+    }
+    Some(image)
+}
 
 fn sync_range(ptr: *const u8, len: usize) {
     let mut x = ptr as u64;
@@ -68,10 +77,17 @@ fn run_hello() -> bool {
         frame::free(stack_pa);
         return false;
     }
+    let Some(bin) = hello_bin() else {
+        let _ = paging::unmap_page(stack_va);
+        let _ = paging::unmap_page(va);
+        frame::free(stack_pa);
+        frame::free(code_pa);
+        return false;
+    };
     unsafe {
-        core::ptr::copy_nonoverlapping(HELLO_BIN.as_ptr(), va as *mut u8, HELLO_BIN.len());
+        core::ptr::copy_nonoverlapping(bin.as_ptr(), va as *mut u8, bin.len());
     }
-    sync_range(va as *const u8, HELLO_BIN.len());
+    sync_range(va as *const u8, bin.len());
     // Rust `main` saves x30 on SP. The code page is EL0-exec / no EL0 data
     // (and WXN forbids making it W+X). Stack is a second EL0-RW NX page.
     let user_sp = stack_va + 4096;
@@ -128,20 +144,22 @@ fn libctos_numbers_match_a1_abi() {
 #[cfg(test)]
 #[test_case]
 fn libctos_payload_encodes_public_svc_only() {
+    let bin = hello_bin().expect("FAT /hello flatten must match this build");
+    assert_eq!(bin.len(), HELLO_LEN);
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: &[u32] = unsafe {
-        core::slice::from_raw_parts(HELLO_BIN.as_ptr().cast::<u32>(), HELLO_BIN.len() / 4)
+        core::slice::from_raw_parts(bin.as_ptr().cast::<u32>(), bin.len() / 4)
     };
     assert!(
         words.contains(&svc(16)) && words.contains(&svc(17)) && words.contains(&svc(18)),
-        "embedded payload must issue SVC #16/#17/#18"
+        "FAT payload must issue SVC #16/#17/#18"
     );
     assert!(
         !words.contains(&svc(0)) && !words.contains(&svc(1)) && !words.contains(&svc(2)),
-        "embedded payload must not issue reserved SVC #0/#1/#2"
+        "FAT payload must not issue reserved SVC #0/#1/#2"
     );
-    assert!(HELLO_BIN.windows(12).any(|w| w == b"libctos: hi\n"));
-    assert!(HELLO_BIN.windows(12).any(|w| w == b"libctos: ok\n"));
+    assert!(bin.windows(12).any(|w| w == b"libctos: hi\n"));
+    assert!(bin.windows(12).any(|w| w == b"libctos: ok\n"));
 }
 
 #[cfg(test)]

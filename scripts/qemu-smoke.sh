@@ -8,6 +8,9 @@
 # virtio-blk + FAT16 (ADR-028): host builds target/fat16.img and QEMU
 # attaches `-drive if=none,file=...,id=hd0 -device virtio-blk-device,drive=hd0`.
 # A9 / ADR-030: the same image also carries FAT /hello (app ELF).
+# Leftover mile (ADR-031): A2–A4 also load that FAT file (no embed);
+# host smoke then boots the same app ELF on documented prior OS
+# ba6541c (A9 merge — earliest main tip with the slot path).
 # Host `-drive` without guest virtio + VFS read is not a probe.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
@@ -77,6 +80,14 @@ if cmp -s "$elf" "$app"; then
     exit 1
 fi
 echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes)"
+echo "qemu-smoke: kernel rebuild compiled app payload (build.rs published $app)"
+
+# Embed honesty: A2–A4 must prove markers via FAT /hello, not include_bytes!.
+if grep -R -n --include='*.rs' 'include_bytes!.*hello-libctos' src; then
+    echo "qemu-smoke: kernel still embeds hello-libctos (A2-A4 must load FAT /hello)" >&2
+    exit 1
+fi
+echo "qemu-smoke: kernel does not include_bytes! hello-libctos"
 
 # A7 host-visible FAT16 (ADR-028) + A9 /hello app slot.
 img="${CTOS_BLK_IMAGE:-$ROOT/target/fat16.img}"
@@ -522,6 +533,22 @@ if ! grep -q "ident: no el0" "$log"; then
     echo "qemu-smoke: missing 'ident: no el0' on serial (EL0 torn-page DABORT, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if grep -q "ident: miss data-stay" "$log"; then
+    echo "qemu-smoke: identity .data vanished (tear is Planned; SP/statics still need it)" >&2
+    exit 1
+fi
+if grep -q "ident: miss heap-stay" "$log"; then
+    echo "qemu-smoke: identity heap vanished (tear is Planned; allocator still identity)" >&2
+    exit 1
+fi
+if ! grep -q "ident: data-stay" "$log"; then
+    echo "qemu-smoke: missing 'ident: data-stay' on serial (identity .data still mapped, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: heap-stay" "$log"; then
+    echo "qemu-smoke: missing 'ident: heap-stay' on serial (identity heap still mapped, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 echo "qemu-smoke: identity-tear strings present"
 if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
@@ -603,6 +630,89 @@ if grep -q "exception: fatal probe missed" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: fatal nested string present"
+
+# A9 leftover: same published app ELF on this OS (already grepped) and
+# documented prior OS ba6541c (A9 merge; earliest main tip with FAT /hello).
+# Invent nothing: that SHA is real and has the slot path. File presence of
+# a stored kernel blob is not this probe — we build that commit.
+PRIOR_OS_SHA="${CTOS_PRIOR_OS_SHA:-ba6541c8e17c75c89c42451cd721735eddb36c2f}"
+this_os=$(git rev-parse HEAD)
+if [ "$this_os" = "$PRIOR_OS_SHA" ]; then
+    echo "qemu-smoke: cross-update needs this OS != prior $PRIOR_OS_SHA" >&2
+    exit 1
+fi
+if ! git cat-file -e "${PRIOR_OS_SHA}^{commit}"; then
+    echo "qemu-smoke: missing prior OS commit $PRIOR_OS_SHA (do not invent a kernel blob)" >&2
+    exit 1
+fi
+cross_app=$(mktemp)
+cross_img=$(mktemp)
+cross_log=$(mktemp)
+trap 'rm -f "$log" "$cross_app" "$cross_img" "$cross_log"' EXIT
+cp -f "$app" "$cross_app"
+if ! command -v sha256sum >/dev/null 2>&1; then
+    echo "qemu-smoke: sha256sum not on PATH (needed to pin the same app bytes)" >&2
+    exit 1
+fi
+app_hash=$(sha256sum "$cross_app" | awk '{print $1}')
+if [ -z "$app_hash" ] || [ "${#app_hash}" -lt 64 ]; then
+    echo "qemu-smoke: could not hash app payload $cross_app" >&2
+    exit 1
+fi
+echo "qemu-smoke: cross-update app sha256=$app_hash bytes=$app_bytes"
+prior_wt="$ROOT/target/prior-os-$PRIOR_OS_SHA"
+if [ ! -f "$prior_wt/.git" ] && [ ! -d "$prior_wt/.git" ]; then
+    echo "qemu-smoke: git worktree add prior OS $PRIOR_OS_SHA"
+    git worktree add --detach "$prior_wt" "$PRIOR_OS_SHA"
+fi
+if [ "$(git -C "$prior_wt" rev-parse HEAD)" != "$PRIOR_OS_SHA" ]; then
+    echo "qemu-smoke: prior worktree HEAD is not $PRIOR_OS_SHA" >&2
+    exit 1
+fi
+echo "qemu-smoke: cargo build prior OS $PRIOR_OS_SHA"
+(cd "$prior_wt" && cargo +nightly build)
+prior_elf="$prior_wt/target/aarch64-ctos/debug/ctos"
+if [ ! -x "$prior_elf" ]; then
+    echo "qemu-smoke: missing prior kernel $prior_elf" >&2
+    exit 1
+fi
+if cmp -s "$elf" "$prior_elf"; then
+    echo "qemu-smoke: this OS and prior OS produced the same kernel ELF" >&2
+    exit 1
+fi
+echo "qemu-smoke: QEMU virt serial + RX inject prior OS (timeout ${TIMEOUT_SECS}s)"
+set +e
+CTOS_QEMU_TIMEOUT="$TIMEOUT_SECS" CTOS_BLK_IMAGE="$cross_img" CTOS_APP_ELF="$cross_app" \
+    python3 "$ROOT/scripts/qemu-serial-inject.py" "$prior_elf" >"$cross_log" 2>&1
+prior_ec=$?
+set -e
+cat "$cross_log"
+if grep -q "slot: probe missed" "$cross_log"; then
+    echo "qemu-smoke: prior OS slot probe missed (same app on $PRIOR_OS_SHA)" >&2
+    exit 1
+fi
+if grep -q "slot: embed" "$cross_log"; then
+    echo "qemu-smoke: prior OS slot used the A3 embed (must be FAT /hello)" >&2
+    exit 1
+fi
+if ! grep -q "slot: fat" "$cross_log"; then
+    echo "qemu-smoke: missing 'slot: fat' on prior OS $PRIOR_OS_SHA (qemu exit $prior_ec)" >&2
+    exit 1
+fi
+if ! grep -q "slot: mapped" "$cross_log"; then
+    echo "qemu-smoke: missing 'slot: mapped' on prior OS $PRIOR_OS_SHA (qemu exit $prior_ec)" >&2
+    exit 1
+fi
+if ! grep -q "slot: ok" "$cross_log"; then
+    echo "qemu-smoke: missing 'slot: ok' on prior OS $PRIOR_OS_SHA (qemu exit $prior_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: cross-update prior-os=$PRIOR_OS_SHA slot:ok"
+echo "qemu-smoke: cross-update this-os=$this_os slot:ok"
+echo "qemu-smoke: A9 cross-update (same app sha256=$app_hash) strings present"
+# cargo test rebuilds target/fat16.img from the published app.
+export CTOS_APP_ELF="$app"
+export CTOS_BLK_IMAGE="$img"
 
 echo "qemu-smoke: cargo test (semihosting exit)"
 # The cargo runner is scripts/qemu-aarch64.sh. Tests must exit themselves.

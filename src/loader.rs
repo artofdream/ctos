@@ -5,15 +5,17 @@
 //! That is **not** the A2 host extract + memcpy onto `EL0_PAGE`.
 //! A4 / ADR-024 reuses this loader as the way a standing **task**
 //! appears (`run_hello_as_task`). A9 / ADR-030 reuses `run_image` on
-//! bytes read from the FAT app slot (`/hello`), not this embed.
-//! A2–A4 still `include_bytes!` so their markers stay. Not a Linux
-//! ELF ABI. Not `PT_INTERP`. Not glibc. Not app hosting.
+//! the same FAT `/hello` bytes. Leftover mile (ADR-031): A2–A4 read
+//! that FAT file instead of `include_bytes!`. Not a Linux ELF ABI.
+//! Not `PT_INTERP`. Not glibc. Not app hosting.
 
+use alloc::vec::Vec;
 use core::fmt::Write;
 use core::hint::black_box;
 
 use crate::el0;
 use crate::exception;
+use crate::fat;
 use crate::frame;
 use crate::paging;
 use crate::syscall;
@@ -21,13 +23,13 @@ use crate::uart;
 
 include!(concat!(env!("OUT_DIR"), "/hello_libctos_meta.rs"));
 
-const HELLO_ELF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/hello-libctos.elf"));
-
 const _: () = assert!(HELLO_ELF_LEN > 64);
-const _: () = assert!(HELLO_ELF.len() == HELLO_ELF_LEN);
-const _: () = assert!(HELLO_ELF[0] == 0x7f && HELLO_ELF[1] == b'E');
 const _: () = assert!(HELLO_LOAD_VA == 0x8000_2000);
 const _: () = assert!(HELLO_LEN > 0);
+const _: () = assert!(HELLO_ELF_LEN > HELLO_LEN);
+
+const HELLO_SLOT: &str = "/hello";
+const HELLO_SLOT_MAX: usize = 64 * 1024;
 
 const EI_CLASS: usize = 4;
 const EI_DATA: usize = 5;
@@ -410,8 +412,64 @@ fn load_image(
     Ok((img.entry, pages, Some((stack_va, stack_pa))))
 }
 
+/// Flatten `PT_LOAD` at/after `EL0_PAGE` the same way host `build.rs`
+/// does for A2. rust-lld's ELF-header load at `0x80000000` is dropped.
+/// Used by the A2 memcpy path so it can consume FAT `/hello`.
+pub(crate) fn flatten_pt_load(elf: &[u8]) -> Option<Vec<u8>> {
+    let img = parse_elf64(elf).ok()?;
+    let mut min_va = u64::MAX;
+    let mut max_end = 0u64;
+    let mut any = false;
+    for i in 0..img.nseg {
+        let s = img.segs[i];
+        if s.vaddr < paging::EL0_PAGE {
+            continue;
+        }
+        any = true;
+        if s.vaddr < min_va {
+            min_va = s.vaddr;
+        }
+        let end = s.vaddr.checked_add(s.memsz)?;
+        if end > max_end {
+            max_end = end;
+        }
+    }
+    if !any || min_va != paging::EL0_PAGE {
+        return None;
+    }
+    let len = (max_end - min_va) as usize;
+    if len == 0 || len > 3584 {
+        return None;
+    }
+    let mut image = alloc::vec![0u8; len];
+    for i in 0..img.nseg {
+        let s = img.segs[i];
+        if s.vaddr < paging::EL0_PAGE {
+            continue;
+        }
+        let dest = (s.vaddr - min_va) as usize;
+        let src = s.offset as usize;
+        let n = s.filesz as usize;
+        if src > elf.len() || n > elf.len() - src || dest > image.len() || n > image.len() - dest {
+            return None;
+        }
+        image[dest..dest + n].copy_from_slice(&elf[src..src + n]);
+    }
+    Some(image)
+}
+
+/// FAT `/hello` bytes that this kernel `build.rs` published. Size must
+/// match `HELLO_ELF_LEN` so a swapped slot cannot silently satisfy A2–A4.
+pub(crate) fn hello_elf() -> Option<Vec<u8>> {
+    let elf = fat::read_file(HELLO_SLOT, HELLO_SLOT_MAX)?;
+    if elf.len() != HELLO_ELF_LEN || elf[0] != 0x7f || &elf[1..4] != b"ELF" {
+        return None;
+    }
+    Some(elf)
+}
+
 /// Map `elf` with the A3 `PT_LOAD` walker and `ERET`. Used by the
-/// embedded A3 probe and by the A9 FAT slot (no embed fallback there).
+/// A3/A4 FAT probes and by the A9 FAT slot (no embed fallback).
 pub(crate) fn run_image(elf: &[u8]) -> bool {
     if el0::is_active() || !paging::user_map_ready() {
         return false;
@@ -446,7 +504,10 @@ pub(crate) fn run_image(elf: &[u8]) -> bool {
 }
 
 fn run_loaded() -> bool {
-    run_image(HELLO_ELF)
+    let Some(elf) = hello_elf() else {
+        return false;
+    };
+    run_image(&elf)
 }
 
 /// A4 / ADR-024: same A3 map, but standing **task** until `SYS_EXIT`.
@@ -455,12 +516,15 @@ pub(crate) fn run_hello_as_task() -> bool {
     if el0::is_active() || !paging::user_map_ready() {
         return false;
     }
-    let Ok(img) = parse_elf64(HELLO_ELF) else {
+    let Some(elf) = hello_elf() else {
+        return false;
+    };
+    let Ok(img) = parse_elf64(&elf) else {
         return false;
     };
     syscall::reset_probe_flags();
     el0::reset_task_flags();
-    let Ok((entry, pages, stack)) = load_image(HELLO_ELF, &img) else {
+    let Ok((entry, pages, stack)) = load_image(&elf, &img) else {
         return false;
     };
     let Some((stack_va, stack_pa)) = stack else {
@@ -498,7 +562,10 @@ pub fn observe_probe() -> bool {
     if !paging::mmu_enabled() || !paging::user_map_ready() {
         return false;
     }
-    let Ok(img) = parse_elf64(HELLO_ELF) else {
+    let Some(elf) = hello_elf() else {
+        return false;
+    };
+    let Ok(img) = parse_elf64(&elf) else {
         return false;
     };
     if !run_loaded() {
@@ -563,18 +630,19 @@ fn write_phdr(
 #[cfg(test)]
 #[test_case]
 fn loader_elf_is_not_the_a2_flat_image() {
-    assert_eq!(&HELLO_ELF[0..4], b"\x7fELF");
-    assert_ne!(
-        &HELLO_ELF[0..4],
-        &[0; 4],
-        "A3 embed must be the ELF, not zeros"
-    );
-    let img = parse_elf64(HELLO_ELF).expect("hello ELF must parse");
+    let elf = hello_elf().expect("FAT /hello must be this build's ELF");
+    assert_eq!(&elf[0..4], b"\x7fELF");
+    assert_ne!(&elf[0..4], &[0; 4], "A3 slot must be the ELF, not zeros");
+    assert_eq!(elf.len(), HELLO_ELF_LEN);
+    let img = parse_elf64(&elf).expect("hello ELF must parse");
     assert_eq!(img.entry, paging::EL0_PAGE);
     assert!(img.nseg >= 1);
     assert!(img.segs[..img.nseg]
         .iter()
         .any(|s| s.vaddr == paging::EL0_PAGE));
+    let flat = flatten_pt_load(&elf).expect("A2 flatten of the same ELF");
+    assert_eq!(flat.len(), HELLO_LEN);
+    assert_ne!(&flat[0..4], b"\x7fELF", "A2 flatten is not the ELF header");
 }
 
 #[cfg(test)]
@@ -589,7 +657,8 @@ fn loader_rejects_pt_interp() {
 #[cfg(test)]
 #[test_case]
 fn loader_unions_rx_and_ro_on_hello_page() {
-    let img = parse_elf64(HELLO_ELF).expect("hello ELF must parse");
+    let elf = hello_elf().expect("FAT /hello must be this build's ELF");
+    let img = parse_elf64(&elf).expect("hello ELF must parse");
     let (plan, n) = plan_pages(&img).expect("RX text + R rodata may share a page");
     assert!(n >= 2, "header page + payload page");
     assert!(

@@ -23,7 +23,7 @@ Track A / A5 ([issue #36](https://github.com/artofdream/ctos/issues/36)) may tak
 2. **Default CPU stays `cortex-a57`.** `scripts/qemu-serial-inject.py` and `scripts/qemu-aarch64.sh` keep `-cpu cortex-a57`. Do not change them in this mile.
 3. **When `n == 0` (expected).** Serial `pan: absent`. Ledger: “PAN enable on virt cortex-a57” stays **Planned**, with this ID-field print as the CPU evidence. `scripts/qemu-smoke.sh` greps `pan: id=` / `pan: absent` and rejects `pan: enabled` / `pan: probe missed`.
 4. **When `n != 0`.** Serial `pan: present`. This tree still does **not** enable PSTATE.PAN. A later ADR may `MSR PAN` and prove an EL1 load of an EL0-accessible page faults. Smoke on this repo expects `pan: absent` because the probe CPU is `cortex-a57`.
-5. **Still Planned.** PAN enable + EL1-vs-EL0 access fault; lower-EL IRQ while standing; EL0 entry without `TLBI VMALLE1`; umbrella EL0 isolation. [ADR-025](ADR-025-identity-rodata-tear.md) is the identity `.rodata` cut, not this.
+5. **Still Planned.** PAN enable + EL1-vs-EL0 access fault; lower-EL IRQ while standing; EL0 entry without `TLBI VMALLE1`; umbrella EL0 isolation. [ADR-031](ADR-031-track-a-leftovers.md) re-states that leftover: do not `MSR PAN` while the ID field is 0. [ADR-025](ADR-025-identity-rodata-tear.md) is the identity `.rodata` cut, not this.
 6. **NFR-10 text** is revised in place (ID unchanged). Do not mint NFR-15+.
 
 ## Honesty

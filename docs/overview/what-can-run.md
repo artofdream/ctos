@@ -2,7 +2,7 @@
 
 Plain English. These are **rebuild recipes** for in-tree samples that already have probes. They are not third-party applications and not a product runtime.
 
-**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. App hosting / cross-update stays **Planned**.
+**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. Leftover ([ADR-031](../03-adr/ADR-031-track-a-leftovers.md)): A2–A4 load that file; same ELF on this OS and `ba6541c`. App hosting stays **Planned**.
 
 Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Isolation of user programs stays **Planned**. Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
 
@@ -25,7 +25,7 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for the EL0 hello, `build.rs` publishes `target/hello-libctos.elf` and still embeds a copy for A2–A4).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for the EL0 hello, `build.rs` publishes `target/hello-libctos.elf`; A2–A4 and A9 read FAT `/hello`).
 
 ```bash
 cargo build                 # aarch64-ctos.json; also builds user/hello-libctos
@@ -70,7 +70,7 @@ That is a byte in, a line out. **No TTY, no line editor, no canonical mode, no v
 
 ## Recipe 3 — Standing EL0 / libctos-loaded hello
 
-A short payload in **user mode (EL0)** that uses the documented ABI, then returns. Miles stacked on one embedded image:
+A short payload in **user mode (EL0)** that uses the documented ABI, then returns. Miles stacked on FAT `/hello`:
 
 | Mile | Serial (do not invent extras) | Decision |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ A short payload in **user mode (EL0)** that uses the documented ABI, then return
 | --- | --- |
 | Hello source | `user/hello-libctos/` ([recipe README](https://github.com/artofdream/ctos/blob/main/user/hello-libctos/README.md)) |
 | CRT / wrappers | `libctos/` |
-| Host embed | `build.rs` (`include_bytes!` of the ELF + flattened `.bin`) |
+| Host publish | `build.rs` writes `target/hello-libctos.elf`; guest reads FAT `/hello` |
 | Guest map | `src/loader.rs` |
 
 Rebuild the hello (optional, standalone):
@@ -95,7 +95,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-A kernel `cargo build` already does that via `build.rs` and embeds the result. Then `./scripts/qemu-smoke.sh`. There is no `exec` of a file on disk. The image is still one linked kernel ELF.
+A kernel `cargo build` already does that via `build.rs` and publishes the result. Then `./scripts/qemu-smoke.sh`. There is no `exec` of a file on disk. The kernel ELF no longer embeds the hello bytes.
 
 This is **not** a process. No libc, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
 
@@ -140,7 +140,7 @@ Two host artifacts and a FAT load path ([ADR-030](../03-adr/ADR-030-os-app-slots
 | FAT slot | `scripts/mkfat16.py --app` → `/hello` |
 | Guest load | `src/slot.rs` + A3 `src/loader.rs` |
 
-A2–A4 still embed a copy so their markers stay. Cross-update (same ELF on two OS builds) is **not** this recipe. Not OTA. Not “app hosting is done.”
+A2–A4 load the same FAT file (no embed). Cross-update (same ELF on this OS and `ba6541c`) is the leftover host smoke, not this recipe. Not OTA. Not “app hosting is done.”
 
 ## What cannot run
 
@@ -163,7 +163,7 @@ Do not imply these work:
 - Network servers (no NIC, no sockets, no DMA)
 - POSIX / Linux filesystem apps (memfs + one FAT16 file is not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
-- Cross-update of one app ELF across two OS builds (**A9 remaining** — [issue #48](https://github.com/artofdream/ctos/issues/48); first cut is FAT `/hello`)
+- Product app hosting / “apps update independently” (**A9 remaining** — [issue #48](https://github.com/artofdream/ctos/issues/48); leftover cross-update is the two-boot smoke, not this claim)
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md); [Hosting apps / containers](hosting-apps.md)).
 

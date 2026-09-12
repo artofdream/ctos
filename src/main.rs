@@ -155,12 +155,12 @@ extern "C" fn kernel_main_high() -> ! {
             uart::write_str_raw("svc: probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A2 / ADR-022): libctos CRT.
-        // Not an ELF loader. Not app hosting.
+        // Bytes from FAT `/hello` (ADR-031). Not an ELF loader. Not app hosting.
         if !libctos::observe_probe() {
             uart::write_str_raw("libctos: probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A3 / ADR-023): guest ELF
-        // PT_LOAD into user TTBR0. Not a Linux ABI. Not app hosting.
+        // PT_LOAD into user TTBR0. Same FAT `/hello`. Not a Linux ABI.
         if !loader::observe_probe() {
             uart::write_str_raw("loader: probe missed\n");
         }
@@ -186,8 +186,8 @@ extern "C" fn kernel_main_high() -> ! {
             uart::write_str_raw("fat: probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A9 / ADR-030): FAT
-        // `/hello` app slot + A3 PT_LOAD. No embed fallback. Not
-        // cross-update. Not app hosting.
+        // `/hello` app slot + A3 PT_LOAD. No embed fallback. Host
+        // cross-update is a second QEMU (ADR-031). Not app hosting.
         if !slot::observe_probe() {
             uart::write_str_raw("slot: probe missed\n");
         }
@@ -203,7 +203,8 @@ extern "C" fn kernel_main_high() -> ! {
         // Serial proof for qemu-smoke (NFR-10 / ADR-018 + ADR-019 + ADR-020
         // + ADR-025): split tables + 16 KiB dedicated range + high jump +
         // vtable reloc + live identity `.text` tear + identity `.rodata`
-        // tear. `.data` / heap stay. Not “the kernel moved.”
+        // tear. `.data` / heap stay (`ident: data-stay` / `ident: heap-stay`).
+        // Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
         }

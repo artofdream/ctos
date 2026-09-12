@@ -7,7 +7,9 @@
 //! `.text` after the `_start` page (`ident: live`, ADR-020), rewrites
 //! identity pointers to `.rodata` (`ident: ro-reloc`), then unmaps
 //! identity `.rodata` (`ident: rodata`, ADR-025). High twins stay
-//! (`L2_HIGH_RAM` clone). `.data` / heap stay identity-mapped.
+//! (`L2_HIGH_RAM` clone). `.data` / heap stay identity-mapped
+//! (`ident: data-stay` / `ident: heap-stay`). Tear of those is still
+//! Planned (SP + allocator are identity VAs; ADR-031).
 //!
 //! Probes: EL1 fetch of a torn identity VA faults (`ident: fault`);
 //! EL1 fetch of the high twin still runs (`ident: high` / `ident: text`);
@@ -288,6 +290,43 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss data-stay\n");
         return false;
     }
+    let mut data_va = paging::data_start();
+    let data_hi = paging::data_end();
+    while data_va < data_hi {
+        if !paging::is_mapped(data_va) {
+            uart::write_str_raw("ident: miss data-stay\n");
+            return false;
+        }
+        data_va += 4096;
+    }
+    let heap_lo = crate::heap::heap_base();
+    let heap_hi = crate::heap::heap_end();
+    if heap_lo == 0
+        || heap_hi <= heap_lo
+        || paging::is_high_va(heap_lo)
+        || !paging::is_mapped(heap_lo)
+    {
+        uart::write_str_raw("ident: miss heap-stay\n");
+        return false;
+    }
+    let mut heap_va = heap_lo;
+    while heap_va < heap_hi {
+        if paging::is_high_va(heap_va) || !paging::is_mapped(heap_va) {
+            uart::write_str_raw("ident: miss heap-stay\n");
+            return false;
+        }
+        heap_va += 4096;
+    }
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(
+            w,
+            "ident: data-stay lo={:#x} hi={:#x}",
+            paging::data_start(),
+            data_hi
+        );
+        let _ = writeln!(w, "ident: heap-stay lo={:#x} hi={:#x}", heap_lo, heap_hi);
+    }
     if paging::reloc_count() == 0 {
         uart::write_str_raw("ident: miss reloc-count\n");
         return false;
@@ -355,5 +394,22 @@ fn identity_tear_el1_faults_high_stays() {
     assert!(
         run_probe(),
         "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT; torn .rodata"
+    );
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_data_and_heap_still_mapped() {
+    assert!(
+        paging::is_mapped(paging::data_start()),
+        "identity .data stays (SP / statics); tear is Planned"
+    );
+    assert!(
+        !paging::is_high_va(crate::heap::heap_base()),
+        "heap VAs are still identity; high allocator is Planned"
+    );
+    assert!(
+        paging::is_mapped(crate::heap::heap_base()),
+        "identity heap stays; tear is Planned"
     );
 }
