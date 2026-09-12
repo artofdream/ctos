@@ -15,8 +15,9 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `800f52d` (QEMU 8.2.2, `rustc` 1.1
 
 ## Do next
 
-1. Author does not merge (ADR-002). GitHub author of #64 is **`artofdream`**; merge hat is **`cursor[bot]`**. Owner / this PAT must not merge. MRC already grepped `7b68d08`. Later ledger-only SHA is not that probe.
-2. Still Planned: PAN enable; identity `.data`/heap tear (SP + allocator still identity); lower-EL IRQ while standing; EL0 without `TLBI VMALLE1`; umbrella isolation; slot-load **delta**; product app hosting.
+1. Author does not merge (ADR-002). GitHub author of #64 is **`artofdream`**; merge hat is **`cursor[bot]`**. Owner / this PAT must not merge. MRC grepped `7b68d08`. Later ledger-only SHA is not that probe.
+2. Bugbot Mediums on `7b68d08`: Docker lacked `git` / `.git`; hash required `sha256sum`. Source ratchet landed. Docker leftover path and Darwin `shasum` stay **Unknown** until probed.
+3. Still Planned: PAN enable; identity `.data`/heap tear (SP + allocator still identity); lower-EL IRQ while standing; EL0 without `TLBI VMALLE1`; umbrella isolation; slot-load **delta**; product app hosting.
 
 ## Honesty
 

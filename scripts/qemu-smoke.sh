@@ -41,6 +41,21 @@ BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
 FATAL="${CTOS_FATAL_STRING:-exception: fatal nested}"
 TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-8}"
 
+# NFR-03: Linux coreutils has sha256sum; macOS typically has shasum, not
+# sha256sum. OpenSSL is a third option. The same-app proof is still the
+# `cp` of the published ELF; this only pins the bytes in the log.
+sha256_file() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | awk '{print $1}'
+    elif command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$1" | awk '{print $1}'
+    elif command -v openssl >/dev/null 2>&1; then
+        openssl dgst -sha256 "$1" | awk '{print $NF}'
+    else
+        return 1
+    fi
+}
+
 if ! command -v qemu-system-aarch64 >/dev/null 2>&1; then
     echo "qemu-smoke: qemu-system-aarch64 not on PATH" >&2
     exit 1
@@ -636,6 +651,10 @@ echo "qemu-smoke: fatal nested string present"
 # Invent nothing: that SHA is real and has the slot path. File presence of
 # a stored kernel blob is not this probe — we build that commit.
 PRIOR_OS_SHA="${CTOS_PRIOR_OS_SHA:-ba6541c8e17c75c89c42451cd721735eddb36c2f}"
+if ! command -v git >/dev/null 2>&1; then
+    echo "qemu-smoke: git not on PATH (needed to build prior OS $PRIOR_OS_SHA)" >&2
+    exit 1
+fi
 this_os=$(git rev-parse HEAD)
 if [ "$this_os" = "$PRIOR_OS_SHA" ]; then
     echo "qemu-smoke: cross-update needs this OS != prior $PRIOR_OS_SHA" >&2
@@ -658,13 +677,9 @@ cross_img=$(mktemp)
 cross_log=$(mktemp)
 trap 'rm -f "$log" "$cross_app" "$cross_img" "$cross_log"' EXIT
 cp -f "$app" "$cross_app"
-if ! command -v sha256sum >/dev/null 2>&1; then
-    echo "qemu-smoke: sha256sum not on PATH (needed to pin the same app bytes)" >&2
-    exit 1
-fi
-app_hash=$(sha256sum "$cross_app" | awk '{print $1}')
+app_hash=$(sha256_file "$cross_app" || true)
 if [ -z "$app_hash" ] || [ "${#app_hash}" -lt 64 ]; then
-    echo "qemu-smoke: could not hash app payload $cross_app" >&2
+    echo "qemu-smoke: could not hash app payload $cross_app (need sha256sum, shasum -a 256, or openssl)" >&2
     exit 1
 fi
 echo "qemu-smoke: cross-update app sha256=$app_hash bytes=$app_bytes"

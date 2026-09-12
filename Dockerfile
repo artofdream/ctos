@@ -15,10 +15,13 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # noble Recommends. cts-ai then failed: romfile "efi-virtio.rom" missing
 # (ipxe-qemu ships /usr/lib/ipxe/qemu/efi-virtio.rom).
 # python3: qemu-smoke injects one PL011 RX byte (QEMU 8.2 has no UART LBE).
+# git: leftover cross-update worktree-adds prior OS ba6541c (ADR-032).
+# Without git, docker-smoke dies after a green first boot.
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         build-essential \
+        git \
         qemu-system-arm \
         qemu-efi-aarch64 \
         ipxe-qemu \

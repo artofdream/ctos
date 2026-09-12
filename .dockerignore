@@ -1,5 +1,6 @@
 target
-.git
+# Keep .git in the context. Leftover qemu-smoke (ADR-032) worktree-adds
+# prior OS ba6541c; COPY without history cannot run that probe.
 .obsidian
 .trash
 **/*.bin

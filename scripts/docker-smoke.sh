@@ -1,6 +1,7 @@
 #!/bin/sh
 # Build and run the smoke image on whatever arch the engine is.
 # cts-ai: Windows ARM64 → linux/arm64. Do not pass --platform linux/amd64.
+# Leftover cross-update needs git + .git in the image (ADR-032).
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
