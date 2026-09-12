@@ -660,7 +660,10 @@ if [ -z "$app_hash" ] || [ "${#app_hash}" -lt 64 ]; then
     exit 1
 fi
 echo "qemu-smoke: cross-update app sha256=$app_hash bytes=$app_bytes"
-prior_wt="$ROOT/target/prior-os-$PRIOR_OS_SHA"
+# Outside this repo so cargo does not pick up *this* `.cargo/config.toml`
+# (a nested worktree under target/ applied `-Tlinker.ld` twice and
+# overlapped `.ident_tear` with `.text` on the prior OS).
+prior_wt="${CTOS_PRIOR_OS_DIR:-/tmp/ctos-prior-os-$PRIOR_OS_SHA}"
 if [ ! -f "$prior_wt/.git" ] && [ ! -d "$prior_wt/.git" ]; then
     echo "qemu-smoke: git worktree add prior OS $PRIOR_OS_SHA"
     git worktree add --detach "$prior_wt" "$PRIOR_OS_SHA"
