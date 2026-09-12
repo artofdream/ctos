@@ -47,25 +47,41 @@ fn run_hello() -> bool {
         return false;
     }
     syscall::reset_probe_flags();
-    let Some(pa) = frame::alloc() else {
+    let Some(code_pa) = frame::alloc() else {
+        return false;
+    };
+    let Some(stack_pa) = frame::alloc() else {
+        frame::free(code_pa);
         return false;
     };
     let va = paging::EL0_PAGE;
-    if !paging::map_el0_exec(va, pa) {
-        frame::free(pa);
+    let stack_va = va + 4096;
+    if !paging::map_el0_exec(va, code_pa) {
+        frame::free(code_pa);
+        frame::free(stack_pa);
+        return false;
+    }
+    if !paging::map_el0_rw(stack_va, stack_pa) {
+        let _ = paging::unmap_page(va);
+        frame::free(code_pa);
+        frame::free(stack_pa);
         return false;
     }
     unsafe {
         core::ptr::copy_nonoverlapping(HELLO_BIN.as_ptr(), va as *mut u8, HELLO_BIN.len());
     }
     sync_range(va as *const u8, HELLO_BIN.len());
-    let user_sp = va + 4096;
+    // Rust `main` saves x30 on SP. The code page is EL0-exec / no EL0 data
+    // (and WXN forbids making it W+X). Stack is a second EL0-RW NX page.
+    let user_sp = stack_va + 4096;
     el0::install_standing(va, user_sp, paging::user_ttbr0());
     unsafe {
         exception::eret_to_el0(black_box(va), 0, user_sp);
     }
+    let _ = paging::unmap_page(stack_va);
     let _ = paging::unmap_page(va);
-    frame::free(pa);
+    frame::free(stack_pa);
+    frame::free(code_pa);
     if el0::is_active() {
         el0::clear_active();
         return false;
