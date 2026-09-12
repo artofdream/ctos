@@ -82,13 +82,13 @@ Numbers from Linux **v6.10** `asm-generic/unistd.h`. AArch64 has **no** `fork`, 
 | --- | --- | --- | --- |
 | 93 | `exit` | **partial** | Analog `SYS_EXIT` **16**. Halts the EL0 trip and returns to the EL1 caller. Status is recorded. Not a thread/process exit. |
 | 94 | `exit_group` | **absent** | No process group. musl/glibc CRT usually ends here. |
-| — | `fork` | **absent** | **Not in the Linux AArch64 table.** Userspace `fork()` is `clone`. Deeper compare is [B3 / #43](https://github.com/artofdream/ctos/issues/43). |
-| 220 | `clone` | **absent** | No child address space, no `CLONE_*`. Standing EL0 ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) is one loaded trip, not `clone`. `CLONE_NEW*` is **never-per-ADR-031** (see namespace rows). |
+| — | `fork` | **absent** | **Not in the Linux AArch64 table.** Userspace `fork()` is `clone`. Stance: [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md) / [B3 / #43](https://github.com/artofdream/ctos/issues/43). |
+| 220 | `clone` | **absent** | No child address space, no `CLONE_*`. Standing EL0 ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) is one loaded trip, not `clone` ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)). `CLONE_NEW*` is **never-per-ADR-031** (see namespace rows). |
 | 435 | `clone3` | **absent** | Same class as `clone`. |
-| 221 | `execve` | **absent** | A3 maps freestanding `PT_LOAD` and **rejects `PT_INTERP`**. A9 FAT `/hello` is an EL1 load path, not `execve`. ELF / auxv / interpreter gap: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md) (B4). |
+| 221 | `execve` | **absent** | A3 maps freestanding `PT_LOAD` and **rejects `PT_INTERP`**. A9 FAT `/hello` is an EL1 load path, not `execve` ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)). ELF / auxv / interpreter gap: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md) (B4). |
 | 281 | `execveat` | **absent** | Same class as `execve`. |
-| 260 | `wait4` | **absent** | No child to wait for. B3. |
-| 95 | `waitid` | **absent** | B3. |
+| 260 | `wait4` | **absent** | No child to wait for. [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md). |
+| 95 | `waitid` | **absent** | [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md). |
 | 129 | `kill` | **absent** | No pid / signal delivery. |
 | 172 | `getpid` | **absent** | No process table. |
 | 178 | `gettid` | **absent** | No tid. |
@@ -170,7 +170,7 @@ Issue #42 asked to prioritize a minimal subset **if any**. This is a research hi
 
 1. **In-tree `libctos` apps need no Linux numbers.** A1–A9 already have `exit` / `uart_write` / `yield` / memfs / FAT `/hello`. Keep that path.
 2. **A static musl “hello” is not a small subset.** Besides convention translation, typical CRT wants `set_tid_address`, `exit_group`, `brk` or `mmap`, often `write` on fd 1, `uname` / `geteuid`-class probes, and signal/`prctl` stubs. That is already a libc-shaped surface. ADR-031 rejected “runs musl / Alpine” as a Track B *promise*.
-3. **The smallest *named* research slice** (only if B6 chooses a compat path, and only with a probe) would still be: **convention translation** + `exit`/`exit_group` + `write` to a console fd. `openat`/`read`/`close` are the next file slice. `brk`/`mmap` are the next heap slice. `clone`/`execve`/`wait4` are B3, not this page.
+3. **The smallest *named* research slice** (only if B6 chooses a compat path, and only with a probe) would still be: **convention translation** + `exit`/`exit_group` + `write` to a console fd. `openat`/`read`/`close` are the next file slice. `brk`/`mmap` are the next heap slice. `clone`/`execve`/`wait4` are the process gap ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)); they are not a small add-on.
 4. **Do not start with ioctl, sockets, or mount.** ioctl is a device encyclopedia. Sockets need a stack. mount/unshare stay **never-per-ADR-031**.
 
 B3–B5 stay document-first. They must not add Linux numbers to `src/`. B6 may choose **never**.

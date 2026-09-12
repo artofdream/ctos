@@ -41,7 +41,7 @@ The kernel parses the hello ELF, maps each `PT_LOAD` into the user map-window, a
 
 ## Standing task (A4)
 
-The A3 loader is how a payload appears. A4 makes standing EL0 the **supported path**: `is_active()` is true for the loaded task until `exit`; an unexpected fault restores fail-closed ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Serial `el0: task-enter` / `el0: task-active` / `el0: task-exit` / `el0: task-restored` / `el0: restore-fail` / `el0: task-ok`. Not isolation. Not a process table. File presence is not that probe.
+The A3 loader is how a payload appears. A4 makes standing EL0 the **supported path**: `is_active()` is true for the loaded task until `exit`; an unexpected fault restores fail-closed ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Serial `el0: task-enter` / `el0: task-active` / `el0: task-exit` / `el0: task-restored` / `el0: restore-fail` / `el0: task-ok`. Not isolation. Not a process table. Linux `fork`/`exec`/`wait` is a documented gap ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)). File presence is not that probe.
 
 ## memfs (A6)
 

@@ -12,7 +12,7 @@ Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). 
 
 | Need (typical host app) | On ctos today | Status |
 | --- | --- | --- |
-| A process you `exec` | Standing EL0 + A1 ABI + A2 `libctos` + A3 `PT_LOAD` (still embedded for A2–A4) + A4 standing **task** + A9 FAT `/hello` first cut | **Planned** as Linux `exec`. A9 is two artifacts + a FAT load path, not a process table. |
+| A process you `exec` | Standing EL0 + A1 ABI + A2 `libctos` + A3 `PT_LOAD` + A4 standing **task** + A9 FAT `/hello` first cut | **Planned** as Linux `exec`. Stance: [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md). A9 is two artifacts + a FAT load path, not a process table. |
 | POSIX / glibc / musl | Custom `aarch64-ctos.json`, `os: none`, no libc | Not easy, not started. |
 | Files (`open` / a disk) | Thin VFS: memfs + read-only FAT16 | **memfs + FAT miles** (A6/A7). Not POSIX. |
 | Sockets / HTTP | No virtio-net, no stack | **Planned** at best; not a Now mile |
@@ -41,8 +41,9 @@ Do not write a container roadmap. Track A gaps (ABI, FS, isolation) are not a pa
 | Host `docker-smoke.sh` builds the kernel | Ledger Docker rows (sponsor / GHA) | Separate claim — host harness only |
 | A host app (Linux ELF, shell, Python) runs in the guest | No such serial marker | **Planned** |
 | Guest is a container host | No OCI/runc/cgroup code | **Verified** absence; **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md); not a later Planned feature) |
-| Linux-compat goals documented (Track B B1) | Read [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) | **Documented** frame. Not Linux userspace. B3–B6 stay Planned research. |
+| Linux-compat goals documented (Track B B1) | Read [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) | **Documented** frame. Not Linux userspace. B5 / B6 stay Planned research. |
 | Linux AArch64 vs ctos SVC gap (Track B B2) | Read [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md) | **Documented** inspection map. No Linux numbers in `src/`. Not a Linux ABI. |
+| Process model vs standing EL0 (Track B B3) | Read [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md) | **Documented** stance. Standing EL0 stays the ctos model. Not `fork`/`execve`/`wait`. |
 | Linux ELF / auxv / `PT_INTERP` vs freestanding loader (Track B B4) | Read [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md) | **Documented** gap ADR. Track A loader stays reusable. Does not accept `PT_INTERP`. Not dynamic Linux ELF. |
 
 File presence of this note is not an app runtime. See the [honesty ledger](honesty-ledger.md).
