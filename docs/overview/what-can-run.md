@@ -61,6 +61,6 @@ Do not imply these work:
 - POSIX / Linux filesystem apps (memfs + one FAT16 file is not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
 
-Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** ([Hosting apps / containers](hosting-apps.md)).
+Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md); [Hosting apps / containers](hosting-apps.md)).
 
 How you would add something in-tree (and why Linux apps do not port): [Building or porting](porting.md).

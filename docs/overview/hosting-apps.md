@@ -43,18 +43,26 @@ Until slots have probes, “host an application” is a sentence we do not use. 
 
 ## Containers
 
-**No.** ctos cannot host OCI / Docker / Kubernetes workloads.
+**Non-goal.** ctos cannot host OCI / Docker / Kubernetes workloads, and it is **not aiming to**.
 
-Those need Linux kernel features (namespaces, cgroups, a Linux ABI, usually overlay or equivalent, a rich syscall surface) that this learning kernel **does not have** and is **not aiming at soon**.
+Those need Linux kernel features (namespaces, cgroups, a Linux ABI, usually overlay or equivalent, a rich syscall surface) that this learning kernel **does not have**. Decision: [ADR-029](../03-adr/ADR-029-containers-nongoal.md). Track B B7 ([#47](https://github.com/artofdream/ctos/issues/47)).
 
 **Today the arrow is the other way:** Docker on a host (cts-ai `linux/arm64`) **runs the ctos smoke image**. That is “Docker hosts ctos,” not “ctos hosts containers.” See the [README Docker notes](https://github.com/artofdream/ctos#readme) and the Docker rows in the [ledger](../framework/honesty-ledger.md).
 
-Container support is **not Planned** on this page. Do not add a Planned row unless the sponsor asks for that direction in an ADR.
+```mermaid
+flowchart LR
+  HOST["Linux host + Docker"] -->|"builds and QEMU-smokes"| CTOS["ctos guest"]
+  CTOS -.->|"does not host"| OCI["OCI / Docker / k8s"]
+```
+
+*Host harness ≠ guest runtime. File presence of this page is not a container probe.*
+
+Container support is **not Planned** on this page. Do not add a Planned row. Reopen only with a new GitHub epic plus a new ADR — not a Track B win, and not a new FR/NFR ID.
 
 ## Honesty
 
 | Claim | Status |
 | --- | --- |
 | ctos hosts third-party apps | **No** — gaps above |
-| ctos hosts OCI/Docker containers | **No** — not a goal on this page |
+| ctos hosts OCI/Docker containers | **No** — **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)) |
 | Host Docker runs `ctos-smoke` | Separate ledger row (host tool, not a guest runtime) |

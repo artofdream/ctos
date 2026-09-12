@@ -4,7 +4,7 @@ What this project **is not**, and what is still unfinished. Pair with [KPIs / ho
 
 ## Learning kernel, not a product
 
-ctos is a research / teaching AArch64 kernel. It is not production-ready, not a desktop, not POSIX, not a container host, and not a “secure OS.” Do not treat a green QEMU smoke as certification.
+ctos is a research / teaching AArch64 kernel. It is not production-ready, not a desktop, not POSIX, not a container host (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md)), and not a “secure OS.” Do not treat a green QEMU smoke as certification.
 
 ## Boot contract still starts at `0x4008_0000`
 

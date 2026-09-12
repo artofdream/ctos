@@ -36,6 +36,6 @@ One loop unit each. Each row needs a fail-closed ledger probe.
 
 ## Out of scope for Track A
 
-OCI/Docker containers, glibc/musl ports, SMP, networking (unless a later ADR). See [host-apps.md](../framework/host-apps.md).
+OCI/Docker containers (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md)), glibc/musl ports, SMP, networking (unless a later ADR). See [host-apps.md](../framework/host-apps.md).
 
 Samples today: site [what-can-run.md](../overview/what-can-run.md) (extra: [apps-today.md](../framework/apps-today.md)). Porting: site [porting.md](../overview/porting.md) (extra: [building-or-porting.md](../framework/building-or-porting.md)).

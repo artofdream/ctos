@@ -55,6 +55,7 @@
 - [ADR-026 PAN capability](03-adr/ADR-026-pan-capability.md)
 - [ADR-027 Thin VFS + memfs](03-adr/ADR-027-thin-vfs-memfs.md)
 - [ADR-028 virtio-blk + FAT16](03-adr/ADR-028-virtio-blk-fat16.md)
+- [ADR-029 Guest containers non-goal](03-adr/ADR-029-containers-nongoal.md)
 
 # Roadmap
 

@@ -19,19 +19,19 @@ Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). 
 | Shell / TTY / Python | One injected UART byte; no interpreter | **No** until ABI + FS + line discipline |
 | Isolated userspace | First miles + live `.text` tear; PAN / full teardown missing | Isolation **Planned** |
 | Preemption / SMP | Cooperative EL1, one vCPU | **No** on this horizon |
-| Containers (OCI / Docker / k8s **as the guest**) | Nothing | **No.** See below. |
+| Containers (OCI / Docker / k8s **as the guest**) | Nothing | **Non-goal.** See below. |
 
 The easiest thing you can add today is still an in-tree `no_std` coop EL1 task — not a host binary.
 
-## Containers: no
+## Containers: non-goal
 
-ctos will **not** run containers as a guest feature on this horizon.
+ctos will **not** run containers as a guest feature. This is a **non-goal**, not “later on this horizon.” [ADR-029](../03-adr/ADR-029-containers-nongoal.md). Site SoT: [hosting-apps.md](../overview/hosting-apps.md).
 
 - No OCI image pull, no `runc`, no cgroups, no Linux namespaces, no overlay FS, no containerd/CRI.
 - A Linux Docker/Podman host that *builds* this kernel is unrelated. That smoke does not make QEMU `virt` a container host.
 - “Run Alpine on ctos” / “k8s node” is the same class of claim as “POSIX port is easy.” It is not.
 
-Do not write a container roadmap that skips process ABI, a filesystem, and isolation. Those are earlier **Planned** gaps. Do not mint a new FR ID for containers.
+Do not write a container roadmap. Track A gaps (ABI, FS, isolation) are not a path to OCI. Do not mint a new FR ID for containers. Reopen only with a new GitHub epic plus a new ADR.
 
 ## Honesty
 
@@ -40,6 +40,6 @@ Do not write a container roadmap that skips process ABI, a filesystem, and isola
 | Guest is not a container host | Source: no OCI/runc/cgroup/namespace code in `src/` | Verified (absence) |
 | Host `docker-smoke.sh` builds the kernel | Ledger Docker rows (sponsor / GHA) | Separate claim — host harness only |
 | A host app (Linux ELF, shell, Python) runs in the guest | No such serial marker | **Planned** |
-| Guest is a container host | No OCI/runc/cgroup code | **Verified** absence; **non-goal** (not a later Planned feature) |
+| Guest is a container host | No OCI/runc/cgroup code | **Verified** absence; **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md); not a later Planned feature) |
 
 File presence of this note is not an app runtime. See the [honesty ledger](honesty-ledger.md).
