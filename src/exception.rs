@@ -304,12 +304,11 @@ sync_current_el:
     sub sp, sp, #272
     stp x0, x1, [sp, #0]
     stp x2, x3, [sp, #16]
+    // ADR-039: after identity .data/heap tear, no TLBI VMALLE1 on
+    // the standing/EL0 trampoline path (MSR TTBR0 + ISB only).
     mrs x2, tpidr_el1
     cbz x2, 1f
     msr ttbr0_el1, x2
-    isb
-    tlbi vmalle1
-    dsb ish
     isb
 1:
     stp x4, x5, [sp, #32]
@@ -750,10 +749,8 @@ pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
         "msr spsr_el1, {spsr}",
         "msr sp_el0, {usp}",
         "mov x0, {uarg}",
+        // ADR-039: no TLBI VMALLE1 on EL0 entry (identity .data/heap torn).
         "msr ttbr0_el1, {uttbr}",
-        "isb",
-        "tlbi vmalle1",
-        "dsb ish",
         "isb",
         "eret",
         "2:",
@@ -820,10 +817,8 @@ fn stay_at_el0(_ctx: &mut ExceptionContext) {
     let uttbr = crate::paging::user_ttbr0();
     unsafe {
         core::arch::asm!(
+            // ADR-039: no TLBI VMALLE1 on stay-at-EL0 (standing SVC return).
             "msr ttbr0_el1, {t}",
-            "isb",
-            "tlbi vmalle1",
-            "dsb ish",
             "isb",
             t = in(reg) uttbr,
             options(nostack, preserves_flags),

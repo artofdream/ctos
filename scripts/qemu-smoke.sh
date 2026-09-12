@@ -97,6 +97,13 @@ fi
 echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes)"
 echo "qemu-smoke: kernel rebuild compiled app payload (build.rs published $app)"
 
+# ADR-039: standing/EL0 trampoline path must not TLBI VMALLE1.
+if grep -n 'tlbi vmalle1' src/exception.rs; then
+    echo "qemu-smoke: src/exception.rs still has tlbi vmalle1 (ADR-039)" >&2
+    exit 1
+fi
+echo "qemu-smoke: exception.rs has no tlbi vmalle1"
+
 # Embed honesty: A2–A4 must prove markers via FAT /hello, not include_bytes!.
 if grep -R -n --include='*.rs' 'include_bytes!.*hello-libctos' src; then
     echo "qemu-smoke: kernel still embeds hello-libctos (A2-A4 must load FAT /hello)" >&2
@@ -233,7 +240,11 @@ if ! grep -q "el0: restored" "$log"; then
     echo "qemu-smoke: missing 'el0: restored' on serial (standing EL0 teardown, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile + read-mile + standing strings present"
+if ! grep -q "el0: no-vmalle1" "$log"; then
+    echo "qemu-smoke: missing 'el0: no-vmalle1' on serial (ADR-039 EL0 entry without VMALLE1, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: EL0 first-mile + read-mile + standing + no-vmalle1 strings present"
 if grep -q "svc: probe missed" "$log"; then
     echo "qemu-smoke: svc probe missed (EL0 ABI trip did not run)" >&2
     exit 1
