@@ -12,7 +12,7 @@ Isolation: PAN ID still 0 on cortex-a57 — no `MSR PAN`. `.data`/heap stay; pri
 
 83 tests. qemu-smoke ok on `800f52d` and `17778ca`. GHA push 34701455001 grepped green on `17778ca`. Rebased onto `main` `522c543` (#63 + #62 + #61). GHA push 34702218168 + PR 34702220491 grepped green on `7b68d08`. Later ledger-only SHA is not that probe.
 
-Bugbot Mediums on `7b68d08`: (1) `.dockerignore` dropped `.git` and the image had no `git`, so docker-smoke died after the first boot; (2) `sha256sum`-only pin fails NFR-03 on macOS (`shasum`). Dockerfile now installs `git`; context keeps `.git`; hash accepts `sha256sum` / `shasum` / `openssl`. Docker leftover and Darwin hash stay Unknown.
+Bugbot Mediums: Docker lacked `git` / `.git`; `sha256sum`-only pin fails NFR-03; copied `.git/worktrees` can register `/tmp/ctos-prior-os-*` without the directory. Dockerfile installs `git`; context keeps `.git` objects but drops `worktrees`; smoke prunes before add; hash accepts `sha256sum` / `shasum` / `openssl`. Docker leftover and Darwin hash stay Unknown.
 
 GitHub author of #64 is `artofdream`; merge hat is `cursor[bot]`. Do not self-merge.
 
