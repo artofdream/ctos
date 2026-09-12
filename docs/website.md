@@ -36,6 +36,32 @@ Auto-install keys on `uname -s`:`uname -m`. Linux stays `x86_64-unknown-linux-gn
 
 A successful local `mdbook build` is a **generator** probe. It is not a new “the website is published” claim. The live URL is a separate ledger row.
 
+## Mobile / narrow viewport
+
+Sponsor bar (same as `architecture.artof.link`): viewport, readable type, usable nav on a phone, no page-wide horizontal overflow. Tables, `pre`, and Mermaid may scroll *inside* their widget.
+
+**Stock mdBook 0.5.4 already has** (audited on the live HTML 2026-09-12):
+
+- `<meta name="viewport" content="width=device-width, initial-scale=1">`
+- Sidebar toggle (`#mdbook-sidebar-toggle`) plus `--sidebar-width: min(300px, 80vw)`
+- `#mdbook-menu-bar { flex-wrap: wrap }`
+- `.table-wrapper { overflow-x: auto }` around markdown tables
+- `.content img { max-width: 100% }`
+
+**Gaps closed in `docs/theme.css` + mermaid extras** (this tree):
+
+- `pre` / code: `overflow-x: auto` so long lines do not widen the page
+- Table cells: `overflow-wrap`; wide tables keep a `min-width` and scroll
+- Touch: 44px minimum on sidebar links, menu icons, and mobile chapter arrows (≤768px)
+- Body type stays 16px; heading strings may wrap
+- Mermaid: on ≤768px, `useMaxWidth` is off so diagrams stay readable and the `.mermaid` box scrolls (`docs/mermaid.css`, `docs/mermaid-init.js`)
+
+Desktop content column stays `--content-max-width: 750px`. Do not treat this section as a live-site deploy probe.
+
+### Narrow-viewport probe
+
+After `./scripts/docs-build.sh`, `./scripts/docs-mobile-probe.sh` serves `book/` and uses headless Chrome at **320**, **768**, and **1280** CSS pixels. It records whether `documentElement.scrollWidth` exceeds `clientWidth` on the landing, the honesty ledger, and this page. Internal `.table-wrapper` / `pre` / `.mermaid` scroll is allowed. A green local probe is not “https://ctos.artof.link is mobile-verified” until a post-merge Pages fetch repeats it.
+
 ## Production URLs
 
 | URL | Role | Status word |
@@ -93,6 +119,7 @@ curl -sSI https://ctos.artof.link   # expect HTTP 200 (Verified 2026-09-11)
 | Claim | Probe | Until then |
 | --- | --- | --- |
 | mdBook builds this tree | `./scripts/docs-build.sh` (or `mdbook build` with mermaid preprocessor) exit 0 | — |
+| Narrow viewport / mobile layout | `./scripts/docs-mobile-probe.sh` after a local build (320 / 768 / 1280; landing + ledger + this page) | See honesty ledger — local generator only until a post-merge Pages fetch |
 | Pages workflow exists | Read `.github/workflows/pages.yml` | File presence only |
 | Pages workflow builds a PR | Green `pages` run on this branch (build job; deploy skipped) | See honesty ledger |
 | Docs website published | Green `pages` workflow on `main` **and** HTTPS fetch of `https://ctos.artof.link` | **Verified** — deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200 + Driving principles |
