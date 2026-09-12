@@ -1,3 +1,4 @@
+| cts-ai / EVO-X2 Docker smoke on `dde185f` (ADR-037 tip) | (evo-x2) 2026-09-13 amd64 Docker: `ident: data-reloc n=241`, `ident: data … pages=87`, `ident: data-fault` / `ident: data-high`, `ident: heap-stay`, `slot: ok`, A9 cross-update this-os=`dde185f`, `qemu-smoke: ok` | Verified | Host bash/WSL still missing — `docker build`/`docker run` directly. PAN enable / heap tear / umbrella isolation still Planned. |
 # ctos honesty ledger
 
 Status words are claims. Each row needs a **probe**. Unprobed = **Unknown**. Never round Unknown up to Verified because the file exists, a PR is open, or a README teaches `cargo run`.
