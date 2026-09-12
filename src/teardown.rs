@@ -1,23 +1,27 @@
-//! Identity-teardown cuts (ADR-018 + ADR-019 + ADR-020 + ADR-025).
+//! Identity-teardown cuts (ADR-018 + ADR-019 + ADR-020 + ADR-025 + ADR-037).
 //!
 //! After MMU + high VBAR, the post-MMU continuation jumps to its
 //! TTBR1 alias (`ident: jump`), rewrites rustc vtable / fn-pointer
 //! words to high aliases (`ident: reloc`), unmaps a dedicated 16 KiB
 //! identity text range (`__ident_tear_*`), unmaps live identity
 //! `.text` after the `_start` page (`ident: live`, ADR-020), rewrites
-//! identity pointers to `.rodata` (`ident: ro-reloc`), then unmaps
-//! identity `.rodata` (`ident: rodata`, ADR-025). High twins stay
-//! (`L2_HIGH_RAM` clone). `.data` / heap stay identity-mapped
-//! (`ident: data-stay` / `ident: heap-stay`). Tear of those is still
-//! Planned (SP + allocator are identity VAs; ADR-032).
+//! identity pointers into `.data`/stacks (`ident: data-reloc`),
+//! rewrites identity pointers to `.rodata` (`ident: ro-reloc`), unmaps
+//! identity `.rodata` (`ident: rodata`, ADR-025), relocates SP to the
+//! high twin, then unmaps identity `.data`/`.bss`/linker stacks
+//! (`ident: data`, ADR-037). High twins stay (`L2_HIGH_RAM` clone).
+//! Heap stays identity-mapped (`ident: heap-stay`). Heap tear is still
+//! Planned (allocator returns identity VAs).
 //!
 //! Probes: EL1 fetch of a torn identity VA faults (`ident: fault`);
 //! EL1 fetch of the high twin still runs (`ident: high` / `ident: text`);
 //! EL0 load of a torn VA faults (`ident: no el0`); EL1 load of torn
 //! `.rodata` faults (`ident: rodata-fault`); high `.rodata` still
-//! loads (`ident: rodata-high`). `_start` / QEMU `-kernel` stay at
-//! `0x4008_0000`. Not “the kernel moved.” Not “EL0 isolated.” PAN
-//! enable stays Planned (ADR-026). `.data`/heap teardown stays Planned.
+//! loads (`ident: rodata-high`); EL1 load of torn `.data` faults
+//! (`ident: data-fault`); high `.data` still loads (`ident: data-high`).
+//! `_start` / QEMU `-kernel` stay at `0x4008_0000`. Not “the kernel
+//! moved.” Not “EL0 isolated.” PAN enable stays Planned (ADR-026).
+//! Heap teardown stays Planned.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -34,6 +38,11 @@ const LDR_X1_X0_A64: u32 = 0xF9400001;
 /// Known `.rodata` word. Identity load must fault after ADR-025; high load stays.
 #[used]
 static IDENT_RODATA_MAGIC: u64 = 0x4354_4F53_524F_4441;
+
+/// Known `.data` word. Identity load must fault after ADR-037; high load stays.
+#[used]
+#[allow(dead_code)]
+static mut IDENT_DATA_MAGIC: u64 = 0x4354_4F53_4441_5441;
 
 fn sync_icache(ptr: *const u32) {
     let x = ptr as u64;
@@ -169,6 +178,10 @@ fn rodata_magic_ident() -> u64 {
     paging::identity_pa(core::ptr::addr_of!(IDENT_RODATA_MAGIC) as usize as u64)
 }
 
+fn data_magic_ident() -> u64 {
+    paging::identity_pa(core::ptr::addr_of!(IDENT_DATA_MAGIC) as usize as u64)
+}
+
 fn run_rodata_high() -> bool {
     let ident = rodata_magic_ident();
     if ident < paging::rodata_start() || ident >= paging::ident_tear_page() {
@@ -195,6 +208,34 @@ fn run_rodata_fault() -> bool {
     exception::arm_ident_rodata();
     let _ = black_box(unsafe { core::ptr::read_volatile(ident as *const u64) });
     exception::ident_rodata_caught()
+}
+
+fn run_data_high() -> bool {
+    let ident = data_magic_ident();
+    if ident < paging::data_start() || ident >= frame::kernel_end() {
+        return false;
+    }
+    let high = paging::to_high_va(ident);
+    if !paging::is_high_va(high) || !paging::high_mapped(high) {
+        return false;
+    }
+    let word = unsafe { core::ptr::read_volatile(high as *const u64) };
+    if word != 0x4354_4F53_4441_5441 {
+        return false;
+    }
+    uart::write_str_raw("ident: data-high\n");
+    true
+}
+
+fn run_data_fault() -> bool {
+    let ident = data_magic_ident();
+    if paging::is_mapped(ident) {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    exception::arm_ident_data();
+    let _ = black_box(unsafe { core::ptr::read_volatile(ident as *const u64) });
+    exception::ident_data_caught()
 }
 
 fn el0_load_torn() -> bool {
@@ -249,6 +290,10 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss rodata-ready\n");
         return false;
     }
+    if !paging::identity_data_ready() {
+        uart::write_str_raw("ident: miss data-ready\n");
+        return false;
+    }
     // After ADR-020 the probe itself is only reachable via the high
     // alias. The jump is also proven by serial `ident: jump`.
     let va = paging::ident_tear_page();
@@ -286,18 +331,17 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss rodata-pages\n");
         return false;
     }
-    if paging::is_mapped(paging::data_start()) != true {
-        uart::write_str_raw("ident: miss data-stay\n");
+    if paging::is_mapped(paging::data_start()) {
+        uart::write_str_raw("ident: leaked\n");
         return false;
     }
-    let mut data_va = paging::data_start();
-    let data_hi = paging::data_end();
-    while data_va < data_hi {
-        if !paging::is_mapped(data_va) {
-            uart::write_str_raw("ident: miss data-stay\n");
-            return false;
-        }
-        data_va += 4096;
+    if !paging::high_mapped(paging::to_high_va(paging::data_start())) {
+        uart::write_str_raw("ident: miss data-high-map\n");
+        return false;
+    }
+    if paging::torn_data_pages() < 1 {
+        uart::write_str_raw("ident: miss data-pages\n");
+        return false;
     }
     let heap_lo = crate::heap::heap_base();
     let heap_hi = crate::heap::heap_end();
@@ -319,12 +363,6 @@ fn run_probe() -> bool {
     }
     {
         let mut w = uart::raw();
-        let _ = writeln!(
-            w,
-            "ident: data-stay lo={:#x} hi={:#x}",
-            paging::data_start(),
-            data_hi
-        );
         let _ = writeln!(w, "ident: heap-stay lo={:#x} hi={:#x}", heap_lo, heap_hi);
     }
     if paging::reloc_count() == 0 {
@@ -368,6 +406,14 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss rodata-high\n");
         return false;
     }
+    if !run_data_fault() {
+        uart::write_str_raw("ident: miss data-fault\n");
+        return false;
+    }
+    if !run_data_high() {
+        uart::write_str_raw("ident: miss data-high\n");
+        return false;
+    }
     true
 }
 
@@ -391,19 +437,16 @@ fn identity_tear_el1_faults_high_stays() {
     assert!(paging::identity_reloc_ready());
     assert!(paging::identity_live_ready());
     assert!(paging::identity_rodata_ready());
+    assert!(paging::identity_data_ready());
     assert!(
         run_probe(),
-        "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT; torn .rodata"
+        "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT; torn .rodata/.data"
     );
 }
 
 #[cfg(test)]
 #[test_case]
-fn identity_data_and_heap_still_mapped() {
-    assert!(
-        paging::is_mapped(paging::data_start()),
-        "identity .data stays (SP / statics); tear is Planned"
-    );
+fn identity_heap_still_mapped() {
     assert!(
         !paging::is_high_va(crate::heap::heap_base()),
         "heap VAs are still identity; high allocator is Planned"
@@ -412,4 +455,13 @@ fn identity_data_and_heap_still_mapped() {
         paging::is_mapped(crate::heap::heap_base()),
         "identity heap stays; tear is Planned"
     );
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_data_torn_high_stays() {
+    assert!(paging::identity_data_ready());
+    assert!(!paging::is_mapped(paging::data_start()));
+    assert!(paging::high_mapped(paging::to_high_va(paging::data_start())));
+    assert!(paging::torn_data_pages() >= 1);
 }

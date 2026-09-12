@@ -33,14 +33,15 @@ fn flags_ok() -> bool {
         return false;
     }
     let data = data_bait_va();
-    if paging::pxn_for(data) != Some(true) {
+    if paging::image_pxn_for(data) != Some(true) {
         return false;
     }
-    if paging::readonly_for(data) != Some(false) {
+    if paging::image_readonly_for(data) != Some(false) {
         return false;
     }
     let stack = crate::exception::thread_stack_bottom();
-    paging::pxn_for(stack) == Some(true) && paging::readonly_for(stack) == Some(false)
+    paging::image_pxn_for(stack) == Some(true)
+        && paging::image_readonly_for(stack) == Some(false)
 }
 
 fn sync_icache(ptr: *const u32) {
