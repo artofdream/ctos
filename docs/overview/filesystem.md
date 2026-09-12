@@ -1,6 +1,6 @@
 # Filesystem: new vs extend
 
-**Today: thin VFS with two backends.** In-RAM **memfs** (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) and **FAT16 on virtio-blk** (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same `open` / `read` / `write` / `close`. FAT is **read-only**. Not POSIX `open`, not Linux VFS, not FAT32, not xv6.
+**Today: thin VFS with two backends.** In-RAM **memfs** (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) and **FAT16 on virtio-blk** (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same `open` / `read` / `write` / `close`. FAT is **read-only**. Not POSIX `open`, not Linux VFS, not FAT32, not xv6. Track B B5 compares the concepts: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md). **Not claiming a Linux filesystem.**
 
 Do not say “supports FAT” as a product. Say the guest read a known FAT16 file when the ledger has `fat: ok`. Hub: [honesty ledger](../framework/honesty-ledger.md), [What can run today](what-can-run.md). Extra stance: [filesystem.md](../framework/filesystem.md).
 

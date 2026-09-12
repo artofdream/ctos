@@ -60,6 +60,7 @@
 - [ADR-031 Linux-compat goals](03-adr/ADR-031-linux-compat-goals.md)
 - [ADR-032 Track A leftovers](03-adr/ADR-032-track-a-leftovers.md)
 - [ADR-033 Linux ELF / auxv / PT_INTERP](03-adr/ADR-033-linux-elf-auxv-pt-interp.md)
+- [ADR-034 Linux VFS vs thin ctos VFS](03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)
 - [ADR-035 Process model vs standing EL0](03-adr/ADR-035-process-model-standing-el0.md)
 
 # Roadmap
