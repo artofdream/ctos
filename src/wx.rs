@@ -20,10 +20,10 @@ fn flags_ok() -> bool {
     if !paging::is_executable(paging::KERNEL_TEXT) {
         return false;
     }
-    if paging::pxn_for(heap::heap_base()) != Some(true) {
+    if paging::image_pxn_for(heap::heap_base()) != Some(true) {
         return false;
     }
-    if paging::pxn_for(heap::heap_end() - 1) != Some(true) {
+    if paging::image_pxn_for(heap::heap_end() - 1) != Some(true) {
         return false;
     }
     // Device MMIO L1 stays XN.

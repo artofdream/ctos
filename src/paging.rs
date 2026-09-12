@@ -33,11 +33,12 @@
 //! identity pointers *to* `.rodata` and unmaps identity `.rodata`.
 //! [ADR-037](../docs/03-adr/ADR-037-identity-data-tear.md) rewrites
 //! identity pointers *into* `.data`/`.bss`/linker stacks, relocates SP
-//! to the high twin, then unmaps those identity pages. Heap stays
-//! identity-mapped (`GlobalAlloc` still returns identity VAs). `_start`
-//! and the QEMU `-kernel` load stay at `0x4008_0000`. Heap tear and PAN
-//! enable stay Planned ([ADR-026](../docs/03-adr/ADR-026-pan-capability.md)
-//! on `-cpu cortex-a57`). Not a DTB walker. Not Raspberry Pi. Not
+//! to the high twin, then unmaps those identity pages. [ADR-038](../docs/03-adr/ADR-038-identity-heap-tear.md)
+//! installs `GlobalAlloc` at the TTBR1 alias and unmaps the identity
+//! heap pool. `_start` and the QEMU `-kernel` load stay at
+//! `0x4008_0000`. PAN enable stays Planned
+//! ([ADR-026](../docs/03-adr/ADR-026-pan-capability.md) on `-cpu
+//! cortex-a57`). Not a DTB walker. Not Raspberry Pi. Not
 //! “EL0 isolated.” Not “the kernel moved.”
 
 use core::fmt::Write;
@@ -180,6 +181,8 @@ static IDENTITY_RODATA_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static IDENTITY_DATA_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
+static IDENTITY_HEAP_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 static TORN_TEXT_PAGES: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TORN_LIVE_PAGES: core::sync::atomic::AtomicU64 =
@@ -193,6 +196,10 @@ static RODATA_RELOC_COUNT: core::sync::atomic::AtomicU64 =
 static DATA_RELOC_COUNT: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TORN_DATA_PAGES: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static HEAP_RELOC_COUNT: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static TORN_HEAP_PAGES: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TABLES: Mutex<()> = Mutex::new(());
 
@@ -295,7 +302,16 @@ pub fn is_torn_identity_va(va: u64) -> bool {
     if load_flag(&IDENTITY_DATA_OK) {
         let kend = frame::kernel_end();
         let kend_page = (kend + PAGE - 1) & !(PAGE - 1);
-        return page >= data_start() && page < kend_page;
+        if page >= data_start() && page < kend_page {
+            return true;
+        }
+    }
+    if load_flag(&IDENTITY_HEAP_OK) {
+        let hlo = crate::heap::heap_pa();
+        let hhi = crate::heap::heap_pa_end();
+        if hlo != 0 && page >= hlo && page < hhi {
+            return true;
+        }
     }
     false
 }
@@ -675,7 +691,17 @@ pub fn high_readonly_for(va: u64) -> Option<bool> {
 pub fn image_pxn_for(va: u64) -> Option<bool> {
     let ia = identity_pa(va);
     if identity_data_ready() && ia >= data_start() && ia < frame::kernel_end() {
-        high_pxn_for(to_high_va(ia))
+        return high_pxn_for(to_high_va(ia));
+    }
+    if identity_heap_ready() {
+        let hlo = crate::heap::heap_pa();
+        let hhi = crate::heap::heap_pa_end();
+        if hlo != 0 && ia >= hlo && ia < hhi {
+            return high_pxn_for(to_high_va(ia));
+        }
+    }
+    if is_high_va(va) {
+        high_pxn_for(va)
     } else {
         pxn_for(ia)
     }
@@ -685,7 +711,17 @@ pub fn image_pxn_for(va: u64) -> Option<bool> {
 pub fn image_readonly_for(va: u64) -> Option<bool> {
     let ia = identity_pa(va);
     if identity_data_ready() && ia >= data_start() && ia < frame::kernel_end() {
-        high_readonly_for(to_high_va(ia))
+        return high_readonly_for(to_high_va(ia));
+    }
+    if identity_heap_ready() {
+        let hlo = crate::heap::heap_pa();
+        let hhi = crate::heap::heap_pa_end();
+        if hlo != 0 && ia >= hlo && ia < hhi {
+            return high_readonly_for(to_high_va(ia));
+        }
+    }
+    if is_high_va(va) {
+        high_readonly_for(va)
     } else {
         readonly_for(ia)
     }
@@ -748,6 +784,24 @@ pub fn identity_rodata_ready() -> bool {
 #[allow(dead_code)]
 pub fn identity_data_ready() -> bool {
     load_flag(&IDENTITY_DATA_OK)
+}
+
+/// Identity heap pool unmapped; high twin stays (ADR-038).
+#[allow(dead_code)]
+pub fn identity_heap_ready() -> bool {
+    load_flag(&IDENTITY_HEAP_OK)
+}
+
+/// How many identity pointers *into* the heap were rewritten (ADR-038).
+#[allow(dead_code)]
+pub fn heap_reloc_count() -> u64 {
+    load_u64_flag(&HEAP_RELOC_COUNT)
+}
+
+/// How many identity heap pages were unmapped (ADR-038).
+#[allow(dead_code)]
+pub fn torn_heap_pages() -> u64 {
+    load_u64_flag(&TORN_HEAP_PAGES)
 }
 
 /// How many `.rodata`/`.data` words were rewritten to a high alias.
@@ -1540,6 +1594,44 @@ fn rewrite_ptr_range(
     n
 }
 
+/// Rewrite 8-byte identity pointers in `[lo, hi)` via the TTBR1 twin.
+///
+/// Used after ADR-037 so identity `.data`/stacks are already unmapped.
+/// `lo`/`hi` are identity PAs. Access and store go through `to_high_va`.
+fn rewrite_ptr_range_high(lo: u64, hi: u64, pred: fn(u64) -> bool) -> u64 {
+    if hi <= lo {
+        return 0;
+    }
+    let mut n = 0u64;
+    let mut page = lo & !(PAGE - 1);
+    while page < hi {
+        let high_page = to_high_va(page);
+        if !high_mapped(high_page) {
+            page += PAGE;
+            continue;
+        }
+        let start = core::cmp::max(lo, page);
+        let stop = core::cmp::min(hi, page + PAGE);
+        let mut p = (start + 7) & !7;
+        while p + 8 <= stop {
+            let cpu = to_high_va(p);
+            let word = unsafe { core::ptr::read_volatile(cpu as *const u64) };
+            if pred(word) {
+                unsafe {
+                    core::ptr::write_volatile(cpu as *mut u64, to_high_va(word));
+                }
+                n += 1;
+            }
+            p += 8;
+        }
+        dcache_civac(high_page);
+        page += PAGE;
+    }
+    dsb_ish();
+    isb();
+    n
+}
+
 /// rustc `dyn Write` vtable is drop / size / align / write_str / …
 const WRITE_VTABLE_WRITE_STR: usize = 3;
 
@@ -1916,7 +2008,7 @@ pub fn tear_identity_data() -> bool {
     if !is_mapped(KERNEL_TEXT) || !is_executable(KERNEL_TEXT) {
         return false;
     }
-    // Heap / frames start at __kernel_end — must stay identity-mapped.
+    // Heap / frames start at __kernel_end — stay identity-mapped until ADR-038.
     if !is_mapped(frame::kernel_end()) {
         return false;
     }
@@ -1929,6 +2021,124 @@ pub fn tear_identity_data() -> bool {
     let _ = writeln!(
         w,
         "ident: data lo={:#x} hi={:#x} pages={}",
+        lo, hi, pages
+    );
+    true
+}
+
+/// True when `w` is an 8-byte-aligned identity address inside the heap pool.
+fn is_identity_heap_ptr(w: u64) -> bool {
+    if is_high_va(w) || w & 7 != 0 {
+        return false;
+    }
+    let p = identity_pa(w);
+    let lo = crate::heap::heap_pa();
+    let hi = crate::heap::heap_pa_end();
+    lo != 0 && p >= lo && p < hi
+}
+
+/// Rewrite leftover identity pointers *into* the heap (ADR-038).
+///
+/// Walks high `.data`/stacks (identity already torn) and the heap pool
+/// via the TTBR1 twin. `n == 0` is allowed when `heap::init` already
+/// installed high VAs. Does not unmap.
+#[allow(dead_code)]
+pub fn rewrite_identity_heap_ptrs() -> bool {
+    if !high_split_ready() || !pc_is_high() || !identity_data_ready() {
+        return false;
+    }
+    if identity_heap_ready() {
+        return false;
+    }
+    let hlo = crate::heap::heap_pa();
+    let hhi = crate::heap::heap_pa_end();
+    if hlo == 0 || hhi <= hlo || (hlo & (PAGE - 1)) != 0 {
+        return false;
+    }
+    if !is_mapped(hlo) {
+        return false;
+    }
+    if !high_mapped(to_high_va(hlo)) {
+        return false;
+    }
+    // Do not walk live stacks / page-table .bss (ADR-037 already tore
+    // identity `.data`). heap::init installed high VAs, so leftover
+    // identity heap words live only in the pool itself (free-list).
+    let n = rewrite_ptr_range_high(hlo, hhi, is_identity_heap_ptr);
+    publish_u64(&HEAP_RELOC_COUNT, n);
+    let mut w = uart::raw();
+    let _ = writeln!(w, "ident: heap-reloc n={}", n);
+    true
+}
+
+/// Unmap identity heap pages (ADR-038). High twins stay.
+///
+/// Requires high `GlobalAlloc` VAs and the pointer rewrite. Frames
+/// after the heap pool stay identity-mapped.
+#[allow(dead_code)]
+pub fn tear_identity_heap() -> bool {
+    if !high_split_ready() || !pc_is_high() || !identity_data_ready() {
+        return false;
+    }
+    if identity_heap_ready() {
+        return false;
+    }
+    let lo = crate::heap::heap_pa();
+    let hi = crate::heap::heap_pa_end();
+    if lo & (PAGE - 1) != 0 || hi & (PAGE - 1) != 0 || hi <= lo {
+        return false;
+    }
+    if !crate::heap::is_ready() || !is_high_va(crate::heap::heap_base()) {
+        return false;
+    }
+    if !is_mapped(lo) {
+        return false;
+    }
+    if !high_mapped(to_high_va(lo)) {
+        return false;
+    }
+    let pages = (hi - lo) / PAGE;
+    if pages < 1 {
+        return false;
+    }
+    {
+        let _g = TABLES.lock();
+        let mut va = lo;
+        unsafe {
+            while va < hi {
+                if !unmap_identity_page(va) {
+                    return false;
+                }
+                let _ = unmap_user_ram_page(va);
+                va += PAGE;
+            }
+        }
+        dsb_ish();
+    }
+    let mut va = lo;
+    while va < hi {
+        tlbi_va(va);
+        va += PAGE;
+    }
+    if is_mapped(lo) || is_mapped(hi - PAGE) {
+        return false;
+    }
+    if !is_mapped(KERNEL_TEXT) || !is_executable(KERNEL_TEXT) {
+        return false;
+    }
+    // Remaining frame pool after the heap stays identity-mapped.
+    if !is_mapped(hi) {
+        return false;
+    }
+    if !high_mapped(to_high_va(lo)) {
+        return false;
+    }
+    publish_u64(&TORN_HEAP_PAGES, pages);
+    publish_flag(&IDENTITY_HEAP_OK, true);
+    let mut w = uart::raw();
+    let _ = writeln!(
+        w,
+        "ident: heap lo={:#x} hi={:#x} pages={}",
         lo, hi, pages
     );
     true
@@ -2334,9 +2544,17 @@ fn kernel_text_is_executable() {
 #[cfg(test)]
 #[test_case]
 fn heap_and_mmio_are_pxn() {
-    assert_eq!(pxn_for(crate::heap::heap_base()), Some(true));
-    assert_eq!(pxn_for(crate::heap::heap_end() - 1), Some(true));
-    assert_eq!(pxn_for(frame::kernel_end()), Some(true));
+    assert_eq!(image_pxn_for(crate::heap::heap_base()), Some(true));
+    assert_eq!(image_pxn_for(crate::heap::heap_end() - 1), Some(true));
+    if identity_heap_ready() {
+        assert_eq!(
+            pxn_for(crate::heap::heap_pa_end()),
+            Some(true),
+            "frames after the torn heap stay identity PXN"
+        );
+    } else {
+        assert_eq!(pxn_for(frame::kernel_end()), Some(true));
+    }
     // PL011 is in the Device L1 block (already XN from M7).
     assert_eq!(pxn_for(0x0900_0000), Some(true));
 }
@@ -2391,7 +2609,13 @@ fn layout_stress_crosses_first_ram_l2() {
     assert!(is_executable(KERNEL_TEXT));
     assert!(is_readonly(KERNEL_TEXT));
     assert_eq!(image_pxn_for(data_start()), Some(true));
-    assert!(is_mapped(frame::kernel_end()));
+    if identity_heap_ready() {
+        assert!(!is_mapped(crate::heap::heap_pa()), "identity heap torn");
+        assert!(high_mapped(to_high_va(crate::heap::heap_pa())));
+        assert!(is_mapped(crate::heap::heap_pa_end()), "frames after heap stay");
+    } else {
+        assert!(is_mapped(frame::kernel_end()));
+    }
     assert!(
         identity_pa(crate::exception::exc_stack_top()) > first_ram_l2_end(),
         "exception stack must also leave the first RAM 2 MiB"
@@ -2598,7 +2822,12 @@ fn identity_rodata_unmapped_high_stays() {
         assert!(!is_mapped(data_start()), "identity .data torn (ADR-037)");
         assert!(high_mapped(to_high_va(data_start())), "high .data twin stays");
         assert!(is_torn_identity_va(data_start()));
-        assert!(is_mapped(frame::kernel_end()), "heap/frames stay identity");
+        if identity_heap_ready() {
+            assert!(!is_mapped(crate::heap::heap_pa()), "identity heap torn");
+            assert!(high_mapped(to_high_va(crate::heap::heap_pa())));
+        } else {
+            assert!(is_mapped(frame::kernel_end()), "heap/frames stay identity until ADR-038");
+        }
     } else {
         assert!(is_mapped(data_start()), ".data stays until ADR-037");
         assert!(!is_torn_identity_va(data_start()));
@@ -2607,7 +2836,7 @@ fn identity_rodata_unmapped_high_stays() {
 
 #[cfg(test)]
 #[test_case]
-fn identity_data_unmapped_heap_stays() {
+fn identity_data_unmapped_high_stays() {
     assert!(pc_is_high());
     assert!(identity_data_ready(), "identity .data must unmap (ADR-037)");
     let lo = data_start();
@@ -2617,8 +2846,22 @@ fn identity_data_unmapped_heap_stays() {
     assert!(!is_mapped(hi - PAGE), "last data/stack page must be absent");
     assert!(high_mapped(to_high_va(lo)), "high .data twin stays");
     assert!(is_mapped(KERNEL_TEXT), "boot stub stays");
-    assert!(is_mapped(frame::kernel_end()), "heap/frames stay identity");
-    assert!(!is_high_va(crate::heap::heap_base()), "heap VAs stay identity");
-    assert!(is_mapped(crate::heap::heap_base()), "identity heap stays");
+    assert!(is_torn_identity_va(lo));
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_heap_unmapped_high_stays() {
+    assert!(pc_is_high());
+    assert!(identity_heap_ready(), "identity heap must unmap (ADR-038)");
+    let lo = crate::heap::heap_pa();
+    let hi = crate::heap::heap_pa_end();
+    assert!(lo != 0 && hi > lo);
+    assert!(torn_heap_pages() >= 1, "at least one identity heap page");
+    assert!(is_high_va(crate::heap::heap_base()), "GlobalAlloc returns high VAs");
+    assert!(!is_mapped(lo), "first heap page must be absent from TTBR0");
+    assert!(!is_mapped(hi - PAGE), "last heap page must be absent");
+    assert!(high_mapped(to_high_va(lo)), "high heap twin stays");
+    assert!(is_mapped(hi), "frame pool after the heap stays identity");
     assert!(is_torn_identity_va(lo));
 }

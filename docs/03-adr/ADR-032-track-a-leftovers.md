@@ -29,7 +29,7 @@ No new FR/NFR IDs. Author does not merge ([ADR-002](ADR-002-pr-identity-split.md
 1. **Prior OS is `ba6541c`.** That is the A9 merge commit (`A9: Disconnect OS image from app payloads (ADR-030) (#60)`). No earlier `main` SHA has the slot/FAT path. Do not store a prior kernel ELF in git. `scripts/qemu-smoke.sh` builds that commit in a git worktree and QEMU `-kernel`s it with the **same** app bytes this tip published (sha256 pin via `sha256sum`, `shasum -a 256`, or `openssl dgst -sha256`). Docker smoke needs `git` in the image and `.git` objects in the build context (not host `.git/worktrees` registrations). Smoke prunes stale worktrees before add. Do not invent a stored kernel blob. Both boots must print `slot: fat` / `slot: mapped` / `slot: ok` and must not print `slot: embed` / `slot: probe missed`. This OS SHA must differ from `ba6541c`.
 2. **No hello embed.** `src/libctos.rs` and `src/loader.rs` read FAT `/hello` through `fat::read_file` (same VFS `open` as A7). A2 still memcpy-flattens `PT_LOAD` at/after `EL0_PAGE` (not a guest ELF map). A3/A4 still parse and `ERET`. Size must match `HELLO_ELF_LEN` / `HELLO_LEN` from this `build.rs` so a swapped slot cannot silently satisfy those miles. Host smoke rejects `include_bytes!.*hello-libctos` under `src/`.
 3. **Isolation honesty.** Serial `ident: data-stay` / `ident: heap-stay` after walking those identity pages. `#[test_case]` `identity_data_and_heap_still_mapped`. PAN enable stays **Planned** (`pan: id=0` / `pan: absent`; smoke still rejects `pan: enabled`). Do not claim “EL0 isolated.”
-4. **Still Planned.** Identity `.data` / heap tear (needs SP relocate + high allocator VAs); PAN enable on `-cpu cortex-a57`; lower-EL IRQ while standing; EL0 entry without `TLBI VMALLE1`; umbrella isolation; A9 slot-disconnect **delta** vs the old embed; product “app hosting is done.”
+4. **Still Planned (at accept time).** Identity `.data` / heap tear (needs SP relocate + high allocator VAs). Superseded in part by [ADR-037](ADR-037-identity-data-tear.md) and [ADR-038](ADR-038-identity-heap-tear.md). PAN enable on `-cpu cortex-a57`; lower-EL IRQ while standing; EL0 entry without `TLBI VMALLE1`; umbrella isolation; A9 slot-disconnect **delta** vs the old embed; product “app hosting is done.”
 5. **NFR-10 text** is revised in place (ID unchanged). Threat-model **v1.17**. Do not mint FR-16+ or NFR-15+.
 
 ## Honesty
@@ -43,7 +43,7 @@ Say “the same published `hello-libctos.elf` loaded on this OS and on `ba6541c`
 
 ## Consequences
 
-- [ADR-037](ADR-037-identity-data-tear.md) supersedes the `.data` stay marker with an honest `.data`/stack tear; `ident: heap-stay` remains until a high allocator exists.
+- [ADR-037](ADR-037-identity-data-tear.md) supersedes the `.data` stay marker. [ADR-038](ADR-038-identity-heap-tear.md) supersedes `ident: heap-stay` with an honest heap tear (`ident: heap-reloc` / `ident: heap`).
 
 - Code: `fat::read_file`, loader/libctos FAT path, teardown stay markers, `scripts/qemu-smoke.sh` embed + cross-update + stay greps.
 - Docs: this ADR, [ADR-030](ADR-030-os-app-slots.md), A2–A4 ADRs (payload source), [ADR-025](ADR-025-identity-rodata-tear.md) / [ADR-026](ADR-026-pan-capability.md) (still Planned), ledger, Track A, threat-model v1.17.

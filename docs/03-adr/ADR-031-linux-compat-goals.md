@@ -62,7 +62,7 @@ This ADR does **not** implement B2–B6. It does **not** mint FR-16+ or NFR-15+.
    | Document-first / one-PR loops | One child → one branch → one GitHub PR. |
    | Freestanding Track A path | In-tree apps keep SVC `#n`, `libctos`, `PT_LOAD` without interpreter, thin VFS. A research map must not silently retarget those numbers to Linux `x8`. |
    | Virt learning scope | QEMU `virt` + PL011 until an ADR widens it. |
-   | ADR-gated memory / EL0 | Isolation, PAN enable, identity `.data`/heap tear stay their own rows. |
+   | ADR-gated memory / EL0 | Isolation, PAN enable, remaining identity RAM / `_start` stay their own rows. |
 
 5. **Relationship to ADR-029.** Guest containers remain a **non-goal**. B1–B6 must not treat containers as a win, a silent Planned row, or a reason to grow namespaces / cgroups / overlay. Reopen only with a **new GitHub epic** plus a new ADR that names the missing Linux-host features and a probe. Do not mint an FR/NFR ID for that.
 

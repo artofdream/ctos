@@ -35,4 +35,4 @@ This mile must not invent OTA, A-B flash, or OCI containers ([ADR-029](ADR-029-c
 
 - Code: `src/slot.rs`, `src/loader.rs` (`run_image`), `build.rs` publish path, `scripts/mkfat16.py --app`, QEMU runner / smoke.
 - Docs: [immutability.md](../framework/immutability.md), [advantages.md](../overview/advantages.md), [track-a.md](../04-roadmap/track-a.md), threat-model v1.16. Roadmap cites #48 / Track A #31.
-- Track A children A1–A9 now have a first cut. [ADR-032](ADR-032-track-a-leftovers.md) takes cross-update + embed-off + isolation honesty. Remaining Planned: PAN enable, identity `.data`/heap tear, umbrella isolation, slot-load **delta**, “app hosting is done.”
+- Track A children A1–A9 now have a first cut. [ADR-032](ADR-032-track-a-leftovers.md) takes cross-update + embed-off + isolation honesty. Remaining Planned: PAN enable, remaining identity RAM / `_start`, umbrella isolation, slot-load **delta**, “app hosting is done.”
