@@ -1,6 +1,6 @@
 # SVC syscall ABI (Track A / A1 / ADR-021)
 
-**ABI + CRT + loader + standing-task + memfs + FAT16 miles.** Sample **rebuild recipes** are A8 (docs). App hosting / OS–app slots stay **Planned** (A9). Track A is still incomplete after A8. Not Linux. Not POSIX.
+**ABI + CRT + loader + standing-task + memfs + FAT16 + slot first-cut miles.** Sample **rebuild recipes** are A8 (docs). A9 is two artifacts + FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). Cross-update and “app hosting is done” stay **Planned**. Not Linux. Not POSIX.
 
 Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Thin VFS + memfs: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md). virtio-blk + FAT16: [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). A4: [issue #35](https://github.com/artofdream/ctos/issues/35). A6: [issue #37](https://github.com/artofdream/ctos/issues/37). Code: `src/syscall.rs`, `src/vfs.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`, `src/el0.rs`.
 
@@ -35,7 +35,7 @@ A `no_std` crate wraps the three public numbers. A hello payload linked against 
 
 ## Guest loader (A3)
 
-The kernel parses the embedded hello ELF, maps each `PT_LOAD` into the user map-window, and `ERET`s to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Serial `loader: mapped` / `loader: ok`. Not a Linux ELF ABI. Not `PT_INTERP`. The image is still bundled (no VFS). File presence is not that probe.
+The kernel parses the embedded hello ELF, maps each `PT_LOAD` into the user map-window, and `ERET`s to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Serial `loader: mapped` / `loader: ok`. Not a Linux ELF ABI. Not `PT_INTERP`. A2–A4 still bundle the image. File presence is not that probe.
 
 ## Standing task (A4)
 
@@ -53,6 +53,10 @@ Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md))
 
 Rebuild recipes for the probed classes: [what-can-run.md](../overview/what-can-run.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. No new syscall numbers. File presence is not a new runtime.
 
+## OS/app slots (A9)
+
+Host kernel ELF + published `hello-libctos.elf`. Guest reads FAT `/hello` through the same VFS and maps it with the A3 loader ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). Serial `slot: fat` / `slot: mapped` / `slot: ok` / `perf: app-load`. No embed fallback on this path. A2–A4 still embed. Cross-update stays Planned. File presence is not that probe.
+
 ## Still Planned (Track A)
 
-OS/app slots (A9 on #31 / [#48](https://github.com/artofdream/ctos/issues/48)). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.
+A9 cross-update (same app on OS n and n+1). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.

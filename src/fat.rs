@@ -1,7 +1,8 @@
 //! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028).
 //!
-//! Read-only root file `/probe` (8.3 `PROBE`). Not FAT32. Not xv6.
-//! Not POSIX. Host image is `scripts/mkfat16.py`.
+//! Read-only root files `/probe` (8.3 `PROBE`) and A9 `/hello`
+//! (8.3 `HELLO`, app ELF). Not FAT32. Not xv6. Not POSIX.
+//! Host image is `scripts/mkfat16.py`.
 
 use core::fmt::Write;
 use core::sync::atomic::{AtomicBool, Ordering};
@@ -391,6 +392,7 @@ fn fat16_missing_and_readonly() {
 #[test_case]
 fn fat16_path_maps_8_3() {
     assert_eq!(path_to_83("/probe"), Some(*b"PROBE      "));
+    assert_eq!(path_to_83("/hello"), Some(*b"HELLO      "));
     assert_eq!(path_to_83("/kprobe"), Some(*b"KPROBE     "));
     assert!(path_to_83("/toolong12").is_none());
     assert!(path_to_83("probe").is_none());

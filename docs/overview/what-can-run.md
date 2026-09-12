@@ -2,7 +2,7 @@
 
 Plain English. These are **rebuild recipes** for in-tree samples that already have probes. They are not third-party applications and not a product runtime.
 
-**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. It does **not** add a new ABI, a new loader, or an OS/app slot. App hosting stays **Planned**. A9 (two artifacts) stays **Planned**.
+**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. App hosting / cross-update stays **Planned**.
 
 Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Isolation of user programs stays **Planned**. Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
 
@@ -25,7 +25,7 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for the EL0 hello, the embedded payload `build.rs` already builds).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for the EL0 hello, `build.rs` publishes `target/hello-libctos.elf` and still embeds a copy for A2–A4).
 
 ```bash
 cargo build                 # aarch64-ctos.json; also builds user/hello-libctos
@@ -129,6 +129,19 @@ Read-only FAT16 on QEMU virtio-mmio block ([ADR-028](../03-adr/ADR-028-virtio-bl
 
 Host `-drive` without the guest serial is **not** the probe. Not POSIX. Not FAT32. Not writeable FAT. Do not say “supports FAT” as a product.
 
+## Recipe 6 — OS image vs app slot (A9 first cut)
+
+Two host artifacts and a FAT load path ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). Same class as `slot: fat` / `slot: mapped` / `slot: ok` / `perf: app-load`.
+
+| Piece | Path |
+| --- | --- |
+| OS image | `target/aarch64-ctos/debug/ctos` (QEMU `-kernel`) |
+| App payload | `target/hello-libctos.elf` (published by `build.rs`) |
+| FAT slot | `scripts/mkfat16.py --app` → `/hello` |
+| Guest load | `src/slot.rs` + A3 `src/loader.rs` |
+
+A2–A4 still embed a copy so their markers stay. Cross-update (same ELF on two OS builds) is **not** this recipe. Not OTA. Not “app hosting is done.”
+
 ## What cannot run
 
 ```mermaid
@@ -150,7 +163,7 @@ Do not imply these work:
 - Network servers (no NIC, no sockets, no DMA)
 - POSIX / Linux filesystem apps (memfs + one FAT16 file is not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
-- An OS image that updates without rebuilding the embedded hello (**A9** — [issue #48](https://github.com/artofdream/ctos/issues/48))
+- Cross-update of one app ELF across two OS builds (**A9 remaining** — [issue #48](https://github.com/artofdream/ctos/issues/48); first cut is FAT `/hello`)
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md); [Hosting apps / containers](hosting-apps.md)).
 

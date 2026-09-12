@@ -12,7 +12,15 @@ if ! command -v python3 >/dev/null 2>&1; then
     echo "qemu-aarch64: python3 needed to build the FAT16 image" >&2
     exit 1
 fi
-python3 "$ROOT/scripts/mkfat16.py" "$IMG" >/dev/null
+APP="${CTOS_APP_ELF:-$ROOT/target/hello-libctos.elf}"
+if [ ! -f "$APP" ]; then
+    echo "qemu-aarch64: missing app ELF $APP (A9 / ADR-030; cargo build publishes it)" >&2
+    exit 1
+fi
+if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" "$IMG" >/dev/null; then
+    echo "qemu-aarch64: failed to write FAT16 image $IMG" >&2
+    exit 1
+fi
 exec qemu-system-aarch64 \
     -machine virt \
     -cpu cortex-a57 \

@@ -60,10 +60,10 @@ First-class page: [building-or-porting.md](building-or-porting.md). Short honest
 
 The sponsor goal for “immutability” here is **not** a frozen kernel. It is to **disconnect OS updates from apps**: one OS image artifact, separate app payloads, so you can replace the kernel without rebuilding apps and replace apps without rebuilding the kernel.
 
-- **Today:** one linked kernel ELF (`target/aarch64-ctos/debug/ctos`). Sample tasks and the standing EL0 stub are compiled in. **Not Verified** as a slot/split.
-- **Planned** after Track A ABI + loader ([A1–A4 on #31](https://github.com/artofdream/ctos/issues/31)): issue [A9 #48](https://github.com/artofdream/ctos/issues/48). Stance: [immutability.md](immutability.md).
-- Do not say “immutable OS” or “apps update independently” until a probe shows two artifacts and a load path.
-- **Performance (unmeasured):** expect costs at boot/load, SVC, ASID/TTBR switches, optional later COW; steady EL0 compute similar; smaller OS updates are operational, not a bench. Gate: boot-delta + a new app-load CNTPCT probe. **No Verified delta today.** Details: [performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench).
+- **First cut:** two host artifacts (`target/aarch64-ctos/debug/ctos` + `target/hello-libctos.elf`) and a FAT16 `/hello` load path ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [A9 #48](https://github.com/artofdream/ctos/issues/48)). A2–A4 still embed a copy. Stance: [immutability.md](immutability.md).
+- **Planned:** same app ELF on OS n and a documented prior OS (cross-update). Do not say “apps update independently” until that probe exists.
+- Do not say “immutable OS.”
+- **Performance:** `perf: app-load` measures the FAT load path. A Verified *delta* vs the embed stays Planned. Expected costs: boot/load, SVC, ASID/TTBR, optional later COW. Details: [performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench).
 
 ## Prerequisites
 
@@ -87,7 +87,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 - QEMU `virt` only. No Raspberry Pi or board claim
 - Not POSIX, not multi-tenant, not a product runtime. memfs + read-only FAT16 ([filesystem.md](filesystem.md)). Not a container host (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md)); host `docker-smoke` ≠ guest Docker.
 - Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); identity `.rodata` is torn (ADR-025); `.data`/heap stay; PAN enable stays Planned (`pan: absent` on `-cpu cortex-a57`)
-- Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot disconnect** (A9) is **Planned** after Track A ABI/loader — still one ELF today.
+- Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot first cut** (A9 / ADR-030) is two artifacts + FAT `/hello`. Cross-update stays Planned. A2–A4 still embed.
 - Performance numbers are guest counter deltas, not a latency budget
 - Docs website / custom domain: HTTPS serving the book is **Verified** ([website.md](../website.md))
 - Same-login cannot self-merge; a second identity has to land the PR

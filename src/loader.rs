@@ -1,11 +1,13 @@
 //! Guest ELF64 PT_LOAD loader into user TTBR0 (Track A / A3 / ADR-023).
 //!
-//! The kernel parses an embedded ELF (the A2 `libctos` hello) and maps
+//! The kernel parses an ELF (the A2 `libctos` hello) and maps
 //! each `PT_LOAD` into the user map-window, then `ERET`s to `e_entry`.
 //! That is **not** the A2 host extract + memcpy onto `EL0_PAGE`.
 //! A4 / ADR-024 reuses this loader as the way a standing **task**
-//! appears (`run_hello_as_task`). Not a Linux ELF ABI. Not `PT_INTERP`.
-//! Not glibc. Not app hosting.
+//! appears (`run_hello_as_task`). A9 / ADR-030 reuses `run_image` on
+//! bytes read from the FAT app slot (`/hello`), not this embed.
+//! A2–A4 still `include_bytes!` so their markers stay. Not a Linux
+//! ELF ABI. Not `PT_INTERP`. Not glibc. Not app hosting.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -408,15 +410,17 @@ fn load_image(
     Ok((img.entry, pages, Some((stack_va, stack_pa))))
 }
 
-fn run_loaded() -> bool {
+/// Map `elf` with the A3 `PT_LOAD` walker and `ERET`. Used by the
+/// embedded A3 probe and by the A9 FAT slot (no embed fallback there).
+pub(crate) fn run_image(elf: &[u8]) -> bool {
     if el0::is_active() || !paging::user_map_ready() {
         return false;
     }
-    let Ok(img) = parse_elf64(HELLO_ELF) else {
+    let Ok(img) = parse_elf64(elf) else {
         return false;
     };
     syscall::reset_probe_flags();
-    let Ok((entry, pages, stack)) = load_image(HELLO_ELF, &img) else {
+    let Ok((entry, pages, stack)) = load_image(elf, &img) else {
         return false;
     };
     let Some((stack_va, stack_pa)) = stack else {
@@ -439,6 +443,10 @@ fn run_loaded() -> bool {
         && syscall::last_uart_write() == 12
         && syscall::last_exit_status() == 0
         && syscall::yield_count() >= 1
+}
+
+fn run_loaded() -> bool {
+    run_image(HELLO_ELF)
 }
 
 /// A4 / ADR-024: same A3 map, but standing **task** until `SYS_EXIT`.

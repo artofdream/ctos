@@ -20,7 +20,7 @@ There is no NIC driver and no virtio-net. A7 programs virtio-mmio block and read
 
 ## No real userspace apps
 
-The standing user-mode stub is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no extra CPUs, no GPU. Rebuild recipes: [What can run today](what-can-run.md). How to extend the kernel (not port POSIX): [Building or porting](porting.md). OS vs app slot is **A9 Planned**.
+The standing user-mode stub is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no extra CPUs, no GPU. Rebuild recipes: [What can run today](what-can-run.md). How to extend the kernel (not port POSIX): [Building or porting](porting.md). OS vs app slot has an A9 first cut (FAT `/hello`); cross-update stays Planned.
 
 ## Docs URL
 
