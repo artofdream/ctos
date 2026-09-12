@@ -31,7 +31,7 @@ edit-url-template = "https://github.com/artofdream/ctos/edit/main/docs/{path}"
 site-url = "/"
 cname = "ctos.artof.link"
 no-section-label = false
-additional-css = ["docs/mermaid.css"]
+additional-css = ["docs/mermaid.css", "docs/theme.css"]
 additional-js = ["docs/mermaid-init.js"]
 
 [output.html.playground]

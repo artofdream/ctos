@@ -80,6 +80,7 @@ test -f book/CNAME
 test "$(tr -d '[:space:]' < book/CNAME)" = "ctos.artof.link"
 # mdBook 0.5 hashes extra CSS/JS; presence of mermaid assets in the book tree is enough.
 test -n "$(find book \( -name '*mermaid-init*' -o -name '*mermaid.css' \) | head -n 1)"
+test -n "$(find book -name '*theme.css' | head -n 1)"
 # Website chapters are these docs/ files — fail if the book dropped one.
 for html in \
   book/overview/what-can-run.html \

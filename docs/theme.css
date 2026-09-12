@@ -1,0 +1,132 @@
+/* ctos docs — narrow-viewport / mobile compliance.
+ *
+ * Stock mdBook 0.5.4 already ships:
+ *   - <meta name="viewport" content="width=device-width, initial-scale=1">
+ *   - sidebar hamburger (#mdbook-sidebar-toggle)
+ *   - --sidebar-width: min(300px, 80vw)
+ *   - .table-wrapper { overflow-x: auto }
+ *   - .content img { max-width: 100% }
+ *
+ * This file closes the remaining gaps vs the architecture.artof.link bar:
+ * wrap/scroll instead of page-wide overflow, readable type, 44px touch.
+ * Desktop layout stays the mdBook default (750px content column).
+ */
+
+.content,
+.content main {
+    min-width: 0;
+    max-width: min(var(--content-max-width), 100%);
+}
+
+.content pre,
+.content pre > code {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper {
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+.content table td,
+.content table th {
+    overflow-wrap: break-word;
+    word-break: normal;
+}
+
+.content table td code,
+.content table th code {
+    word-break: break-all;
+}
+
+.content img,
+.content video {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Wide identifier strings in headings (target triples, symbol names). */
+.content h1,
+.content h2,
+.content h3 {
+    overflow-wrap: break-word;
+}
+
+@media (max-width: 768px) {
+    :root {
+        --page-padding: 12px;
+    }
+
+    /* 1.6rem × 62.5% root = 16px. Do not shrink body type on phones. */
+    body {
+        font-size: 1.6rem;
+    }
+
+    .content table td,
+    .content table th,
+    .content table thead th,
+    .content table thead td {
+        padding: 0.45rem 0.65rem;
+    }
+
+    /* Scroll a wide table instead of crushing columns (ledger, FR/NFR). */
+    .table-wrapper table {
+        min-width: 28rem;
+    }
+
+    /* architecture.artof.link bar: 44px tap targets on nav chrome. */
+    .chapter li a,
+    .chapter-fold-toggle {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .chapter-link-wrapper {
+        align-items: center;
+        min-height: 44px;
+    }
+
+    #mdbook-menu-bar .icon-button,
+    #mdbook-sidebar-toggle,
+    .menu-bar .icon-button {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .mobile-nav-chapters {
+        min-width: 44px;
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .content pre > code {
+        font-size: clamp(1.2rem, 3.6vw, 1.4rem);
+    }
+
+    #mdbook-menu-bar {
+        min-height: var(--menu-bar-height);
+        height: auto;
+        padding-top: env(safe-area-inset-top, 0px);
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+    }
+
+    .content {
+        padding-bottom: calc(50px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+@media (max-width: 420px) {
+    :root {
+        --page-padding: 10px;
+    }
+}

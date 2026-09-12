@@ -66,6 +66,7 @@ jobs:
           test -f book/overview/advantages.html
           test -f book/overview/limits.html
           test -n "$(find book \( -name '*mermaid-init*' -o -name '*mermaid.css' \) | head -n 1)"
+          test -n "$(find book -name '*theme.css' | head -n 1)"
           grep -q 'class="mermaid"' book/index.html book/overview/*.html
           touch book/.nojekyll
 

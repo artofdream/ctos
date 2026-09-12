@@ -30,11 +30,14 @@
       return;
     }
     unwrapHighlightBlocks();
+    /* On phones, keep the natural diagram width and let .mermaid scroll
+     * (see mermaid.css). useMaxWidth:true squashes labels on 320px. */
+    var narrow = window.matchMedia("(max-width: 768px)").matches;
     window.mermaid.initialize({
       startOnLoad: false,
       theme: isDark() ? "dark" : "neutral",
       securityLevel: "strict",
-      flowchart: { htmlLabels: false },
+      flowchart: { htmlLabels: false, useMaxWidth: !narrow },
     });
     window.mermaid.run({ querySelector: ".mermaid" }).catch(function () {
       /* Keep the source text if a diagram fails to parse. */
