@@ -16,5 +16,5 @@ Honesty gap closed: Track B no longer says containers are “far-later” or **P
 
 - Docs + source-absence probe only. Did not run QEMU. Did not claim a guest container runtime or a new Pages deploy.
 - Local `./scripts/docs-build.sh` **Verified** on this cloud VM (mdBook 0.5.4 + mermaid 0.17.1; `docs-build: ok`; `book/CNAME` = `ctos.artof.link`). Generator only.
-- Pages GHA on this PR: **Unknown** until a green run URL is recorded.
+- Pages GHA on `1dd0a4f` **Verified**: [34688560928](https://github.com/artofdream/ctos/actions/runs/34688560928) (`mdBook build` 7s; deploy skipped). Smoke GHA also passed on that SHA (docs-only; not a new kernel mile). Later ledger SHAs are not that probe.
 - Host `docker-smoke.sh` remains a harness (Docker hosts ctos), not the reverse.
