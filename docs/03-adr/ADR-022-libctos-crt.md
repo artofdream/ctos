@@ -24,7 +24,7 @@ Options:
 5. **Code page + stack page.** The image must fit in 3584 bytes on `EL0_PAGE` (EL0-exec, no EL0 data — same AP as A1). Rust `main` saves `x30` on SP; that store cannot land on the code page (`SCTLR.WXN` forbids making it W+X). A second map-window page is EL0-RW NX. rust-lld’s extra ELF-header `PT_LOAD` at `0x80000000` is discarded at extract time.
 6. **Fail-closed probe.** Hello serial `libctos: hi` + `libctos: ok` (from the payload via `uart_write`) + kernel `libctos: linked`. `scripts/qemu-smoke.sh` greps those and rejects `libctos: probe missed`. `#[test_case]` covers the trip and that the blob encodes SVC #16/#17/#18 and not #0/#1/#2. Existing `svc:` / `el0:` markers stay.
 7. **Honesty.** Say “a program linked against libctos issued the A1 ABI and the kernel performed the documented effect” only when the serial / tests pass. Do **not** say: app hosting is done, Linux ABI, POSIX, userspace, “EL0 isolated,” or “secure OS.” Track A A3–A9 stay Planned.
-8. **NFR-10 text** is revised in place (ID unchanged) to name this CRT mile. Do not mint FR-16+ or NFR-15+.
+8. **NFR-10 text** is revised in place (ID unchanged) to name this CRT mile. Do not mint FR-16+ or NFR-15+. Guest ELF load is [ADR-023](ADR-023-elf-pt-load-loader.md), not this ADR.
 
 ## Consequences
 

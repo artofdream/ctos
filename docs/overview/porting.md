@@ -10,7 +10,7 @@ Do not claim an “easy port” path that does not exist.
 
 Nothing POSIX ports easily.
 
-There is **no C library (libc)**, **no dynamic linker**, and **no filesystem**. A1 documented a **kernel** SVC ABI (`exit` / `uart_write` / `yield` — [syscall.md](../framework/syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). A2 adds a freestanding **`libctos` CRT** you can link in-tree ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). That is not an application porting target for Linux binaries. There is no loader that would run a foreign user-mode binary if you built one elsewhere.
+There is **no C library (libc)**, **no dynamic linker**, and **no filesystem**. A1 documented a **kernel** SVC ABI (`exit` / `uart_write` / `yield` — [syscall.md](../framework/syscall.md), [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)). A2 adds a freestanding **`libctos` CRT** you can link in-tree ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). A3 parses that in-tree ELF on the guest and maps `PT_LOAD` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). That is not an application porting target for Linux binaries. There is no `PT_INTERP` / glibc path that would run a foreign user-mode binary if you built one elsewhere.
 
 A Linux, musl, or glibc program is a different contract. Recompiling it “for AArch64” does not make it a ctos program.
 
@@ -55,9 +55,9 @@ A path that is **not finished**. Call this **Track A** when talking about an OS 
 
 1. A **stable SVC ABI** — A1 is the kernel mile (`exit` / `uart_write` / `yield`).
 2. A freestanding CRT / `libctos` — A2. Still not a userspace compiler target for foreign ELFs.
-3. Link a freestanding AArch64 user-mode binary and **load** it (A3) — not only embed it in the kernel image
-4. Map it into the **user page table** and return to user mode as normal (A4)
+3. Link a freestanding AArch64 user-mode binary and **load** it (A3) — guest `PT_LOAD` map; the smoke image is still embedded
+4. Map it into the **user page table** and return to user mode as **normal** (A4)
 
-Until the loader exists and has ledger probes, do not say applications “port to ctos.” You extend the kernel or link `libctos` in-tree. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are **no**: [Hosting apps / containers](hosting-apps.md).
+Until A4 has ledger probes, do not say applications “port to ctos.” You extend the kernel or link `libctos` in-tree. Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are **no**: [Hosting apps / containers](hosting-apps.md).
 
 A filesystem is the same story: **Planned**, not present. Direction: [Filesystem: new vs extend](filesystem.md).

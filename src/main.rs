@@ -15,6 +15,7 @@ mod gic;
 mod guard;
 mod heap;
 mod libctos;
+mod loader;
 mod paging;
 mod perf;
 mod qemu;
@@ -139,6 +140,11 @@ extern "C" fn kernel_main_high() -> ! {
         if !libctos::observe_probe() {
             uart::write_str_raw("libctos: probe missed\n");
         }
+        // Serial proof for qemu-smoke (Track A / A3 / ADR-023): guest ELF
+        // PT_LOAD into user TTBR0. Not a Linux ABI. Not app hosting.
+        if !loader::observe_probe() {
+            uart::write_str_raw("loader: probe missed\n");
+        }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {
             uart::write_str_raw("asid: probe missed\n");
@@ -238,11 +244,9 @@ struct DynFat {
 
 #[cfg(test)]
 fn call_testable_run_high(test: &dyn Testable) {
-    let fat: DynFat =
-        unsafe { core::mem::transmute_copy(&(test as *const dyn Testable)) };
+    let fat: DynFat = unsafe { core::mem::transmute_copy(&(test as *const dyn Testable)) };
     let run = unsafe { *fat.vtable.add(3) } as u64;
-    let f: fn(*const ()) =
-        unsafe { core::mem::transmute(paging::to_high_va(run)) };
+    let f: fn(*const ()) = unsafe { core::mem::transmute(paging::to_high_va(run)) };
     f(fat.data);
 }
 

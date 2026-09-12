@@ -49,6 +49,7 @@
 - [ADR-020 Live identity text tear](03-adr/ADR-020-identity-fnptr-reloc.md)
 - [ADR-021 EL0 SVC ABI](03-adr/ADR-021-svc-syscall-abi.md)
 - [ADR-022 Freestanding CRT / libctos](03-adr/ADR-022-libctos-crt.md)
+- [ADR-023 Guest ELF PT_LOAD loader](03-adr/ADR-023-elf-pt-load-loader.md)
 
 # Roadmap
 

@@ -34,7 +34,7 @@ flowchart TD
   P --> L --> T
 ```
 
-*Principles sit above pillars. Tracks sit below both. A1/A2 are ABI + CRT miles only. Not a claim that Track A hosting is built.*
+*Principles sit above pillars. Tracks sit below both. A1–A3 are ABI + CRT + loader miles only. Not a claim that Track A hosting is built.*
 
 ## What runs today
 
@@ -42,7 +42,7 @@ Three samples that already have probes. Details: [What can run today](overview/w
 
 1. **Two kernel tasks that take turns** — they print on the serial port and yield. Not preemptive. Not two CPUs.
 2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
-3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip and an A2 `libctos` hello (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc, no files, no apps.
+3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, and an A3 guest `PT_LOAD` of that same hello (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc, no files, no apps.
 
 **Cannot run:** Linux programs, a shell, Python, network servers, filesystem apps, extra CPUs, or containers.
 

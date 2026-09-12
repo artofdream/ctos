@@ -221,6 +221,19 @@ if ! grep -q "libctos: linked" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: libctos CRT strings present"
+if grep -q "loader: probe missed" "$log"; then
+    echo "qemu-smoke: loader probe missed (guest ELF PT_LOAD trip did not run)" >&2
+    exit 1
+fi
+if ! grep -q "loader: mapped" "$log"; then
+    echo "qemu-smoke: missing 'loader: mapped' on serial (guest PT_LOAD map, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "loader: ok" "$log"; then
+    echo "qemu-smoke: missing 'loader: ok' on serial (A3 guest loader mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: guest ELF loader strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1

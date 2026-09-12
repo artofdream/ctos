@@ -43,8 +43,12 @@ use crate::uart;
 
 /// Dedicated VA window for 4 KiB map/unmap. Third GiB — not identity RAM.
 pub const MAP_WINDOW: u64 = 0x8000_0000;
+/// Map-window size (one L2 / 512 × 4 KiB). Guest loader PT_LOAD must fit.
+pub const MAP_WINDOW_SIZE: u64 = 512 * 4096;
 /// EL0 trampoline page in the map window (UXN-clear, PXN).
 pub const EL0_PAGE: u64 = MAP_WINDOW + 2 * 4096;
+/// Spare EL0-RW NX stack page for the A3 guest loader (after ASID probe VAs).
+pub const LOADER_STACK_VA: u64 = MAP_WINDOW + 7 * 4096;
 /// Linker / `-kernel` TEXT_OFFSET on virt (`0x4008_0000`).
 pub const KERNEL_TEXT: u64 = 0x4008_0000;
 /// ASID programmed into user TTBR0. Not a claim that ASID isolation works.
@@ -772,6 +776,20 @@ fn l3_page_el0_rw(pa: u64) -> u64 {
         | DESC_AF
         | DESC_PXN
         | DESC_UXN
+        | DESC_AP_EL0
+}
+
+/// EL0-readable, no-write, NX page (AP[2:1] = 11). For R-only PT_LOAD.
+fn l3_page_el0_ro(pa: u64) -> u64 {
+    (pa & !0xfff)
+        | DESC_VALID
+        | DESC_TABLE
+        | (ATTR_NORMAL << 2)
+        | DESC_SH_INNER
+        | DESC_AF
+        | DESC_PXN
+        | DESC_UXN
+        | DESC_AP_RO
         | DESC_AP_EL0
 }
 
@@ -1548,6 +1566,37 @@ pub fn ttbr1_walks_enabled() -> bool {
 #[allow(dead_code)]
 pub fn l1_table_addr() -> u64 {
     l1_pa()
+}
+
+/// True when `[va, va+len)` sits inside the map window (page-aligned start not required).
+pub fn window_range_ok(va: u64, len: u64) -> bool {
+    if len == 0 {
+        return false;
+    }
+    let Some(end) = va.checked_add(len) else {
+        return false;
+    };
+    va >= MAP_WINDOW && end <= MAP_WINDOW + MAP_WINDOW_SIZE
+}
+
+/// Map a 4 KiB frame at `va` in the dedicated window as EL0-readable NX (RO data).
+pub fn map_el0_ro(va: u64, pa: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_slot(i).write(l3_page_el0_ro(pa));
+    }
+    dsb_ish();
+    tlbi_va(va);
+    true
 }
 
 /// Map a 4 KiB frame at `va` in the dedicated window as EL0-writable NX (stack).

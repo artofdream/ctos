@@ -24,7 +24,7 @@ Heap, PTEs, UART/GIC, and coop stacks stay writable on purpose. `.rodata`/`.data
 
 The **goal** of this stance (sponsor clarification) is to **disconnect OS updates from apps**: a separate OS image vs app payloads. Update/replace the kernel without rebuilding apps, and the reverse. That is [A9 #48](https://github.com/artofdream/ctos/issues/48). It is **not** an “immutable OS” product sentence.
 
-[Track A #31](https://github.com/artofdream/ctos/issues/31) must land first. A1 is a kernel SVC ABI mile ([syscall.md](syscall.md)). A2 is a `libctos` CRT mile ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). Still **Planned**: ELF/raw loader into user TTBR0 (A3), standing EL0 as normal mode (A4). **RO app payloads** are that loader mapping an image RO+X. A9 is **Planned after that ABI/loader**, not instead of it.
+[Track A #31](https://github.com/artofdream/ctos/issues/31) must land first. A1 is a kernel SVC ABI mile ([syscall.md](syscall.md)). A2 is a `libctos` CRT mile ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). A3 is a guest ELF64 `PT_LOAD` loader ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Still **Planned**: standing EL0 as normal mode (A4). **RO app payloads** are that loader mapping an image RO+X (R-only `PT_LOAD` already uses `map_el0_ro`; RX text stays Exec). A9 is **Planned after that ABI/loader**, not instead of it.
 
 **Today:** one linked kernel ELF. No OS-image artifact, no app payload slot, no cross-update probe. **Not Verified.** Performance impact is the same honesty: expected costs and a future app-load CNTPCT gate, **no Verified delta** ([performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench)).
 
