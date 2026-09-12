@@ -137,10 +137,6 @@ fn write_imm64(mut ptr: *mut u32, rd: u32, val: u64) -> usize {
     n
 }
 
-fn user_range_ok(ptr: u64, len: u64) -> bool {
-    user_range_ok_max(ptr, len, UART_WRITE_MAX)
-}
-
 fn user_range_ok_max(ptr: u64, len: u64, max: u64) -> bool {
     if len == 0 || len > max {
         return false;

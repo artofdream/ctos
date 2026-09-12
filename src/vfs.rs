@@ -9,7 +9,6 @@ use core::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use spin::Mutex;
 
 use crate::el0;
-use crate::exception;
 use crate::paging;
 use crate::syscall;
 use crate::uart;
@@ -23,6 +22,7 @@ const MAX_HANDLES: usize = 4;
 
 const KERNEL_PATH: &str = "/kprobe";
 const KERNEL_BYTES: &[u8] = b"memfs-hi";
+#[cfg_attr(not(test), allow(dead_code))]
 const EL0_PATH: &str = "/eprobe";
 const EL0_BYTES: &[u8] = b"memfs-el0";
 
