@@ -10,4 +10,6 @@ ADR-026: `mrs ID_AA64MMFR1_EL1`, PAN field bits [23:20] = 0 on `-cpu cortex-a57`
 
 68 tests. qemu-smoke ok. Lower-EL IRQ and EL0-without-`TLBI VMALLE1` still Planned.
 
-Do not self-merge. Merger is `artofdream`.
+GHA on `726a4a2`: PR [34678808063](https://github.com/artofdream/ctos/actions/runs/34678808063) both jobs grepped (hello `ident: ro-reloc n=588` / `pan: absent` / 68 tests / `qemu-smoke: ok`). Push [34678806604](https://github.com/artofdream/ctos/actions/runs/34678806604) success. Bugbot pass. Ledger CI row flipped Unknown → Verified on that SHA only.
+
+Do not self-merge. GitHub author of #55 is `artofdream`. Merger is `cursor[bot]`.
