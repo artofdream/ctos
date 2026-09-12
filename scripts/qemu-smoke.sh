@@ -688,6 +688,10 @@ echo "qemu-smoke: cross-update app sha256=$app_hash bytes=$app_bytes"
 # overlapped `.ident_tear` with `.text` on the prior OS).
 prior_wt="${CTOS_PRIOR_OS_DIR:-/tmp/ctos-prior-os-$PRIOR_OS_SHA}"
 if [ ! -f "$prior_wt/.git" ] && [ ! -d "$prior_wt/.git" ]; then
+    # A Docker COPY of host `.git` can still carry worktree metadata
+    # for this path without the /tmp directory. Prune the stale
+    # registration, then add. Do not invent a kernel blob.
+    git worktree prune
     echo "qemu-smoke: git worktree add prior OS $PRIOR_OS_SHA"
     git worktree add --detach "$prior_wt" "$PRIOR_OS_SHA"
 fi

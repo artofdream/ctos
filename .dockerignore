@@ -1,6 +1,9 @@
 target
-# Keep .git in the context. Leftover qemu-smoke (ADR-032) worktree-adds
-# prior OS ba6541c; COPY without history cannot run that probe.
+# Keep .git objects in the context so leftover qemu-smoke can
+# worktree-add prior OS ba6541c (ADR-032). Do not copy host
+# worktree registrations — those point at /tmp/ctos-prior-os-*
+# from a previous host run and are not in the image.
+.git/worktrees
 .obsidian
 .trash
 **/*.bin
