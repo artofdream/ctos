@@ -17,7 +17,7 @@ Primary ISA is AArch64 ([ADR-003](../03-adr/ADR-003-primary-isa-aarch64.md)). M0
 | M8 | Heap (`alloc`) | Box/vec smoke on the heap | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` on the M8 PR (see honesty ledger). |
 | M9 | Cooperative scheduler | Two tasks observed to run | Verified: 2026-09-09 cloud `qemu-smoke` + GHA `smoke.yml` (see honesty ledger). |
 
-M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). Pillar work through ADR-020 (#17–#28) plus docs #30/#51/#29, A1–A5 (ADR-021–ADR-026) are on `main`. This PR is Track A / A6 ([issue #37](https://github.com/artofdream/ctos/issues/37), parent [issue #31](https://github.com/artofdream/ctos/issues/31)): ADR-027 thin VFS + memfs. Merge is still a human/MRC job (ADR-002).
+M0–M9 are on `main` (M9 = merge of PR #15 / FR-11). Pillar work through ADR-020 (#17–#28) plus docs #30/#51/#29, A1–A6 (ADR-021–ADR-027) are on `main`. This PR is Track A / A7 ([issue #38](https://github.com/artofdream/ctos/issues/38), parent [issue #31](https://github.com/artofdream/ctos/issues/31)): ADR-028 virtio-blk + FAT16. Merge is still a human/MRC job (ADR-002).
 
 ## Pillars (post-M9)
 
@@ -50,7 +50,7 @@ Hub: [pillars.md](../framework/pillars.md). ABI contract: [syscall.md](../framew
 
 ## Track A — freestanding app hosting ([#31](https://github.com/artofdream/ctos/issues/31))
 
-A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_LOAD loader mile. A4 is standing EL0 as **normal** mode for a loaded image. A5 is isolation completion (identity `.rodata` tear + PAN ID-field; PAN enable Planned). A6 is thin VFS + in-RAM memfs. **Track A stays incomplete** after A6 (A7–A9 Planned). Not Linux containers. Not glibc. One child issue → one PR. Do not round A1–A6 Verified up to “app hosting is done.”
+A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_LOAD loader mile. A4 is standing EL0 as **normal** mode for a loaded image. A5 is isolation completion (identity `.rodata` tear + PAN ID-field; PAN enable Planned). A6 is thin VFS + in-RAM memfs. A7 is virtio-blk + FAT16. **Track A stays incomplete** after A7 (A8–A9 Planned). Not Linux containers. Not glibc. One child issue → one PR. Do not round A1–A7 Verified up to “app hosting is done.”
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
@@ -59,11 +59,11 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_L
 | A3 | ELF (or raw image) loader into user TTBR0 ([#34](https://github.com/artofdream/ctos/issues/34), ADR-023) | `loader: mapped` + `loader: ok`; payload `libctos: hi` / `libctos: ok`; `#[test_case]` | **Loader mile Verified:** 2026-09-12 cloud `qemu-smoke` (see honesty ledger). Not a Linux ABI. App hosting stays **Planned**. |
 | A4 | Standing EL0 as normal mode ([#35](https://github.com/artofdream/ctos/issues/35), ADR-024) | `el0: task-enter` + `el0: task-active` + `el0: task-exit` + `el0: task-restored` + `el0: restore-fail` + `el0: task-ok`; `#[test_case]` | **Standing-task mile Verified:** 2026-09-12 cloud `qemu-smoke` (see honesty ledger). Not isolation. App hosting stays **Planned**. |
 | A5 | Isolation completion ([#36](https://github.com/artofdream/ctos/issues/36), ADR-025 / ADR-026) | `ident: rodata` + `ident: rodata-fault` + `ident: rodata-high`; `pan: id=` + `pan: absent` | **`.rodata` + PAN ID-field Verified:** 2026-09-12 cloud `qemu-smoke` (see honesty ledger). PAN enable **Planned**. Not “EL0 isolated.” |
-| A6 | Thin VFS + memfs ([#37](https://github.com/artofdream/ctos/issues/37), ADR-027) | `fs: create` + `fs: write` + `fs: read` + `fs: el0` + `fs: ok`; `#[test_case]` | **memfs mile Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX. Not FAT. App hosting stays **Planned**. |
-| A7 | virtio-blk + FAT or xv6-like FS | block + fs probe | **Planned** |
-| A8–A9 | Sample in-tree coop UART / standing EL0 app | documented sample serial | **Planned** |
+| A6 | Thin VFS + memfs ([#37](https://github.com/artofdream/ctos/issues/37), ADR-027) | `fs: create` + `fs: write` + `fs: read` + `fs: el0` + `fs: ok`; `#[test_case]` | **memfs mile Verified** (see honesty ledger). Not POSIX. App hosting stays **Planned**. |
+| A7 | virtio-blk + FAT16 ([#38](https://github.com/artofdream/ctos/issues/38), ADR-028) | `blk: virtio` + `blk: cap` + `blk: rw` + `blk: ok`; `fat: mount` + `fat: read` + `fat: ok`; `#[test_case]` | **block + FAT mile Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Same VFS `open`. Not POSIX. Not FAT32. App hosting stays **Planned**. |
+| A8–A9 | Documented sample apps / OS–app slots | documented sample serial | **Planned.** A8 should pick up an in-tree payload that uses SVC + VFS (`fs_open` / `fs_read` of `/probe` or a memfs name). |
 
-On-disk filesystem work is **Planned** (A7). Intended order after this VFS ADR: virtio-blk → on-disk FAT or xv6-like → host-checkable image. Do not claim FAT. See [Filesystem: new vs extend](../overview/filesystem.md).
+On-disk filesystem work is this A7 mile (FAT16, not xv6-like). See [Filesystem: new vs extend](../overview/filesystem.md).
 
 ## Tracks (subordinate to principles)
 

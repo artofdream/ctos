@@ -44,7 +44,7 @@ Three samples that already have probes. Details: [What can run today](overview/w
 2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
 3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc, no files, no apps.
 
-**Cannot run:** Linux programs, a shell, Python, network servers, filesystem apps, extra CPUs, or containers.
+**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers.
 
 ```mermaid
 flowchart LR
@@ -87,7 +87,7 @@ flowchart LR
 | --- | --- |
 | What is in vs out | [What can run today](overview/what-can-run.md) · [Drawbacks / limits](overview/limits.md) |
 | Why POSIX does not port | [Building or porting](overview/porting.md) |
-| Files later (not now) | [Filesystem (Planned)](overview/filesystem.md) |
+| Files (memfs + FAT16) | [Filesystem](overview/filesystem.md) |
 | App host / containers | [Hosting apps](overview/hosting-apps.md) — containers: **no** |
 | How we measure | [KPIs](overview/measure.md) |
 | Why the repo is run this way | [Advantages](overview/advantages.md) |

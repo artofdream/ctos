@@ -5,6 +5,9 @@
 # TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
+# virtio-blk + FAT16 (ADR-028): host builds target/fat16.img and QEMU
+# attaches `-drive if=none,file=...,id=hd0 -device virtio-blk-device,drive=hd0`.
+# Host `-drive` without guest virtio + VFS read is not a probe.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -56,6 +59,13 @@ if [ -z "$elf_bytes" ] || [ "$elf_bytes" -lt 4096 ]; then
     exit 1
 fi
 echo "qemu-smoke: host ELF size present ($elf_bytes bytes)"
+
+# A7 host-visible FAT16 (ADR-028). Guest virtio + VFS read is the probe.
+img="${CTOS_BLK_IMAGE:-$ROOT/target/fat16.img}"
+python3 "$ROOT/scripts/mkfat16.py" "$img"
+python3 "$ROOT/scripts/mkfat16.py" --check "$img"
+export CTOS_BLK_IMAGE="$img"
+echo "qemu-smoke: FAT16 image $img (host-visible; not a guest probe)"
 
 log=$(mktemp)
 trap 'rm -f "$log"' EXIT
@@ -288,6 +298,44 @@ if ! grep -q "fs: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: thin VFS + memfs (A6) strings present"
+if grep -q "blk: probe missed" "$log"; then
+    echo "qemu-smoke: blk probe missed (virtio-mmio sector R/W did not run)" >&2
+    exit 1
+fi
+if ! grep -q "blk: virtio" "$log"; then
+    echo "qemu-smoke: missing 'blk: virtio' on serial (virtio-mmio discover, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "blk: cap" "$log"; then
+    echo "qemu-smoke: missing 'blk: cap' on serial (virtio-blk capacity, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "blk: rw" "$log"; then
+    echo "qemu-smoke: missing 'blk: rw' on serial (sector write/read, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "blk: ok" "$log"; then
+    echo "qemu-smoke: missing 'blk: ok' on serial (A7 virtio-blk mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: virtio-blk (A7) strings present"
+if grep -q "fat: probe missed" "$log"; then
+    echo "qemu-smoke: fat probe missed (FAT16 VFS /probe read did not run)" >&2
+    exit 1
+fi
+if ! grep -q "fat: mount" "$log"; then
+    echo "qemu-smoke: missing 'fat: mount' on serial (FAT16 BPB, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fat: read" "$log"; then
+    echo "qemu-smoke: missing 'fat: read' on serial (VFS open/read /probe, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fat: ok" "$log"; then
+    echo "qemu-smoke: missing 'fat: ok' on serial (A7 FAT16 mile, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: FAT16 (A7) strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1

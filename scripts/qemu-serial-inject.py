@@ -18,11 +18,21 @@ INJECT = bytes([int(os.environ.get("CTOS_INPUT_BYTE", "0x41"), 0)])
 TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "8"))
 
 
+def prepare_fat16(root: str) -> str:
+    """Host-visible FAT16 image for A7. Not a guest probe by itself."""
+    img = os.environ.get("CTOS_BLK_IMAGE") or os.path.join(root, "target", "fat16.img")
+    mk = os.path.join(root, "scripts", "mkfat16.py")
+    subprocess.check_call([sys.executable, mk, img], stdout=subprocess.DEVNULL)
+    return img
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("qemu-serial-inject: missing kernel ELF", file=sys.stderr)
         return 1
     elf = sys.argv[1]
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    img = prepare_fat16(root)
     cmd = [
         "qemu-system-aarch64",
         "-machine",
@@ -36,6 +46,10 @@ def main() -> int:
         "-serial",
         "stdio",
         "-semihosting",
+        "-drive",
+        f"if=none,file={img},format=raw,id=hd0",
+        "-device",
+        "virtio-blk-device,drive=hd0",
         "-kernel",
         elf,
     ]

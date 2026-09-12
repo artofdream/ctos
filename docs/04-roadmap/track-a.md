@@ -29,9 +29,9 @@ One loop unit each. Each row needs a fail-closed ledger probe.
 | A3 | ELF (or raw) loader into user TTBR0 | **Loader mile Verified** ([#34](https://github.com/artofdream/ctos/issues/34), [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Not a Linux ABI. Not app hosting. |
 | A4 | Standing EL0 as normal mode | **Standing-task mile Verified** on this tip ([#35](https://github.com/artofdream/ctos/issues/35), [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Loaded app until `exit`; fail-closed restore. Not isolation. Not app hosting. |
 | A5 | Isolation completion (remaining identity tear; PAN only if CPU + ADR) | **Identity `.rodata` tear Verified** on this tip ([#36](https://github.com/artofdream/ctos/issues/36), [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)). PAN **enable** stays **Planned** with CPU evidence ([ADR-026](../03-adr/ADR-026-pan-capability.md): `pan: absent` on `-cpu cortex-a57`). Not “EL0 isolated.” |
-| A6 | Thin VFS + memfs | **memfs mile Verified** on this tip ([#37](https://github.com/artofdream/ctos/issues/37), [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). In-RAM named buffers; create / write / read / close. Not POSIX. Not FAT. Not app hosting. A7–A9 stay **Planned**. |
-| A7 | virtio-blk + FAT or xv6-like | **Planned** ([#38](https://github.com/artofdream/ctos/issues/38)) |
-| A8 | Documented sample apps | **Planned** ([#39](https://github.com/artofdream/ctos/issues/39)) |
+| A6 | Thin VFS + memfs | **memfs mile Verified** ([#37](https://github.com/artofdream/ctos/issues/37), [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). In-RAM named buffers; create / write / read / close. Not POSIX. Not app hosting. |
+| A7 | virtio-blk + FAT16 | **block + FAT mile Verified** on this tip when the ledger has `blk: ok` / `fat: ok` ([#38](https://github.com/artofdream/ctos/issues/38), [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same VFS `open`. FAT read-only. Not POSIX. Not app hosting. A8–A9 stay **Planned**. |
+| A8 | Documented sample apps | **Planned** ([#39](https://github.com/artofdream/ctos/issues/39)). Pick up: an in-tree payload that uses the existing SVC + VFS (`fs_open` / `fs_read` of `/probe` or a memfs name). Not a new ABI. |
 | A9 | Disconnect OS image from app payloads | **Planned** after A1–A4 ([#48](https://github.com/artofdream/ctos/issues/48)). Today: one linked ELF — not Verified. |
 
 ## Out of scope for Track A
