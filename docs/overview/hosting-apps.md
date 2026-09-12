@@ -34,11 +34,12 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Rese
 | **ELF / user loader** | A3: guest ELF64 `PT_LOAD` into user TTBR0, then `ERET` to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). Image is still embedded. Not a Linux ELF ABI. | **Loader mile** — Verified only when the ledger has `loader: ok` on this tip. Not app hosting. |
 | **Standing user mode as normal** | A4: loaded image stands until `exit`; fail-closed restore ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Not a process table. | **Standing-task mile** — Verified only when the ledger has `el0: task-ok` on this tip. Not isolation. Not app hosting. |
 | **Stronger isolation** | Umbrella user-mode isolation needs PAN + fuller identity teardown | **Planned** — do not say “EL0 isolated” |
-| **VFS + memfs** | No files, no paths; see [Filesystem](filesystem.md) | **Planned** |
+| **VFS + memfs** | Thin VFS + in-RAM named buffers ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)); see [Filesystem](filesystem.md) | **memfs mile** — Verified only when the ledger has `fs: ok` on this tip. Not POSIX. Not FAT. |
+| **On-disk FS** | virtio-blk + FAT or xv6-like | **Planned** (A7) |
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
 | **Preemption / extra CPUs / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
-Until VFS + slots have probes, “host an application” is a sentence we do not use. That block is **Track A**. A1 landed the kernel SVC ABI. A2 landed `libctos`. A3 landed a guest `PT_LOAD` loader (embedded image, not a filesystem `exec`). A4 landed standing EL0 as the supported path for that loaded image. A5 landed the identity `.rodata` tear and a PAN ID-field probe (enable Planned). A6–A9 stay **Planned**. See [Immutability](advantages.md#immutability).
+Until slots have probes, “host an application” is a sentence we do not use. That block is **Track A**. A1 landed the kernel SVC ABI. A2 landed `libctos`. A3 landed a guest `PT_LOAD` loader (embedded image, not a filesystem `exec`). A4 landed standing EL0 as the supported path for that loaded image. A5 landed the identity `.rodata` tear and a PAN ID-field probe (enable Planned). A6 landed thin VFS + memfs. A7–A9 stay **Planned**. See [Immutability](advantages.md#immutability).
 
 ## Containers
 

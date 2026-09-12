@@ -20,7 +20,8 @@
 //! the user-TTBR0 read mile, the standing dual-SVC (ADR-013), the
 //! public SVC ABI (ADR-021), the libctos CRT payload (ADR-022), the
 //! guest ELF PT_LOAD loader (ADR-023), standing EL0 as a task
-//! until `SYS_EXIT` (ADR-024), the
+//! until `SYS_EXIT` (ADR-024), thin VFS + memfs SVCs 19–23
+//! (ADR-027), the
 //! TTBR1 private-page DABORT (ADR-016), EL1 fetch from the TTBR1
 //! RAM alias (ADR-017), and the ADR-018 identity-tear IABORT / EL0
 //! DABORT: SVC, IABORT, DABORT.

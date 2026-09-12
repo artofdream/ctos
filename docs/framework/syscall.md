@@ -1,8 +1,8 @@
 # SVC syscall ABI (Track A / A1 / ADR-021)
 
-**ABI + CRT + loader + standing-task miles.** App hosting (VFS, OS/app slots) stays **Planned**. Track A is still incomplete after A4. Not Linux. Not POSIX.
+**ABI + CRT + loader + standing-task + memfs miles.** App hosting (on-disk FS, OS/app slots) stays **Planned**. Track A is still incomplete after A6. Not Linux. Not POSIX.
 
-Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). A4: [issue #35](https://github.com/artofdream/ctos/issues/35). Code: `src/syscall.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`, `src/el0.rs`.
+Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Thin VFS + memfs: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). A4: [issue #35](https://github.com/artofdream/ctos/issues/35). A6: [issue #37](https://github.com/artofdream/ctos/issues/37). Code: `src/syscall.rs`, `src/vfs.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`, `src/el0.rs`.
 
 ## Calling convention
 
@@ -17,8 +17,13 @@ Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#
 | 16 | `exit` | `x0` = status | Halt the EL0 trip; return to the EL1 caller. Status is recorded. Not a process table. |
 | 17 | `uart_write` | `x0` = pointer, `x1` = length | Write up to 64 user-mapped **and** kernel-mapped bytes to the virt PL011. `\n` → `\r\n`. Reject (including non-canonical / TTBR1 aliases) → `x0 = 0`. |
 | 18 | `yield` | none | Dispatch-only hint; return to EL0. Does not switch EL1 tasks ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md)). |
+| 19 | `fs_create` | `x0` = path, `x1` = length | Create an empty memfs name and a handle. Path `/` + `[a-z0-9_-]`. | fd `>= 1`, or `0`. |
+| 20 | `fs_open` | `x0` = path, `x1` = length | Open an existing memfs name. | fd `>= 1`, or `0`. |
+| 21 | `fs_read` | `x0` = fd, `x1` = buf, `x2` = length | Copy from the handle offset into a user-mapped **and** kernel-mapped range (cap 64). | bytes, or `u64::MAX` if rejected. `0` is a valid empty read. |
+| 22 | `fs_write` | `x0` = fd, `x1` = buf, `x2` = length | Copy into the file at the handle offset (cap 64, file cap 256). | bytes, or `0`. |
+| 23 | `fs_close` | `x0` = fd | Drop the handle. The file stays. | `0` on success, `u64::MAX` if rejected. |
 
-Unknown `SVC` immediates park (fail-closed).
+Unknown `SVC` immediates park (fail-closed). Not POSIX. Not Linux VFS.
 
 ## Probe
 
@@ -36,6 +41,10 @@ The kernel parses the embedded hello ELF, maps each `PT_LOAD` into the user map-
 
 The A3 loader is how a payload appears. A4 makes standing EL0 the **supported path**: `is_active()` is true for the loaded task until `exit`; an unexpected fault restores fail-closed ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Serial `el0: task-enter` / `el0: task-active` / `el0: task-exit` / `el0: task-restored` / `el0: restore-fail` / `el0: task-ok`. Not isolation. Not a process table. File presence is not that probe.
 
+## memfs (A6)
+
+In-RAM named buffers behind a thin VFS ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md), [filesystem.md](filesystem.md)). Serial `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok`. File presence is not that probe. Not FAT. Not virtio-blk.
+
 ## Still Planned (Track A)
 
-Isolation completion, VFS / memfs, virtio-blk, sample apps, OS/app slots (A5–A9 on #31).
+virtio-blk + FAT or xv6-like, sample apps, OS/app slots (A7–A9 on #31). Isolation **enable** (PAN) and identity `.data` / heap tear stay Planned.

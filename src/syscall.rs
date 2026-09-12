@@ -2,6 +2,7 @@
 //!
 //! Public numbers start at 16 so they do not collide with the ADR-013
 //! probe immediates (`SVC #0` first mile, `#1` standing, `#2` restore).
+//! A6 adds 19–23 (thin VFS / memfs, ADR-027).
 //! Not Linux. Not POSIX. Not app hosting.
 
 use core::fmt::Write;
@@ -13,6 +14,7 @@ use crate::exception::{self, ExceptionContext};
 use crate::frame;
 use crate::paging;
 use crate::uart;
+use crate::vfs;
 
 /// `SVC #0` first-mile return (ADR-013). Not a public ABI number.
 pub const SVC_PROBE_RETURN: u64 = 0;
@@ -30,9 +32,23 @@ pub const SYS_UART_WRITE: u64 = 17;
 /// Cooperative hint. This mile records the call and returns to EL0.
 /// Does **not** run `sched::yield_now` (that path is EL1-only, ADR-010).
 pub const SYS_YIELD: u64 = 18;
+/// Create an empty memfs path and return a handle (ADR-027).
+pub const SYS_FS_CREATE: u64 = 19;
+/// Open an existing memfs path (ADR-027).
+pub const SYS_FS_OPEN: u64 = 20;
+/// Read from a memfs handle into a user buffer (ADR-027).
+pub const SYS_FS_READ: u64 = 21;
+/// Write a user buffer into a memfs handle (ADR-027).
+pub const SYS_FS_WRITE: u64 = 22;
+/// Close a memfs handle (ADR-027).
+pub const SYS_FS_CLOSE: u64 = 23;
 
 /// Hard cap on `SYS_UART_WRITE`. Longer lengths return 0.
 pub const UART_WRITE_MAX: u64 = 64;
+/// Hard cap on `SYS_FS_READ` / `SYS_FS_WRITE` copies.
+pub const FS_IO_MAX: u64 = 64;
+/// Reject value for `SYS_FS_READ` / `SYS_FS_CLOSE` (0 is a valid empty read).
+pub const FS_ERR: u64 = u64::MAX;
 
 /// User buffer the ABI probe writes via `SYS_UART_WRITE`.
 pub const USER_UART_MSG: &[u8] = b"svc: user-hi\n";
@@ -40,6 +56,15 @@ pub const USER_UART_MSG: &[u8] = b"svc: user-hi\n";
 const SVC16_A64: u32 = 0xD4000001 | ((SYS_EXIT as u32) << 5);
 const SVC17_A64: u32 = 0xD4000001 | ((SYS_UART_WRITE as u32) << 5);
 const SVC18_A64: u32 = 0xD4000001 | ((SYS_YIELD as u32) << 5);
+const SVC19_A64: u32 = 0xD4000001 | ((SYS_FS_CREATE as u32) << 5);
+const SVC20_A64: u32 = 0xD4000001 | ((SYS_FS_OPEN as u32) << 5);
+const SVC21_A64: u32 = 0xD4000001 | ((SYS_FS_READ as u32) << 5);
+const SVC22_A64: u32 = 0xD4000001 | ((SYS_FS_WRITE as u32) << 5);
+const SVC23_A64: u32 = 0xD4000001 | ((SYS_FS_CLOSE as u32) << 5);
+
+const EL0_FS_PATH: &[u8] = b"/eprobe";
+const EL0_FS_BYTES: &[u8] = b"memfs-el0";
+const EL0_FS_REJECT_PATH: &[u8] = b"/kreject";
 
 static YIELD_COUNT: AtomicU64 = AtomicU64::new(0);
 static EXIT_STATUS: AtomicU64 = AtomicU64::new(u64::MAX);
@@ -47,6 +72,11 @@ static UART_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
 static YIELD_OK: AtomicBool = AtomicBool::new(false);
 static UART_OK: AtomicBool = AtomicBool::new(false);
 static EXIT_OK: AtomicBool = AtomicBool::new(false);
+static FS_CREATE: AtomicU64 = AtomicU64::new(0);
+static FS_OPEN: AtomicU64 = AtomicU64::new(0);
+static FS_READ: AtomicU64 = AtomicU64::new(u64::MAX);
+static FS_WRITE: AtomicU64 = AtomicU64::new(u64::MAX);
+static FS_CLOSE_OK: AtomicBool = AtomicBool::new(false);
 
 /// What the lower-EL handler should do after a public ABI call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -108,7 +138,11 @@ fn write_imm64(mut ptr: *mut u32, rd: u32, val: u64) -> usize {
 }
 
 fn user_range_ok(ptr: u64, len: u64) -> bool {
-    if len == 0 || len > UART_WRITE_MAX {
+    user_range_ok_max(ptr, len, UART_WRITE_MAX)
+}
+
+fn user_range_ok_max(ptr: u64, len: u64, max: u64) -> bool {
+    if len == 0 || len > max {
         return false;
     }
     if ptr.checked_add(len).is_none() {
@@ -139,13 +173,59 @@ fn user_range_ok(ptr: u64, len: u64) -> bool {
 }
 
 fn copy_user(ptr: u64, len: usize, dst: &mut [u8]) -> Option<usize> {
-    if len > dst.len() || !user_range_ok(ptr, len as u64) {
+    copy_user_max(ptr, len, dst, UART_WRITE_MAX)
+}
+
+fn copy_user_max(ptr: u64, len: usize, dst: &mut [u8], max: u64) -> Option<usize> {
+    if len > dst.len() || !user_range_ok_max(ptr, len as u64, max) {
         return None;
     }
     for i in 0..len {
         dst[i] = unsafe { core::ptr::read_volatile((ptr as *const u8).add(i)) };
     }
     Some(len)
+}
+
+fn copy_to_user(ptr: u64, src: &[u8]) -> Option<usize> {
+    if src.is_empty() {
+        return Some(0);
+    }
+    if !user_range_ok_max(ptr, src.len() as u64, FS_IO_MAX) {
+        return None;
+    }
+    for (i, &b) in src.iter().enumerate() {
+        unsafe {
+            core::ptr::write_volatile((ptr as *mut u8).add(i), b);
+        }
+    }
+    Some(src.len())
+}
+
+fn path_from_user(ptr: u64, len: u64) -> Option<[u8; vfs::PATH_MAX]> {
+    if len == 0 || len > vfs::PATH_MAX as u64 {
+        return None;
+    }
+    let mut buf = [0u8; vfs::PATH_MAX];
+    copy_user_max(ptr, len as usize, &mut buf, vfs::PATH_MAX as u64)?;
+    Some(buf)
+}
+
+fn path_str(buf: &[u8], len: u64) -> Option<&str> {
+    let n = len as usize;
+    if n > buf.len() {
+        return None;
+    }
+    let s = core::str::from_utf8(&buf[..n]).ok()?;
+    if vfs::valid_path(s) {
+        Some(s)
+    } else {
+        None
+    }
+}
+
+fn mov_reg(rd: u32, rn: u32) -> u32 {
+    // `MOV Xd, Xn` == `ORR Xd, XZR, Xn`
+    0xAA0003E0 | (rn << 16) | rd
 }
 
 /// Dispatch a public ABI `SVC`. Probe immediates 0–2 stay in `exception`.
@@ -189,6 +269,89 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
             uart::write_str_raw("svc: exit\n");
             Some(SvcAction::ReturnEl1)
         }
+        SYS_FS_CREATE => {
+            el0::note_active_while_standing();
+            let ptr = ctx.x[0];
+            let len = ctx.x[1];
+            let fd = path_from_user(ptr, len)
+                .and_then(|buf| path_str(&buf, len).and_then(|p| vfs::create(p).ok()))
+                .unwrap_or(0);
+            FS_CREATE.store(fd as u64, Ordering::SeqCst);
+            ctx.x[0] = fd as u64;
+            Some(SvcAction::StayEl0)
+        }
+        SYS_FS_OPEN => {
+            el0::note_active_while_standing();
+            let ptr = ctx.x[0];
+            let len = ctx.x[1];
+            let fd = path_from_user(ptr, len)
+                .and_then(|buf| path_str(&buf, len).and_then(|p| vfs::open(p).ok()))
+                .unwrap_or(0);
+            FS_OPEN.store(fd as u64, Ordering::SeqCst);
+            ctx.x[0] = fd as u64;
+            Some(SvcAction::StayEl0)
+        }
+        SYS_FS_READ => {
+            el0::note_active_while_standing();
+            let fd = ctx.x[0] as u32;
+            let ptr = ctx.x[1];
+            let len = ctx.x[2];
+            if len == 0 || len > FS_IO_MAX || !user_range_ok_max(ptr, len, FS_IO_MAX) {
+                FS_READ.store(FS_ERR, Ordering::SeqCst);
+                ctx.x[0] = FS_ERR;
+                return Some(SvcAction::StayEl0);
+            }
+            let mut tmp = [0u8; FS_IO_MAX as usize];
+            match vfs::read(fd, &mut tmp[..len as usize]) {
+                Ok(n) => match copy_to_user(ptr, &tmp[..n]) {
+                    Some(_) => {
+                        if n > 0 {
+                            vfs::note_el0_read(&tmp[..n]);
+                        }
+                        FS_READ.store(n as u64, Ordering::SeqCst);
+                        ctx.x[0] = n as u64;
+                    }
+                    None => {
+                        FS_READ.store(FS_ERR, Ordering::SeqCst);
+                        ctx.x[0] = FS_ERR;
+                    }
+                },
+                Err(_) => {
+                    FS_READ.store(FS_ERR, Ordering::SeqCst);
+                    ctx.x[0] = FS_ERR;
+                }
+            }
+            Some(SvcAction::StayEl0)
+        }
+        SYS_FS_WRITE => {
+            el0::note_active_while_standing();
+            let fd = ctx.x[0] as u32;
+            let ptr = ctx.x[1];
+            let len = ctx.x[2];
+            let mut tmp = [0u8; FS_IO_MAX as usize];
+            let n = match copy_user_max(ptr, len as usize, &mut tmp, FS_IO_MAX)
+                .and_then(|n| vfs::write(fd, &tmp[..n]).ok())
+            {
+                Some(n) => n as u64,
+                None => 0,
+            };
+            FS_WRITE.store(n, Ordering::SeqCst);
+            ctx.x[0] = n;
+            Some(SvcAction::StayEl0)
+        }
+        SYS_FS_CLOSE => {
+            el0::note_active_while_standing();
+            match vfs::close(ctx.x[0] as u32) {
+                Ok(()) => {
+                    FS_CLOSE_OK.store(true, Ordering::SeqCst);
+                    ctx.x[0] = 0;
+                }
+                Err(_) => {
+                    ctx.x[0] = FS_ERR;
+                }
+            }
+            Some(SvcAction::StayEl0)
+        }
         _ => None,
     }
 }
@@ -200,6 +363,132 @@ pub(crate) fn reset_probe_flags() {
     YIELD_OK.store(false, Ordering::SeqCst);
     UART_OK.store(false, Ordering::SeqCst);
     EXIT_OK.store(false, Ordering::SeqCst);
+    reset_fs_flags();
+}
+
+pub(crate) fn reset_fs_flags() {
+    FS_CREATE.store(0, Ordering::SeqCst);
+    FS_OPEN.store(0, Ordering::SeqCst);
+    FS_READ.store(u64::MAX, Ordering::SeqCst);
+    FS_WRITE.store(u64::MAX, Ordering::SeqCst);
+    FS_CLOSE_OK.store(false, Ordering::SeqCst);
+}
+
+fn write_bytes(base: *mut u8, off: usize, bytes: &[u8]) {
+    for (i, &b) in bytes.iter().enumerate() {
+        unsafe {
+            core::ptr::write_volatile(base.add(off + i), b);
+        }
+    }
+}
+
+/// EL0: create `/eprobe`, write `memfs-el0`, close, open, read, close, exit.
+fn write_fs_success_payload(ptr: *mut u32, va: u64) {
+    let path_off = 256usize;
+    let data_off = 272usize;
+    let buf_off = 288usize;
+    write_bytes(ptr as *mut u8, path_off, EL0_FS_PATH);
+    write_bytes(ptr as *mut u8, data_off, EL0_FS_BYTES);
+    let mut p = ptr;
+    let n = write_imm64(p, 0, va + path_off as u64);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(1, EL0_FS_PATH.len() as u16, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC19_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, mov_reg(3, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, mov_reg(0, 3));
+    p = unsafe { p.add(1) };
+    let n = write_imm64(p, 1, va + data_off as u64);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(2, EL0_FS_BYTES.len() as u16, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC22_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, mov_reg(0, 3));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC23_A64);
+    p = unsafe { p.add(1) };
+    let n = write_imm64(p, 0, va + path_off as u64);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(1, EL0_FS_PATH.len() as u16, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC20_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, mov_reg(3, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, mov_reg(0, 3));
+    p = unsafe { p.add(1) };
+    let n = write_imm64(p, 1, va + buf_off as u64);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(2, 16, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC21_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, mov_reg(0, 3));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC23_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, movz(0, 0, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC16_A64);
+}
+
+/// EL0: create `/kreject`, `SYS_FS_WRITE` from kernel `.data`, then exit.
+fn write_fs_reject_payload(ptr: *mut u32, va: u64, bait: u64) {
+    let path_off = 256usize;
+    write_bytes(ptr as *mut u8, path_off, EL0_FS_REJECT_PATH);
+    let mut p = ptr;
+    let n = write_imm64(p, 0, va + path_off as u64);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(1, EL0_FS_REJECT_PATH.len() as u16, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC19_A64);
+    p = unsafe { p.add(1) };
+    let n = write_imm64(p, 1, bait);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(2, 4, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC22_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, movz(0, 0, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC16_A64);
+}
+
+pub(crate) fn run_fs_el0_payload() -> bool {
+    if el0::is_active() || !paging::user_map_ready() {
+        return false;
+    }
+    reset_probe_flags();
+    with_el0_page(|ptr, va| {
+        write_fs_success_payload(ptr, va);
+        let user_sp = va + 4096;
+        el0::install_standing(va, user_sp, paging::user_ttbr0());
+        unsafe {
+            exception::eret_to_el0(black_box(va), 0, user_sp);
+        }
+        if el0::is_active() {
+            el0::clear_active();
+            return false;
+        }
+        EXIT_OK.load(Ordering::SeqCst)
+    })
+}
+
+#[allow(dead_code)] // `#[test_case]` only.
+pub(crate) fn fs_el0_reject_kernel_data() -> bool {
+    let bait = paging::identity_pa(core::ptr::addr_of!(crate::el0::KERNEL_DATA_BAIT) as u64);
+    if paging::user_mapped(bait) {
+        return false;
+    }
+    vfs::reset();
+    reset_probe_flags();
+    if !run_payload(|ptr, va| write_fs_reject_payload(ptr, va, bait)) {
+        return false;
+    }
+    last_fs_create() >= 1 && last_fs_write() == 0
 }
 
 fn with_el0_page<F: FnOnce(*mut u32, u64) -> bool>(f: F) -> bool {
@@ -361,12 +650,37 @@ pub(crate) fn exit_seen() -> bool {
     EXIT_OK.load(Ordering::SeqCst)
 }
 
+pub(crate) fn last_fs_create() -> u64 {
+    FS_CREATE.load(Ordering::SeqCst)
+}
+
+pub(crate) fn last_fs_open() -> u64 {
+    FS_OPEN.load(Ordering::SeqCst)
+}
+
+pub(crate) fn last_fs_read() -> u64 {
+    FS_READ.load(Ordering::SeqCst)
+}
+
+pub(crate) fn last_fs_write() -> u64 {
+    FS_WRITE.load(Ordering::SeqCst)
+}
+
+pub(crate) fn fs_close_seen() -> bool {
+    FS_CLOSE_OK.load(Ordering::SeqCst)
+}
+
 #[cfg(test)]
 #[test_case]
 fn syscall_numbers_are_documented() {
     assert_eq!(svc_a64(SYS_EXIT), SVC16_A64);
     assert_eq!(svc_a64(SYS_UART_WRITE), SVC17_A64);
     assert_eq!(svc_a64(SYS_YIELD), SVC18_A64);
+    assert_eq!(svc_a64(SYS_FS_CREATE), SVC19_A64);
+    assert_eq!(svc_a64(SYS_FS_OPEN), SVC20_A64);
+    assert_eq!(svc_a64(SYS_FS_READ), SVC21_A64);
+    assert_eq!(svc_a64(SYS_FS_WRITE), SVC22_A64);
+    assert_eq!(svc_a64(SYS_FS_CLOSE), SVC23_A64);
     assert_ne!(SYS_EXIT, SVC_PROBE_RETURN);
     assert_ne!(SYS_EXIT, SVC_PROBE_STANDING);
     assert_ne!(SYS_EXIT, SVC_PROBE_RESTORE);

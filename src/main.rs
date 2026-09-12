@@ -27,6 +27,7 @@ mod teardown;
 mod timer;
 mod ttbr1;
 mod uart;
+mod vfs;
 mod wx;
 
 use core::arch::global_asm;
@@ -97,6 +98,7 @@ extern "C" fn kernel_main_high() -> ! {
     perf::mark_early();
     frame::init();
     heap::init();
+    vfs::init();
     sched::init();
     gic::init();
     timer::init();
@@ -162,6 +164,11 @@ extern "C" fn kernel_main_high() -> ! {
         // restore. Not isolation. Not app hosting.
         if !el0::observe_standing_task() {
             uart::write_str_raw("el0: task missed\n");
+        }
+        // Serial proof for qemu-smoke (Track A / A6 / ADR-027): thin VFS
+        // + memfs create/write/read/close. Not FAT. Not app hosting.
+        if !vfs::observe_probe() {
+            uart::write_str_raw("fs: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {
