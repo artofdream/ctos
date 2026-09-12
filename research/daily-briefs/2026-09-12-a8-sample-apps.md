@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-Draft PR https://github.com/artofdream/ctos/pull/59 (`cursor/a8-documented-sample-apps-6be5`) rebased onto current `main` `e347983` (A7 `ae7d2b8` + Darwin docs-build #50). Parent [#31](https://github.com/artofdream/ctos/issues/31), child [#39](https://github.com/artofdream/ctos/issues/39). A9 is not in this PR.
+PR https://github.com/artofdream/ctos/pull/59 (`cursor/a8-documented-sample-apps-6be5`) rebased onto current `main` `c63077e` (B7 / ADR-029 + Darwin #50 + A7). Parent [#31](https://github.com/artofdream/ctos/issues/31), child [#39](https://github.com/artofdream/ctos/issues/39). A9 is not in this PR.
 
 **Docs-only.** No new ADR (no new ABI, loader, or slot decision). Rebuild recipes for Verified classes only:
 
@@ -13,7 +13,7 @@ Draft PR https://github.com/artofdream/ctos/pull/59 (`cursor/a8-documented-sampl
 
 Hub: [what-can-run.md](../../docs/overview/what-can-run.md). Walkthroughs: [apps-today.md](../../docs/framework/apps-today.md). In-tree: `user/README.md`, `user/hello-libctos/README.md`.
 
-Cloud `./scripts/docs-build.sh` **Verified** after the rebase (`mdbook v0.5.4`, mermaid 0.17.1, Linux auto-install `x86_64-unknown-linux-gnu`, `docs-build: ok`, `book/CNAME` `ctos.artof.link`). Kernel `qemu-smoke` not re-run (no `src/` edit). A1–A7 smoke markers unchanged.
+Cloud `./scripts/docs-build.sh` **Verified** after the `c63077e` rebase (`mdbook v0.5.4`, mermaid 0.17.1, Linux auto-install `x86_64-unknown-linux-gnu`, `docs-build: ok`). Kernel `qemu-smoke` not re-run (no `src/` edit). A1–A7 smoke markers unchanged. Guest containers stay **non-goal** (ADR-029).
 
 No new FR/NFR IDs. No “app hosting done.” A9 stays **Planned**.
 
