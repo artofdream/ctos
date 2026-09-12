@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-Draft/ready PR https://github.com/artofdream/ctos/pull/62 (`cursor/b1-linux-compat-goals-9374`) off `main` `ba6541c` (A9 / #60). One docs-only PR: [ADR-031](../../docs/03-adr/ADR-031-linux-compat-goals.md) frames Linux-compat as ABI-**subset** research. Cites [ADR-029](../../docs/03-adr/ADR-029-containers-nongoal.md). Explicit **not claiming Linux userspace yet**. No new FR/NFR IDs. No B2–B6 implementation.
+Ready PR https://github.com/artofdream/ctos/pull/62 (`cursor/b1-linux-compat-goals-9374`) rebased onto `main` `4459b93` (#61 ADR-002 Track A merge-hat historical exception). One docs-only PR: [ADR-031](../../docs/03-adr/ADR-031-linux-compat-goals.md) frames Linux-compat as ABI-**subset** research. Cites [ADR-029](../../docs/03-adr/ADR-029-containers-nongoal.md). Explicit **not claiming Linux userspace yet**. No new FR/NFR IDs. No B2–B6 implementation. Ledger conflict resolved by keeping #61 identity/Historical rows **and** B1 rows.
 
 B1 is **Documented** on [track-b.md](../../docs/04-roadmap/track-b.md). Scratch: [random-thoughts/2026-09-12-session-memory-b1-linux-compat.md](../random-thoughts/2026-09-12-session-memory-b1-linux-compat.md).
 
