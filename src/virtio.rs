@@ -351,12 +351,16 @@ fn xfer(dev: &BlkDev, write: bool, sector: u64, buf: &mut [u8; SECTOR]) -> bool 
         (*dma).avail.ring[(aidx as usize) % QSZ] = 0;
         dsb();
         (*dma).avail.idx = aidx.wrapping_add(1);
-        cache_sync(addr_of!((*dma).desc) as u64, 4096);
+        // desc/avail sit in page 0; req/status/data follow used on page 1.
+        cache_sync(addr_of!((*dma).desc) as u64, core::mem::size_of::<Dma>());
         mmio_write(dev.base, REG_QUEUE_NOTIFY, 0);
 
         let timeout = timer::cntpct().saturating_add(timer_ticks(2));
         loop {
-            cache_sync(addr_of!((*dma).used) as u64, 256);
+            cache_sync(
+                addr_of!((*dma).used) as u64,
+                core::mem::size_of::<Dma>() - core::mem::offset_of!(Dma, used),
+            );
             if (*dma).used.idx != last {
                 break;
             }
