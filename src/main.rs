@@ -207,8 +207,8 @@ extern "C" fn kernel_main_high() -> ! {
         if !virtio::observe_probe() {
             uart::write_str_raw("blk: probe missed\n");
         }
-        // Serial proof for qemu-smoke (Track A / A7 / ADR-028): FAT16
-        // `/probe` through the same VFS `open`. Not a second open story.
+        // Serial proof for qemu-smoke (Track A / A7 / ADR-028 + ADR-050):
+        // FAT16 `/probe` read + write/restore + create `/fwr`. Same VFS.
         if !fat::observe_probe() {
             uart::write_str_raw("fat: probe missed\n");
         }

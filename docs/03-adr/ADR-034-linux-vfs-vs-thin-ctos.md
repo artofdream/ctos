@@ -13,7 +13,7 @@ Track B ([issue #40](https://github.com/artofdream/ctos/issues/40)) is Linux-com
 Track A first cuts stay freestanding:
 
 - Thin VFS + in-RAM memfs ([ADR-027](ADR-027-thin-vfs-memfs.md)): `VfsOps` is create / open / read / write / close. Flat path `/` + 1–15 of `[a-z0-9_-]`. At most 8 files, 256 bytes, 4 handles.
-- virtio-blk + read-only FAT16 behind the **same** `vfs::open` ([ADR-028](ADR-028-virtio-blk-fat16.md)). Known files `/probe` and A9 `/hello`. Guest `write` on a FAT handle is `ReadOnly`. Serial `fat: mount` is a probe marker, not `mount(2)`.
+- virtio-blk + FAT16 behind the **same** `vfs::open` ([ADR-028](ADR-028-virtio-blk-fat16.md)); write depth [ADR-050](ADR-050-fat16-write.md). Known files `/probe` and A9 `/hello`; guest may create `/fwr`. Serial `fat: mount` is a probe marker, not `mount(2)`.
 
 This ADR does **not** implement B3, B4, or B6. It does **not** mint FR-16+ or NFR-15+. It does **not** add POSIX flags, dentries, cwd, or a second `open` story to `src/`. File presence of this page is not a Linux filesystem.
 

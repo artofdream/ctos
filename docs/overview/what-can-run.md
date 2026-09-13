@@ -115,7 +115,7 @@ Rebuild: same one-rebuild commands. Not POSIX. Not a volume. Not app hosting.
 
 ## Recipe 5 — FAT16 `/probe` on virtio-blk (optional)
 
-Read-only FAT16 on QEMU virtio-mmio block ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same VFS `open` as memfs. Same class as `blk: ok` / `fat: mount` / `fat: read` / `fat: ok`. Guest `/probe` must read `fat-hi`.
+FAT16 on QEMU virtio-mmio block ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md), write depth [ADR-050](../03-adr/ADR-050-fat16-write.md)). Same VFS `open` / `write` as memfs. Same class as `blk: ok` / `fat: mount` / `fat: read` / `fat: write` / `fat: ok`. Guest `/probe` must read `fat-hi`; write probe restores it; `/fwr` holds `fat-nw`.
 
 | Piece | Path |
 | --- | --- |
@@ -127,7 +127,7 @@ Read-only FAT16 on QEMU virtio-mmio block ([ADR-028](../03-adr/ADR-028-virtio-bl
 
 `-drive if=none,file=target/fat16.img,format=raw,id=hd0 -device virtio-blk-device,drive=hd0`
 
-Host `-drive` without the guest serial is **not** the probe. Not POSIX. Not FAT32. Not writeable FAT. Do not say “supports FAT” as a product.
+Host `-drive` without the guest serial is **not** the probe. Not POSIX. Not FAT32. Do not say “supports FAT” as a product; say the guest wrote FAT16 bytes when `fat: write` / `fat: create` pass.
 
 ## Recipe 6 — OS image vs app slot (A9 first cut)
 

@@ -1,8 +1,11 @@
-//! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028).
+//! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050).
 //!
-//! Read-only root files `/probe` (8.3 `PROBE`) and A9 `/hello`
-//! (8.3 `HELLO`, app ELF). Not FAT32. Not xv6. Not POSIX.
-//! Host image is `scripts/mkfat16.py`.
+//! Read + write of root files. Known `/probe` (8.3 `PROBE`) and A9 `/hello`
+//! (8.3 `HELLO`, app ELF). Guest may create a small single-cluster file.
+//! Not FAT32. Not xv6. Not POSIX. Host image is `scripts/mkfat16.py`.
+//!
+//! `vfs::create` stays memfs-first (A6). FAT create is the FAT backend
+//! (`fat::create`); write on an open FAT handle is the same `vfs::write`.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -17,10 +20,16 @@ const SECTOR: usize = 512;
 const MAX_HANDLES: usize = 4;
 const PROBE_PATH: &str = "/probe";
 const PROBE_BYTES: &[u8] = b"fat-hi";
+const WRITE_BYTES: &[u8] = b"fat-wr";
+const CREATE_PATH: &str = "/fwr";
+const CREATE_BYTES: &[u8] = b"fat-nw";
+const EOC: u16 = 0xFFFF;
+const ATTR_ARCHIVE: u8 = 0x20;
 
 #[derive(Clone, Copy)]
 struct FatHandle {
     used: bool,
+    name: [u8; 11],
     cluster: u16,
     size: u32,
     off: u32,
@@ -30,6 +39,7 @@ impl FatHandle {
     const fn empty() -> Self {
         Self {
             used: false,
+            name: [0; 11],
             cluster: 0,
             size: 0,
             off: 0,
@@ -42,9 +52,12 @@ struct Fat16 {
     bps: u16,
     spc: u8,
     reserved: u16,
+    fats: u8,
+    fat_sz: u16,
     root_ents: u16,
     first_data: u32,
     root_sec: u32,
+    total_sec: u32,
     handles: [FatHandle; MAX_HANDLES],
 }
 
@@ -55,9 +68,12 @@ impl Fat16 {
             bps: 0,
             spc: 0,
             reserved: 0,
+            fats: 0,
+            fat_sz: 0,
             root_ents: 0,
             first_data: 0,
             root_sec: 0,
+            total_sec: 0,
             handles: [
                 FatHandle::empty(),
                 FatHandle::empty(),
@@ -69,6 +85,21 @@ impl Fat16 {
 
     fn read_sector(&self, lba: u32, buf: &mut [u8; SECTOR]) -> bool {
         virtio::read_sector(lba as u64, buf)
+    }
+
+    fn write_sector(&self, lba: u32, buf: &[u8; SECTOR]) -> bool {
+        virtio::write_sector(lba as u64, buf)
+    }
+
+    fn cluster_bytes(&self) -> u32 {
+        self.bps as u32 * self.spc as u32
+    }
+
+    fn clusters(&self) -> u32 {
+        if self.first_data >= self.total_sec || self.spc == 0 {
+            return 0;
+        }
+        (self.total_sec - self.first_data) / self.spc as u32
     }
 
     fn fat_entry(&self, cluster: u16) -> Option<u16> {
@@ -83,6 +114,29 @@ impl Fat16 {
             return None;
         }
         Some(u16::from_le_bytes([buf[ent], buf[ent + 1]]))
+    }
+
+    fn set_fat_entry(&self, cluster: u16, value: u16) -> bool {
+        if cluster < 2 || self.fats == 0 || self.fat_sz == 0 {
+            return false;
+        }
+        let off = (cluster as u32) * 2;
+        let within = off / self.bps as u32;
+        let ent = (off % self.bps as u32) as usize;
+        let bytes = value.to_le_bytes();
+        for f in 0..self.fats as u32 {
+            let sec = self.reserved as u32 + f * self.fat_sz as u32 + within;
+            let mut buf = [0u8; SECTOR];
+            if !self.read_sector(sec, &mut buf) {
+                return false;
+            }
+            buf[ent] = bytes[0];
+            buf[ent + 1] = bytes[1];
+            if !self.write_sector(sec, &buf) {
+                return false;
+            }
+        }
+        true
     }
 
     fn cluster_lba(&self, cluster: u16) -> u32 {
@@ -121,6 +175,70 @@ impl Fat16 {
         None
     }
 
+    fn update_dirent_size(&self, name83: &[u8; 11], size: u32) -> bool {
+        let root_secs = (self.root_ents as u32 * 32 + self.bps as u32 - 1) / self.bps as u32;
+        let mut buf = [0u8; SECTOR];
+        for s in 0..root_secs {
+            if !self.read_sector(self.root_sec + s, &mut buf) {
+                return false;
+            }
+            for i in 0..(self.bps as usize / 32) {
+                let off = i * 32;
+                let e = &buf[off..off + 32];
+                if e[0] == 0 {
+                    return false;
+                }
+                if e[0] == 0xE5 {
+                    continue;
+                }
+                let attr = e[11];
+                if attr & 0x08 != 0 || attr & 0x0F == 0x0F || attr & 0x10 != 0 {
+                    continue;
+                }
+                if &e[0..11] == name83 {
+                    let sz = size.to_le_bytes();
+                    buf[off + 28..off + 32].copy_from_slice(&sz);
+                    return self.write_sector(self.root_sec + s, &buf);
+                }
+            }
+        }
+        false
+    }
+
+    fn find_free_dirent(&self) -> Option<(u32, usize)> {
+        let root_secs = (self.root_ents as u32 * 32 + self.bps as u32 - 1) / self.bps as u32;
+        let mut buf = [0u8; SECTOR];
+        for s in 0..root_secs {
+            if !self.read_sector(self.root_sec + s, &mut buf) {
+                return None;
+            }
+            for i in 0..(self.bps as usize / 32) {
+                let off = i * 32;
+                let first = buf[off];
+                if first == 0 || first == 0xE5 {
+                    return Some((self.root_sec + s, off));
+                }
+            }
+        }
+        None
+    }
+
+    fn find_free_cluster(&self) -> Option<u16> {
+        let max = self.clusters();
+        if max < 2 {
+            return None;
+        }
+        // Cluster IDs are 2..2+max-1.
+        for c in 2..(2 + max as u16) {
+            match self.fat_entry(c) {
+                Some(0) => return Some(c),
+                Some(_) => continue,
+                None => return None,
+            }
+        }
+        None
+    }
+
     fn read_at(&self, start: u16, size: u32, off: u32, out: &mut [u8]) -> Result<usize, FsError> {
         if off > size {
             return Err(FsError::BadHandle);
@@ -130,8 +248,7 @@ impl Fat16 {
         if n == 0 {
             return Ok(0);
         }
-        let bps = self.bps as u32;
-        let clus_bytes = bps * self.spc as u32;
+        let clus_bytes = self.cluster_bytes();
         let mut cluster = start;
         let mut skipped = 0u32;
         while skipped + clus_bytes <= off {
@@ -163,11 +280,54 @@ impl Fat16 {
         Ok(done)
     }
 
-    fn alloc_handle(&mut self, cluster: u16, size: u32) -> Result<u32, FsError> {
+    /// Single-cluster write this mile. Caps at `FILE_MAX` and one cluster.
+    fn write_at(&self, start: u16, size: u32, off: u32, data: &[u8]) -> Result<(usize, u32), FsError> {
+        if data.is_empty() {
+            return Err(FsError::TooBig);
+        }
+        if off > size {
+            return Err(FsError::BadHandle);
+        }
+        if start < 2 {
+            return Err(FsError::BadHandle);
+        }
+        let clus_bytes = self.cluster_bytes() as usize;
+        if clus_bytes == 0 || clus_bytes > SECTOR {
+            // First cut: one sector per cluster (mkfat16 uses spc=1).
+            return Err(FsError::TooBig);
+        }
+        let end = off as usize + data.len();
+        if end > clus_bytes || end > FILE_MAX {
+            return Err(FsError::TooBig);
+        }
+        // Refuse multi-cluster grow this mile.
+        if off as usize >= clus_bytes {
+            return Err(FsError::TooBig);
+        }
+        let mut sec = [0u8; SECTOR];
+        if !self.read_sector(self.cluster_lba(start), &mut sec) {
+            return Err(FsError::BadHandle);
+        }
+        let n = data.len();
+        let start_off = off as usize;
+        sec[start_off..start_off + n].copy_from_slice(&data[..n]);
+        // Zero the gap between old EOF and new write start when extending.
+        if off > size {
+            return Err(FsError::BadHandle);
+        }
+        if !self.write_sector(self.cluster_lba(start), &sec) {
+            return Err(FsError::BadHandle);
+        }
+        let new_size = core::cmp::max(size, off + n as u32);
+        Ok((n, new_size))
+    }
+
+    fn alloc_handle(&mut self, name: [u8; 11], cluster: u16, size: u32) -> Result<u32, FsError> {
         for (i, h) in self.handles.iter_mut().enumerate() {
             if !h.used {
                 *h = FatHandle {
                     used: true,
+                    name,
                     cluster,
                     size,
                     off: 0,
@@ -191,14 +351,49 @@ impl Fat16 {
 }
 
 impl VfsOps for Fat16 {
-    fn create(&mut self, _path: &str) -> Result<u32, FsError> {
-        Err(FsError::ReadOnly)
+    fn create(&mut self, path: &str) -> Result<u32, FsError> {
+        if !self.mounted {
+            return Err(FsError::Missing);
+        }
+        let name = path_to_83(path).ok_or(FsError::BadPath)?;
+        if self.lookup(&name).is_some() {
+            return Err(FsError::Exists);
+        }
+        let cluster = self.find_free_cluster().ok_or(FsError::Full)?;
+        let (sec, off) = self.find_free_dirent().ok_or(FsError::Full)?;
+        if !self.set_fat_entry(cluster, EOC) {
+            return Err(FsError::BadHandle);
+        }
+        let mut buf = [0u8; SECTOR];
+        if !self.read_sector(sec, &mut buf) {
+            let _ = self.set_fat_entry(cluster, 0);
+            return Err(FsError::BadHandle);
+        }
+        buf[off..off + 11].copy_from_slice(&name);
+        buf[off + 11] = ATTR_ARCHIVE;
+        for b in buf[off + 12..off + 26].iter_mut() {
+            *b = 0;
+        }
+        let cl = cluster.to_le_bytes();
+        buf[off + 26] = cl[0];
+        buf[off + 27] = cl[1];
+        buf[off + 28..off + 32].copy_from_slice(&0u32.to_le_bytes());
+        if !self.write_sector(sec, &buf) {
+            let _ = self.set_fat_entry(cluster, 0);
+            return Err(FsError::BadHandle);
+        }
+        // Clear the new cluster so a short read is zeros, not stale.
+        let zeros = [0u8; SECTOR];
+        if !self.write_sector(self.cluster_lba(cluster), &zeros) {
+            return Err(FsError::BadHandle);
+        }
+        self.alloc_handle(name, cluster, 0)
     }
 
     fn open(&mut self, path: &str) -> Result<u32, FsError> {
         let name = path_to_83(path).ok_or(FsError::BadPath)?;
         let (cluster, size) = self.lookup(&name).ok_or(FsError::Missing)?;
-        self.alloc_handle(cluster, size)
+        self.alloc_handle(name, cluster, size)
     }
 
     fn read(&mut self, fd: u32, buf: &mut [u8]) -> Result<usize, FsError> {
@@ -212,8 +407,19 @@ impl VfsOps for Fat16 {
         Ok(n)
     }
 
-    fn write(&mut self, _fd: u32, _buf: &[u8]) -> Result<usize, FsError> {
-        Err(FsError::ReadOnly)
+    fn write(&mut self, fd: u32, buf: &[u8]) -> Result<usize, FsError> {
+        let (name, cluster, size, off) = {
+            let h = self.handle_mut(fd)?;
+            (h.name, h.cluster, h.size, h.off)
+        };
+        let (n, new_size) = self.write_at(cluster, size, off, buf)?;
+        if new_size != size && !self.update_dirent_size(&name, new_size) {
+            return Err(FsError::BadHandle);
+        }
+        let h = self.handle_mut(fd)?;
+        h.size = new_size;
+        h.off = off + n as u32;
+        Ok(n)
     }
 
     fn close(&mut self, fd: u32) -> Result<(), FsError> {
@@ -226,6 +432,8 @@ impl VfsOps for Fat16 {
 static FAT: Mutex<Fat16> = Mutex::new(Fat16::empty());
 static MOUNT_OK: AtomicBool = AtomicBool::new(false);
 static READ_OK: AtomicBool = AtomicBool::new(false);
+static WRITE_OK: AtomicBool = AtomicBool::new(false);
+static CREATE_OK: AtomicBool = AtomicBool::new(false);
 
 fn path_to_83(path: &str) -> Option<[u8; 11]> {
     if !vfs::valid_path(path) {
@@ -276,9 +484,12 @@ fn mount_from_boot(boot: &[u8; SECTOR]) -> Option<Fat16> {
         bps,
         spc,
         reserved,
+        fats,
+        fat_sz,
         root_ents,
         first_data,
         root_sec: reserved as u32 + fats as u32 * fat_sz as u32,
+        total_sec: total,
         handles: [
             FatHandle::empty(),
             FatHandle::empty(),
@@ -291,6 +502,8 @@ fn mount_from_boot(boot: &[u8; SECTOR]) -> Option<Fat16> {
 pub fn init() {
     MOUNT_OK.store(false, Ordering::SeqCst);
     READ_OK.store(false, Ordering::SeqCst);
+    WRITE_OK.store(false, Ordering::SeqCst);
+    CREATE_OK.store(false, Ordering::SeqCst);
     let mut fat = FAT.lock();
     *fat = Fat16::empty();
     if !virtio::ready() {
@@ -320,6 +533,10 @@ pub fn has_name(path: &str) -> bool {
 
 pub fn open(path: &str) -> Result<u32, FsError> {
     FAT.lock().open(path)
+}
+
+pub fn create(path: &str) -> Result<u32, FsError> {
+    FAT.lock().create(path)
 }
 
 pub fn read(fd: u32, buf: &mut [u8]) -> Result<usize, FsError> {
@@ -385,7 +602,111 @@ fn vfs_probe_read() -> bool {
     true
 }
 
-/// Serial proof: mount FAT16 and VFS-read `/probe`. Not a second open story.
+/// Rewrite `/probe` through the same VFS `write`, read back, then restore.
+fn vfs_probe_write() -> bool {
+    WRITE_OK.store(false, Ordering::SeqCst);
+    let Ok(fd) = vfs::open(PROBE_PATH) else {
+        return false;
+    };
+    let Ok(n) = vfs::write(fd, WRITE_BYTES) else {
+        let _ = vfs::close(fd);
+        return false;
+    };
+    if n != WRITE_BYTES.len() {
+        let _ = vfs::close(fd);
+        return false;
+    }
+    let _ = vfs::close(fd);
+
+    let Ok(fd) = vfs::open(PROBE_PATH) else {
+        return false;
+    };
+    let mut buf = [0u8; PATH_MAX];
+    let Ok(n) = vfs::read(fd, &mut buf) else {
+        let _ = vfs::close(fd);
+        return false;
+    };
+    let _ = vfs::close(fd);
+    if n != WRITE_BYTES.len() || &buf[..n] != WRITE_BYTES {
+        return false;
+    }
+    uart::write_str_raw("fat: write\n");
+
+    // Restore host-built payload so later `/probe` reads and tests stay stable.
+    let Ok(fd) = vfs::open(PROBE_PATH) else {
+        return false;
+    };
+    let Ok(n) = vfs::write(fd, PROBE_BYTES) else {
+        let _ = vfs::close(fd);
+        return false;
+    };
+    let _ = vfs::close(fd);
+    if n != PROBE_BYTES.len() {
+        return false;
+    }
+    // Dirent size may still be WRITE_BYTES len if that was longer; shrink.
+    // write_at grows size with max(old, new_end) and does not shrink. Force
+    // size back via a second open path: update by writing exact and patching
+    // dirent — handled below.
+    if WRITE_BYTES.len() != PROBE_BYTES.len() {
+        let name = path_to_83(PROBE_PATH).unwrap();
+        if !FAT.lock().update_dirent_size(&name, PROBE_BYTES.len() as u32) {
+            return false;
+        }
+    }
+    uart::write_str_raw("fat: rewrite\n");
+    WRITE_OK.store(true, Ordering::SeqCst);
+    true
+}
+
+/// Create `/fwr` on the volume (FAT backend), write bytes, confirm via VFS open.
+/// `vfs::create` stays memfs-first (A6); this is the FAT create mile.
+fn vfs_probe_create() -> bool {
+    CREATE_OK.store(false, Ordering::SeqCst);
+    if has_name(CREATE_PATH) {
+        // Re-run / leftover image: open and overwrite instead of failing Exists.
+        let Ok(fd) = open(CREATE_PATH) else {
+            return false;
+        };
+        let Ok(n) = write(fd, CREATE_BYTES) else {
+            let _ = close(fd);
+            return false;
+        };
+        let _ = close(fd);
+        if n != CREATE_BYTES.len() {
+            return false;
+        }
+    } else {
+        let Ok(fd) = create(CREATE_PATH) else {
+            return false;
+        };
+        let Ok(n) = write(fd, CREATE_BYTES) else {
+            let _ = close(fd);
+            return false;
+        };
+        let _ = close(fd);
+        if n != CREATE_BYTES.len() {
+            return false;
+        }
+    }
+    let Ok(fd) = vfs::open(CREATE_PATH) else {
+        return false;
+    };
+    let mut buf = [0u8; PATH_MAX];
+    let Ok(n) = vfs::read(fd, &mut buf) else {
+        let _ = vfs::close(fd);
+        return false;
+    };
+    let _ = vfs::close(fd);
+    if n != CREATE_BYTES.len() || &buf[..n] != CREATE_BYTES {
+        return false;
+    }
+    uart::write_str_raw("fat: create\n");
+    CREATE_OK.store(true, Ordering::SeqCst);
+    true
+}
+
+/// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`.
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     if !mounted() {
@@ -393,6 +714,12 @@ pub fn observe_probe() -> bool {
     }
     uart::write_str_raw("fat: mount\n");
     if !vfs_probe_read() {
+        return false;
+    }
+    if !vfs_probe_write() {
+        return false;
+    }
+    if !vfs_probe_create() {
         return false;
     }
     let mut w = uart::raw();
@@ -411,14 +738,40 @@ fn fat16_vfs_open_probe() {
 
 #[cfg(test)]
 #[test_case]
-fn fat16_missing_and_readonly() {
+fn fat16_vfs_write_and_restore() {
+    assert!(mounted());
+    assert!(
+        vfs_probe_write(),
+        "VFS write on /probe must round-trip and restore fat-hi"
+    );
+    assert!(WRITE_OK.load(Ordering::SeqCst));
+    assert!(vfs_probe_read());
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_create_write_small_file() {
+    assert!(mounted());
+    assert!(
+        vfs_probe_create(),
+        "FAT create+/fwr write must be VFS-readable"
+    );
+    assert!(CREATE_OK.load(Ordering::SeqCst));
+    assert!(has_name(CREATE_PATH));
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_missing_and_limits() {
     assert!(mounted());
     assert_eq!(open("/missing"), Err(FsError::Missing));
     assert_eq!(open("/probe-too-long-name"), Err(FsError::BadPath));
     let fd = open(PROBE_PATH).expect("PROBE");
-    assert_eq!(write(fd, b"x"), Err(FsError::ReadOnly));
+    // Empty write is rejected (same TooBig shape as memfs).
+    assert_eq!(write(fd, b""), Err(FsError::TooBig));
     assert_eq!(close(fd), Ok(()));
-    assert_eq!(FAT.lock().create("/nope"), Err(FsError::ReadOnly));
+    // Creating an existing FAT name fails.
+    assert_eq!(create(PROBE_PATH), Err(FsError::Exists));
 }
 
 #[cfg(test)]
@@ -427,6 +780,7 @@ fn fat16_path_maps_8_3() {
     assert_eq!(path_to_83("/probe"), Some(*b"PROBE      "));
     assert_eq!(path_to_83("/hello"), Some(*b"HELLO      "));
     assert_eq!(path_to_83("/kprobe"), Some(*b"KPROBE     "));
+    assert_eq!(path_to_83("/fwr"), Some(*b"FWR        "));
     assert!(path_to_83("/toolong12").is_none());
     assert!(path_to_83("probe").is_none());
 }

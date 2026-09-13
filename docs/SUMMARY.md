@@ -76,6 +76,7 @@
 - [ADR-047 Isolation leftovers decisions](03-adr/ADR-047-isolation-leftovers-decisions.md)
 - [ADR-048 App hosting claim criteria](03-adr/ADR-048-app-hosting-claim-criteria.md)
 - [ADR-049 Leftover identity RAM tear](03-adr/ADR-049-identity-ram-tear.md)
+- [ADR-050 FAT16 write](03-adr/ADR-050-fat16-write.md)
 
 # Roadmap
 

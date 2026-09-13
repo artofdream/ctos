@@ -418,11 +418,29 @@ if ! grep -q "fat: read" "$log"; then
     echo "qemu-smoke: missing 'fat: read' on serial (VFS open/read /probe, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "fat: write" "$log"; then
+    echo "qemu-smoke: missing 'fat: write' on serial (VFS write /probe, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fat: rewrite" "$log"; then
+    echo "qemu-smoke: missing 'fat: rewrite' on serial (restore /probe fat-hi, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fat: create" "$log"; then
+    echo "qemu-smoke: missing 'fat: create' on serial (FAT create+/fwr, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "fat: ok" "$log"; then
     echo "qemu-smoke: missing 'fat: ok' on serial (A7 FAT16 mile, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 echo "qemu-smoke: FAT16 (A7) strings present"
+# Host-visible write: guest left /fwr = fat-nw on the raw image (ADR-050).
+if ! python3 "$ROOT/scripts/mkfat16.py" --check-write "$img"; then
+    echo "qemu-smoke: host FAT write check failed (guest /fwr not on image)" >&2
+    exit 1
+fi
+echo "qemu-smoke: FAT16 write (ADR-050) host-check ok"
 if grep -q "slot: probe missed" "$log"; then
     echo "qemu-smoke: slot probe missed (FAT /hello load path did not run)" >&2
     exit 1
