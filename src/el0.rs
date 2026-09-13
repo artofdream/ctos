@@ -16,8 +16,9 @@
 //!
 //! `is_active()` is true only while that standing context exists.
 //! Lower-EL IRQ/FIQ/SError still park (not exercised). PAN is typically
-//! unimplemented on `-cpu cortex-a57`. The EL0 trampoline still TLBI ALL
-//! because kernel `.data` leaves are global. ASID isolation lives in
+//! unimplemented on `-cpu cortex-a57`. After ADR-037/038 identity
+//! `.data`/heap tears, the standing/EL0 trampoline path is `MSR TTBR0`
+//! + `ISB` only — no `TLBI VMALLE1` (ADR-039). ASID isolation lives in
 //! `src/asid.rs`. TTBR1 private page + high-VA EL1 fetch live in
 //! `src/ttbr1.rs` (ADR-016 / ADR-017).
 //! See el0.md. Not “EL0 isolated.”
@@ -326,7 +327,13 @@ pub fn observe_probe() -> bool {
     if !stand_and_restore() {
         return false;
     }
+    // ADR-039: entry/return/stay used MSR TTBR0 + ISB only. Require the
+    // identity tears that made dropping VMALLE1 honest.
+    if !paging::identity_data_ready() || !paging::identity_heap_ready() {
+        return false;
+    }
     let mut w = uart::raw();
+    let _ = writeln!(w, "el0: no-vmalle1");
     let _ = writeln!(w, "el0: ok");
     true
 }
@@ -447,3 +454,21 @@ fn pan_unclaimed_on_cortex_a57() {
     // Do not treat a missing PAN feature as a Failed probe.
     let _ = paging::pan_implemented();
 }
+
+#[cfg(test)]
+#[test_case]
+fn el0_entry_without_vmalle1() {
+    assert!(
+        paging::identity_data_ready() && paging::identity_heap_ready(),
+        "ADR-039 requires identity .data + heap tears before dropping VMALLE1"
+    );
+    assert!(
+        kernel_data_read_fault(),
+        "EL0 must still DABORT on identity kernel .data without TLBI VMALLE1"
+    );
+    assert!(
+        stand_and_restore(),
+        "standing dual-SVC must work without TLBI VMALLE1 on the trampoline"
+    );
+}
+

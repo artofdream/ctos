@@ -5,8 +5,8 @@
 //! under ASID 2 is **Failed** (`asid: stale`).
 //!
 //! This is not “EL0 isolated.” PAN stays unclaimed on `-cpu cortex-a57`.
-//! Standing EL0 lives in `src/el0.rs`. The EL0 trampoline still
-//! `TLBI VMALLE1` because kernel `.data` leaves are global.
+//! Standing EL0 lives in `src/el0.rs`. After ADR-039 the EL0 trampoline
+//! also switches without `TLBI VMALLE1` (identity `.data`/heap torn).
 
 use core::fmt::Write;
 use core::hint::black_box;

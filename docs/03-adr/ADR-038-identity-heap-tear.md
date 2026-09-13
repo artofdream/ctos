@@ -25,8 +25,8 @@ Heap `init` already runs **after** the high-VA jump and the `.data` tear. High t
 3. **Unmap identity heap.** Unmap `[heap_pa, heap_pa+HEAP_SIZE)` from kernel TTBR0 (`TLBI VAAE1` each low VA). User TTBR0 already omits heap; clearing a present slot is fine. High twins stay. Frames after the heap stay identity-mapped. Serial `ident: heap lo=… hi=… pages=N` with `N >= 1`.
 4. **Keep `_start` / QEMU `-kernel` at `0x4008_0000`.** Do not change default `-cpu`. Do not claim PAN.
 5. **Fail-closed probe.** New `ident: heap-reloc` / `ident: heap` / `ident: heap-fault` / `ident: heap-high`. EL1 `LDR` of a torn identity heap VA is a current-EL translation DABORT. EL1 `LDR` of the high twin still returns the planted free-list header size. `scripts/qemu-smoke.sh` greps those strings and rejects `ident: heap-stay`. Replace the ADR-032 / ADR-037 stay marker.
-6. **Still Planned.** PAN enable on `-cpu cortex-a57`; EL0 entry without `TLBI VMALLE1`; lower-EL IRQ while standing; umbrella EL0 isolation. Remaining identity RAM after the heap (frame bump pool) is not this cut.
-7. **NFR-10 text** is revised in place (ID unchanged). Threat-model **v1.18**. Do not mint NFR-15+.
+6. **Still Planned (at accept time).** PAN enable on `-cpu cortex-a57`; EL0 entry without `TLBI VMALLE1`; lower-EL IRQ while standing; umbrella EL0 isolation. Remaining identity RAM after the heap (frame bump pool) is not this cut. EL0 entry without `VMALLE1` is superseded by [ADR-039](ADR-039-el0-entry-without-vmalle1.md).
+7. **NFR-10 text** is revised in place (ID unchanged). Threat-model **v1.18** at accept (v1.19 after ADR-039). Do not mint NFR-15+.
 
 ## Honesty
 
