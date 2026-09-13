@@ -35,6 +35,7 @@ Commands and honesty notes: [GitHub README](https://github.com/artofdream/ctos#r
 | Extra | When |
 | --- | --- |
 | Docker `linux/arm64` | cts-ai (Windows ARM64) path: `./scripts/docker-smoke.sh`. Do **not** pass `--platform linux/amd64`. |
+| Docker on EVO-X2 (Alpine WSL2) | Install bash (`apk add bash`); use `wsl -d Alpine -u cts -- bash` (not WindowsApps bash). Docker Desktop WSL integration not enabled for Alpine — use `docker.exe` on PATH (`…/DockerDesktop/resources/bin`) or `cmd` `docker build`/`run`. `scripts/docker-smoke.sh` is `#!/bin/sh`. |
 | mdBook 0.5.4 + mdbook-mermaid 0.17.1 | Local docs site only: `./scripts/docs-build.sh`. See [Docs website + DNS](../website.md). |
 
 ## Not required

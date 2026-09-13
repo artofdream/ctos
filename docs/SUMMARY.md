@@ -73,6 +73,8 @@
 - [ADR-044 Taken SError research](03-adr/ADR-044-taken-serror-research.md)
 - [ADR-045 Taken SError QMP attempt](03-adr/ADR-045-taken-serror-qmp.md)
 - [ADR-046 A9 slot performance delta](03-adr/ADR-046-slot-perf-delta.md)
+- [ADR-047 Isolation leftovers decisions](03-adr/ADR-047-isolation-leftovers-decisions.md)
+- [ADR-048 App hosting claim criteria](03-adr/ADR-048-app-hosting-claim-criteria.md)
 
 # Roadmap
 

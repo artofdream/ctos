@@ -45,6 +45,15 @@ docker run --rm ctos-smoke
 
 cts-ai `./scripts/docker-smoke.sh` (linux/arm64) is **Verified** on `main` `e80dc93` (Merge PR #28 / ADR-020): 50 tests, `ident: reloc n=12`, live pages=37, force-fail ok. Earlier Docker Verified: `24d94e6` (#27 / ADR-019), `b0f0ee5` (#24–#26), and `71ee15f` (layout L3). The first 2026-09-09 Docker pass after the LF / `build-essential` / ROM ratchets is still a ledger row. Keep the `b2bbb99` Failed row. This is not a Raspberry Pi port.
 
+### Docker on EVO-X2 (Alpine WSL2 + Docker Desktop)
+
+Host hygiene for later (evo-x2) smoke — docs note, not a kernel claim:
+
+- Alpine is the default WSL2 distro. Install bash: `wsl -d Alpine -u root -- apk add bash`.
+- Prefer `wsl -d Alpine -u cts -- bash` (real Alpine bash). Do **not** use the WindowsApps `bash.exe` stub.
+- Docker Desktop WSL integration is **not** enabled for Alpine. Call Windows `docker.exe` from Alpine via PATH, e.g. `/mnt/c/Users/cts/AppData/Local/Programs/DockerDesktop/resources/bin`, or run `docker build` / `docker run` from `cmd`.
+- `scripts/docker-smoke.sh` is already `#!/bin/sh` (Alpine ash-friendly when `docker` is on PATH).
+
 ## Docs website (mdBook)
 
 ```bash

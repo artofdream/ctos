@@ -38,4 +38,5 @@ Say “`ID_AA64MMFR1_EL1.PAN` is 0 on `-cpu cortex-a57`” only when the serial 
 ## Consequences
 
 - `src/pan.rs` owns the ID-field probe. Isolation docs cite this ADR as **Planned** for the enable mile.
-- A future CPU change needs its own ADR and must not be a silent script edit.
+- [ADR-047](ADR-047-isolation-leftovers-decisions.md) records: PAN **enable** is a **non-goal** on the default probe CPU; ID-field probe stays Verified.
+- A future CPU change needs its own ADR + sponsor and must not be a silent script edit.

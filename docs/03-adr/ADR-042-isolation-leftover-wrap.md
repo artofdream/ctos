@@ -56,4 +56,4 @@ Say “`_start` / boot-stub page stays mapped while live `.text`/`.rodata`/`.dat
 
 - `src/teardown.rs` prints the stay markers; smoke and the new `#[test_case]` ratchet them.
 - [ADR-013](ADR-013-el0-isolation-direction.md) remains the isolation direction; P-SEC-3l stays Planned.
-- [ADR-043](ADR-043-lower-el-fiq-serror.md) takes FIQ and documents SError park honesty. A later ADR may take SError safely, enable PAN on a different CPU story, or redesign boot so `_start` can leave identity.
+- [ADR-043](ADR-043-lower-el-fiq-serror.md) takes FIQ and documents SError park honesty. [ADR-047](ADR-047-isolation-leftovers-decisions.md) decides: never yank `_start` while `-kernel` needs it; PAN enable non-goal on default a57; taken SError deferred/non-goal on this smoke machine; leftover RAM optional; umbrella stays Planned/non-claim. A later ADR may reopen with sponsor scope (honest inject, new CPU, boot redesign).
