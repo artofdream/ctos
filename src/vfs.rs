@@ -1,7 +1,8 @@
-//! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028).
+//! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028, write ADR-050).
 //!
 //! One `open` story. memfs is in-RAM named buffers. FAT16 is a second
-//! backend on virtio-blk. Not Linux VFS. Not POSIX. Not app hosting.
+//! backend on virtio-blk (read + write). `create` stays memfs-first.
+//! Not Linux VFS. Not POSIX. Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -34,6 +35,8 @@ pub enum FsError {
     Full,
     BadHandle,
     TooBig,
+    /// Kept for ADR-028-era callers; FAT write is ADR-050 (no longer returned).
+    #[allow(dead_code)]
     ReadOnly,
 }
 

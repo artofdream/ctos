@@ -1,6 +1,6 @@
 # ADR-028 — virtio-blk + FAT16 behind the thin VFS
 
-- Status: Accepted (block + FAT mile Verified when the serial / tests pass; Track A / app hosting still Planned)
+- Status: Accepted (block + FAT **read** mile Verified when the serial / tests pass; Track A / app hosting still Planned). Write depth: [ADR-050](ADR-050-fat16-write.md).
 - Date: 2026-09-12
 
 ## Context
@@ -17,7 +17,7 @@ Host QEMU `-drive` without guest code is **not** a probe. memfs stays one backen
 | **H2 (rejected)** | Tiny xv6-like inode FS. | Fine as a teaching layout, but the host cannot `file` / mount / check the image without a ctos-specific tool. Issue #38 prefers a host-visible image. |
 | **H3 (rejected)** | FAT32. | Root is a cluster chain; more code for the same probe. A 4 MiB image is naturally FAT16 once cluster count ≥ 4085. |
 | **H4 (rejected)** | A second `open` / `mount` SVC, or a `/d/` prefix that breaks the A6 path grammar. | ADR-027 forbids a second open story. Paths stay `/` + `[a-z0-9_-]`. |
-| **H5 (rejected)** | virtio-blk-pci, virtio IRQ via GIC, or write-back FAT this mile. | PCI and IRQs are extra surface. FAT is **read-only** (guest `write` → `FsError::ReadOnly`). Sector R/W is proven on an unused last sector, not by mutating the volume. |
+| **H5 (rejected this mile)** | virtio-blk-pci, virtio IRQ via GIC, or write-back FAT this mile. | PCI and IRQs are extra surface. FAT stayed **read-only** here (guest `write` → `FsError::ReadOnly`). Sector R/W is proven on an unused last sector. Write-back depth is [ADR-050](ADR-050-fat16-write.md). |
 
 ## Decision
 

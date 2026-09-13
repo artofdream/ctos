@@ -5,6 +5,9 @@ Always writes 8.3 PROBE = b'fat-hi' (VFS /probe, A7).
 With --app (or CTOS_APP_ELF / target/hello-libctos.elf) also writes
 8.3 HELLO = the app ELF (VFS /hello, A9 / ADR-030).
 
+After a guest FAT write mile (ADR-050), --check-write looks for 8.3 FWR
+= b'fat-nw' left by the guest create+/write probe.
+
 Host-visible: the same bytes the guest opens. Cluster count is >= 4085
 so the volume is FAT16, not FAT12. Not a guest probe. Not FAT32.
 """
@@ -27,6 +30,8 @@ PROBE_BYTES = b"fat-hi"
 PROBE_CLUSTER = 2
 HELLO_NAME = b"HELLO   " + b"   "
 HELLO_CLUSTER = 3
+FWR_NAME = b"FWR     " + b"   "
+FWR_BYTES = b"fat-nw"
 APP_MAX = 64 * 1024
 EOC = 0xFFFF
 
@@ -166,6 +171,53 @@ def _cluster_data(img: bytes, cluster: int, size: int) -> bytes:
     return img[off : off + size]
 
 
+def _find_dirent(img: bytes, root: int, name: bytes) -> bytes | None:
+    # Root has ROOT_ENTS entries across root_secs.
+    root_secs = (ROOT_ENTS * 32 + BYTES_PER_SEC - 1) // BYTES_PER_SEC
+    for s in range(root_secs):
+        base = root + s * BYTES_PER_SEC
+        for i in range(BYTES_PER_SEC // 32):
+            ent = img[base + i * 32 : base + i * 32 + 32]
+            if ent[0] == 0:
+                return None
+            if ent[0] == 0xE5:
+                continue
+            if ent[0:11] == name:
+                return ent
+    return None
+
+
+def check_write(path: str) -> None:
+    """Host-visible ADR-050 check: guest left /fwr = fat-nw."""
+    with open(path, "rb") as f:
+        img = f.read()
+    if len(img) != TOTAL_SEC * BYTES_PER_SEC:
+        raise SystemExit(f"mkfat16: bad size {len(img)}")
+    root = (first_data_sector() - (ROOT_ENTS * 32) // BYTES_PER_SEC) * BYTES_PER_SEC
+    ent = _find_dirent(img, root, FWR_NAME)
+    if ent is None:
+        raise SystemExit("mkfat16: FWR dirent missing (guest create+/write)")
+    size = int.from_bytes(ent[28:32], "little")
+    cluster = int.from_bytes(ent[26:28], "little")
+    if size != len(FWR_BYTES):
+        raise SystemExit(f"mkfat16: FWR size {size} != {len(FWR_BYTES)}")
+    if cluster < 2:
+        raise SystemExit(f"mkfat16: FWR cluster {cluster} invalid")
+    data = _cluster_data(img, cluster, size)
+    if data != FWR_BYTES:
+        raise SystemExit(f"mkfat16: FWR bytes {data!r} != {FWR_BYTES!r}")
+    # PROBE must still be fat-hi (guest restore after write probe).
+    probe = _dirent_at(img, root, 0)
+    if probe[0:11] != PROBE_NAME:
+        raise SystemExit("mkfat16: PROBE dirent missing after write mile")
+    if _cluster_data(img, PROBE_CLUSTER, len(PROBE_BYTES)) != PROBE_BYTES:
+        raise SystemExit("mkfat16: PROBE was not restored to fat-hi")
+    print(
+        f"mkfat16: check-write ok file=/fwr bytes={FWR_BYTES.decode()} "
+        f"file=/probe restored={PROBE_BYTES.decode()}"
+    )
+
+
 def check(path: str, require_app: bool) -> None:
     with open(path, "rb") as f:
         img = f.read()
@@ -223,7 +275,15 @@ def main() -> int:
         action="store_true",
         help="with --check, require FAT /hello ELF",
     )
+    p.add_argument(
+        "--check-write",
+        action="store_true",
+        help="verify guest FAT write mile left /fwr=fat-nw and restored /probe (ADR-050)",
+    )
     args = p.parse_args()
+    if args.check_write:
+        check_write(args.image)
+        return 0
     if args.check:
         check(args.image, require_app=args.require_app)
         return 0
