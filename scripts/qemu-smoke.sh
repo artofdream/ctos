@@ -627,6 +627,14 @@ if ! grep -q "ident: heap-high" "$log"; then
     echo "qemu-smoke: missing 'ident: heap-high' on serial (EL1 high heap load, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "ident: start-stay" "$log"; then
+    echo "qemu-smoke: missing 'ident: start-stay' on serial (_start / 0x4008_0000 stay, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: ram-stay" "$log"; then
+    echo "qemu-smoke: missing 'ident: ram-stay' on serial (remaining identity RAM after heap, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 echo "qemu-smoke: identity-tear strings present"
 if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
