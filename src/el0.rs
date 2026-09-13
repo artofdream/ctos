@@ -16,10 +16,13 @@
 //!
 //! `is_active()` is true only while that standing context exists.
 //! Lower-EL IRQ while standing is taken and returns to EL0 (ADR-040/041).
-//! Lower-EL FIQ while standing is taken when GICC FIQEn is armed (ADR-043);
-//! SError lower-EL has no safe trigger on this virt guest (park honesty).
-//! Default `ERET` to EL0 clears IRQ mask (ADR-041); short non-standing
-//! trampoline probes stay masked.
+//! Lower-EL FIQ while standing is taken when GICC FIQEn is armed (ADR-043).
+//! ADR-045 wires `eret_to_el0_serror` (A clear) + EXPECT for a standing
+//! SError probe; QEMU 10 virt+`-cpu cortex-a57` has no working host inject
+//! (`inject-nmi` → machine does not provide NMIs), so hello keeps
+//! `el0: serror-park` when the taken path does not fire.
+//! Default `ERET` to EL0 clears IRQ mask (ADR-041) and still masks A;
+//! short non-standing trampoline probes stay masked.
 //! PAN is typically unimplemented on `-cpu cortex-a57`. After
 //! ADR-037/038 identity `.data`/heap tears, the standing/EL0 trampoline
 //! path is `MSR TTBR0` + `ISB` only — no `TLBI VMALLE1` (ADR-039). ASID
@@ -318,6 +321,63 @@ fn fiq_while_standing() -> bool {
     })
 }
 
+/// AArch64 `MOVZ X2, #0x4000` — short A-clear window for host inject (TCG).
+const MOVZ_X2_4000: u32 = 0xD2880002;
+/// AArch64 `SUBS X2, X2, #1`.
+const SUBS_X2_1: u32 = 0xF1000442;
+/// AArch64 `B.NE` to previous insn (spin back to SUBS).
+const B_NE_BACK1: u32 = 0x54FFFFE1;
+
+/// Standing dual-SVC with a bounded spin (not WFI) so a host SError inject
+/// can land while A is clear. WFI would hang forever if inject fails because
+/// SPSR masks I/F (ADR-045). Keep the spin short on TCG.
+fn write_serror_standing(ptr: *mut u32) {
+    unsafe {
+        core::ptr::write_volatile(ptr, SVC1_A64);
+        core::ptr::write_volatile(ptr.add(1), MOVZ_X2_4000);
+        core::ptr::write_volatile(ptr.add(2), SUBS_X2_1);
+        core::ptr::write_volatile(ptr.add(3), B_NE_BACK1);
+        core::ptr::write_volatile(ptr.add(4), MOVZ_X1_MAGIC);
+        core::ptr::write_volatile(ptr.add(5), SVC2_A64);
+    }
+    for i in 0..6 {
+        sync_icache(unsafe { ptr.add(i) });
+    }
+}
+
+/// Standing EL0 with A clear (ADR-045). Returns true only if lower-EL SError
+/// was taken and the dual-SVC restored. Without a working host inject this
+/// returns false and the hello path prints `el0: serror-park`.
+fn serror_while_standing() -> bool {
+    if is_active() || !paging::user_map_ready() {
+        return false;
+    }
+    with_el0_page(|ptr, va| {
+        write_serror_standing(ptr);
+        let user_sp = va + 4096;
+        let mut w = uart::raw();
+        // UART cue for host QMP before ERET (ADR-045 / ADR-044 H1).
+        let _ = writeln!(w, "el0: serror-arm");
+        exception::arm_el0_standing();
+        exception::arm_el0_serror();
+        install_standing(va, user_sp, paging::user_ttbr0());
+        if !is_active() {
+            clear_active();
+            return false;
+        }
+        unsafe {
+            exception::eret_to_el0_serror(black_box(va), 0, user_sp);
+        }
+        if is_active() {
+            clear_active();
+            return false;
+        }
+        exception::el0_serror_caught()
+            && exception::el0_standing_caught()
+            && exception::el0_restored_caught()
+    })
+}
+
 fn svc_roundtrip() -> bool {
     with_el0_page(|ptr, va| {
         write_instr(ptr, SVC0_A64);
@@ -423,6 +483,9 @@ pub fn observe_probe() -> bool {
     if !fiq_while_standing() {
         return false;
     }
+    // ADR-045: A-clear standing window for host QMP/`inject-nmi`.
+    // On QEMU 10 virt+cortex-a57 the inject fails (no TYPE_NMI) — keep park.
+    let serror_taken = serror_while_standing();
     // ADR-039: entry/return/stay used MSR TTBR0 + ISB only. Require the
     // identity tears that made dropping VMALLE1 honest.
     if !paging::identity_data_ready() || !paging::identity_heap_ready() {
@@ -430,8 +493,12 @@ pub fn observe_probe() -> bool {
     }
     let mut w = uart::raw();
     let _ = writeln!(w, "el0: irq-default");
-    // Honest: no safe SError inject on virt/cortex-a57 without exotic setup.
-    let _ = writeln!(w, "el0: serror-park");
+    if serror_taken {
+        // Handler already printed `el0: serror`. Do not also print park.
+    } else {
+        // Honesty: taken path Planned until a working host inject exists.
+        let _ = writeln!(w, "el0: serror-park");
+    }
     let _ = writeln!(w, "el0: no-vmalle1");
     let _ = writeln!(w, "el0: ok");
     true
@@ -588,6 +655,11 @@ fn lower_el_fiq_while_standing() {
     );
     assert!(!is_active(), "teardown must clear is_active()");
 }
+
+// ADR-045: no `#[test_case]` for taken SError — needs host QMP inject, and
+// QEMU 10 virt+`-cpu cortex-a57` reports "machine does not provide NMIs".
+// Smoke may attempt QMP; park marker stays the Verified honesty line.
+
 
 #[cfg(test)]
 #[test_case]

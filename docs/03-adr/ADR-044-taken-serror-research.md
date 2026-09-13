@@ -56,4 +56,5 @@ Say “we know how we would take lower-EL SError on virt” (QMP `nmi` + A clear
 
 - [ADR-043](ADR-043-lower-el-fiq-serror.md) remains the FIQ Verified + SError park cut.
 - Implementers should open a new ADR for H1, not widen this file into a silent Verified.
+- Follow-up: [ADR-045](ADR-045-taken-serror-qmp.md) attempted H1; QEMU 10 virt+cortex-a57 has no working `inject-nmi`→SError. Taken stays Planned.
 - Docker/(evo-x2) smoke does not need re-probe for this docs-only research PR.
