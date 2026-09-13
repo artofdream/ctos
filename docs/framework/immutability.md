@@ -18,7 +18,7 @@ These are **scoped** cuts on QEMU `virt`. They are not an immutable kernel.
 | `SCTLR.WXN` on | same RO+NX smoke | ADR-015 |
 | Live identity `.text` torn after high-VA jump + vtable rewrite | `ident: reloc` / `ident: live` / `ident: ok` | [ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md) |
 
-Heap, PTEs, UART/GIC, and coop stacks stay writable on purpose. `.rodata`/`.data`/heap identity tear is still **Planned**.
+Heap, PTEs, UART/GIC, and coop stacks stay writable on purpose. Identity `.rodata` / `.data` / heap tears are ledger-**Verified** ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md) / [ADR-037](../03-adr/ADR-037-identity-data-tear.md) / [ADR-038](../03-adr/ADR-038-identity-heap-tear.md)); `_start` and leftover identity RAM after the heap stay (`ident: start-stay` / `ident: ram-stay`, [ADR-042](../03-adr/ADR-042-isolation-leftover-wrap.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)).
 
 ## Track A — RO app payloads, then A9 slot disconnect
 
@@ -26,7 +26,7 @@ The **goal** of this stance (sponsor clarification) is to **disconnect OS update
 
 [Track A #31](https://github.com/artofdream/ctos/issues/31) landed A1–A8 first. A1 is a kernel SVC ABI mile ([syscall.md](syscall.md)). A2 is a `libctos` CRT mile ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). A3 is a guest ELF64 `PT_LOAD` loader ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). A4 is standing EL0 as normal mode for that loaded image ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). **RO app payloads** are that loader mapping an image RO+X (R-only `PT_LOAD` already uses `map_el0_ro`; RX text stays Exec). A9 is the **slot first cut** ([ADR-030](../03-adr/ADR-030-os-app-slots.md)), not an absolute immutable OS.
 
-**Today (first cut + leftover):** two host artifacts (kernel ELF + `target/hello-libctos.elf`) and a FAT16 `/hello` load path. A2–A4 load that file (no `include_bytes!`). Cross-update is the host two-boot probe on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Do not say “apps update independently.” Performance: `perf: app-load` is a measurement; a Verified *delta* vs the old embed stays Planned ([performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench)).
+**Today (first cut + leftover):** two host artifacts (kernel ELF + `target/hello-libctos.elf`) and a FAT16 `/hello` load path. A2–A4 load that file (no production `include_bytes!`). Cross-update is the host two-boot probe on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Do not say “apps update independently.” Performance: `perf: app-load` plus probe-only `perf: embed-load` / `perf: slot-delta` are a QEMU TCG **measurement pair** ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md), [performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench)) — not a percent and not “slots are free.”
 
 [Track B #40](https://github.com/artofdream/ctos/issues/40) must not use Linux-compat research to claim an immutable or container host. Frame: [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) (**not claiming Linux userspace yet**). Containers stay a [non-goal](host-apps.md) ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
 
