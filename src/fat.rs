@@ -6,12 +6,17 @@
 //!
 //! `vfs::create` stays memfs-first (A6). FAT create is the FAT backend
 //! (`fat::create`); write on an open FAT handle is the same `vfs::write`.
+//!
+//! ADR-051: CNTPCT around the FAT VFS write of the small `/probe` payload,
+//! compared on the same boot to a memfs write of the same bytes (raw ticks;
+//! not a bench / percent).
 
 use alloc::vec::Vec;
 use core::fmt::Write;
-use core::sync::atomic::{AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use spin::Mutex;
 
+use crate::timer;
 use crate::uart;
 use crate::vfs::{self, FsError, VfsOps, FILE_MAX, PATH_MAX};
 use crate::virtio;
@@ -23,6 +28,8 @@ const PROBE_BYTES: &[u8] = b"fat-hi";
 const WRITE_BYTES: &[u8] = b"fat-wr";
 const CREATE_PATH: &str = "/fwr";
 const CREATE_BYTES: &[u8] = b"fat-nw";
+/// Memfs path for the ADR-051 compared write (same payload as WRITE_BYTES).
+const MEMFS_CMP_PATH: &str = "/mwprobe";
 const EOC: u16 = 0xFFFF;
 const ATTR_ARCHIVE: u8 = 0x20;
 
@@ -434,6 +441,8 @@ static MOUNT_OK: AtomicBool = AtomicBool::new(false);
 static READ_OK: AtomicBool = AtomicBool::new(false);
 static WRITE_OK: AtomicBool = AtomicBool::new(false);
 static CREATE_OK: AtomicBool = AtomicBool::new(false);
+static FAT_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
+static MEMFS_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 
 fn path_to_83(path: &str) -> Option<[u8; 11]> {
     if !vfs::valid_path(path) {
@@ -605,17 +614,22 @@ fn vfs_probe_read() -> bool {
 /// Rewrite `/probe` through the same VFS `write`, read back, then restore.
 fn vfs_probe_write() -> bool {
     WRITE_OK.store(false, Ordering::SeqCst);
+    FAT_WRITE_TICKS.store(0, Ordering::SeqCst);
     let Ok(fd) = vfs::open(PROBE_PATH) else {
         return false;
     };
+    // ADR-051: time only the VFS write of the small payload (not open/restore).
+    let t0 = timer::cntpct();
     let Ok(n) = vfs::write(fd, WRITE_BYTES) else {
         let _ = vfs::close(fd);
         return false;
     };
-    if n != WRITE_BYTES.len() {
+    let ticks = timer::cntpct().wrapping_sub(t0);
+    if n != WRITE_BYTES.len() || ticks == 0 {
         let _ = vfs::close(fd);
         return false;
     }
+    FAT_WRITE_TICKS.store(ticks, Ordering::SeqCst);
     let _ = vfs::close(fd);
 
     let Ok(fd) = vfs::open(PROBE_PATH) else {
@@ -706,7 +720,37 @@ fn vfs_probe_create() -> bool {
     true
 }
 
-/// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`.
+/// Memfs write of the same small payload as the FAT `/probe` rewrite (ADR-051).
+/// Times only `vfs::write`, not create/open. Not a bench.
+fn measure_memfs_write() -> Option<u64> {
+    MEMFS_WRITE_TICKS.store(0, Ordering::SeqCst);
+    let fd = match vfs::create(MEMFS_CMP_PATH) {
+        Ok(fd) => fd,
+        Err(FsError::Exists) => match vfs::open(MEMFS_CMP_PATH) {
+            Ok(fd) => fd,
+            Err(_) => return None,
+        },
+        Err(_) => return None,
+    };
+    let t0 = timer::cntpct();
+    let n = match vfs::write(fd, WRITE_BYTES) {
+        Ok(n) => n,
+        Err(_) => {
+            let _ = vfs::close(fd);
+            return None;
+        }
+    };
+    let ticks = timer::cntpct().wrapping_sub(t0);
+    let _ = vfs::close(fd);
+    if n != WRITE_BYTES.len() || ticks == 0 {
+        return None;
+    }
+    MEMFS_WRITE_TICKS.store(ticks, Ordering::SeqCst);
+    Some(ticks)
+}
+
+/// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`,
+/// plus ADR-051 FAT-vs-memfs write CNTPCT pair (raw ticks).
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     if !mounted() {
@@ -723,6 +767,18 @@ pub fn observe_probe() -> bool {
         return false;
     }
     let mut w = uart::raw();
+    let fat_ticks = FAT_WRITE_TICKS.load(Ordering::SeqCst);
+    if fat_ticks == 0 {
+        let _ = writeln!(w, "perf: fat-write missed");
+        return false;
+    }
+    let _ = writeln!(w, "perf: fat-write ticks={fat_ticks}");
+    let Some(memfs_ticks) = measure_memfs_write() else {
+        let _ = writeln!(w, "perf: memfs-write missed");
+        return false;
+    };
+    let _ = writeln!(w, "perf: memfs-write ticks={memfs_ticks}");
+    let _ = writeln!(w, "perf: fs-write-delta fat={fat_ticks} memfs={memfs_ticks}");
     let _ = writeln!(w, "fat: ok");
     true
 }
@@ -758,6 +814,25 @@ fn fat16_create_write_small_file() {
     );
     assert!(CREATE_OK.load(Ordering::SeqCst));
     assert!(has_name(CREATE_PATH));
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat_memfs_write_cntpct_pair() {
+    assert!(mounted(), "FAT16 must mount for the write CNTPCT pair");
+    assert!(
+        vfs_probe_write(),
+        "FAT VFS write must round-trip and store fat-write ticks"
+    );
+    let fat_ticks = FAT_WRITE_TICKS.load(Ordering::SeqCst);
+    assert!(fat_ticks > 0, "perf: fat-write sample must be > 0");
+    let memfs_ticks = measure_memfs_write().expect("memfs write CNTPCT must advance");
+    assert!(memfs_ticks > 0, "perf: memfs-write sample must be > 0");
+    assert_eq!(
+        MEMFS_WRITE_TICKS.load(Ordering::SeqCst),
+        memfs_ticks,
+        "pair prints raw fat=<a> memfs=<b> ticks"
+    );
 }
 
 #[cfg(test)]
