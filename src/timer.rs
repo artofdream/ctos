@@ -126,6 +126,14 @@ pub fn stop() {
     write_ctl(0);
 }
 
+/// Rearm CNTP with a short TVAL so an EL0 `WFI` can take a lower-EL IRQ (ADR-040).
+pub fn arm_soon() {
+    let iv = interval().saturating_div(10).max(INTERVAL_MIN);
+    write_ctl(0);
+    write_tval(iv);
+    write_ctl(1);
+}
+
 pub fn tick_count() -> u64 {
     TICKS.load(Ordering::SeqCst)
 }

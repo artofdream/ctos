@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + standing EL0 + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
+# EL0 no-kernel-read + standing EL0 + lower-EL IRQ while standing (ADR-040) + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
 # TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025/037/038) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
@@ -240,11 +240,15 @@ if ! grep -q "el0: restored" "$log"; then
     echo "qemu-smoke: missing 'el0: restored' on serial (standing EL0 teardown, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "el0: irq" "$log"; then
+    echo "qemu-smoke: missing 'el0: irq' on serial (ADR-040 lower-EL IRQ while standing, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "el0: no-vmalle1" "$log"; then
     echo "qemu-smoke: missing 'el0: no-vmalle1' on serial (ADR-039 EL0 entry without VMALLE1, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile + read-mile + standing + no-vmalle1 strings present"
+echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + no-vmalle1 strings present"
 if grep -q "svc: probe missed" "$log"; then
     echo "qemu-smoke: svc probe missed (EL0 ABI trip did not run)" >&2
     exit 1

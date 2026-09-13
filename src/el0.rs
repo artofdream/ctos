@@ -15,7 +15,9 @@
 //! restores fail-closed (`el0: restore-fail`) instead of parking.
 //!
 //! `is_active()` is true only while that standing context exists.
-//! Lower-EL IRQ/FIQ/SError still park (not exercised). PAN is typically
+//! Lower-EL IRQ while standing is taken and returns to EL0 (ADR-040);
+//! FIQ/SError lower-EL still park. Default `ERET` to EL0 keeps IRQ
+//! masked; the IRQ probe uses an unmasked SPSR. PAN is typically
 //! unimplemented on `-cpu cortex-a57`. After ADR-037/038 identity
 //! `.data`/heap tears, the standing/EL0 trampoline path is `MSR TTBR0`
 //! + `ISB` only — no `TLBI VMALLE1` (ADR-039). ASID isolation lives in
@@ -31,6 +33,7 @@ use crate::exception;
 use crate::frame;
 use crate::loader;
 use crate::paging;
+use crate::timer;
 use crate::uart;
 
 /// AArch64 `SVC #0`.
@@ -231,6 +234,53 @@ fn write_standing(ptr: *mut u32) {
     sync_icache(unsafe { ptr.add(2) });
 }
 
+/// AArch64 `WFI` — wait for the lower-EL IRQ probe (ADR-040).
+const WFI_A64: u32 = 0xD503207F;
+
+/// Standing dual-SVC with a `WFI` between announce and restore so a
+/// timer IRQ can be taken from EL0 and return (ADR-040).
+fn write_irq_standing(ptr: *mut u32) {
+    unsafe {
+        core::ptr::write_volatile(ptr, SVC1_A64);
+        core::ptr::write_volatile(ptr.add(1), WFI_A64);
+        core::ptr::write_volatile(ptr.add(2), MOVZ_X1_MAGIC);
+        core::ptr::write_volatile(ptr.add(3), SVC2_A64);
+    }
+    sync_icache(ptr);
+    sync_icache(unsafe { ptr.add(1) });
+    sync_icache(unsafe { ptr.add(2) });
+    sync_icache(unsafe { ptr.add(3) });
+}
+
+/// Timer IRQ taken from standing EL0, then dual-SVC restore (ADR-040).
+fn irq_while_standing() -> bool {
+    if is_active() || !paging::user_map_ready() {
+        return false;
+    }
+    with_el0_page(|ptr, va| {
+        write_irq_standing(ptr);
+        let user_sp = va + 4096;
+        exception::arm_el0_standing();
+        exception::arm_el0_irq();
+        install_standing(va, user_sp, paging::user_ttbr0());
+        if !is_active() {
+            clear_active();
+            return false;
+        }
+        timer::arm_soon();
+        unsafe {
+            exception::eret_to_el0_irq_enabled(black_box(va), 0, user_sp);
+        }
+        if is_active() {
+            clear_active();
+            return false;
+        }
+        exception::el0_irq_caught()
+            && exception::el0_standing_caught()
+            && exception::el0_restored_caught()
+    })
+}
+
 fn svc_roundtrip() -> bool {
     with_el0_page(|ptr, va| {
         write_instr(ptr, SVC0_A64);
@@ -325,6 +375,10 @@ pub fn observe_probe() -> bool {
     }
     READ_OK.store(true, Ordering::SeqCst);
     if !stand_and_restore() {
+        return false;
+    }
+    // ADR-040: taken lower-EL IRQ while standing, then restore.
+    if !irq_while_standing() {
         return false;
     }
     // ADR-039: entry/return/stay used MSR TTBR0 + ISB only. Require the
@@ -453,6 +507,17 @@ fn pan_unclaimed_on_cortex_a57() {
     // Isolation stays Planned. cortex-a57 is ARMv8.0; PAN is usually absent.
     // Do not treat a missing PAN feature as a Failed probe.
     let _ = paging::pan_implemented();
+}
+
+#[cfg(test)]
+#[test_case]
+fn lower_el_irq_while_standing() {
+    assert!(!is_active(), "must start inactive");
+    assert!(
+        irq_while_standing(),
+        "timer IRQ from standing EL0 must return and dual-SVC restore"
+    );
+    assert!(!is_active(), "teardown must clear is_active()");
 }
 
 #[cfg(test)]

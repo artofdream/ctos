@@ -24,7 +24,7 @@ Track A / A5 isolation leftovers. Dual-ASID EL1 switches already avoided `TLBI V
 2. **What TLBI remains.** `paging::init` still `TLBI VMALLE1` once at MMU enable. Unmaps / map-window / identity tears still `TLBI VAAE1` (or equivalent per-VA invalidate). ASID dual probe stays no-full-flush ([ADR-013](ADR-013-el0-isolation-direction.md)).
 3. **Fail-closed probe.** Serial `el0: no-vmalle1` after the existing EL0 first-mile + read + standing markers, only when identity `.data` and heap tears are ready. `scripts/qemu-smoke.sh` greps that string and rejects `tlbi vmalle1` in `src/exception.rs`. `#[test_case]` `el0_entry_without_vmalle1`.
 4. **Keep `_start` / QEMU `-kernel` at `0x4008_0000`.** Do not change default `-cpu`. Do not claim PAN.
-5. **Still Planned.** PAN enable on `-cpu cortex-a57`; lower-EL IRQ while standing; remaining identity RAM / `_start` teardown; umbrella EL0 isolation.
+5. **Still Planned.** PAN enable on `-cpu cortex-a57`; remaining identity RAM / `_start` teardown; umbrella EL0 isolation. Lower-EL IRQ while standing is [ADR-040](ADR-040-lower-el-irq-standing.md).
 6. **NFR-10 text** is revised in place (ID unchanged). Threat-model **v1.19**. Do not mint NFR-15+.
 
 ## Honesty
