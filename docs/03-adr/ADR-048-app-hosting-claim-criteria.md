@@ -42,3 +42,8 @@ Say “A1–A9 first cuts exist” when the ledger rows say so. Do **not** say �
 - Ledger row “Track A app hosting (slots)” stays **Planned** and cites this ADR for the claim gate.
 - [hosting-apps.md](../overview/hosting-apps.md), Track A / roadmap, NFR-10 text point here.
 - No new FR/NFR IDs. Do not mint NFR-15+.
+
+## Progress checklist
+
+Living Met/Partial/Blocked table (tip evidence): [hosting-apps.md — Claim criteria](../overview/hosting-apps.md#claim-criteria-adr-048) and [honesty-ledger.md — ADR-048 progress](../framework/honesty-ledger.md#adr-048-progress-checklist). Product claim stays **Planned** until criterion 5 (sponsor accept).
+

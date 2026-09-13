@@ -70,7 +70,19 @@ Product “apps run independently / hosting done” may become Verified **only**
 4. Docs still refuse Linux ABI / POSIX / guest containers ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
 5. Explicit sponsor accept on the flip PR (no self-merge).
 
-Do **not** claim done now. A1–A9 first cuts alone are insufficient.
+### Progress vs tip `main` (honesty checklist)
+
+Tip audited: `b47bbfc` (or newer `main`). **Product row stays Planned** — criteria 1–4 do not authorize flipping #5.
+
+| # | Criterion | Status | Tip evidence (cite ledger / tip) |
+| --- | --- | --- | --- |
+| 1 | Documented recipes (A8) | **Met** | Ledger “Documented sample apps (Track A A8)” Verified; hub [what-can-run.md](what-can-run.md) / [apps-today.md](../framework/apps-today.md) / `user/README.md`. |
+| 2 | Slot cross-update | **Met** | Ledger “A9 cross-update …” Verified: `cross-update prior-os=ba6541c… slot:ok` + `cross-update this-os=… slot:ok` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Re-probed on later tips (incl. ADR-046 / evo-x2 Docker rows). |
+| 3 | No production embed | **Met** | Ledger “A2–A4 hello without `include_bytes!` (ADR-032)” Verified; smoke rejects `slot: embed`. Probe-only `include_bytes!` in `src/slot.rs` only ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)). |
+| 4 | Honesty: no Linux/POSIX/containers | **Met** | Containers **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)); this page + Track B frame refuse Linux userspace / POSIX / guest OCI. |
+| 5 | Explicit sponsor accept | **Blocked** | Required to flip product Verified. Do **not** self-merge a flip PR. |
+
+Do **not** claim done now. A1–A9 first cuts alone are insufficient. Matching ledger section: [honesty-ledger.md — ADR-048 progress](../framework/honesty-ledger.md#adr-048-progress-checklist).
 
 ## Honesty
 
