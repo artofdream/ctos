@@ -124,3 +124,5 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 ## Traceability
 
 Map roadmap milestones and PRs to FR/NFR IDs in PR descriptions when touching behavior.
+
+Taken lower-EL SError remains **Planned**; research recorded in [ADR-044](../03-adr/ADR-044-taken-serror-research.md) (QMP/`nmi` candidate). Park honesty stays [ADR-043](../03-adr/ADR-043-lower-el-fiq-serror.md).
