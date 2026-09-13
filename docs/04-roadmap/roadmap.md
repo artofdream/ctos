@@ -78,3 +78,10 @@ On-disk filesystem work is this A7 mile (FAT16, not xv6-like). See [Filesystem: 
 ## Docs website
 
 mdBook + GitHub Pages (not a kernel milestone, not a new FR/NFR ID). `https://ctos.artof.link` HTTPS is **Verified** after #30 (deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200). Route 53 CNAME remains in place (zone `Z1178AFMV41RWP`). Overview: [what can run today](../overview/what-can-run.md). Publish notes: [website.md](../website.md).
+
+### Isolation leftover (post ADR-043)
+
+- Taken SError: research [ADR-044](../03-adr/ADR-044-taken-serror-research.md) — implement QMP/`nmi` probe as a later ADR; still **Planned**.
+- PAN enable on `-cpu cortex-a57`: still **Planned** (absent; do not switch `-cpu`).
+- Yank `_start` / leftover identity RAM: still **Planned** (boot stub stays).
+- Umbrella “EL0 isolated”: still **Planned**.

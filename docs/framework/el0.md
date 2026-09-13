@@ -59,3 +59,7 @@ Direction: [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md). TTBR1 first 
 | A9 cross-update / product app hosting | Same app ELF on OS n and n+1; kernel without the A2–A4 embed. |
 
 Unprobed stays **Unknown**. The umbrella isolation row stays **Planned** until PAN **enable** + remaining identity RAM / `_start` teardown have probes ([ADR-042](../03-adr/ADR-042-isolation-leftover-wrap.md); standing + TTBR1 first cut + EL1 high-VA fetch + torn live identity `.text` + torn `.rodata` / `.data` / heap + EL0 entry without `VMALLE1` + lower-EL IRQ + default IRQ-unmasked ERET + lower-EL FIQ + SError park honesty + start-stay honesty + a PAN ID-field print + an SVC ABI are not enough). Do not say “EL0 works,” “EL0 isolated,” “app hosting,” or “the kernel moved.”
+
+## Taken SError research (ADR-044)
+
+Taken lower-EL SError while standing is still **Planned**. Research ([ADR-044](../03-adr/ADR-044-taken-serror-research.md)): recommended inject is host QMP/`nmi` on `virt` while standing with `PSTATE.A` clear. `el0: serror-park` stays the Verified honesty marker ([ADR-043](../03-adr/ADR-043-lower-el-fiq-serror.md)). Do not claim taken SError Verified from this note.
