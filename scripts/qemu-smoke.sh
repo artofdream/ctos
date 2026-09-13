@@ -244,11 +244,15 @@ if ! grep -q "el0: irq" "$log"; then
     echo "qemu-smoke: missing 'el0: irq' on serial (ADR-040 lower-EL IRQ while standing, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "el0: irq-default" "$log"; then
+    echo "qemu-smoke: missing 'el0: irq-default' on serial (ADR-041 IRQ-unmasked default ERET, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "el0: no-vmalle1" "$log"; then
     echo "qemu-smoke: missing 'el0: no-vmalle1' on serial (ADR-039 EL0 entry without VMALLE1, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + no-vmalle1 strings present"
+echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + no-vmalle1 strings present"
 if grep -q "svc: probe missed" "$log"; then
     echo "qemu-smoke: svc probe missed (EL0 ABI trip did not run)" >&2
     exit 1

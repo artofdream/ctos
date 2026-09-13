@@ -68,9 +68,9 @@ const ESR_IFSC_TRANS_L2: u64 = 0x06;
 const ESR_IFSC_TRANS_L3: u64 = 0x07;
 /// SPSR: DAIF masked, AArch64 EL1t (return from EL0 to SPSel=0).
 const SPSR_EL1T_MASKED: u64 = 0x3C4;
-/// SPSR: EL0t with IRQ unmasked (D/A/F set, I clear) for ADR-040 probe.
+/// SPSR: EL0t with IRQ unmasked (D/A/F set, I clear) — default ERET (ADR-041).
 const SPSR_EL0_IRQ_ENABLED: u64 = 0x340;
-/// SPSR: EL0t with DAIF all masked (default ERET to EL0).
+/// SPSR: EL0t with DAIF all masked (short non-standing trampoline probes).
 const SPSR_EL0_MASKED: u64 = 0x3c0;
 
 static BRK_COUNT: AtomicU64 = AtomicU64::new(0);
@@ -796,17 +796,21 @@ pub fn ident_el0_caught() -> bool {
 /// `ERET` to EL0 at `user_pc` with `x0 = user_arg` and `SP_EL0 = user_sp`.
 /// Returns after the lower-EL handler sends us back to EL1t.
 ///
+/// Default SPSR clears IRQ mask (ADR-041) so standing/task entry can take
+/// a lower-EL timer IRQ. Short non-standing trampoline probes that cannot
+/// survive mid-probe IRQ must call `eret_to_el0_masked` instead.
+///
 /// Caller must arm `arm_el0_svc` / `arm_el0_iabort` first. Callee-saved
 /// GPRs are saved on the kernel thread stack across the trip.
 #[allow(dead_code)] // hello + `#[test_case]` via `src/el0.rs`.
 pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
-    eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_MASKED);
+    eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_IRQ_ENABLED);
 }
 
-/// `ERET` to EL0 with IRQ unmasked in SPSR (ADR-040 standing IRQ probe).
+/// `ERET` to EL0 with IRQ masked in SPSR (short non-standing probes).
 #[allow(dead_code)]
-pub unsafe fn eret_to_el0_irq_enabled(user_pc: u64, user_arg: u64, user_sp: u64) {
-    eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_IRQ_ENABLED);
+pub unsafe fn eret_to_el0_masked(user_pc: u64, user_arg: u64, user_sp: u64) {
+    eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_MASKED);
 }
 
 unsafe fn eret_to_el0_spsr(user_pc: u64, user_arg: u64, user_sp: u64, spsr: u64) {

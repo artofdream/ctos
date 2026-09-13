@@ -67,6 +67,7 @@
 - [ADR-038 Identity heap tear](03-adr/ADR-038-identity-heap-tear.md)
 - [ADR-039 EL0 entry without VMALLE1](03-adr/ADR-039-el0-entry-without-vmalle1.md)
 - [ADR-040 Lower-EL IRQ while standing](03-adr/ADR-040-lower-el-irq-standing.md)
+- [ADR-041 IRQ-unmasked default ERET](03-adr/ADR-041-irq-unmasked-default-eret.md)
 
 # Roadmap
 
