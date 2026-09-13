@@ -76,11 +76,11 @@ That is **not** a process, not POSIX, and not “EL0 isolated.”
 **Still Planned / decided:**
 
 1. Umbrella EL0 isolation stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). PAN **enable** is a **non-goal** on default `cortex-a57` ([ADR-026](../03-adr/ADR-026-pan-capability.md)); leftover identity RAM after the heap is torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); never yank `_start`. A5 took `.rodata` (ADR-025), `.data` (ADR-037), heap (ADR-038), and the PAN ID-field cut.
-2. Product app hosting stays **Planned** ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md)). Leftover cross-update is Verified host smoke on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). A2–A4 load FAT `/hello` (no production embed).
+2. Product freestanding app hosting is **Verified** ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)). Leftover cross-update is Verified host smoke on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). A2–A4 load FAT `/hello` (no production embed). Not Linux/POSIX/containers.
 
 “Write a user program for ctos” still means: link `libctos` in-tree, publish `target/hello-libctos.elf`, and put it on FAT `/hello` — **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 
-The **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) has a first cut plus leftover two-boot smoke. Product app hosting is not Verified. See [overview.md](overview.md) and [immutability.md](immutability.md).
+The **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ctos/issues/48)) has a first cut plus leftover two-boot smoke. Product freestanding app hosting is Verified under ADR-048/052 (not Linux/POSIX). See [overview.md](overview.md) and [immutability.md](immutability.md).
 
 ## Do not invent
 

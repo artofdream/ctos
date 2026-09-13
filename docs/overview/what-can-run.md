@@ -2,7 +2,7 @@
 
 Plain English. These are **rebuild recipes** for in-tree samples that already have probes. They are not third-party applications and not a product runtime.
 
-**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load that file (no production embed); same ELF on this OS and `ba6541c` (cross-update Verified). Product app hosting stays **Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) (checklist: [hosting-apps.md](hosting-apps.md#claim-criteria-adr-048)).
+**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load that file (no production embed); same ELF on this OS and `ba6541c` (cross-update Verified). Product freestanding app hosting is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) (checklist: [hosting-apps.md](hosting-apps.md#claim-criteria-adr-048)). Not Linux/POSIX/containers.
 
 Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Umbrella “EL0 isolated” stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
 
@@ -140,7 +140,7 @@ Two host artifacts and a FAT load path ([ADR-030](../03-adr/ADR-030-os-app-slots
 | FAT slot | `scripts/mkfat16.py --app` → `/hello` |
 | Guest load | `src/slot.rs` + A3 `src/loader.rs` |
 
-A2–A4 load the same FAT file (no embed). Cross-update (same ELF on this OS and `ba6541c`) is the leftover host smoke, not this recipe. Not OTA. Not “app hosting is done.”
+A2–A4 load the same FAT file (no embed). Cross-update (same ELF on this OS and `ba6541c`) is the leftover host smoke, not this recipe. Not OTA. Product freestanding claim is Verified under ADR-048/052 (this recipe page is not that claim by itself).
 
 ## What cannot run
 
@@ -163,7 +163,7 @@ Do not imply these work:
 - Network servers (no NIC, no sockets, no DMA)
 - POSIX / Linux filesystem apps (memfs + FAT16 read/write miles are not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
-- Product app hosting / “apps update independently” (**Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md); A9 first cut + cross-update are Verified miles, not this claim — [issue #48](https://github.com/artofdream/ctos/issues/48))
+- Product freestanding app hosting (**Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md); not Linux/POSIX/containers/OTA — [issue #48](https://github.com/artofdream/ctos/issues/48))
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md); [Hosting apps / containers](hosting-apps.md)).
 
