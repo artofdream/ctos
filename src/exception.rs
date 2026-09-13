@@ -25,7 +25,8 @@
 //! TTBR1 private-page DABORT (ADR-016), EL1 fetch from the TTBR1
 //! RAM alias (ADR-017), and the ADR-018 identity-tear IABORT / EL0
 //! DABORT: SVC, IABORT, DABORT.
-//! Other lower-EL slots still park. After paging::init, `VBAR_EL1` is
+//! Lower-EL IRQ is live while standing (ADR-040); FIQ/SError still park.
+//! After paging::init, `VBAR_EL1` is
 //! the high alias of this table. Identity `_start` stays at `0x4008_0000`.
 //! A dedicated identity text range plus live identity `.text` after the
 //! boot stub are unmapped (ADR-019 / ADR-020). Identity `.rodata` is
@@ -67,6 +68,10 @@ const ESR_IFSC_TRANS_L2: u64 = 0x06;
 const ESR_IFSC_TRANS_L3: u64 = 0x07;
 /// SPSR: DAIF masked, AArch64 EL1t (return from EL0 to SPSel=0).
 const SPSR_EL1T_MASKED: u64 = 0x3C4;
+/// SPSR: EL0t with IRQ unmasked (D/A/F set, I clear) for ADR-040 probe.
+const SPSR_EL0_IRQ_ENABLED: u64 = 0x340;
+/// SPSR: EL0t with DAIF all masked (default ERET to EL0).
+const SPSR_EL0_MASKED: u64 = 0x3c0;
 
 static BRK_COUNT: AtomicU64 = AtomicU64::new(0);
 static NEST_FATAL: AtomicBool = AtomicBool::new(false);
@@ -88,6 +93,8 @@ static ASID_CONFLICT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_EL0_STANDING: AtomicBool = AtomicBool::new(false);
 static EL0_STANDING_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EL0_RESTORED_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_IRQ: AtomicBool = AtomicBool::new(false);
+static EL0_IRQ_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_TTBR1_DABORT: AtomicBool = AtomicBool::new(false);
 static TTBR1_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_TEAR: AtomicBool = AtomicBool::new(false);
@@ -170,12 +177,11 @@ exception_vectors:
     mov x0, #0x380
     b fatal_enter
 
-    // Lower EL, AArch64 — sync is live for the EL0 first mile (SVC / IABORT)
+    // Lower EL, AArch64 — sync + IRQ live; FIQ/SError still park
     .align 7
     b sync_lower_el
     .align 7
-    mov x0, #0x480
-    b handle_unhandled_exception
+    b irq_lower_el
     .align 7
     mov x0, #0x500
     b handle_unhandled_exception
@@ -333,6 +339,62 @@ sync_current_el:
     str x0, [sp, #264]
     mov x0, sp
     bl handle_sync_lower_el
+    ldr x0, [sp, #248]
+    msr elr_el1, x0
+    ldr x0, [sp, #256]
+    msr spsr_el1, x0
+    ldr x30, [sp, #240]
+    ldp x28, x29, [sp, #224]
+    ldp x26, x27, [sp, #208]
+    ldp x24, x25, [sp, #192]
+    ldp x22, x23, [sp, #176]
+    ldp x20, x21, [sp, #160]
+    ldp x18, x19, [sp, #144]
+    ldp x16, x17, [sp, #128]
+    ldp x14, x15, [sp, #112]
+    ldp x12, x13, [sp, #96]
+    ldp x10, x11, [sp, #80]
+    ldp x8, x9, [sp, #64]
+    ldp x6, x7, [sp, #48]
+    ldp x4, x5, [sp, #32]
+    ldp x2, x3, [sp, #16]
+    ldp x0, x1, [sp, #0]
+    add sp, sp, #272
+    eret
+
+    // Lower EL AArch64 IRQ: restore kernel TTBR0 before GIC/.data (ADR-040).
+    irq_lower_el:
+    sub sp, sp, #272
+    stp x0, x1, [sp, #0]
+    stp x2, x3, [sp, #16]
+    // ADR-039/040: MSR TTBR0 + ISB only (no TLBI VMALLE1).
+    mrs x2, tpidr_el1
+    cbz x2, 1f
+    msr ttbr0_el1, x2
+    isb
+1:
+    stp x4, x5, [sp, #32]
+    stp x6, x7, [sp, #48]
+    stp x8, x9, [sp, #64]
+    stp x10, x11, [sp, #80]
+    stp x12, x13, [sp, #96]
+    stp x14, x15, [sp, #112]
+    stp x16, x17, [sp, #128]
+    stp x18, x19, [sp, #144]
+    stp x20, x21, [sp, #160]
+    stp x22, x23, [sp, #176]
+    stp x24, x25, [sp, #192]
+    stp x26, x27, [sp, #208]
+    stp x28, x29, [sp, #224]
+    str x30, [sp, #240]
+    mrs x0, elr_el1
+    str x0, [sp, #248]
+    mrs x0, spsr_el1
+    str x0, [sp, #256]
+    mrs x0, esr_el1
+    str x0, [sp, #264]
+    mov x0, sp
+    bl handle_irq_lower_el
     ldr x0, [sp, #248]
     msr elr_el1, x0
     ldr x0, [sp, #256]
@@ -654,6 +716,17 @@ pub fn el0_restored_caught() -> bool {
     EL0_RESTORED_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm taken lower-EL IRQ while standing (ADR-040).
+pub fn arm_el0_irq() {
+    EL0_IRQ_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_EL0_IRQ.store(true, Ordering::SeqCst);
+}
+
+pub fn el0_irq_caught() -> bool {
+    EXPECT_EL0_IRQ.store(false, Ordering::SeqCst);
+    EL0_IRQ_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// Arm the TTBR1 private-page EL0 load (ADR-016).
 pub fn arm_ttbr1_dabort() {
     TTBR1_DABORT_CAUGHT.store(false, Ordering::SeqCst);
@@ -727,6 +800,16 @@ pub fn ident_el0_caught() -> bool {
 /// GPRs are saved on the kernel thread stack across the trip.
 #[allow(dead_code)] // hello + `#[test_case]` via `src/el0.rs`.
 pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
+    eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_MASKED);
+}
+
+/// `ERET` to EL0 with IRQ unmasked in SPSR (ADR-040 standing IRQ probe).
+#[allow(dead_code)]
+pub unsafe fn eret_to_el0_irq_enabled(user_pc: u64, user_arg: u64, user_sp: u64) {
+    eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_IRQ_ENABLED);
+}
+
+unsafe fn eret_to_el0_spsr(user_pc: u64, user_arg: u64, user_sp: u64, spsr: u64) {
     // After ADR-037 identity `.bss` is unmapped — store via the high twin.
     let kslot = crate::paging::to_high_va(crate::paging::identity_pa(EL0_KSP.as_ptr() as u64));
     let cslot = crate::paging::to_high_va(crate::paging::identity_pa(EL0_CONT.as_ptr() as u64));
@@ -765,7 +848,7 @@ pub unsafe fn eret_to_el0(user_pc: u64, user_arg: u64, user_sp: u64) {
         kslot = in(reg) kslot,
         cslot = in(reg) cslot,
         upc = in(reg) user_pc,
-        spsr = in(reg) 0x3c0u64,
+        spsr = in(reg) spsr,
         usp = in(reg) user_sp,
         uarg = in(reg) user_arg,
         uttbr = in(reg) crate::paging::user_ttbr0(),
@@ -1149,6 +1232,22 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
 #[no_mangle]
 pub extern "C" fn handle_irq(_ctx: &mut ExceptionContext) {
     crate::gic::handle_irq();
+}
+
+/// Lower-EL IRQ while standing: handle GIC, then return to EL0 (ADR-040).
+#[no_mangle]
+pub extern "C" fn handle_irq_lower_el(_ctx: &mut ExceptionContext) {
+    crate::gic::handle_irq();
+    if crate::el0::is_active() {
+        if EXPECT_EL0_IRQ.swap(false, Ordering::SeqCst) {
+            EL0_IRQ_CAUGHT.store(true, Ordering::SeqCst);
+            uart::write_str_raw("el0: irq\n");
+        }
+        stay_at_el0(_ctx);
+        return;
+    }
+    uart::write_str_raw("exception: unhandled lower irq\n");
+    park();
 }
 
 #[no_mangle]
