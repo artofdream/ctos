@@ -58,15 +58,15 @@ A1–A7 are probed. A8 is **docs**: the recipes on [what-can-run.md](what-can-ru
 2. A freestanding CRT / `libctos` — A2.
 3. Guest `PT_LOAD` of that in-tree ELF — A3. Image is FAT `/hello`.
 4. Standing EL0 as **normal** until `exit` — A4 / [ADR-024](../03-adr/ADR-024-standing-el0-normal.md).
-5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN **enable** Planned.
+5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN **enable** is a **non-goal** on default `-cpu cortex-a57` ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Leftover identity RAM after the heap is torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); `_start` stays.
 6. Thin VFS + memfs — A6. Recipe 4.
-7. virtio-blk + FAT16 — A7. Recipe 5.
-8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Leftover cross-update — [ADR-032](../03-adr/ADR-032-track-a-leftovers.md).
+7. virtio-blk + FAT16 read — A7. Recipe 5. FAT16 write depth — [ADR-050](../03-adr/ADR-050-fat16-write.md).
+8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Leftover cross-update — [ADR-032](../03-adr/ADR-032-track-a-leftovers.md) (Verified host smoke).
 
-Isolation and a real userspace stay **Planned**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
+Umbrella “EL0 isolated” and a real userspace stay **Planned / non-claim**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
 
 A POSIX filesystem is the same story: **not present**. Thin VFS + memfs + FAT16 are not Linux `open`. Direction: [Filesystem: new vs extend](filesystem.md).
 
-## Later (A9 remaining)
+## Product hosting still Planned (ADR-048)
 
-An **OS image vs app payload** *cross-update* ([A9 #48](https://github.com/artofdream/ctos/issues/48), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): same `hello-libctos.elf` on this OS and documented prior OS `ba6541c`. The first cut (two artifacts + FAT `/hello`) is a different row. See [overview.md](../framework/overview.md) and [immutability.md](../framework/immutability.md).
+An **OS image vs app payload** first cut and leftover *cross-update* already exist ([A9 #48](https://github.com/artofdream/ctos/issues/48), [ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): same `hello-libctos.elf` on this OS and documented prior OS `ba6541c`. Product “hosting done” stays **Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md). See [hosting-apps.md](hosting-apps.md#claim-criteria-adr-048), [overview.md](../framework/overview.md), and [immutability.md](../framework/immutability.md).
