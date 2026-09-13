@@ -1,6 +1,6 @@
 # SVC syscall ABI (Track A / A1 / ADR-021)
 
-**ABI + CRT + loader + standing-task + memfs + FAT16 + slot first-cut miles.** Sample **rebuild recipes** are A8 (docs). A9 is two artifacts + FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) plus leftover cross-update / FAT-only hello ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Product “app hosting is done” stays **Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md). Not Linux. Not POSIX.
+**ABI + CRT + loader + standing-task + memfs + FAT16 + slot first-cut miles.** Sample **rebuild recipes** are A8 (docs). A9 is two artifacts + FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) plus leftover cross-update / FAT-only hello ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Product “app hosting is done” is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) (freestanding slots). Not Linux. Not POSIX.
 
 Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Thin VFS + memfs: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md). virtio-blk + FAT16: [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md). Parent plan: [issue #31](https://github.com/artofdream/ctos/issues/31). A1: [issue #32](https://github.com/artofdream/ctos/issues/32). A2: [issue #33](https://github.com/artofdream/ctos/issues/33). A3: [issue #34](https://github.com/artofdream/ctos/issues/34). A4: [issue #35](https://github.com/artofdream/ctos/issues/35). A6: [issue #37](https://github.com/artofdream/ctos/issues/37). Code: `src/syscall.rs`, `src/vfs.rs`, `libctos/`, `user/hello-libctos/`, `src/loader.rs`, `src/el0.rs`.
 
@@ -8,7 +8,7 @@ Kernel contract: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md). CRT / `libctos
 
 AArch64 `SVC #<n>` where `n` is the syscall number. Arguments in `x0`, `x1`, `x2`. Return in `x0`.
 
-Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#2` restore). `libctos` must not issue them. There is no hosted app yet.
+Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#2` restore). `libctos` must not issue them. Public numbers below are the freestanding contract; Linux ABI is out of scope.
 
 ## Public numbers
 
@@ -59,6 +59,6 @@ Rebuild recipes for the probed classes: [what-can-run.md](../overview/what-can-r
 
 Host kernel ELF + published `hello-libctos.elf`. Guest reads FAT `/hello` through the same VFS and maps it with the A3 loader ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). Serial `slot: fat` / `slot: mapped` / `slot: ok` / `perf: app-load`. No production embed on this path ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load the same FAT file. Cross-update (same published ELF on this OS and `ba6541c`) is ledger-**Verified**. Probe-only `include_bytes!` in `src/slot.rs` is ADR-046 measurement only — never print `slot: embed`. File presence is not that probe.
 
-## Still Planned (Track A)
+## Product claim + remaining non-goals (Track A)
 
-Product “app hosting is done” ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) — needs sponsor accept). Isolation **enable** (PAN) is non-goal on default cortex-a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap tears are Verified (ADR-037/038).
+Product “app hosting is done” is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) for freestanding OS/app slots. Isolation **enable** (PAN) is non-goal on default cortex-a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap tears are Verified (ADR-037/038). Still not Linux/POSIX/containers/“EL0 isolated.”

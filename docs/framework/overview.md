@@ -61,7 +61,7 @@ First-class page: [building-or-porting.md](building-or-porting.md). Short honest
 The sponsor goal for “immutability” here is **not** a frozen kernel. It is to **disconnect OS updates from apps**: one OS image artifact, separate app payloads, so you can replace the kernel without rebuilding apps and replace apps without rebuilding the kernel.
 
 - **First cut + leftover:** two host artifacts (`target/aarch64-ctos/debug/ctos` + `target/hello-libctos.elf`) and a FAT16 `/hello` load path ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md), [A9 #48](https://github.com/artofdream/ctos/issues/48)). A2–A4 load that file. Stance: [immutability.md](immutability.md).
-- **Cross-update:** same app ELF on this OS and documented prior OS `ba6541c`. Do not say “apps update independently.” Product app hosting stays Planned.
+- **Cross-update:** same app ELF on this OS and documented prior OS `ba6541c`. Product freestanding app hosting is **Verified** under ADR-048/052. Do not say OTA / “immutable OS” marketing / Linux hosting.
 - Do not say “immutable OS.”
 - **Performance:** `perf: app-load` measures the FAT load path; ADR-046 adds probe-only `perf: embed-load` + `perf: slot-delta` (QEMU TCG lab pair — not a percent). ADR-051 adds `perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta` (same-boot write pair — not a percent). Expected costs: boot/load, SVC, ASID/TTBR, optional later COW. Details: [performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench).
 

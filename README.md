@@ -73,7 +73,7 @@ Start here before adding kernel features:
 | [What can run today](docs/overview/what-can-run.md) | Rebuild recipes: UART workers, RX echo, EL0/`libctos` hello; optional memfs + FAT16 |
 | [Building or porting](docs/overview/porting.md) | In-tree `no_std` today; no easy POSIX port |
 | [Filesystem](docs/overview/filesystem.md) | memfs + FAT16 on virtio-blk (read + write depth); not POSIX / not “supports FAT” |
-| [Hosting apps / containers](docs/overview/hosting-apps.md) | Gaps table; guest containers: **non-goal** |
+| [Hosting apps / containers](docs/overview/hosting-apps.md) | Freestanding product claim **Verified** (ADR-048/052); guest containers: **non-goal** |
 | [Prerequisites](docs/overview/prerequisites.md) | Nightly Rust + QEMU virt; Pages not required for kernel work |
 | [Advantages](docs/overview/advantages.md) | Document-first, probed claims, pillars as NFRs |
 | [Drawbacks / limits](docs/overview/limits.md) | Learning kernel; identity stub; PAN unclaimed; no net/DMA |
@@ -103,7 +103,7 @@ Start here before adding kernel features:
 | [ADR-018](docs/03-adr/ADR-018-identity-teardown-first-cut.md) | Identity-tear first cut (split tables + one torn text page) |
 | [ADR-019](docs/03-adr/ADR-019-identity-text-range-tear.md) | High-VA continuation + 16 KiB dedicated identity text range |
 | [ADR-020](docs/03-adr/ADR-020-identity-fnptr-reloc.md) | High-VA vtable rewrite + live identity `.text` tear |
-| [ADR-021](docs/03-adr/ADR-021-svc-syscall-abi.md) | Minimal EL0 SVC ABI (exit / uart_write / yield); app hosting Planned |
+| [ADR-021](docs/03-adr/ADR-021-svc-syscall-abi.md) | Minimal EL0 SVC ABI (exit / uart_write / yield); product freestanding hosting Verified under ADR-048/052 |
 | [ADR-022](docs/03-adr/ADR-022-libctos-crt.md) | Freestanding CRT / `libctos`; not a guest ELF loader |
 | [Roadmap](docs/04-roadmap/roadmap.md) | One milestone → one branch → one PR |
 | [Track A](docs/04-roadmap/track-a.md) | Freestanding app hosting (epic #31). Subordinate to principles. |
@@ -114,7 +114,7 @@ Start here before adding kernel features:
 | [Antifragility SOP](docs/framework/antifragility.md) | Ratchet repeated failures into sensors |
 | [Security](docs/framework/security.md) | Threat-model v1.10; not a “secure OS” claim |
 | [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear + SVC ABI + libctos CRT; isolation Planned |
-| [Syscall ABI](docs/framework/syscall.md) | Track A A1 numbers 16–18 + A2 `libctos`; app hosting Planned |
+| [Syscall ABI](docs/framework/syscall.md) | Track A A1 numbers 16–18 + A2 `libctos`; product freestanding hosting Verified under ADR-048/052 |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |
 | [Docs website + DNS](docs/website.md) | mdBook + Pages; `https://ctos.artof.link` HTTPS Verified after #30 |

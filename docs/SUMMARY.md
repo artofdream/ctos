@@ -78,6 +78,7 @@
 - [ADR-049 Leftover identity RAM tear](03-adr/ADR-049-identity-ram-tear.md)
 - [ADR-050 FAT16 write](03-adr/ADR-050-fat16-write.md)
 - [ADR-051 FAT vs memfs write CNTPCT](03-adr/ADR-051-fat-memfs-write-cntpct.md)
+- [ADR-052 Sponsor accept app hosting](03-adr/ADR-052-sponsor-accept-app-hosting.md)
 
 # Roadmap
 

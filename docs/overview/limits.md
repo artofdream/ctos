@@ -20,7 +20,7 @@ There is no NIC driver and no virtio-net. A7 programs virtio-mmio block and read
 
 ## No real userspace apps
 
-The standing user-mode stub is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no extra CPUs, no GPU. Rebuild recipes: [What can run today](what-can-run.md). How to extend the kernel (not port POSIX): [Building or porting](porting.md). OS vs app slot has an A9 first cut (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles). Product app hosting stays **Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md).
+The standing user-mode stub is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no extra CPUs, no GPU. Rebuild recipes: [What can run today](what-can-run.md). How to extend the kernel (not port POSIX): [Building or porting](porting.md). OS vs app slot has an A9 first cut (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles). Product freestanding app hosting is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX).
 
 ## Docs URL
 
@@ -28,7 +28,7 @@ The standing user-mode stub is a mile, not an application runtime. No ELF loader
 
 ## Immutability is not absolute
 
-Read-only code / not-executable data, and torn identity ranges (including leftover frame RAM), are **scoped** probes. Do not upgrade them to “immutable kernel,” “W^X everywhere,” or “OS updates without touching apps.” The A9 OS vs app slot **first cut** exists; the product hosting claim stays Planned ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md)). Not OTA or containers. Details: [Advantages — Immutability](advantages.md#immutability).
+Read-only code / not-executable data, and torn identity ranges (including leftover frame RAM), are **scoped** probes. Do not upgrade them to “immutable kernel,” “W^X everywhere,” or “OS updates without touching apps.” The A9 OS vs app slot **first cut** exists; the freestanding product hosting claim is **Verified** ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)). Not OTA or containers. Details: [Advantages — Immutability](advantages.md#immutability).
 
 ## Other honest gaps
 

@@ -44,7 +44,7 @@ Rebuild recipes for samples that already have probes. Details: [What can run tod
 2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
 3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc. Optional recipes: memfs named buffers and FAT16 on virtio-blk (read + write depth).
 
-**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles). Product app hosting stays **Planned** until [ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md).
+**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles). Product freestanding app hosting is **Verified** under [ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX).
 
 ```mermaid
 flowchart LR
@@ -88,7 +88,7 @@ flowchart LR
 | What is in vs out (rebuild recipes) | [What can run today](overview/what-can-run.md) · [Drawbacks / limits](overview/limits.md) |
 | Why POSIX does not port | [Building or porting](overview/porting.md) |
 | Files (memfs + FAT16) | [Filesystem](overview/filesystem.md) |
-| App host / containers | [Hosting apps](overview/hosting-apps.md) — product claim **Planned** ([ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md)); containers: **non-goal** ([ADR-029](03-adr/ADR-029-containers-nongoal.md)). Linux-compat frame: [ADR-031](03-adr/ADR-031-linux-compat-goals.md) (not userspace). |
+| App host / containers | [Hosting apps](overview/hosting-apps.md) — freestanding product claim **Verified** ([ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](03-adr/ADR-052-sponsor-accept-app-hosting.md)); containers: **non-goal** ([ADR-029](03-adr/ADR-029-containers-nongoal.md)). Linux-compat frame: [ADR-031](03-adr/ADR-031-linux-compat-goals.md) (not userspace). |
 | How we measure | [KPIs](overview/measure.md) |
 | Why the repo is run this way | [Advantages](overview/advantages.md) |
 | Deep dives | [Vision](01-vision/product-vision.md) · [FR / NFR](02-requirements/fr-nfr.md) · [Architecture](02-architecture/technical-architecture.md) · [Roadmap](04-roadmap/roadmap.md) · [Ledger](framework/honesty-ledger.md) |
