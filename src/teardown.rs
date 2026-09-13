@@ -1,4 +1,4 @@
-//! Identity-teardown cuts (ADR-018 + ADR-019 + ADR-020 + ADR-025 + ADR-037 + ADR-038).
+//! Identity-teardown cuts (ADR-018 + ADR-019 + ADR-020 + ADR-025 + ADR-037 + ADR-038 + ADR-042 wrap).
 //!
 //! After MMU + high VBAR, the post-MMU continuation jumps to its
 //! TTBR1 alias (`ident: jump`), rewrites rustc vtable / fn-pointer
@@ -21,8 +21,9 @@
 //! (`ident: data-fault`); high `.data` still loads (`ident: data-high`).
 //! EL1 load of torn heap faults (`ident: heap-fault`); high heap still
 //! loads (`ident: heap-high`). `_start` / QEMU `-kernel` stay at
-//! `0x4008_0000`. Not “the kernel moved.” Not “EL0 isolated.”
-//! PAN enable stays Planned (ADR-026).
+//! `0x4008_0000` (`ident: start-stay`, ADR-042). Remaining identity
+//! frames after the heap stay (`ident: ram-stay`). Not “the kernel
+//! moved.” Not “EL0 isolated.” PAN enable stays Planned (ADR-026).
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -413,8 +414,28 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss pages\n");
         return false;
     }
-    if paging::is_mapped(paging::KERNEL_TEXT) != true {
+    let stub = paging::identity_pa(paging::KERNEL_TEXT);
+    if !paging::is_mapped(stub) || !paging::is_executable(stub) {
         uart::write_str_raw("ident: miss stub0\n");
+        return false;
+    }
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(
+            w,
+            "ident: start-stay lo={:#x} hi={:#x}",
+            stub,
+            paging::boot_stub_end()
+        );
+    }
+    // Remaining identity RAM after the torn heap (frame bump) stays.
+    let ram_lo = crate::heap::heap_pa_end();
+    let ram_hi = frame::pool_end();
+    if ram_lo != 0 && ram_hi > ram_lo && paging::is_mapped(ram_lo) {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "ident: ram-stay lo={:#x} hi={:#x}", ram_lo, ram_hi);
+    } else {
+        uart::write_str_raw("ident: miss ram-stay\n");
         return false;
     }
     uart::write_str_raw("ident: split\n");
@@ -516,4 +537,34 @@ fn identity_data_torn_high_stays() {
     assert!(!paging::is_mapped(paging::data_start()));
     assert!(paging::high_mapped(paging::to_high_va(paging::data_start())));
     assert!(paging::torn_data_pages() >= 1);
+}
+
+/// ADR-042 honesty: `_start` page stays while live image + heap are torn.
+#[cfg(test)]
+#[test_case]
+fn identity_boot_stub_stays_while_live_torn() {
+    assert!(paging::identity_live_ready());
+    assert!(paging::identity_rodata_ready());
+    assert!(paging::identity_data_ready());
+    assert!(paging::identity_heap_ready());
+    let stub = paging::identity_pa(paging::KERNEL_TEXT);
+    assert!(
+        paging::is_mapped(stub),
+        "0x4008_0000 boot stub must stay identity-mapped"
+    );
+    assert!(paging::is_executable(stub));
+    assert_eq!(stub, paging::boot_stub_end() - 4096);
+    assert!(
+        !paging::is_mapped(paging::boot_stub_end()),
+        "live identity .text after stub must be torn"
+    );
+    assert!(!paging::is_mapped(paging::rodata_start()));
+    assert!(!paging::is_mapped(paging::data_start()));
+    assert!(!paging::is_mapped(crate::heap::heap_pa()));
+    let ram_lo = crate::heap::heap_pa_end();
+    assert!(ram_lo != 0);
+    assert!(
+        paging::is_mapped(ram_lo),
+        "remaining identity RAM after the heap stays mapped"
+    );
 }

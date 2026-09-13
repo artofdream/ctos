@@ -47,7 +47,8 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3m | EL0 entry without `TLBI VMALLE1` (ADR-039) | `el0: no-vmalle1`; `src/exception.rs` has no `tlbi vmalle1` | **Verified:** 2026-09-12 agent-box `qemu-smoke` (see honesty ledger). Not “EL0 isolated.” PAN / umbrella stay **Planned**. |
 | P-SEC-3n | Lower-EL IRQ while standing (ADR-040) | `el0: irq`; `#[test_case]` `lower_el_irq_while_standing` | **Verified** when this tip’s `qemu-smoke` prints `el0: irq` (see honesty ledger). FIQ/SError still park. Not “EL0 isolated.” |
 | P-SEC-3o | IRQ-unmasked default standing/task `ERET` (ADR-041) | `el0: irq-default`; `#[test_case]` `lower_el_irq_default_eret` | **Verified** when this tip’s `qemu-smoke` prints `el0: irq-default` (see honesty ledger). Short non-standing probes stay masked. FIQ/SError still park. Not “EL0 isolated.” |
-| P-SEC-3l | Umbrella EL0 isolation | Standing + PAN + full TTBR1 / identity teardown | **Planned.** Specific miles (P-SEC-3…P-SEC-3o) are not this row. Do not claim “EL0 isolated.” |
+| P-SEC-3p | Identity `_start` / leftover-RAM stay honesty (ADR-042) | `ident: start-stay` + `ident: ram-stay`; `#[test_case]` `identity_boot_stub_stays_while_live_torn` | **Verified** when this tip’s `qemu-smoke` prints `ident: start-stay` (see honesty ledger). Honesty wrap — not a teardown. Do not yank `_start`. Not “EL0 isolated.” |
+| P-SEC-3l | Umbrella EL0 isolation | Standing + PAN + full TTBR1 / identity teardown | **Planned** ([ADR-042](../03-adr/ADR-042-isolation-leftover-wrap.md)). Specific miles (P-SEC-3…P-SEC-3p) are not this row. Do not claim “EL0 isolated.” |
 
 Hub: [pillars.md](../framework/pillars.md). ABI contract: [syscall.md](../framework/syscall.md).
 
