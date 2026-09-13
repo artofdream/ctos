@@ -435,6 +435,32 @@ if ! grep -q "fat: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: FAT16 (A7) strings present"
+# ADR-051: FAT-vs-memfs write CNTPCT pair (raw ticks; not a bench / percent).
+if grep -q "perf: fat-write missed" "$log"; then
+    echo "qemu-smoke: fat-write probe missed (CNTPCT around FAT VFS write did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: fat-write" "$log"; then
+    echo "qemu-smoke: missing 'perf: fat-write' on serial (ADR-051 FAT write CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "perf: memfs-write missed" "$log"; then
+    echo "qemu-smoke: memfs-write probe missed (CNTPCT around memfs write did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: memfs-write" "$log"; then
+    echo "qemu-smoke: missing 'perf: memfs-write' on serial (ADR-051 memfs write CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "perf: fs-write-delta" "$log"; then
+    echo "qemu-smoke: missing 'perf: fs-write-delta' on serial (ADR-051 compared pair, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -E -q 'perf: fs-write-delta.*(faster|slower|percent|%)' "$log"; then
+    echo "qemu-smoke: fs-write-delta must not claim faster/slower/percent" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-051 FAT-vs-memfs write CNTPCT pair present"
 # Host-visible write: guest left /fwr = fat-nw on the raw image (ADR-050).
 if ! python3 "$ROOT/scripts/mkfat16.py" --check-write "$img"; then
     echo "qemu-smoke: host FAT write check failed (guest /fwr not on image)" >&2

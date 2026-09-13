@@ -58,6 +58,20 @@ That is **kernel_main-entry to after-init** on this QEMU virt guest. It is not a
 
 QEMU TCG jitter is still one lab. No `criterion` crate. No “slot disconnect is free.”
 
+
+## FAT16 vs memfs write (ADR-051) — compared pair (QEMU TCG lab)
+
+[ADR-050](../03-adr/ADR-050-fat16-write.md) writes a small payload through the thin VFS onto the FAT16 volume. [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md) samples `CNTPCT` around that **single** `vfs::write` (`perf: fat-write ticks=<n>`), then on the same boot times a memfs `vfs::write` of the **same** bytes (`perf: memfs-write ticks=<n>`), and prints `perf: fs-write-delta fat=<a> memfs=<b>`. That is a **measurement pair**, not a bench and not a percent.
+
+| Class | What we measure | Honesty |
+| --- | --- | --- |
+| **FAT write** | One VFS write of the `/probe` rewrite payload (`fat-wr`) | `perf: fat-write ticks=<n>` |
+| **Memfs write** | One VFS write of the same bytes on `/mwprobe` | `perf: memfs-write ticks=<n>` |
+| **Pair** | Raw tick counts on one boot | `perf: fs-write-delta fat=<a> memfs=<b>`. No “faster/slower.” No invented percent. QEMU TCG jitter. |
+| **Gate** | Keep `fat: write` / `fat: ok` / A9 markers. Fail closed on missing pair markers | Verified only when the ledger has serial evidence on a named tip. |
+
+QEMU TCG jitter is still one lab. No `criterion` crate. No latency SLA for FAT write.
+
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.

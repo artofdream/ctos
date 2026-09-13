@@ -19,6 +19,9 @@ What we measure **today** on QEMU `virt` (serial markers + tests, fail-closed in
 | App-load (`perf: app-load`) | Cycle count around FAT `/hello` read + A3 map + `ERET` (A9) | A budget, or “slots are free” |
 | Embed-load (`perf: embed-load`) | Probe-only CNTPCT around map + `ERET` of the same linked-in hello ELF ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)) | Production slot path, `slot: embed`, or a bench |
 | Slot delta (`perf: slot-delta`) | Raw `app=<a> embed=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
+| FAT write (`perf: fat-write`) | CNTPCT around one FAT VFS write of the small `/probe` rewrite payload ([ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md)) | A write latency SLA or “disk cost” |
+| Memfs write (`perf: memfs-write`) | CNTPCT around one memfs VFS write of the same bytes on the same boot | A memfs SLA or published bench |
+| FS write delta (`perf: fs-write-delta`) | Raw `fat=<a> memfs=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
 
 QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
@@ -32,6 +35,17 @@ QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not 
 | Possible **cost** | Extra VFS/FAT read before the shared parse/map/`ERET` work | Marketing “slower than embed” without naming the tip + ticks |
 | Possible **neutral** | Steady-state UART print / yield after the app is mapped | A win claimed without a probe |
 | Build-time, not a bench | Two host artifacts; FAT slot can change without a kernel rebuild | `perf: elf-size` is still one image’s byte count. Kernel may `include_bytes!` only in `src/slot.rs` for the probe. |
+
+
+### FAT write vs memfs write (performance)
+
+[ADR-050](../03-adr/ADR-050-fat16-write.md) is the write mile. [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md) adds a same-boot CNTPCT pair: `perf: fat-write` vs `perf: memfs-write` plus `perf: fs-write-delta fat=<a> memfs=<b>`. That can show a **cost** shape for going through virtio-blk/FAT versus in-RAM memfs — or be noisy under TCG. We do **not** invent a percentage, a budget, or “FAT write is X× slower.”
+
+| Kind | Honest claim shape | What it is not |
+| --- | --- | --- |
+| Compared **pair** | Raw tick counts for the same small payload on one guest | A percent, SLA, or product KPI |
+| Possible **cost** | Extra block/FAT work vs memfs memcpy | Marketing “slower” without naming the tip + ticks |
+| Gate | Keep `fat: write` / `fat: ok`; fail closed on missing pair markers | Criterion / invented benches |
 
 **Measure first** ([NFR-07](../02-requirements/fr-nfr.md)). Do not tune a loader “for speed” on a hunch. Do not copy QEMU ticks into a product slide.
 
