@@ -46,7 +46,7 @@ A Linux, musl, or glibc binary will **not** run. Missing, among other things:
 
 - `exec` / ELF loader / dynamic linker
 - syscall table (`read` / `write` / `open` / `mmap` / `clone` / …)
-- filesystem as Linux defines it (thin VFS + memfs + read-only FAT16 is not POSIX `open` — [filesystem.md](filesystem.md)), signals, sockets, `environ`, TLS as Linux defines them
+- filesystem as Linux defines it (thin VFS + memfs + FAT16 is not POSIX `open` — [filesystem.md](filesystem.md)), signals, sockets, `environ`, TLS as Linux defines them
 - a C runtime (`crt0`, libgcc helpers as a POSIX process)
 
 Do not publish a “port busybox / musl to ctos” guide that skips those gaps. That work would be many ADRs, not a weekend `#ifdef`. Frozen Out list: [fr-nfr.md](../02-requirements/fr-nfr.md) (userspace processes, POSIX, networking).
@@ -73,10 +73,10 @@ A4 keeps the A3 loader as the way a payload appears. `install_task` + `ERET` is 
 
 That is **not** a process, not POSIX, and not “EL0 isolated.”
 
-**Still Planned:**
+**Still Planned / decided:**
 
-1. Isolation miles: PAN **enable** (absent on `cortex-a57` — [ADR-026](../03-adr/ADR-026-pan-capability.md)), remaining identity RAM after the heap / `_start`, umbrella EL0 isolation ([el0.md](el0.md), [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md)). A5 took `.rodata` (ADR-025), `.data` (ADR-037), heap (ADR-038), and the PAN ID-field cut.
-2. Product app hosting. Leftover cross-update is the two-boot smoke on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). A2–A4 load FAT `/hello`.
+1. Umbrella EL0 isolation stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). PAN **enable** is a **non-goal** on default `cortex-a57` ([ADR-026](../03-adr/ADR-026-pan-capability.md)); leftover identity RAM after the heap is torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); never yank `_start`. A5 took `.rodata` (ADR-025), `.data` (ADR-037), heap (ADR-038), and the PAN ID-field cut.
+2. Product app hosting stays **Planned** ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md)). Leftover cross-update is Verified host smoke on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). A2–A4 load FAT `/hello` (no production embed).
 
 “Write a user program for ctos” still means: link `libctos` in-tree, publish `target/hello-libctos.elf`, and put it on FAT `/hello` — **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
 

@@ -14,10 +14,10 @@ Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). 
 | --- | --- | --- |
 | A process you `exec` | Standing EL0 + A1 ABI + A2 `libctos` + A3 `PT_LOAD` + A4 standing **task** + A9 FAT `/hello` first cut | **Planned** as Linux `exec`. Stance: [ADR-035](../03-adr/ADR-035-process-model-standing-el0.md). A9 is two artifacts + a FAT load path, not a process table. |
 | POSIX / glibc / musl | Custom `aarch64-ctos.json`, `os: none`, no libc | Not easy, not started. |
-| Files (`open` / a disk) | Thin VFS: memfs + read-only FAT16 | **memfs + FAT miles** (A6/A7). Not POSIX. |
+| Files (`open` / a disk) | Thin VFS: memfs + FAT16 (read + write depth, [ADR-050](../03-adr/ADR-050-fat16-write.md)) | **memfs + FAT miles** (A6/A7 + ADR-050). Not POSIX. |
 | Sockets / HTTP | No virtio-net, no stack | **Planned** at best; not a Now mile |
 | Shell / TTY / Python | One injected UART byte; no interpreter | **No** until ABI + FS + line discipline |
-| Isolated userspace | First miles + live `.text` tear; PAN / full teardown missing | Isolation **Planned** |
+| Isolated userspace | Standing miles + identity tears incl. leftover RAM ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); PAN enable non-goal on a57; `_start` stays | Umbrella isolation **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)) |
 | Preemption / SMP | Cooperative EL1, one vCPU | **No** on this horizon |
 | Containers (OCI / Docker / k8s **as the guest**) | Nothing | **Non-goal.** See below. |
 

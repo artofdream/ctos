@@ -84,7 +84,7 @@ This is **not** interactive echo, virtio-keyboard, or a TTY. A later line-orient
 | `el0: restored` | `SVC #2` taken; back to EL1 |
 | `el0: ok` | First-mile bundle including standing |
 
-`#[test_case]` `standing_el0_enter_leave` closes enter/leave. After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`) — [syscall.md](syscall.md). After A2 a hello **linked against `libctos`** prints `libctos: hi` / `libctos: ok` ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). After A3 the same ELF is guest-parsed (`loader: ok`, [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). After A4 that loaded image is a standing **task** until `exit` (`el0: task-ok`, [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)); an unexpected fault restores fail-closed (`el0: restore-fail`). Lower-EL IRQ still parks. PAN on `-cpu cortex-a57` is **Planned**. This is **not** a user process, not POSIX, and not “EL0 isolated.” The ABI + CRT + loader + standing-task miles are not app hosting.
+`#[test_case]` `standing_el0_enter_leave` closes enter/leave. After A1 the standing stub also runs the documented ABI trip (`svc: yield` / `svc: user-hi` / `svc: uart` / `svc: exit` / `svc: ok`) — [syscall.md](syscall.md). After A2 a hello **linked against `libctos`** prints `libctos: hi` / `libctos: ok` ([ADR-022](../03-adr/ADR-022-libctos-crt.md)). After A3 the same ELF is guest-parsed (`loader: ok`, [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). After A4 that loaded image is a standing **task** until `exit` (`el0: task-ok`, [ADR-024](../03-adr/ADR-024-standing-el0-normal.md)); an unexpected fault restores fail-closed (`el0: restore-fail`). Lower-EL IRQ still parks. PAN **enable** is a **non-goal** on default `-cpu cortex-a57` ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md); ID-field `pan: absent` Verified). This is **not** a user process, not POSIX, and not “EL0 isolated.” The ABI + CRT + loader + standing-task miles are not app hosting ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md)).
 
 **Rebuild the hello.** Source is `user/hello-libctos/` (`user/hello-libctos/README.md`). A kernel `cargo build` publishes it via `build.rs` onto FAT `/hello`. Standalone:
 
@@ -108,13 +108,13 @@ That ELF still has to land on FAT `/hello` to run. The hello does **not** call `
 
 ## Sample: FAT16 `/probe` on virtio-blk (A7)
 
-**What it is.** Guest programs virtio-mmio block and `vfs::open("/probe")` reads `fat-hi` from a host-built FAT16 image. Same `open` as memfs. FAT is **read-only**.
+**What it is.** Guest programs virtio-mmio block and `vfs::open("/probe")` reads `fat-hi` from a host-built FAT16 image. Same `open` / `write` as memfs. Write depth + small create: [ADR-050](../03-adr/ADR-050-fat16-write.md). Same-boot CNTPCT vs memfs write: [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md).
 
 **Where.** `src/virtio.rs`, `src/fat.rs`, `scripts/mkfat16.py`. Decision: [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md).
 
 **Rebuild.** Same smoke. The script writes `target/fat16.img` and attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Host `-drive` without `fat: ok` is not the probe.
 
-**Probe.** `blk: virtio` / `blk: cap` / `blk: rw` / `blk: ok` and `fat: mount` / `fat: read` / `fat: ok`. Do not say “supports FAT.”
+**Probe.** `blk: virtio` / `blk: cap` / `blk: rw` / `blk: ok` and `fat: mount` / `fat: read` / `fat: write` / `fat: create` / `fat: ok`, plus `perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta` when the ledger has ADR-051. Do not say “supports FAT.”
 
 ## Also on the same hello path
 
@@ -139,11 +139,11 @@ Explicit **no**. Do not paper over these with a “porting guide.”
 | A shell (`sh`, bash) or line-oriented TTY | RX probe is one injected byte. No line discipline. |
 | Python, Node, or any hosted interpreter | Needs a process ABI, heap policy, and usually a filesystem. |
 | Network / sockets / HTTP | No virtio-net, no stack, no sockets. |
-| POSIX / Linux disk apps | memfs (A6) + one read-only FAT16 file on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Not POSIX. Not FAT32. Stance: [filesystem.md](filesystem.md). |
+| POSIX / Linux disk apps | memfs (A6) + FAT16 on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md) + write [ADR-050](../03-adr/ADR-050-fat16-write.md)). Not POSIX. Not FAT32. Stance: [filesystem.md](filesystem.md). |
 | SMP / a second CPU / preemptive threads | M9 is cooperative EL1 on one vCPU. |
-| Isolated userspace / “an app you compile and exec” | Standing EL0 is a stub. PAN **enable** + remaining identity RAM / `_start` + umbrella isolation stay **Planned**. Identity `.rodata`/`.data`/heap are torn (ADR-025/037/038). Gaps: [host-apps.md](host-apps.md). |
+| Isolated userspace / “an app you compile and exec” | Standing EL0 is a stub. Umbrella isolation stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)): PAN enable non-goal on a57; `_start` stays; leftover identity RAM torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)). Identity `.rodata`/`.data`/heap are torn (ADR-025/037/038). Gaps: [host-apps.md](host-apps.md). |
 | OCI / Docker / k8s **in the guest** | **No — non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)). Host `docker-smoke.sh` only builds the kernel. |
 | Raspberry Pi or any board other than QEMU `virt` | Unprobed. Do not copy virt Verified onto hardware. |
 | GPU / desktop / windowing / virtio devices | Out of scope on this horizon. |
 
-Isolation, PAN **enable**, and tearing identity `.data` / heap stay **Planned**. Identity `.rodata` is a probed A5 mile. See [el0.md](el0.md).
+Umbrella isolation stays **Planned / non-claim**. PAN **enable** is a non-goal on default cortex-a57. Identity `.rodata` / `.data` / heap / leftover RAM tears are probed (ADR-025/037/038/049); `_start` stays. See [el0.md](el0.md).

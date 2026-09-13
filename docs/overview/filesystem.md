@@ -12,7 +12,7 @@ Do not say “supports FAT” as a product. Say the guest read a known FAT16 fil
 | --- | --- | --- |
 | Landed | **Ramdisk / memfs** | Named heap buffers. Create / lookup / read / write without DMA. |
 | Landed | **virtio-blk** + **FAT16** read | Host-visible raw image (`scripts/mkfat16.py`). xv6-like was rejected so the host can inspect the volume. |
-| This mile | **FAT16 write** | Guest `vfs::write` on an open FAT handle + backend create of a small file ([ADR-050](../03-adr/ADR-050-fat16-write.md)). |
+| Landed | **FAT16 write** | Guest `vfs::write` on an open FAT handle + backend create of a small file ([ADR-050](../03-adr/ADR-050-fat16-write.md)). |
 | Later, optional | ctos-specific **virtual mounts** | Prefix / tree mounts. Not a new magic format. A8 is sample **recipes**, not this. |
 
 ## Avoid early
@@ -32,9 +32,10 @@ flowchart LR
   B --> F["4. FAT16 read<br/>A7"]
   F --> H["5. host image + guest read<br/>A7/A9"]
   H --> W["6. FAT16 write<br/>ADR-050"]
+  W --> P["7. FAT vs memfs write CNTPCT<br/>ADR-051"]
 ```
 
-*A7 is virtio-blk + FAT16 read. ADR-050 is FAT16 write depth. A8 is documented recipes. A9 uses the same volume for `/hello`. Do not say “supports FAT” as a product.*
+*A7 is virtio-blk + FAT16 read. ADR-050 is FAT16 write depth. ADR-051 is a same-boot measurement pair (not a bench). A8 is documented recipes. A9 uses the same volume for `/hello`. Do not say “supports FAT” as a product.*
 
 1. **VFS ADR** — thin interface (create / open / read / write / close of a path).
 2. **memfs** — in-RAM named buffers; serial `fs: ok`.
@@ -42,6 +43,7 @@ flowchart LR
 4. **On-disk FS** — FAT16 ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `fat: ok`.
 5. **Host-checkable image** — `scripts/mkfat16.py` writes `target/fat16.img`; smoke attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Guest `vfs::open("/probe")` must read `fat-hi`. A9 adds `--app` so `/hello` is the published app ELF.
 6. **FAT16 write** — guest `vfs::write` on an open FAT handle + backend create of `/fwr` ([ADR-050](../03-adr/ADR-050-fat16-write.md)). Serial `fat: write` / `fat: create`; host `--check-write`.
+7. **FAT vs memfs write CNTPCT** — same-boot pair `perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta` ([ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md)). QEMU TCG lab — not a percent or latency SLA.
 
 ## Honesty
 
@@ -51,6 +53,7 @@ flowchart LR
 | virtio-blk sector R/W | Serial `blk: ok` + `#[test_case]` | **Verified** on this tip when the ledger has the probe |
 | FAT16 `/probe` via the same `open` | Serial `fat: ok` + `#[test_case]` | **Verified** on this tip when the ledger has the probe |
 | FAT16 write + small create | Serial `fat: write` / `fat: rewrite` / `fat: create` + host `--check-write` | **Verified** on this tip when the ledger has the probe ([ADR-050](../03-adr/ADR-050-fat16-write.md)) |
+| FAT vs memfs write CNTPCT pair | Serial `perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta` | **Verified** on this tip when the ledger has the probe ([ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md)). Not a bench. |
 | FAT16 `/hello` app slot (A9) | Serial `slot: ok` + `#[test_case]` | **First cut** when the ledger has the probe |
 
 Do not claim compatibility with anyone’s existing disk.

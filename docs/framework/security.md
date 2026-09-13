@@ -75,7 +75,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 - Not **side-channel complete** (no cache/timing/Spectre story; QEMU TCG is the wrong lab).
 - Not a **product “the kernel is W^X”** sentence. The identity image on this virt guest is RO+X / RW+NX with WXN ([ADR-015](../03-adr/ADR-015-ro-nx-text-data.md)). Future mappings are not automatically covered. Guard pages remain **holes**.
 - Not **ASAN / canaries / heap-stack guards**. Coop worker stacks have no unmapped holes. Overflow there is still image-adjacent PXN RAM.
-- Not secure boot, PAN enable on default cortex-a57 (non-goal, [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)), or a fully torn-down identity map (ADR-020/025/037/038 unmap live `.text` / `.rodata` / `.data`+stacks / heap; leftover identity frames after the heap may stay; `_start` stays at `0x4008_0000` by decision).
+- Not secure boot, PAN enable on default cortex-a57 (non-goal, [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)), or a fully torn-down identity map (ADR-020/025/037/038/049 unmap live `.text` / `.rodata` / `.data`+stacks / heap / leftover frame RAM; `_start` stays at `0x4008_0000` by decision).
 
 ## Mitigations mapped to probes
 
@@ -107,7 +107,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Standing EL0 as normal mode | Serial `el0: task-enter` / `el0: task-active` / `el0: task-exit` / `el0: task-restored` / `el0: restore-fail` / `el0: task-ok` | Loaded image until `exit`. Fail-closed restore. Not isolation. |
 | TTBR1 private page | Serial `ttbr1: el1` / `ttbr1: no el0` / `ttbr1: ok` | First cut ([ADR-016](../03-adr/ADR-016-ttbr1-private-page.md)). |
 | EL1 fetch from TTBR1 high VA | Serial `ttbr1: el1 exec` / `ttbr1: vbar` | Exec mile ([ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md)). |
-| Identity-tear first cut | Serial `ident: split` / `ident: fault` / `ident: high` / `ident: no el0` / `ident: ok` | First cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)). Yank `_start` decided never; leftover RAM optional ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). |
+| Identity-tear first cut | Serial `ident: split` / `ident: fault` / `ident: high` / `ident: no el0` / `ident: ok` | First cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)). Yank `_start` decided never; leftover RAM torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)). |
 | Identity text range tear | Serial `ident: jump` / `ident: range` / `ident: text` | Range cut ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)). |
 | High-VA vtable rewrite + live `.text` tear | Serial `ident: reloc` / `ident: live` | Live `.text` cut ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)). |
 | Identity `.rodata` tear | Serial `ident: rodata` / `ident: rodata-fault` / `ident: rodata-high` | `.rodata` cut ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)). |
@@ -135,4 +135,4 @@ Research ([ADR-044](../03-adr/ADR-044-taken-serror-research.md)); implementation
 
 ### Isolation leftovers decisions + app-hosting claim gate (v1.26)
 
-[ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md): taken SError = **deferred/non-goal** on this smoke machine (A-clear dormant prep); PAN enable = **non-goal** on default cortex-a57; **never yank `_start`**; leftover identity RAM **optional Planned**; umbrella “EL0 isolated” stays **Planned/non-claim**. [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md): A1–A9 first cuts ≠ product “app hosting done”; claim stays Planned until documented recipes + slot cross-update + no production embed + honesty about missing Linux/POSIX/containers + sponsor accept. Not “EL0 isolated.” Not “app hosting is done.”
+[ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md): taken SError = **deferred/non-goal** on this smoke machine (A-clear dormant prep); PAN enable = **non-goal** on default cortex-a57; **never yank `_start`**; leftover identity RAM torn via [ADR-049](../03-adr/ADR-049-identity-ram-tear.md) (`ident: ram*`); umbrella “EL0 isolated” stays **Planned/non-claim**. [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md): A1–A9 first cuts ≠ product “app hosting done”; claim stays Planned until documented recipes + slot cross-update + no production embed + honesty about missing Linux/POSIX/containers + sponsor accept. Not “EL0 isolated.” Not “app hosting is done.”

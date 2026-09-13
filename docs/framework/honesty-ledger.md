@@ -287,12 +287,13 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 
 | FAT16 vs memfs write CNTPCT pair (ADR-051 / Future slice 4 / P-PERF-6) | Hello serial `perf: fat-write ticks=<n>` + `perf: memfs-write ticks=<n>` + `perf: fs-write-delta fat=<a> memfs=<b>`; `#[test_case]` `fat_memfs_write_cntpct_pair` samples > 0; smoke rejects percent marketing | Verified | 2026-09-13 agent-box `qemu-smoke` (QEMU 10.0.13, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`) on `feat/fat-write-cntpct` @ `45dc9e1`: hello `fat: write` / `fat: rewrite` / `fat: create` / `perf: fat-write ticks=66638` / `perf: memfs-write ticks=5303` / `perf: fs-write-delta fat=66638 memfs=5303` / `fat: ok` / `slot: ok`; `Running 97 tests` all `[ok]` incl. `fat_memfs_write_cntpct_pair`; force-fail exit 1; `qemu-smoke: ok`. QEMU TCG lab — not a published bench, not a percent. Keep ADR-050 write mile. App hosting stays Planned. (evo-x2) intent; CloudAgent HELD — probe on agent box clone. [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md). |
 | `scripts/qemu-smoke.sh` (ADR-051 FAT-vs-memfs write CNTPCT / this branch) | Ran on this agent box | Verified | 2026-09-13 agent-box `qemu-smoke` (QEMU 10.0.13, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`) on `feat/fat-write-cntpct`: markers above; host `--check-write` still ok; A9 cross-update both `slot:ok`; `Running 97 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not a latency SLA. Tip `45dc9e1`. |
+| Companion / overview polish (Future slice 6) | Read overview + linked framework pages: no live “A2–A4 still embed,” “cross-update Planned,” `ram-stay` as the story, “FAT read-only” as the only FAT story; ADR-048 checklist pointer present; ADR-047…051 reflected; product hosting row still Planned | Verified (docs) | Tip `ebc968e` (includes ADR-051). Docs-only; `./scripts/docs-build.sh` ok; no `src/` change; kernel smoke not re-run. Do not claim “app hosting is done,” “EL0 isolated,” PAN enable, or taken SError Verified. |
 
 <a id="adr-048-progress-checklist"></a>
 
 ## ADR-048 progress checklist
 
-Living audit of [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) against tip `main` @ `b47bbfc` (or newer). Site mirror: [hosting-apps.md](../overview/hosting-apps.md#claim-criteria-adr-048). **Product “app hosting is done” stays Planned** — this table does not flip the product row.
+Living audit of [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) against tip `main` @ `ebc968e` (or newer). Site mirror: [hosting-apps.md](../overview/hosting-apps.md#claim-criteria-adr-048). **Product “app hosting is done” stays Planned** — this table does not flip the product row.
 
 | # | Criterion | Status | Tip evidence |
 | --- | --- | --- | --- |

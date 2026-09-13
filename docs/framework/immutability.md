@@ -18,7 +18,7 @@ These are **scoped** cuts on QEMU `virt`. They are not an immutable kernel.
 | `SCTLR.WXN` on | same RO+NX smoke | ADR-015 |
 | Live identity `.text` torn after high-VA jump + vtable rewrite | `ident: reloc` / `ident: live` / `ident: ok` | [ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md) |
 
-Heap, PTEs, UART/GIC, and coop stacks stay writable on purpose. Identity `.rodata` / `.data` / heap tears are ledger-**Verified** ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md) / [ADR-037](../03-adr/ADR-037-identity-data-tear.md) / [ADR-038](../03-adr/ADR-038-identity-heap-tear.md)); `_start` and leftover identity RAM after the heap stay (`ident: start-stay` / `ident: ram-stay`, [ADR-042](../03-adr/ADR-042-isolation-leftover-wrap.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)).
+Heap, PTEs, UART/GIC, and coop stacks stay writable on purpose. Identity `.rodata` / `.data` / heap tears are ledger-**Verified** ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md) / [ADR-037](../03-adr/ADR-037-identity-data-tear.md) / [ADR-038](../03-adr/ADR-038-identity-heap-tear.md)). Leftover identity RAM after the heap is torn (`ident: ram*`, [ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); smoke rejects `ident: ram-stay`. `_start` stays mapped (`ident: start-stay`, [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)).
 
 ## Track A — RO app payloads, then A9 slot disconnect
 

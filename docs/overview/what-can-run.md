@@ -2,9 +2,9 @@
 
 Plain English. These are **rebuild recipes** for in-tree samples that already have probes. They are not third-party applications and not a product runtime.
 
-**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load that file; same ELF on this OS and `ba6541c`. App hosting stays **Planned**.
+**Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load that file (no production embed); same ELF on this OS and `ba6541c` (cross-update Verified). Product app hosting stays **Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) (checklist: [hosting-apps.md](hosting-apps.md#claim-criteria-adr-048)).
 
-Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Isolation of user programs stays **Planned**. Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
+Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Umbrella “EL0 isolated” stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
 
 ## Privilege — where code runs
 
@@ -127,7 +127,7 @@ FAT16 on QEMU virtio-mmio block ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md
 
 `-drive if=none,file=target/fat16.img,format=raw,id=hd0 -device virtio-blk-device,drive=hd0`
 
-Host `-drive` without the guest serial is **not** the probe. Not POSIX. Not FAT32. Do not say “supports FAT” as a product; say the guest wrote FAT16 bytes when `fat: write` / `fat: create` pass.
+Host `-drive` without the guest serial is **not** the probe. Not POSIX. Not FAT32. Do not say “supports FAT” as a product; say the guest wrote FAT16 bytes when `fat: write` / `fat: create` pass. Same-boot CNTPCT pair vs memfs write: [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md) / [KPIs](measure.md) (`perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta`) — measurement only, not a latency SLA.
 
 ## Recipe 6 — OS image vs app slot (A9 first cut)
 
@@ -161,9 +161,9 @@ Do not imply these work:
 - A shell
 - Python (or any hosted language runtime)
 - Network servers (no NIC, no sockets, no DMA)
-- POSIX / Linux filesystem apps (memfs + one FAT16 file is not that — [Filesystem](filesystem.md))
+- POSIX / Linux filesystem apps (memfs + FAT16 read/write miles are not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
-- Product app hosting / “apps update independently” (**A9 remaining** — [issue #48](https://github.com/artofdream/ctos/issues/48); leftover cross-update is the two-boot smoke, not this claim)
+- Product app hosting / “apps update independently” (**Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md); A9 first cut + cross-update are Verified miles, not this claim — [issue #48](https://github.com/artofdream/ctos/issues/48))
 
 Also not claimed: POSIX, GPU, Raspberry Pi, certified security, “production ready,” or **containers** (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md); [Hosting apps / containers](hosting-apps.md)).
 

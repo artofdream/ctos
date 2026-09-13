@@ -26,7 +26,7 @@ These are **sensors**, not product SLOs. A missing marker is a fail. A printed n
 | IRQ-to-handler spread on this virt guest | Serial `perf: irq-delta min=… max=… spread=… n=…` |
 | Debug ELF byte size | Host `perf: elf-size bytes=<n>` (measurement, not “smaller is better”) |
 | `kernel_main` after-MMU → after-init | Serial `perf: boot-delta ticks=<n>` |
-| App-load after OS/app split (A9) | **Planned** `perf: app-load` CNTPCT + existing boot-delta. No marker today. |
+| App-load after OS/app split (A9) | **Verified** when ledger has `perf: app-load` (+ ADR-046 / ADR-051 pairs). Not a published bench. |
 
 QEMU TCG jitter is one lab. These are not Raspberry Pi numbers and not a published bench. Read the ledger row for the SHA you care about. A9 expected costs (boot/load, SVC, ASID/TTBR, later COW) vs steady EL0 compute: [performance.md](performance.md#osapp-slot-disconnect-a9--expected-shape-not-a-bench). **No Verified delta** — still one ELF.
 
@@ -46,7 +46,7 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
 - **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`); a loaded `libctos` hello as a standing **task** until `exit` (`el0: task-ok`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
-- **Cannot run:** Linux ELF, shell, Python, network, POSIX disk apps, SMP, isolated userspace. Isolation / PAN enable stay **Planned**. Identity `.data`/heap tears are ADR-037/038. Filesystem stance: [filesystem.md](filesystem.md) (memfs + read-only FAT16). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
+- **Cannot run:** Linux ELF, shell, Python, network, POSIX disk apps, SMP, isolated userspace. Umbrella isolation stays **Planned / non-claim**; PAN enable is a non-goal on default a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap/leftover-RAM tears are ADR-037/038/049. Filesystem stance: [filesystem.md](filesystem.md) (memfs + FAT16 read/write). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
 
 ## Building or porting
 
@@ -85,8 +85,8 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 ## Drawbacks
 
 - QEMU `virt` only. No Raspberry Pi or board claim
-- Not POSIX, not multi-tenant, not a product runtime. memfs + read-only FAT16 ([filesystem.md](filesystem.md)). Not a container host (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md)); host `docker-smoke` ≠ guest Docker.
-- Isolation is **Planned**. Live identity `.text` after the boot stub is torn (ADR-020); identity `.rodata` is torn (ADR-025); `.data`/heap stay; PAN enable stays Planned (`pan: absent` on `-cpu cortex-a57`)
+- Not POSIX, not multi-tenant, not a product runtime. memfs + FAT16 read/write ([filesystem.md](filesystem.md); [ADR-050](../03-adr/ADR-050-fat16-write.md)). Not a container host (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md)); host `docker-smoke` ≠ guest Docker.
+- Umbrella isolation is **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Live identity `.text` / `.rodata` / `.data` / heap / leftover RAM are torn (ADR-020/025/037/038/049); `_start` stays; PAN enable is a non-goal on default `-cpu cortex-a57` (`pan: absent`)
 - Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot first cut** (A9 / ADR-030) is two artifacts + FAT `/hello`. Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load FAT; same ELF on this OS and `ba6541c`.
 - Performance numbers are guest counter deltas, not a latency budget
 - Docs website / custom domain: HTTPS serving the book is **Verified** ([website.md](../website.md))

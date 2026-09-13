@@ -6,20 +6,20 @@ Today you **extend the kernel** ([Building or porting](porting.md)). Samples tha
 
 Do not say ctos is an app host or a container runtime.
 
-## Today vs the slot split (A9 direction)
+## Today vs the slot split (A9 first cut)
 
-**Today:** one linked ELF. Kernel code and any “app-shaped” experiment ship together. QEMU `-kernel` loads that one image.
+**Today (first cut + leftover):** QEMU `-kernel` still loads one **OS** ELF. A separate published app ELF lives on FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). A2–A4 load that file (no production embed). The same ELF boots on this OS and on `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). That is the useful first cut of an **OS slot** vs **app slot**. It is **not** containers, **not** OTA, and **not** “app hosting is done.”
 
-**Later (Planned):** an **OS slot** (the kernel you update) and an **app slot** (a loaded user-mode binary that can survive an OS swap). That split is the useful meaning of immutability. It depends on Track A (loader + stable ABI + CRT). It is **not** containers and **not** over-the-air firmware updates.
+**Product claim (Planned):** “apps run independently / hosting done” stays **Planned** until [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) (including sponsor accept). See the checklist below.
 
 ```mermaid
 flowchart TD
-  TODAY["Today: one linked ELF<br/>kernel + in-tree code<br/>Verified"]
-  LATER["Later: OS slot + app slot<br/>update OS without rebuilding apps<br/>Planned — Track A / A9 direction"]
+  TODAY["Today: OS ELF + FAT /hello<br/>A9 first cut + cross-update<br/>Verified miles — not hosting done"]
+  LATER["Product: apps update independently<br/>Planned — ADR-048 claim criteria"]
   TODAY -.-> LATER
 ```
 
-*Do not say the slot split exists. Runtime cost vs “same as today” is unmeasured.*
+*Say the first cut and leftover exist. Do not say the product hosting claim is Verified. Runtime cost vs embed is a lab measurement pair ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)), not a marketing delta.*
 
 ## Gaps before hosting applications
 
@@ -36,7 +36,7 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Rese
 | **Standing user mode as normal** | A4: loaded image stands until `exit`; fail-closed restore ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Not a process table. | **Standing-task mile** — Verified only when the ledger has `el0: task-ok` on this tip. Not isolation. Not app hosting. |
 | **Stronger isolation** | Umbrella stays Planned/non-claim under [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md) (no PAN enable on a57; `_start` stays; taken SError deferred) | **Planned / non-claim** — do not say “EL0 isolated” |
 | **VFS + memfs** | Thin VFS + in-RAM named buffers ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)); see [Filesystem](filesystem.md) | **memfs mile** — Verified only when the ledger has `fs: ok` on this tip. Not POSIX. Not FAT. |
-| **On-disk FS** | virtio-blk + FAT16 behind the same VFS ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) | **block + FAT mile** — Verified only when the ledger has `blk: ok` / `fat: ok` on this tip. Not POSIX. Not writeable FAT. |
+| **On-disk FS** | virtio-blk + FAT16 behind the same VFS ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)); write depth ([ADR-050](../03-adr/ADR-050-fat16-write.md)) | **block + FAT mile** — Verified only when the ledger has `blk: ok` / `fat: ok` (and `fat: write` / `fat: create` for write). Not POSIX. Not “supports FAT” as a product. |
 | **Richer I/O** | UART byte in/out only; no TTY, disk, or sockets | UART probed; the rest unbuilt |
 | **Preemption / extra CPUs / net** | Cooperative one-CPU yield; no NIC | Later — not a near hosting gate |
 
@@ -72,7 +72,7 @@ Product “apps run independently / hosting done” may become Verified **only**
 
 ### Progress vs tip `main` (honesty checklist)
 
-Tip audited: `b47bbfc` (or newer `main`). **Product row stays Planned** — criteria 1–4 do not authorize flipping #5.
+Tip audited: `ebc968e` (or newer `main`). **Product row stays Planned** — criteria 1–4 do not authorize flipping #5.
 
 | # | Criterion | Status | Tip evidence (cite ledger / tip) |
 | --- | --- | --- | --- |
