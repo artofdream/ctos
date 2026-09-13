@@ -16,19 +16,22 @@ What we measure **today** on QEMU `virt` (serial markers + tests, fail-closed in
 | IRQ-to-handler delta (`perf: irq-delta`) | Counter minus the timer’s compare value; min / max / spread on several ticks | A latency SLA, SPEC, or a comparison to other kernels |
 | Boot-delta (`perf: boot-delta`) | Cycle count from after paging init to after `Hello World!` | QEMU process start time, a boot budget, or a published bench |
 | Host ELF size (`perf: elf-size`) | Byte size of the debug `ctos` ELF after `cargo build` | A size budget or “smaller is better” |
-| App-load (`perf: app-load`) | Cycle count around FAT `/hello` read + A3 map + `ERET` (A9) | A delta vs the embed, a budget, or “slots are free” |
+| App-load (`perf: app-load`) | Cycle count around FAT `/hello` read + A3 map + `ERET` (A9) | A budget, or “slots are free” |
+| Embed-load (`perf: embed-load`) | Probe-only CNTPCT around map + `ERET` of the same linked-in hello ELF ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)) | Production slot path, `slot: embed`, or a bench |
+| Slot delta (`perf: slot-delta`) | Raw `app=<a> embed=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
 
 QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
 ### OS slot vs app slot (performance)
 
-[ADR-030](../03-adr/ADR-030-os-app-slots.md) first cut exists: FAT `/hello` + `perf: app-load`. [ADR-032](../03-adr/ADR-032-track-a-leftovers.md) removes the A2–A4 embed. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.” A Verified *delta* vs the old embed stays **Planned**.
+[ADR-030](../03-adr/ADR-030-os-app-slots.md) first cut exists: FAT `/hello` + `perf: app-load`. [ADR-032](../03-adr/ADR-032-track-a-leftovers.md) removes the A2–A4 production embed. [ADR-046](../03-adr/ADR-046-slot-perf-delta.md) adds a **probe-only** linked-in trip and `perf: slot-delta app=<a> embed=<b>` on the same boot. [Immutability](advantages.md#immutability) means disconnect OS update from apps. That can **cost** at runtime or be **neutral**. We do **not** invent a percentage, a budget, or “faster than linking the app into the kernel.” The pair is a QEMU TCG **lab measurement**.
 
-| Kind | Honest guess | What would make it a claim |
+| Kind | Honest claim shape | What it is not |
 | --- | --- | --- |
-| Possible **cost** | Extra VFS/FAT read, ELF parse, user map fills, SVC, ASID/TTBR switch | Compared `perf: app-load` vs the embed on the same guest. Marker alone is not a delta. |
-| Possible **neutral** | Steady-state UART print / yield after the app is mapped, if the hot path stays similar | Same probes on the new path vs the in-tree workers; no win claimed without a delta |
-| Build-time, not a bench | Two host artifacts; FAT slot can change without a kernel rebuild | `perf: elf-size` is still one image’s byte count. A kernel rebuild still compiles the hello (`build.rs`); it no longer embeds the bytes. |
+| Compared **pair** | `perf: app-load` and `perf: embed-load` ticks plus `perf: slot-delta app=<a> embed=<b>` on one guest | A percent, SLA, or “slots are free” |
+| Possible **cost** | Extra VFS/FAT read before the shared parse/map/`ERET` work | Marketing “slower than embed” without naming the tip + ticks |
+| Possible **neutral** | Steady-state UART print / yield after the app is mapped | A win claimed without a probe |
+| Build-time, not a bench | Two host artifacts; FAT slot can change without a kernel rebuild | `perf: elf-size` is still one image’s byte count. Kernel may `include_bytes!` only in `src/slot.rs` for the probe. |
 
 **Measure first** ([NFR-07](../02-requirements/fr-nfr.md)). Do not tune a loader “for speed” on a hunch. Do not copy QEMU ticks into a product slide.
 

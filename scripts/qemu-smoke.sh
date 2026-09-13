@@ -105,11 +105,16 @@ fi
 echo "qemu-smoke: exception.rs has no tlbi vmalle1"
 
 # Embed honesty: A2–A4 must prove markers via FAT /hello, not include_bytes!.
-if grep -R -n --include='*.rs' 'include_bytes!.*hello-libctos' src; then
-    echo "qemu-smoke: kernel still embeds hello-libctos (A2-A4 must load FAT /hello)" >&2
+# ADR-046 allows probe-only include_bytes! in src/slot.rs for CNTPCT compare.
+if grep -n 'include_bytes!.*hello-libctos' src/libctos.rs src/loader.rs 2>/dev/null; then
+    echo "qemu-smoke: A2/A3 still embeds hello-libctos (must load FAT /hello)" >&2
     exit 1
 fi
-echo "qemu-smoke: kernel does not include_bytes! hello-libctos"
+if ! grep -n 'include_bytes!.*hello-libctos' src/slot.rs >/dev/null; then
+    echo "qemu-smoke: missing ADR-046 probe-only include_bytes! in src/slot.rs" >&2
+    exit 1
+fi
+echo "qemu-smoke: A2/A3 do not include_bytes! hello-libctos (slot.rs probe-only OK)"
 
 # A7 host-visible FAT16 (ADR-028) + A9 /hello app slot.
 img="${CTOS_BLK_IMAGE:-$ROOT/target/fat16.img}"
@@ -446,7 +451,24 @@ if ! grep -q "perf: app-load" "$log"; then
     echo "qemu-smoke: missing 'perf: app-load' on serial (A9 load CNTPCT, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: OS/app slot (A9) strings present"
+if grep -q "perf: embed-load missed" "$log"; then
+    echo "qemu-smoke: embed-load probe missed (ADR-046 CNTPCT around linked-in trip)" >&2
+    exit 1
+fi
+if ! grep -q "perf: embed-load" "$log"; then
+    echo "qemu-smoke: missing 'perf: embed-load' on serial (ADR-046 probe-only, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "perf: slot-delta" "$log"; then
+    echo "qemu-smoke: missing 'perf: slot-delta' on serial (ADR-046 compared pair, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+# Honesty: pair line is ticks only — reject invented percent marketing.
+if grep -E -q 'perf: slot-delta.*(faster|slower|percent|%)' "$log"; then
+    echo "qemu-smoke: slot-delta must not claim faster/slower/percent" >&2
+    exit 1
+fi
+echo "qemu-smoke: OS/app slot (A9) + ADR-046 slot-delta strings present"
 if ! grep -q "$ASID" "$log"; then
     echo "qemu-smoke: missing '$ASID' on serial (NFR-10 ASID isolation mile, qemu exit $qemu_ec)" >&2
     exit 1

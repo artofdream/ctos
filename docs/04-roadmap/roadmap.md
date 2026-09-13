@@ -34,6 +34,7 @@ Bring-up M0–M9 stays one loop unit each. After M9, work is grouped under the t
 | P-SEC-3 | EL0 first mile | `el0: svc` + `el0: nx kernel` + `el0: ok` | **First mile Verified:** 2026-09-10 cloud `qemu-smoke` (see honesty ledger). |
 | P-SEC-2c | RO+NX text/data (ADR-015) | `ro: nx data` + `ro: write fault` + `ro: ok` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Identity image W^X on virt; not “secure OS.” |
 | P-PERF-4 | Boot-to-ready CNTPCT (NFR-08) | `perf: boot-delta ticks=<n>`; not a budget | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). |
+| P-PERF-5 | A9 slot-disconnect CNTPCT pair (ADR-046) | `perf: app-load` + `perf: embed-load` + `perf: slot-delta app=<a> embed=<b>`; not a percent | **Verified** when this tip’s `qemu-smoke` prints the pair (see honesty ledger). QEMU TCG lab. Production slot stays FAT-only. |
 | P-SEC-3b | User TTBR0 + EL0 cannot read kernel `.data` | `el0: no kernel read`; user table omits `.data` | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Isolation / PAN stay **Planned**. |
 | P-SEC-3c | ASID-tagged TLB isolation | `asid: dual` + `asid: conflict` + `asid: ok`; no `TLBI VMALLE1` on the switch | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Umbrella isolation / PAN stay **Planned**. |
 | P-SEC-3d | Standing EL0 context | `el0: standing` + `el0: restored`; `is_active()` true only while standing | **Verified:** 2026-09-11 cloud `qemu-smoke` (see honesty ledger). Not POSIX. Default `ERET` clears IRQ mask (ADR-041). |
