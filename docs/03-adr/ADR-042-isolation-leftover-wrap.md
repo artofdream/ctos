@@ -35,7 +35,7 @@ What remains Planned must stay **fail-closed** in the ledger and threat model: P
 | `_start` stay at `0x4008_0000` | **Verified (honesty)** | `ident: start-stay`; not a teardown |
 | Remaining identity RAM after heap | **Verified (honesty)** | `ident: ram-stay`; tear still Planned |
 | PAN enable on `-cpu cortex-a57` | **Planned** | `pan: absent` (ADR-026). Do not switch `-cpu`. |
-| Lower-EL FIQ/SError while standing | **Planned** | Still park (ADR-004). No taken-path probe on this wrap. |
+| Lower-EL FIQ/SError while standing | **Superseded by ADR-043** | FIQ Verified / SError park honesty on [ADR-043](ADR-043-lower-el-fiq-serror.md). |
 | Full identity teardown including `_start` | **Planned** | Do not yank `_start` for QEMU `-kernel`. |
 | Umbrella “EL0 isolated” (P-SEC-3l) | **Planned** | Ladder miles are not this row. |
 
@@ -56,4 +56,4 @@ Say “`_start` / boot-stub page stays mapped while live `.text`/`.rodata`/`.dat
 
 - `src/teardown.rs` prints the stay markers; smoke and the new `#[test_case]` ratchet them.
 - [ADR-013](ADR-013-el0-isolation-direction.md) remains the isolation direction; P-SEC-3l stays Planned.
-- A later ADR may take FIQ/SError, enable PAN on a different CPU story, or redesign boot so `_start` can leave identity. That work is not this cut.
+- [ADR-043](ADR-043-lower-el-fiq-serror.md) takes FIQ and documents SError park honesty. A later ADR may take SError safely, enable PAN on a different CPU story, or redesign boot so `_start` can leave identity.

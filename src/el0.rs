@@ -15,9 +15,11 @@
 //! restores fail-closed (`el0: restore-fail`) instead of parking.
 //!
 //! `is_active()` is true only while that standing context exists.
-//! Lower-EL IRQ while standing is taken and returns to EL0 (ADR-040);
-//! FIQ/SError lower-EL still park. Default `ERET` to EL0 clears IRQ
-//! mask (ADR-041); short non-standing trampoline probes stay masked.
+//! Lower-EL IRQ while standing is taken and returns to EL0 (ADR-040/041).
+//! Lower-EL FIQ while standing is taken when GICC FIQEn is armed (ADR-043);
+//! SError lower-EL has no safe trigger on this virt guest (park honesty).
+//! Default `ERET` to EL0 clears IRQ mask (ADR-041); short non-standing
+//! trampoline probes stay masked.
 //! PAN is typically unimplemented on `-cpu cortex-a57`. After
 //! ADR-037/038 identity `.data`/heap tears, the standing/EL0 trampoline
 //! path is `MSR TTBR0` + `ISB` only — no `TLBI VMALLE1` (ADR-039). ASID
@@ -30,6 +32,7 @@ use core::hint::black_box;
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 
 use crate::exception;
+use crate::gic;
 use crate::frame;
 use crate::loader;
 use crate::paging;
@@ -283,6 +286,38 @@ fn irq_while_standing() -> bool {
     })
 }
 
+/// Timer as **FIQ** from standing EL0 (ADR-043): temporarily set GICC FIQEn,
+/// enter with F clear / I set, `WFI`, then restore Group-0 → IRQ.
+fn fiq_while_standing() -> bool {
+    if is_active() || !paging::user_map_ready() {
+        return false;
+    }
+    with_el0_page(|ptr, va| {
+        write_irq_standing(ptr);
+        let user_sp = va + 4096;
+        exception::arm_el0_standing();
+        exception::arm_el0_fiq();
+        install_standing(va, user_sp, paging::user_ttbr0());
+        if !is_active() {
+            clear_active();
+            return false;
+        }
+        gic::route_group0_as_fiq();
+        timer::arm_soon();
+        unsafe {
+            exception::eret_to_el0_fiq(black_box(va), 0, user_sp);
+        }
+        gic::route_group0_as_irq();
+        if is_active() {
+            clear_active();
+            return false;
+        }
+        exception::el0_fiq_caught()
+            && exception::el0_standing_caught()
+            && exception::el0_restored_caught()
+    })
+}
+
 fn svc_roundtrip() -> bool {
     with_el0_page(|ptr, va| {
         write_instr(ptr, SVC0_A64);
@@ -384,6 +419,10 @@ pub fn observe_probe() -> bool {
     if !irq_while_standing() {
         return false;
     }
+    // ADR-043: taken lower-EL FIQ while standing (GICC FIQEn + F-clear).
+    if !fiq_while_standing() {
+        return false;
+    }
     // ADR-039: entry/return/stay used MSR TTBR0 + ISB only. Require the
     // identity tears that made dropping VMALLE1 honest.
     if !paging::identity_data_ready() || !paging::identity_heap_ready() {
@@ -391,6 +430,8 @@ pub fn observe_probe() -> bool {
     }
     let mut w = uart::raw();
     let _ = writeln!(w, "el0: irq-default");
+    // Honest: no safe SError inject on virt/cortex-a57 without exotic setup.
+    let _ = writeln!(w, "el0: serror-park");
     let _ = writeln!(w, "el0: no-vmalle1");
     let _ = writeln!(w, "el0: ok");
     true
@@ -533,6 +574,17 @@ fn lower_el_irq_default_eret() {
     assert!(
         irq_while_standing(),
         "ADR-041: default standing ERET must take a timer IRQ"
+    );
+    assert!(!is_active(), "teardown must clear is_active()");
+}
+
+#[cfg(test)]
+#[test_case]
+fn lower_el_fiq_while_standing() {
+    assert!(!is_active(), "must start inactive");
+    assert!(
+        fiq_while_standing(),
+        "ADR-043: timer as FIQ from standing EL0 must return"
     );
     assert!(!is_active(), "teardown must clear is_active()");
 }

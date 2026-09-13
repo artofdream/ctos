@@ -69,6 +69,7 @@
 - [ADR-040 Lower-EL IRQ while standing](03-adr/ADR-040-lower-el-irq-standing.md)
 - [ADR-041 IRQ-unmasked default ERET](03-adr/ADR-041-irq-unmasked-default-eret.md)
 - [ADR-042 Isolation leftover wrap](03-adr/ADR-042-isolation-leftover-wrap.md)
+- [ADR-043 Lower-EL FIQ + SError park](03-adr/ADR-043-lower-el-fiq-serror.md)
 
 # Roadmap
 
