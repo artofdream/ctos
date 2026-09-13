@@ -47,6 +47,9 @@ fn dsb_ish() {
 }
 
 /// Enable Group-0 forwarding on the distributor and CPU interface.
+///
+/// Default: Group 0 signals as **IRQ** (`GICC_CTLR.FIQEn` clear). ADR-043
+/// temporarily sets FIQEn for the standing lower-EL FIQ probe only.
 pub fn init() {
     unsafe {
         write32(GICD_BASE, GICD_CTLR, 0);
@@ -56,6 +59,33 @@ pub fn init() {
         write32(GICC_BASE, GICC_CTLR, GICC_CTLR_ENABLE);
     }
     dsb_ish();
+}
+
+/// `GICC_CTLR.FIQEn` — when set, Group 0 interrupts signal as FIQ (GICv2).
+const GICC_CTLR_FIQEN: u32 = 1 << 3;
+
+/// Route Group-0 interrupts as FIQ for the ADR-043 standing probe.
+/// Caller must restore via [`route_group0_as_irq`] so the IRQ path stays live.
+pub fn route_group0_as_fiq() {
+    unsafe {
+        let ctlr = read32(GICC_BASE, GICC_CTLR);
+        write32(GICC_BASE, GICC_CTLR, ctlr | GICC_CTLR_FIQEN);
+    }
+    dsb_ish();
+}
+
+/// Restore Group-0 → IRQ (clear FIQEn). Default after [`init`].
+pub fn route_group0_as_irq() {
+    unsafe {
+        let ctlr = read32(GICC_BASE, GICC_CTLR);
+        write32(GICC_BASE, GICC_CTLR, ctlr & !GICC_CTLR_FIQEN);
+    }
+    dsb_ish();
+}
+
+/// Same ack/EOI path as IRQ: Group 0 uses `GICC_IAR` / `GICC_EOIR`.
+pub fn handle_fiq() {
+    handle_irq();
 }
 
 /// Enable one PPI (16..=31) at a mid priority. PPIs are CPU-private.
