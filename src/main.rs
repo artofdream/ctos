@@ -123,6 +123,11 @@ extern "C" fn kernel_main_high() -> ! {
     if !paging::tear_identity_heap() {
         uart::write_str_raw("ident: heap missed\n");
     }
+    // ADR-049: unmap leftover identity frames after the heap.
+    // Keep `_start` mapped. High twins stay.
+    if !paging::tear_identity_ram() {
+        uart::write_str_raw("ident: ram missed\n");
+    }
     vfs::init();
     virtio::init();
     fat::init();

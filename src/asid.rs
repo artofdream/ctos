@@ -52,11 +52,12 @@ fn try_load(va: u64) -> u64 {
     got
 }
 
-fn write_identity(pa: u64, magic: u64) {
+fn write_frame(pa: u64, magic: u64) {
+    let cpu = paging::frame_cpu_va(pa);
     unsafe {
-        core::ptr::write_volatile(pa as *mut u64, magic);
+        core::ptr::write_volatile(cpu as *mut u64, magic);
     }
-    dcache_civac(pa);
+    dcache_civac(cpu);
 }
 
 fn restore_kernel() {
@@ -97,8 +98,8 @@ fn run_probe() -> bool {
         frame::free(pa_a);
         return false;
     };
-    write_identity(pa_a, MAGIC_A);
-    write_identity(pa_b, MAGIC_B);
+    write_frame(pa_a, MAGIC_A);
+    write_frame(pa_b, MAGIC_B);
     dsb_isb();
 
     if !paging::map_page_ng(paging::ASID_DUAL_VA, pa_a) {

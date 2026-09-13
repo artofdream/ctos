@@ -75,6 +75,7 @@
 - [ADR-046 A9 slot performance delta](03-adr/ADR-046-slot-perf-delta.md)
 - [ADR-047 Isolation leftovers decisions](03-adr/ADR-047-isolation-leftovers-decisions.md)
 - [ADR-048 App hosting claim criteria](03-adr/ADR-048-app-hosting-claim-criteria.md)
+- [ADR-049 Leftover identity RAM tear](03-adr/ADR-049-identity-ram-tear.md)
 
 # Roadmap
 
