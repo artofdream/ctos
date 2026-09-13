@@ -2,7 +2,7 @@
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
 # EL0 no-kernel-read + standing EL0 + lower-EL IRQ while standing (ADR-040) + lower-EL FIQ (ADR-043) + SError QMP attempt (ADR-045) + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
-# TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025/037/038) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
+# TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025/037/038/049) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
 # virtio-blk + FAT16 (ADR-028): host builds target/fat16.img and QEMU
@@ -671,8 +671,28 @@ if ! grep -q "ident: start-stay" "$log"; then
     echo "qemu-smoke: missing 'ident: start-stay' on serial (_start / 0x4008_0000 stay, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-if ! grep -q "ident: ram-stay" "$log"; then
-    echo "qemu-smoke: missing 'ident: ram-stay' on serial (remaining identity RAM after heap, qemu exit $qemu_ec)" >&2
+if grep -q "ident: ram missed" "$log"; then
+    echo "qemu-smoke: ident ram missed (leftover identity RAM stayed mapped)" >&2
+    exit 1
+fi
+if grep -q "ident: miss ram-ready" "$log"; then
+    echo "qemu-smoke: identity RAM tear did not publish" >&2
+    exit 1
+fi
+if grep -q "ident: ram-stay" "$log"; then
+    echo "qemu-smoke: ident ram-stay still printed (leftover identity RAM should be torn)" >&2
+    exit 1
+fi
+if ! grep -q "ident: ram lo=" "$log"; then
+    echo "qemu-smoke: missing 'ident: ram' on serial (leftover identity RAM tear, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: ram-fault" "$log"; then
+    echo "qemu-smoke: missing 'ident: ram-fault' on serial (EL1 identity RAM DABORT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "ident: ram-high" "$log"; then
+    echo "qemu-smoke: missing 'ident: ram-high' on serial (EL1 high leftover RAM load, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 echo "qemu-smoke: identity-tear strings present"

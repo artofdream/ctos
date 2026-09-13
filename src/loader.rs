@@ -273,8 +273,9 @@ fn map_perm(va: u64, pa: u64, perm: Perm) -> bool {
 }
 
 fn write_pa(pa: u64, off: u64, byte: u8) {
+    let cpu = paging::frame_cpu_va(pa);
     unsafe {
-        core::ptr::write_volatile((pa as *mut u8).add(off as usize), byte);
+        core::ptr::write_volatile((cpu as *mut u8).add(off as usize), byte);
     }
 }
 
@@ -335,7 +336,7 @@ fn load_image(
             return Err(());
         };
         unsafe {
-            core::ptr::write_bytes(pa as *mut u8, 0, PAGE as usize);
+            core::ptr::write_bytes(paging::frame_cpu_va(pa) as *mut u8, 0, PAGE as usize);
         }
         if !map_perm(page_va, pa, perm) {
             frame::free(pa);
@@ -385,7 +386,7 @@ fn load_image(
     for slot in &pages {
         if let Some(m) = slot {
             if m.perm == Perm::Exec {
-                sync_range(m.pa as *const u8, PAGE as usize);
+                sync_range(paging::frame_cpu_va(m.pa) as *const u8, PAGE as usize);
                 sync_range(m.va as *const u8, PAGE as usize);
             }
         }
@@ -401,7 +402,7 @@ fn load_image(
         return Err(());
     };
     unsafe {
-        core::ptr::write_bytes(stack_pa as *mut u8, 0, PAGE as usize);
+        core::ptr::write_bytes(paging::frame_cpu_va(stack_pa) as *mut u8, 0, PAGE as usize);
     }
     if !paging::map_el0_rw(stack_va, stack_pa) {
         frame::free(stack_pa);

@@ -56,7 +56,7 @@ This ADR records those decisions. It does not change guest code. CloudAgent HELD
 | PAN ID-field on cortex-a57 | **Verified** | `pan: absent` |
 | PAN enable on default cortex-a57 | **Non-goal** (default probe CPU) | Future CPU = new ADR + sponsor |
 | `ident: start-stay` / never yank `_start` | **Verified (honesty)** / **decided** | Keep `0x4008_0000` |
-| Leftover identity RAM after heap | **Planned (optional)** | Not umbrella-required |
+| Leftover identity RAM after heap | **Verified (optional)** via [ADR-049](ADR-049-identity-ram-tear.md) | Not umbrella-required |
 | Umbrella “EL0 isolated” | **Planned / non-claim** | Constraints above |
 
 ## Honesty

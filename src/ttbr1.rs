@@ -169,7 +169,7 @@ fn run_priv_probe() -> bool {
     let Some(pa) = frame::alloc() else {
         return false;
     };
-    write_u64(pa, 0);
+    write_u64(paging::frame_cpu_va(pa), 0);
     dsb_isb();
     if !paging::map_ttbr1_priv(pa) {
         frame::free(pa);
@@ -184,13 +184,13 @@ fn run_priv_probe() -> bool {
         return false;
     }
     write_u64(paging::TTBR1_PRIV, MAGIC);
-    dcache_civac(pa);
+    dcache_civac(paging::frame_cpu_va(pa));
     dsb_isb();
     if load_u64(paging::TTBR1_PRIV) != MAGIC {
         cleanup(pa);
         return false;
     }
-    if load_u64(pa) != MAGIC {
+    if load_u64(paging::frame_cpu_va(pa)) != MAGIC {
         cleanup(pa);
         return false;
     }

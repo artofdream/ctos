@@ -1,4 +1,4 @@
-//! Identity-teardown cuts (ADR-018 + ADR-019 + ADR-020 + ADR-025 + ADR-037 + ADR-038 + ADR-042 wrap).
+//! Identity-teardown cuts (ADR-018 + ADR-019 + ADR-020 + ADR-025 + ADR-037 + ADR-038 + ADR-042 wrap + ADR-049).
 //!
 //! After MMU + high VBAR, the post-MMU continuation jumps to its
 //! TTBR1 alias (`ident: jump`), rewrites rustc vtable / fn-pointer
@@ -11,7 +11,8 @@
 //! high twin, then unmaps identity `.data`/`.bss`/linker stacks
 //! (`ident: data`, ADR-037). High twins stay (`L2_HIGH_RAM` clone).
 //! Identity heap is unmapped after high `GlobalAlloc` VAs
-//! (`ident: heap`, ADR-038).
+//! (`ident: heap`, ADR-038). Leftover identity frames after the heap
+//! are unmapped (`ident: ram`, ADR-049); high twins stay.
 //!
 //! Probes: EL1 fetch of a torn identity VA faults (`ident: fault`);
 //! EL1 fetch of the high twin still runs (`ident: high` / `ident: text`);
@@ -20,9 +21,10 @@
 //! loads (`ident: rodata-high`); EL1 load of torn `.data` faults
 //! (`ident: data-fault`); high `.data` still loads (`ident: data-high`).
 //! EL1 load of torn heap faults (`ident: heap-fault`); high heap still
-//! loads (`ident: heap-high`). `_start` / QEMU `-kernel` stay at
-//! `0x4008_0000` (`ident: start-stay`, ADR-042). Remaining identity
-//! frames after the heap stay (`ident: ram-stay`). Not “the kernel
+//! loads (`ident: heap-high`). EL1 load of torn leftover RAM faults
+//! (`ident: ram-fault`); high leftover RAM still loads
+//! (`ident: ram-high`). `_start` / QEMU `-kernel` stay at
+//! `0x4008_0000` (`ident: start-stay`, ADR-042 / ADR-047). Not “the kernel
 //! moved.” Not “EL0 isolated.” PAN enable stays Planned (ADR-026).
 
 use core::fmt::Write;
@@ -273,6 +275,43 @@ fn run_heap_fault() -> bool {
     exception::ident_heap_caught()
 }
 
+fn run_ram_high() -> bool {
+    let lo = crate::heap::heap_pa_end();
+    let hi = frame::pool_end();
+    if lo == 0 || hi <= lo {
+        return false;
+    }
+    // Magic lives on the last leftover page (first page is the bump target).
+    let ident = hi - 4096;
+    if ident < lo {
+        return false;
+    }
+    let high = paging::to_high_va(ident);
+    if !paging::is_high_va(high) || !paging::high_mapped(high) {
+        return false;
+    }
+    if !paging::high_mapped(paging::to_high_va(lo)) {
+        return false;
+    }
+    let word = unsafe { core::ptr::read_volatile(high as *const u64) };
+    if word != 0x4354_4F53_5241_4D21 {
+        return false;
+    }
+    uart::write_str_raw("ident: ram-high\n");
+    true
+}
+
+fn run_ram_fault() -> bool {
+    let ident = crate::heap::heap_pa_end();
+    if ident == 0 || paging::is_mapped(ident) {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    exception::arm_ident_ram();
+    let _ = black_box(unsafe { core::ptr::read_volatile(ident as *const u64) });
+    exception::ident_ram_caught()
+}
+
 fn el0_load_torn() -> bool {
     let Some(code_pa) = frame::alloc() else {
         return false;
@@ -428,14 +467,20 @@ fn run_probe() -> bool {
             paging::boot_stub_end()
         );
     }
-    // Remaining identity RAM after the torn heap (frame bump) stays.
+    if !paging::identity_ram_ready() {
+        uart::write_str_raw("ident: miss ram-ready\n");
+        return false;
+    }
     let ram_lo = crate::heap::heap_pa_end();
     let ram_hi = frame::pool_end();
-    if ram_lo != 0 && ram_hi > ram_lo && paging::is_mapped(ram_lo) {
-        let mut w = uart::raw();
-        let _ = writeln!(w, "ident: ram-stay lo={:#x} hi={:#x}", ram_lo, ram_hi);
-    } else {
-        uart::write_str_raw("ident: miss ram-stay\n");
+    if ram_lo == 0
+        || ram_hi <= ram_lo
+        || paging::is_mapped(ram_lo)
+        || paging::user_mapped(ram_lo)
+        || paging::torn_ram_pages() < 1
+        || !paging::high_mapped(paging::to_high_va(ram_lo))
+    {
+        uart::write_str_raw("ident: leaked\n");
         return false;
     }
     uart::write_str_raw("ident: split\n");
@@ -483,6 +528,14 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss heap-high\n");
         return false;
     }
+    if !run_ram_fault() {
+        uart::write_str_raw("ident: miss ram-fault\n");
+        return false;
+    }
+    if !run_ram_high() {
+        uart::write_str_raw("ident: miss ram-high\n");
+        return false;
+    }
     true
 }
 
@@ -508,9 +561,10 @@ fn identity_tear_el1_faults_high_stays() {
     assert!(paging::identity_rodata_ready());
     assert!(paging::identity_data_ready());
     assert!(paging::identity_heap_ready());
+    assert!(paging::identity_ram_ready());
     assert!(
         run_probe(),
-        "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT; torn .rodata/.data/.heap"
+        "EL1 identity fetch of torn .text must fault; high twin + EL0 DABORT; torn .rodata/.data/.heap/.ram"
     );
 }
 
@@ -539,7 +593,7 @@ fn identity_data_torn_high_stays() {
     assert!(paging::torn_data_pages() >= 1);
 }
 
-/// ADR-042 honesty: `_start` page stays while live image + heap are torn.
+/// ADR-042 / ADR-049 honesty: `_start` page stays while live image + heap + leftover RAM are torn.
 #[cfg(test)]
 #[test_case]
 fn identity_boot_stub_stays_while_live_torn() {
@@ -547,6 +601,7 @@ fn identity_boot_stub_stays_while_live_torn() {
     assert!(paging::identity_rodata_ready());
     assert!(paging::identity_data_ready());
     assert!(paging::identity_heap_ready());
+    assert!(paging::identity_ram_ready());
     let stub = paging::identity_pa(paging::KERNEL_TEXT);
     assert!(
         paging::is_mapped(stub),
@@ -564,7 +619,20 @@ fn identity_boot_stub_stays_while_live_torn() {
     let ram_lo = crate::heap::heap_pa_end();
     assert!(ram_lo != 0);
     assert!(
-        paging::is_mapped(ram_lo),
-        "remaining identity RAM after the heap stays mapped"
+        !paging::is_mapped(ram_lo),
+        "leftover identity RAM after the heap must be torn (ADR-049)"
     );
+    assert!(paging::high_mapped(paging::to_high_va(ram_lo)));
+    assert!(paging::torn_ram_pages() >= 1);
+}
+
+#[cfg(test)]
+#[test_case]
+fn identity_ram_torn_high_stays() {
+    assert!(paging::identity_ram_ready());
+    assert!(!paging::is_mapped(crate::heap::heap_pa_end()));
+    assert!(paging::high_mapped(paging::to_high_va(crate::heap::heap_pa_end())));
+    assert!(paging::torn_ram_pages() >= 1);
+    let stub = paging::identity_pa(paging::KERNEL_TEXT);
+    assert!(paging::is_mapped(stub), "boot stub must stay");
 }
