@@ -16,13 +16,13 @@
 //!
 //! `is_active()` is true only while that standing context exists.
 //! Lower-EL IRQ while standing is taken and returns to EL0 (ADR-040);
-//! FIQ/SError lower-EL still park. Default `ERET` to EL0 keeps IRQ
-//! masked; the IRQ probe uses an unmasked SPSR. PAN is typically
-//! unimplemented on `-cpu cortex-a57`. After ADR-037/038 identity
-//! `.data`/heap tears, the standing/EL0 trampoline path is `MSR TTBR0`
-//! + `ISB` only — no `TLBI VMALLE1` (ADR-039). ASID isolation lives in
-//! `src/asid.rs`. TTBR1 private page + high-VA EL1 fetch live in
-//! `src/ttbr1.rs` (ADR-016 / ADR-017).
+//! FIQ/SError lower-EL still park. Default `ERET` to EL0 clears IRQ
+//! mask (ADR-041); short non-standing trampoline probes stay masked.
+//! PAN is typically unimplemented on `-cpu cortex-a57`. After
+//! ADR-037/038 identity `.data`/heap tears, the standing/EL0 trampoline
+//! path is `MSR TTBR0` + `ISB` only — no `TLBI VMALLE1` (ADR-039). ASID
+//! isolation lives in `src/asid.rs`. TTBR1 private page + high-VA EL1
+//! fetch live in `src/ttbr1.rs` (ADR-016 / ADR-017).
 //! See el0.md. Not “EL0 isolated.”
 
 use core::fmt::Write;
@@ -252,7 +252,8 @@ fn write_irq_standing(ptr: *mut u32) {
     sync_icache(unsafe { ptr.add(3) });
 }
 
-/// Timer IRQ taken from standing EL0, then dual-SVC restore (ADR-040).
+/// Timer IRQ taken from standing EL0 via **default** `eret_to_el0`
+/// (IRQ-unmasked SPSR), then dual-SVC restore (ADR-041; path from ADR-040).
 fn irq_while_standing() -> bool {
     if is_active() || !paging::user_map_ready() {
         return false;
@@ -268,8 +269,9 @@ fn irq_while_standing() -> bool {
             return false;
         }
         timer::arm_soon();
+        // ADR-041: prove the tick without eret_to_el0_irq_enabled.
         unsafe {
-            exception::eret_to_el0_irq_enabled(black_box(va), 0, user_sp);
+            exception::eret_to_el0(black_box(va), 0, user_sp);
         }
         if is_active() {
             clear_active();
@@ -286,8 +288,9 @@ fn svc_roundtrip() -> bool {
         write_instr(ptr, SVC0_A64);
         let user_sp = va + 4096;
         exception::arm_el0_svc();
+        // Non-standing: mask IRQ so a mid-probe tick does not park.
         unsafe {
-            exception::eret_to_el0(black_box(va), 0, user_sp);
+            exception::eret_to_el0_masked(black_box(va), 0, user_sp);
         }
         exception::el0_svc_caught()
     })
@@ -301,7 +304,7 @@ fn kernel_data_iabort() -> bool {
         let user_sp = va + 4096;
         exception::arm_el0_iabort();
         unsafe {
-            exception::eret_to_el0(black_box(va), bait, user_sp);
+            exception::eret_to_el0_masked(black_box(va), bait, user_sp);
         }
         exception::el0_iabort_caught()
     })
@@ -350,7 +353,7 @@ fn kernel_data_read_fault() -> bool {
         let user_sp = va + 4096;
         exception::arm_el0_dabort();
         unsafe {
-            exception::eret_to_el0(black_box(va), bait, user_sp);
+            exception::eret_to_el0_masked(black_box(va), bait, user_sp);
         }
         exception::el0_dabort_caught()
     })
@@ -377,7 +380,7 @@ pub fn observe_probe() -> bool {
     if !stand_and_restore() {
         return false;
     }
-    // ADR-040: taken lower-EL IRQ while standing, then restore.
+    // ADR-041: taken lower-EL IRQ while standing via default ERET.
     if !irq_while_standing() {
         return false;
     }
@@ -387,6 +390,7 @@ pub fn observe_probe() -> bool {
         return false;
     }
     let mut w = uart::raw();
+    let _ = writeln!(w, "el0: irq-default");
     let _ = writeln!(w, "el0: no-vmalle1");
     let _ = writeln!(w, "el0: ok");
     true
@@ -515,7 +519,20 @@ fn lower_el_irq_while_standing() {
     assert!(!is_active(), "must start inactive");
     assert!(
         irq_while_standing(),
-        "timer IRQ from standing EL0 must return and dual-SVC restore"
+        "timer IRQ from standing EL0 via default eret_to_el0 must return"
+    );
+    assert!(!is_active(), "teardown must clear is_active()");
+}
+
+#[cfg(test)]
+#[test_case]
+fn lower_el_irq_default_eret() {
+    // Same probe as lower_el_irq_while_standing: enters via default
+    // eret_to_el0 (SPSR I-clear), not a dedicated irq_enabled helper.
+    assert!(!is_active(), "must start inactive");
+    assert!(
+        irq_while_standing(),
+        "ADR-041: default standing ERET must take a timer IRQ"
     );
     assert!(!is_active(), "teardown must clear is_active()");
 }

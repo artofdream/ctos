@@ -290,8 +290,9 @@ fn el0_load_torn() -> bool {
     let user_sp = va + 4096;
     let torn = paging::identity_pa(ident_range_el1_path as *const () as usize as u64) & !0xfff;
     exception::arm_ident_el0();
+    // Non-standing short probe: keep IRQ masked (ADR-041).
     unsafe {
-        exception::eret_to_el0(black_box(va), torn, user_sp);
+        exception::eret_to_el0_masked(black_box(va), torn, user_sp);
     }
     let ok = exception::ident_el0_caught();
     let _ = paging::unmap_page(va);

@@ -89,8 +89,9 @@ fn el0_load_high() -> bool {
     sync_icache(ptr);
     let user_sp = va + 4096;
     exception::arm_ttbr1_dabort();
+    // Non-standing short probe: keep IRQ masked (ADR-041).
     unsafe {
-        exception::eret_to_el0(black_box(va), paging::TTBR1_PRIV, user_sp);
+        exception::eret_to_el0_masked(black_box(va), paging::TTBR1_PRIV, user_sp);
     }
     let ok = exception::ttbr1_dabort_caught();
     let _ = paging::unmap_page(va);
