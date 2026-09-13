@@ -26,7 +26,8 @@
 //! RAM alias (ADR-017), and the ADR-018 identity-tear IABORT / EL0
 //! DABORT: SVC, IABORT, DABORT.
 //! Lower-EL IRQ is live while standing (ADR-040/041); lower-EL FIQ while
-//! standing is live when GICC FIQEn is armed (ADR-043); SError still parks.
+//! standing is live when GICC FIQEn is armed (ADR-043); SError lower-EL
+//! handler is standing-aware (ADR-045) but taken inject stays Planned.
 //! After paging::init, `VBAR_EL1` is
 //! the high alias of this table. Identity `_start` stays at `0x4008_0000`.
 //! A dedicated identity text range plus live identity `.text` after the
@@ -73,6 +74,8 @@ const SPSR_EL1T_MASKED: u64 = 0x3C4;
 const SPSR_EL0_IRQ_ENABLED: u64 = 0x340;
 /// SPSR: EL0t with FIQ unmasked (D/A/I set, F clear) — ADR-043 FIQ probe.
 const SPSR_EL0_FIQ_ENABLED: u64 = 0x380;
+/// SPSR: EL0t with SError unmasked (D/I/F set, A clear) — ADR-045 probe only.
+const SPSR_EL0_SERROR_ENABLED: u64 = 0x2c0;
 /// SPSR: EL0t with DAIF all masked (short non-standing trampoline probes).
 const SPSR_EL0_MASKED: u64 = 0x3c0;
 
@@ -100,6 +103,8 @@ static EXPECT_EL0_IRQ: AtomicBool = AtomicBool::new(false);
 static EL0_IRQ_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_EL0_FIQ: AtomicBool = AtomicBool::new(false);
 static EL0_FIQ_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_SERROR: AtomicBool = AtomicBool::new(false);
+static EL0_SERROR_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_TTBR1_DABORT: AtomicBool = AtomicBool::new(false);
 static TTBR1_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_TEAR: AtomicBool = AtomicBool::new(false);
@@ -858,6 +863,24 @@ pub unsafe fn eret_to_el0_fiq(user_pc: u64, user_arg: u64, user_sp: u64) {
     eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_FIQ_ENABLED);
 }
 
+/// Arm taken lower-EL SError while standing (ADR-045). Host must inject.
+pub fn arm_el0_serror() {
+    EL0_SERROR_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_EL0_SERROR.store(true, Ordering::SeqCst);
+}
+
+pub fn el0_serror_caught() -> bool {
+    EXPECT_EL0_SERROR.store(false, Ordering::SeqCst);
+    EL0_SERROR_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// `ERET` to EL0 with SError unmasked (A clear); I/F stay masked (ADR-045).
+/// Default standing/task `ERET` keeps A set — probe only.
+#[allow(dead_code)]
+pub unsafe fn eret_to_el0_serror(user_pc: u64, user_arg: u64, user_sp: u64) {
+    eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_SERROR_ENABLED);
+}
+
 /// Arm the TTBR1 private-page EL0 load (ADR-016).
 pub fn arm_ttbr1_dabort() {
     TTBR1_DABORT_CAUGHT.store(false, Ordering::SeqCst);
@@ -1401,12 +1424,16 @@ pub extern "C" fn handle_fiq_lower_el(_ctx: &mut ExceptionContext) {
     park();
 }
 
-/// Lower-EL SError: if standing, stay at EL0 (defensive). No safe trigger on
-/// this virt/cortex-a57 cut — hello prints `el0: serror-park` instead.
+/// Lower-EL SError while standing: stay at EL0 when EXPECT is armed (ADR-045).
+/// Taken inject on QEMU 10 virt + `-cpu cortex-a57` is still Planned — hello
+/// prints `el0: serror-park` when the host inject does not fire.
 #[no_mangle]
 pub extern "C" fn handle_serror_lower_el(_ctx: &mut ExceptionContext) {
     if crate::el0::is_active() {
-        uart::write_str_raw("el0: serror\n");
+        if EXPECT_EL0_SERROR.swap(false, Ordering::SeqCst) {
+            EL0_SERROR_CAUGHT.store(true, Ordering::SeqCst);
+            uart::write_str_raw("el0: serror\n");
+        }
         stay_at_el0(_ctx);
         return;
     }

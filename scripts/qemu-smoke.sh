@@ -1,7 +1,7 @@
 #!/bin/sh
 # Fail-closed host smoke: build, require UART hello + paging + heap +
 # two-task sched + W^X + stack guards + RO+NX text/data + EL0 first mile +
-# EL0 no-kernel-read + standing EL0 + lower-EL IRQ while standing (ADR-040) + lower-EL FIQ (ADR-043) + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
+# EL0 no-kernel-read + standing EL0 + lower-EL IRQ while standing (ADR-040) + lower-EL FIQ (ADR-043) + SError QMP attempt (ADR-045) + SVC ABI (ADR-021) + libctos CRT (ADR-022) + guest ELF loader (ADR-023) + standing task (ADR-024) + ASID isolation + TTBR1 private page +
 # TTBR1 high-VA EL1 exec + identity-tear (ADR-018/019/020/025/037/038) + PAN ID (ADR-026) + CNTPCT baseline + boot-delta + IRQ-to-handler
 # delta + host ELF size +
 # timer tick + injected UART RX + BRK + fatal nested lines, then cargo test.
@@ -253,14 +253,24 @@ if ! grep -q "el0: fiq" "$log"; then
     exit 1
 fi
 if ! grep -q "el0: serror-park" "$log"; then
-    echo "qemu-smoke: missing 'el0: serror-park' on serial (ADR-043 SError park honesty, qemu exit $qemu_ec)" >&2
+    echo "qemu-smoke: missing 'el0: serror-park' on serial (ADR-045 taken SError still Planned; park honesty, qemu exit $qemu_ec)" >&2
     exit 1
+fi
+# ADR-045: QMP inject-nmi is attempted by qemu-serial-inject.py. On QEMU 10
+# virt+cortex-a57 it fails ("machine does not provide NMIs"). Do NOT require
+# `el0: serror` here — that would fake Verified. Soft-note if the taken
+# marker appears without the park suffix.
+if grep -E -q 'el0: serror$' "$log"; then
+    echo "qemu-smoke: note: taken 'el0: serror' present (would be Verified only with a working inject)"
+fi
+if grep -q "qemu-serial-inject: qmp inject-nmi" "$log"; then
+    echo "qemu-smoke: QMP inject-nmi attempt logged (ADR-045)"
 fi
 if ! grep -q "el0: no-vmalle1" "$log"; then
     echo "qemu-smoke: missing 'el0: no-vmalle1' on serial (ADR-039 EL0 entry without VMALLE1, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + fiq + serror-park + no-vmalle1 strings present"
+echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + fiq + serror-park + no-vmalle1 strings present (taken SError Planned)"
 if grep -q "svc: probe missed" "$log"; then
     echo "qemu-smoke: svc probe missed (EL0 ABI trip did not run)" >&2
     exit 1
