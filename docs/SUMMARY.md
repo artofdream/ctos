@@ -72,6 +72,7 @@
 - [ADR-043 Lower-EL FIQ + SError park](03-adr/ADR-043-lower-el-fiq-serror.md)
 - [ADR-044 Taken SError research](03-adr/ADR-044-taken-serror-research.md)
 - [ADR-045 Taken SError QMP attempt](03-adr/ADR-045-taken-serror-qmp.md)
+- [ADR-046 A9 slot performance delta](03-adr/ADR-046-slot-perf-delta.md)
 
 # Roadmap
 

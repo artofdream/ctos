@@ -51,8 +51,9 @@ fn main() {
     }
     fs::write(&elf_path, &elf).unwrap();
     // A9 / ADR-030 + leftover mile (ADR-032): publish a host app
-    // artifact next to the OS image. The kernel no longer
-    // `include_bytes!` this file; A2–A4 and A9 read FAT `/hello`.
+    // artifact next to the OS image. A2–A4 and production A9 read
+    // FAT `/hello` (no include_bytes!). ADR-046 may include this
+    // OUT_DIR copy from src/slot.rs for a probe-only CNTPCT pair.
     // A kernel rebuild still compiles the payload here.
     let published = manifest_dir.join("target/hello-libctos.elf");
     if let Some(parent) = published.parent() {

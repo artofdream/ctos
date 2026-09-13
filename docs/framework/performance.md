@@ -44,21 +44,22 @@ It does not time QEMU boot.
 
 That is **kernel_main-entry to after-init** on this QEMU virt guest. It is not a latency budget, not QEMU startup time, not a published bench, and not criterion.
 
-## OS/app slot disconnect (A9) — expected shape, not a bench
+## OS/app slot disconnect (A9) — compared pair (QEMU TCG lab)
 
-[A9 #48](https://github.com/artofdream/ctos/issues/48) / [ADR-030](../03-adr/ADR-030-os-app-slots.md) loads a **separate app payload** from FAT `/hello` after the OS image ([immutability.md](immutability.md), site [measure.md](../overview/measure.md)). The load path prints `perf: app-load ticks=<n>`. That is a **measurement**, not a bench. There is **no Verified delta** vs the A3 embed. Do not invent a “faster/slower than linked-in” number.
+[A9 #48](https://github.com/artofdream/ctos/issues/48) / [ADR-030](../03-adr/ADR-030-os-app-slots.md) loads a **separate app payload** from FAT `/hello` after the OS image ([immutability.md](immutability.md), site [measure.md](../overview/measure.md)). The load path prints `perf: app-load ticks=<n>`. [ADR-046](../03-adr/ADR-046-slot-perf-delta.md) adds a **probe-only** linked-in trip of the same `hello-libctos.elf` bytes (`include_bytes!` in `src/slot.rs` only) that prints `perf: embed-load ticks=<n>`, then an honest pair `perf: slot-delta app=<a> embed=<b>`. Production A9 stays FAT-only (`slot: embed` must never print). That is a **measurement pair**, not a bench and not a percent.
 
-| Class | What we expect (hypothesis) | Honesty |
+| Class | What we measure | Honesty |
 | --- | --- | --- |
-| **Costs** | Extra boot/load work; each SVC crossing; ASID/TTBR0 switches into the app map; optional COW later if payloads are shared | `perf: app-load` measures the FAT path. Cost vs embed is still uncompared. Not a budget. |
-| **Neutral / wins** | Steady EL0 compute (once mapped) should look like today’s standing stub, not like a new ISA. Smaller OS updates are an **operational** win (rebuild kernel without apps), not a CNTPCT win | Operational ≠ measured latency. A2–A4 still embed, so a kernel rebuild still compiles the hello. |
-| **Gate** | Keep `perf: boot-delta`. Fail closed on missing `perf: app-load` | Marker exists on the A9 path. A Verified *delta* stays Planned. |
+| **FAT path** | VFS/FAT read + ELF parse + user map + `ERET` | `perf: app-load ticks=<n>` |
+| **Probe-only embed** | Same bytes already in the kernel image; parse + map + `ERET` (no FAT) | `perf: embed-load ticks=<n>` — not `slot: embed` |
+| **Pair** | Raw tick counts on one boot | `perf: slot-delta app=<a> embed=<b>`. No “faster/slower.” No invented percent. QEMU TCG jitter. |
+| **Operational** | Smaller OS updates without rebuilding apps | Operational ≠ measured latency. A2–A4 stay FAT-only ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). |
+| **Gate** | Keep `perf: boot-delta`. Fail closed on missing `perf: app-load` / `perf: embed-load` / `perf: slot-delta` | Verified only when the ledger has serial evidence on a named tip. |
 
-Until a compared pair exists, A9 performance *delta* stays **Planned**. QEMU TCG jitter is still one lab. No `criterion` crate. No “slot disconnect is free.”
+QEMU TCG jitter is still one lab. No `criterion` crate. No “slot disconnect is free.”
 
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
-- App-load *delta* vs the A3 embed (A9) — marker exists; comparison does not. Site KPI page: [measure.md](../overview/measure.md#os-slot-vs-app-slot-performance). Do not invent a percent.
 
 Do not add a host `criterion` crate or a “bench.yml” that prints invented numbers.

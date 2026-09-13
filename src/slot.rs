@@ -7,6 +7,11 @@
 //! ELF on this OS and documented prior OS `ba6541c`) is a host smoke
 //! probe, not a guest serial line. Not OTA. Not A-B flash. Not OCI.
 //! Not app hosting.
+//!
+//! ADR-046: on the same boot, a **probe-only** CNTPCT trip maps the
+//! same `hello-libctos.elf` bytes linked via `include_bytes!` (OUT_DIR
+//! build artifact) so serial can print a compared pair. That probe is
+//! **not** the A9 slot path and must never print `slot: embed`.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -20,12 +25,24 @@ use crate::uart;
 #[cfg(test)]
 use crate::vfs;
 
+include!(concat!(env!("OUT_DIR"), "/hello_libctos_meta.rs"));
+
+const _: () = assert!(HELLO_ELF_LEN > 64);
+const _: () = assert!(HELLO_LEN > 0);
+const _: () = assert!(HELLO_LOAD_VA == 0x8000_2000);
+
 const SLOT_PATH: &str = "/hello";
 const SLOT_MAX: usize = 64 * 1024;
+
+/// Same bytes `build.rs` published for FAT `/hello`. Probe-only for
+/// ADR-046 CNTPCT compare — not production A2–A4 / A9 load.
+static EMBED_PROBE_ELF: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/hello-libctos.elf"));
 
 static FAT_OK: AtomicBool = AtomicBool::new(false);
 static LOAD_OK: AtomicBool = AtomicBool::new(false);
 static APP_LOAD: AtomicU64 = AtomicU64::new(0);
+static EMBED_LOAD: AtomicU64 = AtomicU64::new(0);
 
 fn read_slot() -> Option<Vec<u8>> {
     let out = fat::read_file(SLOT_PATH, SLOT_MAX)?;
@@ -35,12 +52,35 @@ fn read_slot() -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// Probe-only: map + `ERET` the linked-in hello ELF (no FAT read).
+/// Prints `perf: embed-load`, never `slot: embed`.
+fn measure_embed_load() -> Option<u64> {
+    if EMBED_PROBE_ELF.len() != HELLO_ELF_LEN {
+        return None;
+    }
+    if EMBED_PROBE_ELF[0] != 0x7f || &EMBED_PROBE_ELF[1..4] != b"ELF" {
+        return None;
+    }
+    let t0 = timer::cntpct();
+    if !loader::run_image(EMBED_PROBE_ELF) {
+        return None;
+    }
+    let ticks = timer::cntpct().wrapping_sub(t0);
+    if ticks == 0 {
+        return None;
+    }
+    Some(ticks)
+}
+
 /// Serial proof: FAT `/hello` parsed and `ERET`ed. Not the A3 embed.
+/// After the FAT trip, ADR-046 also times the linked-in bytes and
+/// prints an honest pair (QEMU TCG lab — not a published bench).
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     FAT_OK.store(false, Ordering::SeqCst);
     LOAD_OK.store(false, Ordering::SeqCst);
     APP_LOAD.store(0, Ordering::SeqCst);
+    EMBED_LOAD.store(0, Ordering::SeqCst);
     if !paging::mmu_enabled() || !paging::user_map_ready() || !fat::mounted() {
         return false;
     }
@@ -69,6 +109,20 @@ pub fn observe_probe() -> bool {
     let _ = writeln!(w, "slot: ok");
     let _ = writeln!(w, "perf: app-load ticks={ticks}");
     LOAD_OK.store(true, Ordering::SeqCst);
+
+    // ADR-046: same guest, probe-only linked-in trip for a compared pair.
+    // Must not print `slot: embed` (production path stays FAT-only).
+    if bytes.as_slice() != EMBED_PROBE_ELF {
+        let _ = writeln!(w, "perf: embed-load missed");
+        return false;
+    }
+    let Some(embed_ticks) = measure_embed_load() else {
+        let _ = writeln!(w, "perf: embed-load missed");
+        return false;
+    };
+    EMBED_LOAD.store(embed_ticks, Ordering::SeqCst);
+    let _ = writeln!(w, "perf: embed-load ticks={embed_ticks}");
+    let _ = writeln!(w, "perf: slot-delta app={ticks} embed={embed_ticks}");
     true
 }
 
@@ -95,6 +149,10 @@ fn slot_load_from_fat_erets() {
     assert!(FAT_OK.load(Ordering::SeqCst));
     assert!(LOAD_OK.load(Ordering::SeqCst));
     assert!(APP_LOAD.load(Ordering::SeqCst) > 0);
+    assert!(
+        EMBED_LOAD.load(Ordering::SeqCst) > 0,
+        "ADR-046 embed probe must advance CNTPCT"
+    );
 }
 
 #[cfg(test)]
@@ -103,4 +161,13 @@ fn slot_path_is_not_probe() {
     assert_eq!(SLOT_PATH, "/hello");
     assert!(vfs::valid_path(SLOT_PATH));
     assert!(!fat::has_name("/missing-slot"));
+}
+
+#[cfg(test)]
+#[test_case]
+fn slot_embed_probe_bytes_match_fat() {
+    assert_eq!(EMBED_PROBE_ELF.len(), HELLO_ELF_LEN);
+    assert_eq!(&EMBED_PROBE_ELF[0..4], b"\x7fELF");
+    let fat = read_slot().expect("FAT /hello");
+    assert_eq!(fat.as_slice(), EMBED_PROBE_ELF);
 }
