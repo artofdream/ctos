@@ -79,6 +79,9 @@
 - [ADR-050 FAT16 write](03-adr/ADR-050-fat16-write.md)
 - [ADR-051 FAT vs memfs write CNTPCT](03-adr/ADR-051-fat-memfs-write-cntpct.md)
 - [ADR-052 Sponsor accept app hosting](03-adr/ADR-052-sponsor-accept-app-hosting.md)
+- [ADR-053 Taken SError hard-stop](03-adr/ADR-053-taken-serror-hard-stop.md)
+- [ADR-054 PAN enable lock](03-adr/ADR-054-pan-enable-lock.md)
+- [ADR-055 EL0 isolated checklist](03-adr/ADR-055-el0-isolated-checklist.md)
 
 # Roadmap
 
