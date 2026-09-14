@@ -54,9 +54,57 @@
     overflow-wrap: break-word;
 }
 
+/*
+ * 44×44px tap targets on mdBook 0.5.4 chrome (all viewports).
+ * Stock chrome sets #mdbook-menu-bar .icon-button / .fa-svg to
+ * padding:0 8px (0 5px under 420px) with no min-width — DSO measured
+ * header icons under 44px at laptop width. Right-side print/GitHub
+ * controls are <a> + .fa-svg, not .icon-button. Force box size with
+ * enough specificity (and !important on min-*) to beat chrome.css.
+ */
+#mdbook-menu-bar .icon-button,
+#mdbook-menu-bar label.icon-button,
+#mdbook-menu-bar button.icon-button,
+#mdbook-sidebar-toggle,
+.menu-bar .icon-button,
+#mdbook-menu-bar .right-buttons > a,
+#mdbook-menu-bar .left-buttons > .icon-button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 0 10px !important;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    line-height: 1 !important;
+}
+
+/* Nested FA SVG must not become a second undersized hit target. */
+#mdbook-menu-bar .icon-button .fa-svg,
+#mdbook-menu-bar .right-buttons > a > .fa-svg {
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mobile-nav-chapters {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
 @media (max-width: 768px) {
     :root {
         --page-padding: 12px;
+        /* Stock is 50px; keep ≥44px on phones (safe-area padding is extra). */
+        --menu-bar-height: 50px;
     }
 
     /* 1.6rem × 62.5% root = 16px. Do not shrink body type on phones. */
@@ -76,36 +124,24 @@
         min-width: 28rem;
     }
 
-    /* architecture.artof.link bar: 44px tap targets on nav chrome. */
+    /* Sidebar chapter links + fold chevrons (mdBook fold UI). */
     .chapter li a,
     .chapter-fold-toggle {
-        min-height: 44px;
+        min-height: 44px !important;
+        min-width: 44px;
         display: inline-flex;
         align-items: center;
+        box-sizing: border-box;
+    }
+
+    .chapter-fold-toggle {
+        justify-content: center;
+        padding: 0 12px !important;
     }
 
     .chapter-link-wrapper {
         align-items: center;
         min-height: 44px;
-    }
-
-    #mdbook-menu-bar .icon-button,
-    #mdbook-sidebar-toggle,
-    .menu-bar .icon-button {
-        min-width: 44px;
-        min-height: 44px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        box-sizing: border-box;
-    }
-
-    .mobile-nav-chapters {
-        min-width: 44px;
-        min-height: 44px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
     }
 
     .content pre > code {
@@ -128,5 +164,16 @@
 @media (max-width: 420px) {
     :root {
         --page-padding: 10px;
+    }
+
+    /* Beat stock chrome padding:0 5px under 420px without shrinking hits. */
+    #mdbook-menu-bar .icon-button,
+    #mdbook-menu-bar label.icon-button,
+    #mdbook-menu-bar button.icon-button,
+    #mdbook-sidebar-toggle,
+    #mdbook-menu-bar .right-buttons > a {
+        min-width: 44px !important;
+        min-height: 44px !important;
+        padding: 0 10px !important;
     }
 }

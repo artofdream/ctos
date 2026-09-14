@@ -30,14 +30,20 @@
       return;
     }
     unwrapHighlightBlocks();
-    /* On phones, keep the natural diagram width and let .mermaid scroll
-     * (see mermaid.css). useMaxWidth:true squashes labels on 320px. */
-    var narrow = window.matchMedia("(max-width: 768px)").matches;
+    /* Always useMaxWidth so diagrams fit the content column on phones
+     * and desktop. CSS (.mermaid svg { max-width:100% }) reinforces the
+     * clamp; overflow-x:auto on .mermaid is fallback only. Slightly larger
+     * theme font keeps labels readable after scale-down. */
     window.mermaid.initialize({
       startOnLoad: false,
       theme: isDark() ? "dark" : "neutral",
       securityLevel: "strict",
-      flowchart: { htmlLabels: false, useMaxWidth: !narrow },
+      themeVariables: {
+        fontSize: "16px",
+      },
+      flowchart: { htmlLabels: false, useMaxWidth: true },
+      sequence: { useMaxWidth: true },
+      gantt: { useMaxWidth: true },
     });
     window.mermaid.run({ querySelector: ".mermaid" }).catch(function () {
       /* Keep the source text if a diagram fails to parse. */

@@ -1,6 +1,7 @@
-/* Keep diagrams readable inside mdBook chapter width.
- * On narrow viewports, scroll the diagram instead of shrinking labels
- * to an unreadable size (useMaxWidth is also flipped in mermaid-init.js).
+/* Fit Mermaid diagrams to the chapter content width.
+ * useMaxWidth:true in mermaid-init.js scales the SVG; CSS clamps as a
+ * belt-and-suspenders so page-level horizontal overflow never appears.
+ * overflow-x:auto remains only as a fallback for pathological diagrams.
  */
 .mermaid {
     overflow-x: auto;
@@ -11,17 +12,12 @@
 }
 
 .mermaid svg {
-    max-width: 100%;
-    height: auto;
+    max-width: 100% !important;
+    height: auto !important;
 }
 
 @media (max-width: 768px) {
     .mermaid {
         text-align: left;
-    }
-
-    .mermaid svg {
-        max-width: none;
-        height: auto;
     }
 }
