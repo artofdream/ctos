@@ -13,13 +13,14 @@ Do not say ctos hosts Linux programs, POSIX apps, or containers. The scoped free
 **Product claim (Verified):** “apps run independently / hosting done” is **Verified** under ADR-048 (checklist below). Scope stays freestanding slots — not Linux userspace.
 
 ```mermaid
-flowchart TD
-  TODAY["Today: OS ELF + FAT /hello<br/>A9 first cut + cross-update<br/>Verified miles"]
-  CLAIM["Product: apps run independently<br/>Verified — ADR-048 Met×5 / ADR-052"]
-  TODAY --> CLAIM
+flowchart LR
+  OS["OS ELF<br/>QEMU -kernel"] --> FAT["FAT16 /hello"]
+  APP["Published app ELF"] --> FAT
+  FAT --> LOAD["Guest PT_LOAD<br/>standing EL0"]
+  LOAD --> CLAIM["Product hosting<br/>Verified — ADR-048/052"]
 ```
 
-*Say the freestanding slot-hosting claim is Verified. Do not say Linux hosting, containers, OTA, or “EL0 isolated.” Runtime cost vs embed is a lab measurement pair ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)), not a marketing delta.*
+*Freestanding slot-hosting is Verified (Met×5). Do not say Linux hosting, containers, OTA, or “EL0 isolated.” Runtime cost vs embed is a lab measurement pair ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)), not a marketing delta.*
 
 ## Gaps before hosting applications
 
