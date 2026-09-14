@@ -1000,9 +1000,13 @@ if [ "$test_ec" -ne 0 ]; then
     exit "$test_ec"
 fi
 
-echo "qemu-smoke: force-fail must be non-zero"
+# Force-fail rebuilds ctos with --features force-fail. On ubuntu-24.04-arm GHA
+# that recompile alone can take ~30s, and ADR-059 /fsdemo also lengthens boot —
+# so the old 30s wall often expired before semihosting exit. Override via env.
+FORCE_FAIL_TIMEOUT_SECS="${CTOS_FORCE_FAIL_TIMEOUT:-120}"
+echo "qemu-smoke: force-fail must be non-zero (timeout ${FORCE_FAIL_TIMEOUT_SECS}s)"
 set +e
-timeout 30 cargo +nightly test --features force-fail -- --nocapture
+timeout "$FORCE_FAIL_TIMEOUT_SECS" cargo +nightly test --features force-fail -- --nocapture
 fail_ec=$?
 set -e
 if [ "$fail_ec" -eq 0 ]; then
