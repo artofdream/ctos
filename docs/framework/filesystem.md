@@ -1,6 +1,6 @@
 # Filesystem stance
 
-**Thin VFS with two backends.** memfs (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) is in-RAM named buffers. FAT16 on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) is an on-disk volume; write depth is [ADR-050](../03-adr/ADR-050-fat16-write.md); root listing is [ADR-056](../03-adr/ADR-056-fat16-readdir.md). Same `vfs::open` / `read` / `write` / `close` (+ `readdir` for FAT root). No POSIX `mount` / `getdents`, no FAT32, no xv6-like inode FS. Linux VFS objects vs this thin surface: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md) (Track B B5). **Not claiming a Linux filesystem.**
+**Thin VFS with two backends.** memfs (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) is in-RAM named buffers. FAT16 on virtio-blk (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) is an on-disk volume; write depth is [ADR-050](../03-adr/ADR-050-fat16-write.md); root listing is [ADR-056](../03-adr/ADR-056-fat16-readdir.md); root delete is [ADR-057](../03-adr/ADR-057-fat16-delete.md). Same `vfs::open` / `read` / `write` / `close` (+ `readdir` / `unlink` for FAT root). No POSIX `mount` / `getdents` / `unlink`, no FAT32, no xv6-like inode FS. Linux VFS objects vs this thin surface: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md) (Track B B5). **Not claiming a Linux filesystem.**
 
 Do not say “ctos has files” as if it were a Linux volume. Do not mint a new FR/NFR ID in chat. Frozen Out list already names POSIX / userspace as later ([fr-nfr.md](../02-requirements/fr-nfr.md)). Hub: [overview.md](overview.md). Samples that do run: [apps-today.md](apps-today.md).
 
@@ -14,9 +14,9 @@ Each step is one milestone → one branch → one PR.
 | --- | --- | --- | --- |
 | 1. **memfs** | In-RAM named buffers on the first-fit heap (`src/heap.rs`). Create / lookup / read / write of a path without DMA. | Same “easiest in-tree” shape as a coop EL1 task. | **Verified** (A6 / ADR-027). Serial `fs: ok`. |
 | 2. **virtio-blk** | QEMU `virt` virtio-mmio block: virtqueues, DMA, sector R/W. | Host `-drive` is not a probe. | **Verified** when the ledger has `blk: ok` (A7 / ADR-028). |
-| 3. **FAT16** | Host-visible 4 MiB raw image; guest opens `/probe` (`PROBE`) and reads `fat-hi`. A9 also stores the app ELF as `/hello`. | Chosen over xv6-like so the host can inspect the image (`scripts/mkfat16.py --check`). FAT32 / xv6 rejected this mile. | **Verified** when the ledger has `fat: ok`. Write depth: [ADR-050](../03-adr/ADR-050-fat16-write.md). Root listing: [ADR-056](../03-adr/ADR-056-fat16-readdir.md). `/hello` is the A9 slot, not a second FS. |
+| 3. **FAT16** | Host-visible 4 MiB raw image; guest opens `/probe` (`PROBE`) and reads `fat-hi`. A9 also stores the app ELF as `/hello`. | Chosen over xv6-like so the host can inspect the image (`scripts/mkfat16.py --check`). FAT32 / xv6 rejected this mile. | **Verified** when the ledger has `fat: ok`. Write depth: [ADR-050](../03-adr/ADR-050-fat16-write.md). Root listing: [ADR-056](../03-adr/ADR-056-fat16-readdir.md). Root delete: [ADR-057](../03-adr/ADR-057-fat16-delete.md). `/hello` is the A9 slot, not a second FS. |
 
-`fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` stay fail-closed. A7 adds `blk: virtio` / `blk: cap` / `blk: rw` / `blk: ok` and `fat: mount` / `fat: read` / `fat: ok`. ADR-050 adds `fat: write` / `fat: rewrite` / `fat: create`. ADR-056 adds `fat: readdir` / `fat: entries`.
+`fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` stay fail-closed. A7 adds `blk: virtio` / `blk: cap` / `blk: rw` / `blk: ok` and `fat: mount` / `fat: read` / `fat: ok`. ADR-050 adds `fat: write` / `fat: rewrite` / `fat: create`. ADR-056 adds `fat: readdir` / `fat: entries`. ADR-057 adds `fat: delete`.
 
 QEMU flags (smoke + cargo runner):
 
@@ -29,6 +29,7 @@ QEMU flags (smoke + cargo runner):
 - Not “we have a disk because QEMU can attach one.” Host `-drive` without guest virtio + a VFS read is not a probe.
 - Not POSIX writeable volumes. Guest FAT write is a thin-VFS depth mile ([ADR-050](../03-adr/ADR-050-fat16-write.md)); say “wrote FAT16 bytes” when markers pass.
 - Not POSIX `getdents` / `opendir`. Guest FAT root listing is a thin-VFS depth mile ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)); say “listed FAT16 root entries” when markers pass.
+- Not POSIX `unlink` / `remove`. Guest FAT root delete is a thin-VFS depth mile ([ADR-057](../03-adr/ADR-057-fat16-delete.md)); say “deleted a FAT16 directory entry” when markers pass.
 - Not app hosting. A8 is documented sample **rebuild recipes** ([what-can-run.md](../overview/what-can-run.md)).
 
 ## Honesty
@@ -40,5 +41,6 @@ QEMU flags (smoke + cargo runner):
 | FAT16 on that device | Serial `fat: ok`; VFS `/probe` = `fat-hi` | **Verified** on this tip when the ledger has the probe |
 | FAT16 write + small create | Serial `fat: write` / `fat: create`; host `--check-write` | **Verified** on this tip when the ledger has the probe ([ADR-050](../03-adr/ADR-050-fat16-write.md)) |
 | FAT16 root readdir | Serial `fat: readdir` / `fat: entries` | **Verified** on this tip when the ledger has the probe ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)) |
+| FAT16 root delete | Serial `fat: delete` | **Verified** on this tip when the ledger has the probe ([ADR-057](../03-adr/ADR-057-fat16-delete.md)) |
 
 Unprobed stays **Unknown**. File presence is not that probe. See the [honesty ledger](honesty-ledger.md).

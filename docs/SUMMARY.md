@@ -83,6 +83,7 @@
 - [ADR-054 PAN enable lock](03-adr/ADR-054-pan-enable-lock.md)
 - [ADR-055 EL0 isolated checklist](03-adr/ADR-055-el0-isolated-checklist.md)
 - [ADR-056 FAT16 readdir](03-adr/ADR-056-fat16-readdir.md)
+- [ADR-057 FAT16 delete](03-adr/ADR-057-fat16-delete.md)
 
 # Roadmap
 
