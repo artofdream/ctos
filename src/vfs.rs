@@ -1,10 +1,9 @@
 //! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028, write ADR-050,
-//! readdir ADR-056, delete ADR-057).
+//! readdir ADR-056, delete ADR-057) + prefix mounts (ADR-058).
 //!
-//! One `open` story. memfs is in-RAM named buffers. FAT16 is a second
-//! backend on virtio-blk (read + write + root listing + delete). `create`
-//! stays memfs-first. Not Linux VFS. Not POSIX `unlink` / `getdents`.
-//! Not app hosting.
+//! One `open` story. A small mount table routes path **prefixes** to a
+//! backend (`/mem` + A6 probe names → memfs; `/` → FAT16). Not Linux VFS.
+//! Not POSIX `mount` / `unlink` / `getdents`. Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -276,6 +275,46 @@ pub fn valid_path(path: &str) -> bool {
 /// FAT fds are tagged so the router does not invent a second `open`.
 const FAT_FD_TAG: u32 = 0x100;
 
+/// Which backend owns a path prefix (ADR-058). Not a Linux `vfsmount`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Backend {
+    MemFs,
+    Fat16,
+}
+
+/// One prefix → backend entry. Longest prefix wins.
+#[derive(Clone, Copy, Debug)]
+pub struct Mount {
+    pub prefix: &'static str,
+    pub backend: Backend,
+}
+
+/// Static first-cut mount table. `/mem` is the documented memfs home;
+/// A6 probe names stay memfs so `/kprobe` / `/eprobe` / `/mwprobe` habits
+/// hold; `/` routes everything else (incl. `/probe`, `/hello`) to FAT16.
+pub const MOUNTS: &[Mount] = &[
+    Mount {
+        prefix: "/kprobe",
+        backend: Backend::MemFs,
+    },
+    Mount {
+        prefix: "/eprobe",
+        backend: Backend::MemFs,
+    },
+    Mount {
+        prefix: "/mwprobe",
+        backend: Backend::MemFs,
+    },
+    Mount {
+        prefix: "/mem",
+        backend: Backend::MemFs,
+    },
+    Mount {
+        prefix: "/",
+        backend: Backend::Fat16,
+    },
+];
+
 fn is_fat_fd(fd: u32) -> bool {
     fd & FAT_FD_TAG != 0
 }
@@ -284,18 +323,69 @@ fn fat_inner(fd: u32) -> u32 {
     fd & !FAT_FD_TAG
 }
 
-pub fn create(path: &str) -> Result<u32, FsError> {
-    if crate::fat::has_name(path) {
-        return Err(FsError::Exists);
+fn backend_label(b: Backend) -> &'static str {
+    match b {
+        Backend::MemFs => "memfs",
+        Backend::Fat16 => "fat",
     }
-    FS.lock().create(path)
+}
+
+/// Longest-prefix mount lookup. Flat path grammar unchanged (`valid_path`).
+pub fn resolve(path: &str) -> Result<Backend, FsError> {
+    if !valid_path(path) {
+        return Err(FsError::BadPath);
+    }
+    let mut best: Option<&Mount> = None;
+    for m in MOUNTS {
+        if path.starts_with(m.prefix)
+            && best.map_or(true, |b| m.prefix.len() > b.prefix.len())
+        {
+            best = Some(m);
+        }
+    }
+    Ok(best.expect("root mount `/` always matches").backend)
+}
+
+fn emit_mount_table() -> bool {
+    if resolve("/probe") != Ok(Backend::Fat16) {
+        return false;
+    }
+    if resolve("/hello") != Ok(Backend::Fat16) {
+        return false;
+    }
+    if resolve("/kprobe") != Ok(Backend::MemFs) {
+        return false;
+    }
+    if resolve("/eprobe") != Ok(Backend::MemFs) {
+        return false;
+    }
+    if resolve("/memx") != Ok(Backend::MemFs) {
+        return false;
+    }
+    let mut w = uart::raw();
+    for m in MOUNTS {
+        let _ = writeln!(
+            w,
+            "vfs: mount {} -> {}",
+            m.prefix,
+            backend_label(m.backend)
+        );
+    }
+    let _ = writeln!(w, "vfs: mounts");
+    true
+}
+
+pub fn create(path: &str) -> Result<u32, FsError> {
+    match resolve(path)? {
+        Backend::MemFs => FS.lock().create(path),
+        Backend::Fat16 => crate::fat::create(path).map(|fd| fd | FAT_FD_TAG),
+    }
 }
 
 pub fn open(path: &str) -> Result<u32, FsError> {
-    match FS.lock().open(path) {
-        Ok(fd) => Ok(fd),
-        Err(FsError::Missing) => crate::fat::open(path).map(|fd| fd | FAT_FD_TAG),
-        Err(e) => Err(e),
+    match resolve(path)? {
+        Backend::MemFs => FS.lock().open(path),
+        Backend::Fat16 => crate::fat::open(path).map(|fd| fd | FAT_FD_TAG),
     }
 }
 
@@ -325,21 +415,18 @@ pub fn close(fd: u32) -> Result<(), FsError> {
 
 /// List FAT16 root names as thin-VFS paths (`/probe`, …). Same entry point
 /// story as `open`/`read`/`write` — not a second FS. Not POSIX `getdents`
-/// / `opendir`. memfs has no directory tree this mile.
+/// / `opendir`. memfs has no directory tree this mile. Routed at the FAT
+/// mount (`/`); not a union listing.
 pub fn readdir(out: &mut [[u8; PATH_MAX]], cap: usize) -> Result<usize, FsError> {
     crate::fat::readdir(out, cap)
 }
 
-/// Delete a path. FAT16 root files go through `fat::unlink` when present;
-/// otherwise memfs. Not POSIX `unlink`.
+/// Delete a path on the mount that owns its prefix. Not POSIX `unlink`.
 pub fn unlink(path: &str) -> Result<(), FsError> {
-    if !valid_path(path) {
-        return Err(FsError::BadPath);
+    match resolve(path)? {
+        Backend::MemFs => FS.lock().unlink(path),
+        Backend::Fat16 => crate::fat::unlink(path),
     }
-    if crate::fat::has_name(path) {
-        return crate::fat::unlink(path);
-    }
-    FS.lock().unlink(path)
 }
 
 fn kernel_roundtrip() -> bool {
@@ -430,10 +517,14 @@ fn el0_roundtrip() -> bool {
     true
 }
 
-/// Serial proof: kernel + EL0 create/write/read/close. FAT is a later observe.
+/// Serial proof: prefix mount table + kernel + EL0 create/write/read/close.
+/// FAT volume probes stay in `fat::observe_probe`.
 #[allow(dead_code)] // hello kernel only; cargo test uses the cases below.
 pub fn observe_probe() -> bool {
     if !paging::mmu_enabled() || !paging::user_map_ready() {
+        return false;
+    }
+    if !emit_mount_table() {
         return false;
     }
     if !kernel_roundtrip() {
@@ -510,4 +601,41 @@ fn vfs_paths_and_caps_are_documented() {
 fn vfs_fat_probe_is_same_open() {
     assert_eq!(open("/probe").map(|_| true), Ok(true));
     assert_eq!(create("/probe"), Err(FsError::Exists));
+}
+
+#[cfg(test)]
+#[test_case]
+fn vfs_prefix_mounts_route_backends() {
+    assert_eq!(resolve("/probe"), Ok(Backend::Fat16));
+    assert_eq!(resolve("/hello"), Ok(Backend::Fat16));
+    assert_eq!(resolve("/fwr"), Ok(Backend::Fat16));
+    assert_eq!(resolve("/kprobe"), Ok(Backend::MemFs));
+    assert_eq!(resolve("/eprobe"), Ok(Backend::MemFs));
+    assert_eq!(resolve("/mwprobe"), Ok(Backend::MemFs));
+    assert_eq!(resolve("/memx"), Ok(Backend::MemFs));
+    assert_eq!(resolve("/missing"), Ok(Backend::Fat16));
+    assert_eq!(resolve("nope"), Err(FsError::BadPath));
+    assert_eq!(resolve("/bad/path"), Err(FsError::BadPath));
+    // Longest prefix: `/mem` wins over `/` for `/mem…`.
+    assert!(MOUNTS.iter().any(|m| m.prefix == "/mem" && m.backend == Backend::MemFs));
+    assert!(MOUNTS.iter().any(|m| m.prefix == "/" && m.backend == Backend::Fat16));
+}
+
+#[cfg(test)]
+#[test_case]
+fn vfs_memfs_mount_create_stays_off_fat() {
+    reset();
+    let fd = create(KERNEL_PATH).expect("memfs create on /kprobe mount");
+    assert!(!is_fat_fd(fd));
+    assert_eq!(write(fd, KERNEL_BYTES).ok(), Some(KERNEL_BYTES.len()));
+    assert_eq!(close(fd), Ok(()));
+    // Same name must not appear as a FAT root file.
+    assert!(!crate::fat::has_name(KERNEL_PATH));
+    let fd = open(KERNEL_PATH).expect("memfs open");
+    let mut buf = [0u8; 16];
+    let n = read(fd, &mut buf).expect("memfs read");
+    assert_eq!(&buf[..n], KERNEL_BYTES);
+    assert_eq!(close(fd), Ok(()));
+    assert_eq!(unlink(KERNEL_PATH), Ok(()));
+    assert_eq!(open(KERNEL_PATH), Err(FsError::Missing));
 }

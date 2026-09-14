@@ -82,17 +82,18 @@ flowchart LR
 
 ## Thin VFS stack
 
-One thin VFS surface (`open` / `read` / `write` / `close` / `readdir`) with two backends: in-RAM **memfs** and **FAT16** on virtio-blk. Read, write, and root listing are depth miles — not POSIX. Stance: [filesystem.md](../overview/filesystem.md).
+One thin VFS surface (`open` / `read` / `write` / `close` / `readdir` / `unlink`) with two backends and a **prefix mount table**: in-RAM **memfs** and **FAT16** on virtio-blk. `/mem` (+ A6 names) → memfs; `/` → FAT16. Read, write, root listing, delete, and mounts are depth miles — not POSIX. Stance: [filesystem.md](../overview/filesystem.md). [ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md).
 
 ```mermaid
 flowchart TD
-  APP2["Standing EL0 / EL1 callers"] --> VFS["Thin VFS<br/>open · read · write · close · readdir"]
-  VFS --> MEM["memfs<br/>in-RAM named buffers"]
-  VFS --> FAT2["FAT16<br/>read · write · root readdir"]
+  APP2["Standing EL0 / EL1 callers"] --> VFS["Thin VFS<br/>open · read · write · close · readdir · unlink"]
+  VFS --> MT["Prefix mount table<br/>ADR-058"]
+  MT -->|"/mem · A6 names"| MEM["memfs<br/>in-RAM named buffers"]
+  MT -->|"/"| FAT2["FAT16<br/>read · write · root readdir · unlink"]
   FAT2 --> BLK["virtio-blk<br/>host fat16.img"]
 ```
 
-*Same API, two backends. Say “listed FAT16 root entries” when `fat: readdir` passes — not “POSIX filesystem” or “supports FAT” as a product.*
+*Same API, two backends, prefix mounts. Say “routed path prefixes through a mount table” when `vfs: mounts` passes — not `mount(2)` or “supports FAT” as a product.*
 
 ## Current stage (UART hello + M2–M9 + ADR-011 pillars)
 
@@ -122,7 +123,7 @@ Source + local smoke were first probed on 2026-09-08 (see the honesty ledger). C
 | Heap | M8: first-fit `GlobalAlloc` on identity-mapped frames (FR-10 / ADR-009) — probe status in the honesty ledger. |
 | Scheduler | M9: cooperative EL1 yield (FR-11 / ADR-010) — probe status in the honesty ledger. Not preemptive. |
 | Pillars | [ADR-011](../03-adr/ADR-011-three-pillars.md): antifragility / security / performance. Threat-model **v1.31** ([security.md](../framework/security.md)). Heap NX ([ADR-012](../03-adr/ADR-012-wx-nx-heap-stacks.md)). Linker-stack guards ([ADR-014](../03-adr/ADR-014-linker-stack-guard-pages.md)). EL0 first mile + standing + ASID TLB mile; TTBR1 first cut ([ADR-016](../03-adr/ADR-016-ttbr1-private-page.md)); EL1 high-VA fetch ([ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md)); identity-tear first cut ([ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md)); identity `.text` range tear ([ADR-019](../03-adr/ADR-019-identity-text-range-tear.md)); live `.text` tear ([ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md)); SVC ABI ([ADR-021](../03-adr/ADR-021-svc-syscall-abi.md)); `libctos` CRT ([ADR-022](../03-adr/ADR-022-libctos-crt.md)); guest ELF PT_LOAD loader ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)); standing EL0 as normal mode ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)); identity `.rodata` tear ([ADR-025](../03-adr/ADR-025-identity-rodata-tear.md)); PAN capability ([ADR-026](../03-adr/ADR-026-pan-capability.md), enable locked non-goal on default a57 per [ADR-054](../03-adr/ADR-054-pan-enable-lock.md)); thin VFS + memfs ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)); virtio-blk + FAT16 ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)); FAT16 write ([ADR-050](../03-adr/ADR-050-fat16-write.md)); FAT16 readdir ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)); OS/app slot first cut ([ADR-030](../03-adr/ADR-030-os-app-slots.md)); leftover cross-update + FAT-only hello ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)); umbrella isolation Planned/non-claim until checklist ([ADR-013](../03-adr/ADR-013-el0-isolation-direction.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md) / [ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md)). Product freestanding app hosting **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) (Track A #31; not Linux/POSIX/containers). |
-| Filesystem | Thin VFS + memfs ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) + virtio-blk / FAT16 read ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) + write ([ADR-050](../03-adr/ADR-050-fat16-write.md)) + root readdir ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Stance: [filesystem.md](../framework/filesystem.md). |
+| Filesystem | Thin VFS + memfs ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) + virtio-blk / FAT16 read ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)) + write ([ADR-050](../03-adr/ADR-050-fat16-write.md)) + root readdir ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)) + root delete ([ADR-057](../03-adr/ADR-057-fat16-delete.md)) + prefix mounts ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Stance: [filesystem.md](../framework/filesystem.md). |
 | Host apps / containers | Gaps to Linux/shell/Python: [host-apps.md](../framework/host-apps.md). Linux-compat is a research frame ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)); **not claiming Linux userspace yet**. Guest container runtime is a **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)). Host `docker-smoke` is unrelated. A1 is a kernel SVC ABI mile. A2 is a `libctos` CRT mile. A3 is a guest ELF PT_LOAD loader mile. A4 is standing EL0 as normal mode for a loaded image. A6 is thin VFS + memfs. A7 is virtio-blk + FAT16. A9 is the OS/app slot first cut. |
 | Immutability | Scoped RO only ([immutability.md](../framework/immutability.md)). Absolute “immutable OS” is incompatible. Track A [#31](https://github.com/artofdream/ctos/issues/31) / Track B [#40](https://github.com/artofdream/ctos/issues/40). |
 

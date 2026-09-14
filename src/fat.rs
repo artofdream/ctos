@@ -851,7 +851,8 @@ fn vfs_probe_write() -> bool {
 }
 
 /// Create `/fwr` on the volume (FAT backend), write bytes, confirm via VFS open.
-/// `vfs::create` stays memfs-first (A6); this is the FAT create mile.
+/// ADR-058 routes `/fwr` to FAT; this probe still calls `fat::create` directly
+/// so a re-run can overwrite without depending on vfs create Exists handling.
 fn vfs_probe_create() -> bool {
     CREATE_OK.store(false, Ordering::SeqCst);
     if has_name(CREATE_PATH) {

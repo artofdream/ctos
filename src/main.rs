@@ -197,8 +197,9 @@ extern "C" fn kernel_main_high() -> ! {
         if !el0::observe_standing_task() {
             uart::write_str_raw("el0: task missed\n");
         }
-        // Serial proof for qemu-smoke (Track A / A6 / ADR-027): thin VFS
-        // + memfs create/write/read/close. Not FAT. Not app hosting.
+        // Serial proof for qemu-smoke (Track A / A6 / ADR-027 + ADR-058):
+        // prefix mount table + memfs create/write/read/close. Not mount(2).
+        // Not app hosting.
         if !vfs::observe_probe() {
             uart::write_str_raw("fs: probe missed\n");
         }
