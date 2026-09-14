@@ -1,0 +1,65 @@
+# ADR-055 — Umbrella “EL0 isolated” non-claim checklist
+
+- Status: Accepted (docs). Umbrella “EL0 isolated” stays **Planned / non-claim** and **cannot become Verified** under current constraints. This ADR tightens the non-claim with an evidence checklist; it does **not** invent Verified.
+- Date: 2026-09-14
+- Locks [ADR-047](ADR-047-isolation-leftovers-decisions.md) decision #4. Optional ledger clarity: “non-claim until checklist.”
+
+## Context
+
+Many Track A / A5 miles are **Verified** (standing EL0, IRQ/FIQ while standing, identity tears, PAN **ID-field**, SError **park**, start-stay, leftover RAM tear, …). Rounding those miles up to “EL0 isolated” is forbidden. Sponsor / DSO asked to **secure** the umbrella gap before Guest Linux / containers / immutable-OS marketing: publish a checklist of Verified miles vs umbrella requirements still unmet, given:
+
+- PAN enable locked non-goal on default a57 ([ADR-054](ADR-054-pan-enable-lock.md))
+- `_start` stays / never yank ([ADR-042](ADR-042-isolation-leftover-wrap.md) / [ADR-047](ADR-047-isolation-leftovers-decisions.md))
+- Taken lower-EL SError hard-stopped / deferred ([ADR-053](ADR-053-taken-serror-hard-stop.md))
+
+CloudAgent HELD; docs-only.
+
+## Decision
+
+1. **Umbrella stays Planned / non-claim.** Ledger wording may say **“non-claim until checklist”** (this ADR). Do not flip to Verified.
+2. **Checklist is the gate.** “EL0 isolated” may be reconsidered only when **every** Unmet row below is Met under its own ADR + probes — not by summing existing miles.
+3. **Specific Verified miles are not the umbrella.** Cite them as themselves.
+
+## Evidence checklist
+
+### A. Verified miles (not sufficient for the umbrella)
+
+| Mile | Evidence (serial / test) | ADR |
+| --- | --- | --- |
+| EL0 first mile + NX kernel data | `el0: ok` / `el0: nx kernel` | ADR-013 |
+| User TTBR0 read mile | `el0: no data` | ADR-013 |
+| Standing EL0 + standing task | `el0: standing` / `el0: task-ok` | ADR-013 / ADR-024 |
+| ASID isolation | `asid: ok` | ADR-013 |
+| TTBR1 private page + high EL1 fetch | `ttbr1: ok` / `ttbr1: el1 exec` | ADR-016 / ADR-017 |
+| Identity tears (text/rodata/data/heap/ram) | `ident: *` / `ident: ok` | ADR-018…020 / 025 / 037 / 038 / 049 |
+| EL0 entry without `VMALLE1` | `el0: no-vmalle1` | ADR-039 |
+| Lower-EL IRQ while standing + default I clear | `el0: irq` / `el0: irq-default` | ADR-040 / ADR-041 |
+| Lower-EL FIQ while standing | `el0: fiq` | ADR-043 |
+| SError **park** honesty | `el0: serror-park` | ADR-043 / ADR-045 |
+| PAN **ID-field** on cortex-a57 | `pan: id=0` / `pan: absent` | ADR-026 |
+| `_start` stay honesty | `ident: start-stay` | ADR-042 / ADR-047 |
+
+### B. Umbrella requirements still **Unmet** (block Verified)
+
+| Requirement | Current status | Why unmet | Reopen / lock ADR |
+| --- | --- | --- | --- |
+| PAN **enable** + EL1-vs-EL0 fault | **Non-goal** on default `-cpu cortex-a57` | `pan: absent`; enable locked | [ADR-054](ADR-054-pan-enable-lock.md) |
+| Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt+a57 (`machine does not provide NMIs`) | [ADR-053](ADR-053-taken-serror-hard-stop.md) |
+| Full identity teardown including yank `_start` | **Decided: never** while `-kernel` needs `0x4008_0000` | Boot stub stays (`ident: start-stay`) | ADR-042 / ADR-047 |
+| Written sponsor accept that the umbrella sentence is in scope | **Absent** | No ADR-048-style accept for “EL0 isolated” | Would need a future accept ADR — **not** this file |
+
+Until §B is cleared under honest probes (and `_start` policy is redesigned with sponsor scope if ever), the umbrella row stays **non-claim**.
+
+## Honesty
+
+Say “umbrella EL0 isolation is Planned / non-claim until the ADR-055 checklist; many isolation miles are Verified but that is not ‘EL0 isolated.’” Do **not** say:
+
+- “EL0 isolated” / “secure OS” / “hardened isolation complete”
+- PAN enabled / taken SError Verified / `_start` yanked
+- Guest Linux / containers / immutable-OS marketing as if isolation were closed
+
+## Consequences
+
+- Honesty ledger umbrella row cites this checklist; optional label **“non-claim until checklist.”**
+- [el0.md](../framework/el0.md), roadmap P-SEC-3l, [security.md](../framework/security.md), [limits.md](../overview/limits.md) point here.
+- No `src/` change. No Verified invent. Threat-model patch bump only.

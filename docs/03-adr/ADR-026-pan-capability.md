@@ -1,6 +1,6 @@
 # ADR-026 — PAN capability: probe the ID field, do not invent the CPU
 
-- Status: Accepted (capability probe). **PAN enable stays Planned** on the default probe CPU.
+- Status: Accepted (capability probe). **PAN enable is non-goal (locked)** on the default probe CPU ([ADR-054](ADR-054-pan-enable-lock.md)).
 - Date: 2026-09-12
 
 ## Context
@@ -40,3 +40,4 @@ Say “`ID_AA64MMFR1_EL1.PAN` is 0 on `-cpu cortex-a57`” only when the serial 
 - `src/pan.rs` owns the ID-field probe. Isolation docs cite this ADR as **Planned** for the enable mile.
 - [ADR-047](ADR-047-isolation-leftovers-decisions.md) records: PAN **enable** is a **non-goal** on the default probe CPU; ID-field probe stays Verified.
 - A future CPU change needs its own ADR + sponsor and must not be a silent script edit.
+- **Enable lock:** [ADR-054](ADR-054-pan-enable-lock.md) (2026-09-14) locks PAN enable as non-goal on default cortex-a57 and documents the reopen gate (sponsor CPU + FEAT_PAN + enable+fault ADR).

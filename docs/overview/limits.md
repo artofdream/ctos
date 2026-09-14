@@ -12,7 +12,7 @@ QEMU `-kernel` and `_start` stay at `0x4008_0000`. High-address work (kernel pag
 
 ## Privileged Access Never — enable is a non-goal on `cortex-a57`
 
-**PAN** is a hardware feature that would stop the kernel from casually reading user memory. Default probe CPU is `-cpu cortex-a57` (ARMv8.0). The ID-field probe is Verified (`pan: absent`). **PAN enable is a non-goal on that default probe CPU** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not claim PAN. Do not silently switch `-cpu`. A future CPU story needs its own ADR + sponsor.
+**PAN** is a hardware feature that would stop the kernel from casually reading user memory. Default probe CPU is `-cpu cortex-a57` (ARMv8.0). The ID-field probe is Verified (`pan: absent`). **PAN enable is a locked non-goal on that default probe CPU** ([ADR-054](../03-adr/ADR-054-pan-enable-lock.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not claim PAN. Do not silently switch `-cpu`. Reopen gate: sponsor-approved default CPU + FEAT_PAN + enable+fault ADR.
 
 ## No network; disk is virtio-blk + FAT16 only
 
@@ -32,7 +32,7 @@ Read-only code / not-executable data, and torn identity ranges (including leftov
 
 ## Other honest gaps
 
-- Umbrella user-mode isolation: **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md); PAN enable non-goal on a57; `_start` stays; taken SError deferred; leftover RAM torn via ADR-049 — still not “EL0 isolated”).
+- Umbrella user-mode isolation: **Planned / non-claim until checklist** ([ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md); PAN enable locked ([ADR-054](../03-adr/ADR-054-pan-enable-lock.md)); `_start` stays; taken SError hard-stopped ([ADR-053](../03-adr/ADR-053-taken-serror-hard-stop.md)); leftover RAM torn via ADR-049 — still not “EL0 isolated”).
 - x86_64 is not a primary path.
 - Raspberry Pi / other boards: unprobed.
 - CI on GitHub is a separate ledger row from a cloud-VM `qemu-smoke`.

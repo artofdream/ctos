@@ -38,4 +38,5 @@ Say “guest A-clear standing SError path is wired; QMP `inject-nmi` does not ta
 - `src/exception.rs` / `src/el0.rs` own the A-clear probe + EXPECT. `scripts/qemu-serial-inject.py` owns the QMP attempt. `el0: serror-park` stays the fail-closed serial when inject does not land.
 - [ADR-047](ADR-047-isolation-leftovers-decisions.md) records the sponsor decision: taken path is **deferred / non-goal** on this smoke machine until an honest inject exists; park stays Verified; A-clear plumbing stays as dormant prep.
 - A later ADR may find a **different** honest inject (new QEMU feature, or a constrained CPU story with sponsor approval). That work is not this cut.
+- **Hard-stop lock:** [ADR-053](ADR-053-taken-serror-hard-stop.md) (2026-09-14) re-probed `inject-nmi` / HMP `nmi` on QEMU 10.0.13 virt+cortex-a57 — same `machine does not provide NMIs`. Taken path is locked deferred/non-goal, not a fuzzy Planned mile.
 - Docker/(evo-x2) re-probe is optional; agent-box smoke must show park + QMP error log, not a fake `el0: serror`.

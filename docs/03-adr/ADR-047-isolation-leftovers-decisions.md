@@ -52,12 +52,12 @@ This ADR records those decisions. It does not change guest code. CloudAgent HELD
 | --- | --- | --- |
 | `el0: serror-park` | **Verified** | Park honesty |
 | Guest A-clear SError prep (ADR-045) | **Dormant prep** | Not a taken probe |
-| Taken lower-EL SError on this smoke machine | **Deferred / non-goal** | Until honest inject |
+| Taken lower-EL SError on this smoke machine | **Deferred / non-goal (locked)** | [ADR-053](ADR-053-taken-serror-hard-stop.md) |
 | PAN ID-field on cortex-a57 | **Verified** | `pan: absent` |
-| PAN enable on default cortex-a57 | **Non-goal** (default probe CPU) | Future CPU = new ADR + sponsor |
+| PAN enable on default cortex-a57 | **Non-goal (locked)** | [ADR-054](ADR-054-pan-enable-lock.md) reopen gate |
 | `ident: start-stay` / never yank `_start` | **Verified (honesty)** / **decided** | Keep `0x4008_0000` |
 | Leftover identity RAM after heap | **Verified (optional)** via [ADR-049](ADR-049-identity-ram-tear.md) | Not umbrella-required |
-| Umbrella “EL0 isolated” | **Planned / non-claim** | Constraints above |
+| Umbrella “EL0 isolated” | **Planned / non-claim until checklist** | [ADR-055](ADR-055-el0-isolated-checklist.md); constraints above |
 
 ## Honesty
 
@@ -73,3 +73,4 @@ Say the decisions above only as documentation. Do **not** say:
 - Docs: [el0.md](../framework/el0.md), [security.md](../framework/security.md) (threat-model **v1.26**), honesty ledger (Planned→decided wording), roadmap P-SEC-3k/3l/3r + leftover blurb, NFR-10 text in place, SUMMARY.
 - Code: unchanged. Smoke still requires park / start-stay / `pan: absent`; still rejects `el0: serror` as a required marker and rejects `pan: enabled`.
 - A later ADR may reopen taken SError (honest inject), PAN (new CPU story), or boot redesign so `_start` can leave identity — each needs sponsor scope.
+- **2026-09-14 locks:** [ADR-053](ADR-053-taken-serror-hard-stop.md) hard-stops taken SError with dated QMP evidence; [ADR-054](ADR-054-pan-enable-lock.md) locks PAN enable + reopen gate; [ADR-055](ADR-055-el0-isolated-checklist.md) publishes the umbrella non-claim checklist. Decisions in this ADR stand; those ADRs remove fuzzy Planned wording.
