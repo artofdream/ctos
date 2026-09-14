@@ -4,6 +4,28 @@
 
 Direction: [ADR-013](../03-adr/ADR-013-el0-isolation-direction.md). TTBR1 first cut: [ADR-016](../03-adr/ADR-016-ttbr1-private-page.md). EL1 fetch mile: [ADR-017](../03-adr/ADR-017-ttbr1-high-el1-exec.md). Identity-tear first cut: [ADR-018](../03-adr/ADR-018-identity-teardown-first-cut.md). Identity `.text` range tear: [ADR-019](../03-adr/ADR-019-identity-text-range-tear.md). Live `.text` tear: [ADR-020](../03-adr/ADR-020-identity-fnptr-reloc.md). Identity `.rodata` tear: [ADR-025](../03-adr/ADR-025-identity-rodata-tear.md). Identity `.data` tear: [ADR-037](../03-adr/ADR-037-identity-data-tear.md). Identity heap tear: [ADR-038](../03-adr/ADR-038-identity-heap-tear.md). Leftover identity RAM tear: [ADR-049](../03-adr/ADR-049-identity-ram-tear.md). EL0 entry without VMALLE1: [ADR-039](../03-adr/ADR-039-el0-entry-without-vmalle1.md). Lower-EL IRQ while standing: [ADR-040](../03-adr/ADR-040-lower-el-irq-standing.md). IRQ-unmasked default ERET: [ADR-041](../03-adr/ADR-041-irq-unmasked-default-eret.md). Isolation leftover wrap: [ADR-042](../03-adr/ADR-042-isolation-leftover-wrap.md). Lower-EL FIQ + SError park: [ADR-043](../03-adr/ADR-043-lower-el-fiq-serror.md). Taken SError QMP attempt: [ADR-045](../03-adr/ADR-045-taken-serror-qmp.md). Isolation leftovers decisions: [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md). Taken SError hard-stop: [ADR-053](../03-adr/ADR-053-taken-serror-hard-stop.md). PAN enable lock: [ADR-054](../03-adr/ADR-054-pan-enable-lock.md). Umbrella checklist: [ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md). App hosting claim criteria: [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md). PAN capability: [ADR-026](../03-adr/ADR-026-pan-capability.md). SVC ABI: [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md) / [syscall.md](syscall.md). CRT / `libctos`: [ADR-022](../03-adr/ADR-022-libctos-crt.md). Guest loader: [ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md). Standing-as-normal: [ADR-024](../03-adr/ADR-024-standing-el0-normal.md). Thin VFS + memfs: [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md). Threat model: [security.md](security.md). Code: `src/el0.rs`, `src/syscall.rs`, `src/libctos.rs`, `src/loader.rs`, `src/vfs.rs`, `libctos/`, `src/asid.rs`, `src/ttbr1.rs`, `src/teardown.rs`, `src/pan.rs`.
 
+```mermaid
+flowchart TD
+  EL1["EL1 kernel<br/>TTBR · SVC · VFS"]
+  EL0["Standing EL0 task<br/>freestanding image"]
+  SVC["SVC ABI<br/>exit · uart · yield · fs_*"]
+  EL0 -->|"asks"| SVC --> EL1
+  EL1 -->|"ERET"| EL0
+```
+
+*Standing EL0 + SVC is a Verified mile class. It is not a Linux process and not “EL0 isolated.”*
+
+```mermaid
+flowchart LR
+  M["Verified miles<br/>standing · tears · IRQ/FIQ<br/>PAN ID-field · SError park"]
+  L["Locked non-claims<br/>PAN enable · taken SError<br/>never-yank _start"]
+  U["Umbrella “EL0 isolated”<br/>Planned / non-claim<br/>ADR-055 checklist"]
+  M -.-> U
+  L -.-> U
+```
+
+*Miles are not the umbrella. Do not round Verified probes into “EL0 isolated.”*
+
 ## What exists today
 
 - Kernel runs at EL1 (`SPSel = 0`).

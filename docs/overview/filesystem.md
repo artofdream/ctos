@@ -4,6 +4,16 @@
 
 Do not say “supports FAT” as a product. Say the guest read a known FAT16 file when the ledger has `fat: ok`, wrote FAT16 bytes when it has `fat: write` / `fat: create`, and listed root entries when it has `fat: readdir` / `fat: entries`. Hub: [honesty ledger](../framework/honesty-ledger.md), [What can run today](what-can-run.md). Extra stance: [filesystem.md](../framework/filesystem.md).
 
+```mermaid
+flowchart TD
+  CALL["EL0 / EL1 callers"] --> VFS["Thin VFS<br/>open · read · write · close · readdir"]
+  VFS --> MEM["memfs<br/>in-RAM buffers"]
+  VFS --> FAT["FAT16<br/>read · write · root readdir"]
+  FAT --> BLK["virtio-blk<br/>host fat16.img"]
+```
+
+*Same thin API, two backends. Not POSIX `open` / `getdents`. Do not say “supports FAT” as a product.*
+
 ## New vs extend
 
 **Prefer implementing a known small filesystem** behind this thin VFS over inventing a novel on-disk format.
