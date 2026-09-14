@@ -80,22 +80,38 @@ fi
 echo "qemu-smoke: host ELF size present ($elf_bytes bytes)"
 
 # A9 host artifacts: OS image (already $elf) + published app ELF.
+# ADR-059: second freestanding sample ELF for FAT /fsdemo.
 app="${CTOS_APP_ELF:-$ROOT/target/hello-libctos.elf}"
+app2="${CTOS_APP2_ELF:-$ROOT/target/fs-libctos.elf}"
 if [ ! -f "$app" ]; then
     echo "qemu-smoke: missing app payload $app (A9 / ADR-030; cargo build publishes it)" >&2
     exit 1
 fi
+if [ ! -f "$app2" ]; then
+    echo "qemu-smoke: missing app2 payload $app2 (ADR-059; cargo build publishes it)" >&2
+    exit 1
+fi
 app_bytes=$(wc -c < "$app" | tr -d ' ')
+app2_bytes=$(wc -c < "$app2" | tr -d ' ')
 if [ -z "$app_bytes" ] || [ "$app_bytes" -lt 64 ]; then
     echo "qemu-smoke: app ELF implausibly small ($app_bytes)" >&2
+    exit 1
+fi
+if [ -z "$app2_bytes" ] || [ "$app2_bytes" -lt 64 ]; then
+    echo "qemu-smoke: app2 ELF implausibly small ($app2_bytes)" >&2
     exit 1
 fi
 if cmp -s "$elf" "$app"; then
     echo "qemu-smoke: OS image and app payload are the same file" >&2
     exit 1
 fi
-echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes)"
+if cmp -s "$app" "$app2"; then
+    echo "qemu-smoke: hello and fsdemo payloads are the same file" >&2
+    exit 1
+fi
+echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes) + app2 $app2 ($app2_bytes bytes)"
 echo "qemu-smoke: kernel rebuild compiled app payload (build.rs published $app)"
+echo "qemu-smoke: kernel rebuild compiled fsdemo payload (build.rs published $app2)"
 
 # ADR-039: standing/EL0 trampoline path must not TLBI VMALLE1.
 if grep -n 'tlbi vmalle1' src/exception.rs; then
@@ -118,10 +134,11 @@ echo "qemu-smoke: A2/A3 do not include_bytes! hello-libctos (slot.rs probe-only 
 
 # A7 host-visible FAT16 (ADR-028) + A9 /hello app slot.
 img="${CTOS_BLK_IMAGE:-$ROOT/target/fat16.img}"
-python3 "$ROOT/scripts/mkfat16.py" --app "$app" "$img"
-python3 "$ROOT/scripts/mkfat16.py" --check --require-app "$img"
+python3 "$ROOT/scripts/mkfat16.py" --app "$app" --app2 "$app2" "$img"
+python3 "$ROOT/scripts/mkfat16.py" --check --require-app --require-app2 "$img"
 export CTOS_BLK_IMAGE="$img"
 export CTOS_APP_ELF="$app"
+export CTOS_APP2_ELF="$app2"
 echo "qemu-smoke: FAT16 image $img (host-visible; not a guest probe)"
 
 log=$(mktemp)
@@ -509,6 +526,35 @@ if ! grep -q "slot: ok" "$log"; then
     echo "qemu-smoke: missing 'slot: ok' on serial (A9 OS/app slot first cut, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if grep -q "fsdemo: probe missed" "$log"; then
+    echo "qemu-smoke: fsdemo probe missed (FAT /fsdemo load path did not run)" >&2
+    exit 1
+fi
+if ! grep -q "fsdemo: fat" "$log"; then
+    echo "qemu-smoke: missing 'fsdemo: fat' on serial (ADR-059 FAT /fsdemo read, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fsdemo: mapped" "$log"; then
+    echo "qemu-smoke: missing 'fsdemo: mapped' on serial (ADR-059 PT_LOAD map, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: fs-hi" "$log"; then
+    echo "qemu-smoke: missing 'libctos: fs-hi' on serial (fs-libctos uart_write, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: fs-ok" "$log"; then
+    echo "qemu-smoke: missing 'libctos: fs-ok' on serial (fs-libctos VFS trip, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "libctos: fs-fail" "$log"; then
+    echo "qemu-smoke: saw 'libctos: fs-fail' on serial (fs-libctos VFS trip failed, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fsdemo: ok" "$log"; then
+    echo "qemu-smoke: missing 'fsdemo: ok' on serial (ADR-059 second sample, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-059 fs-libctos /fsdemo strings present"
 if grep -q "perf: app-load missed" "$log"; then
     echo "qemu-smoke: app-load probe missed (CNTPCT around FAT load did not advance)" >&2
     exit 1
@@ -937,8 +983,9 @@ fi
 echo "qemu-smoke: cross-update prior-os=$PRIOR_OS_SHA slot:ok"
 echo "qemu-smoke: cross-update this-os=$this_os slot:ok"
 echo "qemu-smoke: A9 cross-update (same app sha256=$app_hash) strings present"
-# cargo test rebuilds target/fat16.img from the published app.
+# cargo test rebuilds target/fat16.img from the published apps.
 export CTOS_APP_ELF="$app"
+export CTOS_APP2_ELF="$app2"
 export CTOS_BLK_IMAGE="$img"
 
 echo "qemu-smoke: cargo test (semihosting exit)"

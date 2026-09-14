@@ -15,11 +15,16 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 1
 fi
 APP="${CTOS_APP_ELF:-$ROOT/target/hello-libctos.elf}"
+APP2="${CTOS_APP2_ELF:-$ROOT/target/fs-libctos.elf}"
 if [ ! -f "$APP" ]; then
     echo "qemu-aarch64: missing app ELF $APP (A9 / ADR-030; cargo build publishes it)" >&2
     exit 1
 fi
-if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" "$IMG" >/dev/null; then
+if [ ! -f "$APP2" ]; then
+    echo "qemu-aarch64: missing app2 ELF $APP2 (ADR-059; cargo build publishes it)" >&2
+    exit 1
+fi
+if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" --app2 "$APP2" "$IMG" >/dev/null; then
     echo "qemu-aarch64: failed to write FAT16 image $IMG" >&2
     exit 1
 fi

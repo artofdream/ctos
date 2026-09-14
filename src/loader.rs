@@ -472,6 +472,13 @@ pub(crate) fn hello_elf() -> Option<Vec<u8>> {
 /// Map `elf` with the A3 `PT_LOAD` walker and `ERET`. Used by the
 /// A3/A4 FAT probes and by the A9 FAT slot (no embed fallback).
 pub(crate) fn run_image(elf: &[u8]) -> bool {
+    // hello-libctos last uart_write is `libctos: ok\n` (12 bytes).
+    run_image_expecting(elf, 12)
+}
+
+/// Same as [`run_image`], but accept a specific last `uart_write` length.
+/// ADR-059 `fs-libctos` ends with `libctos: fs-ok\n` (15 bytes).
+pub(crate) fn run_image_expecting(elf: &[u8], last_uart_len: u64) -> bool {
     if el0::is_active() || !paging::user_map_ready() {
         return false;
     }
@@ -499,7 +506,7 @@ pub(crate) fn run_image(elf: &[u8]) -> bool {
     syscall::yield_seen()
         && syscall::uart_seen()
         && syscall::exit_seen()
-        && syscall::last_uart_write() == 12
+        && syscall::last_uart_write() == last_uart_len
         && syscall::last_exit_status() == 0
         && syscall::yield_count() >= 1
 }

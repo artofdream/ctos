@@ -1,5 +1,8 @@
-//! Build the A2 hello payload (linked against `libctos`) and emit a
-//! flat image the kernel copies onto `paging::EL0_PAGE`.
+//! Build freestanding user payloads linked against `libctos`.
+//!
+//! A2 hello: flat image the kernel may copy onto `paging::EL0_PAGE`, plus
+//! published `target/hello-libctos.elf` for FAT `/hello`.
+//! ADR-059: also publish `target/fs-libctos.elf` for FAT `/fsdemo`.
 //!
 //! This is **not** a guest ELF loader (A3). The parse is host-side only.
 
@@ -17,13 +20,15 @@ fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let hello_dir = manifest_dir.join("user/hello-libctos");
+    let fs_dir = manifest_dir.join("user/fs-libctos");
     let libctos_dir = manifest_dir.join("libctos");
 
     println!("cargo:rerun-if-changed={}", hello_dir.display());
+    println!("cargo:rerun-if-changed={}", fs_dir.display());
     println!("cargo:rerun-if-changed={}", libctos_dir.display());
     println!("cargo:rerun-if-changed=build.rs");
 
-    let elf = build_hello_rust(&manifest_dir, &hello_dir, &out_dir)
+    let elf = build_user_rust(&manifest_dir, &hello_dir, &out_dir, "hello-libctos")
         .or_else(|e| {
             println!("cargo:warning=hello-libctos rustc payload failed ({e}); trying asm fallback");
             build_hello_asm(&manifest_dir, &out_dir)
@@ -40,7 +45,7 @@ fn main() {
             image.len()
         );
     }
-    assert_payload_svc(&image);
+    assert_hello_payload(&image);
 
     let bin_path = out_dir.join("hello-libctos.bin");
     fs::write(&bin_path, &image).unwrap();
@@ -73,13 +78,43 @@ fn main() {
     .unwrap();
     println!("cargo:rustc-env=CTOS_HELLO_LIBCTOS_LEN={}", image.len());
     println!("cargo:rustc-env=CTOS_HELLO_LIBCTOS_ELF_LEN={}", elf.len());
+
+    // ADR-059: second freestanding sample (VFS wrappers). FAT `/fsdemo` only.
+    let fs_elf = build_user_rust(&manifest_dir, &fs_dir, &out_dir, "fs-libctos")
+        .unwrap_or_else(|e| panic!("libctos fs-libctos payload: {e}"));
+    let (fs_va, fs_image) =
+        elf64_pt_load(&fs_elf).unwrap_or_else(|e| panic!("fs-libctos ELF: {e}"));
+    if fs_va != EL0_PAGE {
+        panic!("fs-libctos load VA {fs_va:#x} != EL0_PAGE {EL0_PAGE:#x}");
+    }
+    if fs_elf.is_empty() || fs_elf.len() > 64 * 1024 {
+        panic!("fs-libctos ELF {} bytes empty or > 64 KiB", fs_elf.len());
+    }
+    assert_fs_payload(&fs_image);
+    fs::write(out_dir.join("fs-libctos.elf"), &fs_elf).unwrap();
+    fs::write(manifest_dir.join("target/fs-libctos.elf"), &fs_elf).unwrap();
+    fs::write(
+        out_dir.join("fs_libctos_meta.rs"),
+        format!(
+            "pub const FSDEMO_LOAD_VA: u64 = {EL0_PAGE:#x};\n\
+             pub const FSDEMO_ELF_LEN: usize = {};\n",
+            fs_elf.len()
+        ),
+    )
+    .unwrap();
+    println!("cargo:rustc-env=CTOS_FS_LIBCTOS_ELF_LEN={}", fs_elf.len());
 }
 
-fn build_hello_rust(root: &Path, hello_dir: &Path, out_dir: &Path) -> Result<Vec<u8>, String> {
-    let target_dir = out_dir.join("hello-target");
-    let target_json = hello_dir.join("aarch64-ctos-user.json");
+fn build_user_rust(
+    root: &Path,
+    crate_dir: &Path,
+    out_dir: &Path,
+    bin_name: &str,
+) -> Result<Vec<u8>, String> {
+    let target_dir = out_dir.join(format!("{bin_name}-target"));
+    let target_json = crate_dir.join("aarch64-ctos-user.json");
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".into());
-    let linker = hello_dir.join("linker.ld");
+    let linker = crate_dir.join("linker.ld");
     let rustflags = format!("-C\x1flink-arg=-T{}", linker.display());
 
     let status = Command::new(&cargo)
@@ -88,7 +123,7 @@ fn build_hello_rust(root: &Path, hello_dir: &Path, out_dir: &Path) -> Result<Vec
             "--release",
             "--manifest-path",
         ])
-        .arg(hello_dir.join("Cargo.toml"))
+        .arg(crate_dir.join("Cargo.toml"))
         .arg("--target")
         .arg(&target_json)
         .env("CARGO_TARGET_DIR", &target_dir)
@@ -98,13 +133,13 @@ fn build_hello_rust(root: &Path, hello_dir: &Path, out_dir: &Path) -> Result<Vec
         .status()
         .map_err(|e| format!("spawn cargo: {e}"))?;
     if !status.success() {
-        return Err(format!("cargo build hello-libctos exited {status}"));
+        return Err(format!("cargo build {bin_name} exited {status}"));
     }
 
     let elf_path = target_dir
         .join("aarch64-ctos-user")
         .join("release")
-        .join("hello-libctos");
+        .join(bin_name);
     fs::read(&elf_path).map_err(|e| format!("read {}: {e}", elf_path.display()))
 }
 
@@ -237,7 +272,7 @@ fn elf64_pt_load(elf: &[u8]) -> Result<(u64, Vec<u8>), String> {
     Ok((min_va, image))
 }
 
-fn assert_payload_svc(image: &[u8]) {
+fn assert_hello_payload(image: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -258,5 +293,29 @@ fn assert_payload_svc(image: &[u8]) {
     }
     if !image.windows(12).any(|w| w == b"libctos: ok\n") {
         panic!("payload missing libctos: ok");
+    }
+}
+
+fn assert_fs_payload(image: &[u8]) {
+    let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
+    let words: Vec<u32> = image
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .collect();
+    for reserved in [0u32, 1, 2] {
+        if words.contains(&svc(reserved)) {
+            panic!("fs-libctos encodes reserved SVC #{reserved} (ADR-013)");
+        }
+    }
+    for need in [16u32, 17, 18, 19, 20, 21, 22, 23] {
+        if !words.contains(&svc(need)) {
+            panic!("fs-libctos missing SVC #{need}");
+        }
+    }
+    if !image.windows(15).any(|w| w == b"libctos: fs-hi\n") {
+        panic!("fs-libctos missing libctos: fs-hi");
+    }
+    if !image.windows(15).any(|w| w == b"libctos: fs-ok\n") {
+        panic!("fs-libctos missing libctos: fs-ok");
     }
 }

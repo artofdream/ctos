@@ -85,6 +85,7 @@
 - [ADR-056 FAT16 readdir](03-adr/ADR-056-fat16-readdir.md)
 - [ADR-057 FAT16 delete](03-adr/ADR-057-fat16-delete.md)
 - [ADR-058 VFS prefix mounts](03-adr/ADR-058-vfs-prefix-mounts.md)
+- [ADR-059 fs-libctos sample catalog](03-adr/ADR-059-fs-libctos-sample.md)
 
 # Roadmap
 

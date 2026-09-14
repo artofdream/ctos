@@ -899,7 +899,8 @@ fn vfs_probe_create() -> bool {
 }
 
 /// List FAT16 root via the thin VFS entry (`vfs::readdir`). Expect `/probe`,
-/// `/hello` (A9 image), and `/fwr` after the create probe. Not POSIX.
+/// `/hello` (A9 image), `/fsdemo` (ADR-059 when present), and `/fwr`
+/// after the create probe. Not POSIX.
 fn vfs_probe_readdir() -> bool {
     READDIR_OK.store(false, Ordering::SeqCst);
     let mut names = [[0u8; PATH_MAX]; READDIR_MAX];
@@ -1172,6 +1173,7 @@ fn fat16_path_maps_8_3() {
     assert_eq!(path_to_83("/hello"), Some(*b"HELLO      "));
     assert_eq!(path_to_83("/kprobe"), Some(*b"KPROBE     "));
     assert_eq!(path_to_83("/fwr"), Some(*b"FWR        "));
+    assert_eq!(path_to_83("/fsdemo"), Some(*b"FSDEMO     "));
     assert!(path_to_83("/toolong12").is_none());
     assert!(path_to_83("probe").is_none());
     assert_eq!(

@@ -1,8 +1,8 @@
-# Security — threat model v1.33 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058)
+# Security — threat model v1.34 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.33** (2026-09-14). Slice/update of v1.32. Thin VFS prefix mounts ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Isolation-gap locks unchanged (ADR-053/054/055). Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX `mount`/`unlink`/`getdents`/containers. Not a v2 model and not “secure.”
+Version: **v1.34** (2026-09-14). Slice/update of v1.33. Second freestanding sample `fs-libctos` + catalog ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). Isolation-gap locks unchanged (ADR-053/054/055). Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX `mount`/`unlink`/`getdents`/containers. Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -156,3 +156,8 @@ Research ([ADR-044](../03-adr/ADR-044-taken-serror-research.md)); implementation
 ### VFS prefix mounts (v1.33)
 
 [ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md): guest routes path **prefixes** through a thin VFS mount table (`vfs: mount` / `vfs: mounts`). Not POSIX `mount(2)` / Linux vfsmount. Keep memfs / FAT write / readdir / delete / `/hello` / `slot: ok`. Still **not** Linux/containers/“EL0 isolated.”
+
+
+### Freestanding sample catalog (v1.34)
+
+Two freestanding EL0 samples on FAT: `/hello` (`hello-libctos`, UART+yield) and `/fsdemo` (`fs-libctos`, libctos VFS create/open/read/write/close on `/memdemo`). Catalog docs list both. Not POSIX. Not `getdents`. Not a reopen of product app hosting.

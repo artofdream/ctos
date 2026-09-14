@@ -25,10 +25,10 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for the EL0 hello, `build.rs` publishes `target/hello-libctos.elf`; A2–A4 and A9 read FAT `/hello`).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`).
 
 ```bash
-cargo build                 # aarch64-ctos.json; also builds user/hello-libctos
+cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos
 ./scripts/qemu-smoke.sh     # fail-closed serial greps + cargo test + force-fail
 ```
 
@@ -99,7 +99,20 @@ A kernel `cargo build` already does that via `build.rs` and publishes the result
 
 This is **not** a process. No libc, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
 
-`libctos` already wraps `fs_open` / `fs_read` (SVC 20–21). The **hello payload does not call them**. The Verified EL0 VFS trip is a kernel trampoline (`/eprobe` → `fs: el0`), not this hello. Teaching a hello that opens `/probe` would be a new marker — do not claim it from this recipe.
+`libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them**. A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
+
+## Recipe 3b — Standing EL0 / libctos VFS sample (`fs-libctos`)
+
+Second freestanding EL0 payload that **calls** the VFS wrappers ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). Same class as `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`.
+
+| Piece | Path |
+| --- | --- |
+| Sample | `user/fs-libctos/` |
+| In-app path | `/memdemo` (ADR-058: `/mem` prefix → memfs; flat grammar — no `/mem/...`) |
+| FAT slot | `/fsdemo` (`target/fs-libctos.elf` via `mkfat16.py --app2`) |
+| Kernel probe | `src/fsdemo.rs` |
+
+Rebuild: same one-rebuild commands. Keep `/hello` + `slot: ok`. Not POSIX. Not `getdents`. Not a reopen of product app hosting (ADR-048/052).
 
 ## Recipe 4 — memfs named-buffer probe (optional)
 
