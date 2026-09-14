@@ -11,6 +11,7 @@ mod asid;
 mod el0;
 mod exception;
 mod fat;
+mod fsdemo;
 mod frame;
 mod gic;
 mod guard;
@@ -220,6 +221,11 @@ extern "C" fn kernel_main_high() -> ! {
         // cross-update is a second QEMU (ADR-032). Not app hosting.
         if !slot::observe_probe() {
             uart::write_str_raw("slot: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (ADR-059): second freestanding sample
+        // from FAT `/fsdemo` exercises libctos VFS. Keep `/hello` path intact.
+        if !fsdemo::observe_probe() {
+            uart::write_str_raw("fsdemo: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {

@@ -35,7 +35,7 @@ Do not use `aarch64-unknown-linux-gnu`. A Linux `ET_DYN` will not load.
 
 ## What this payload does not do
 
-- No `fs_open` / `fs_read`. `libctos` exports those wrappers; this hello does not call them.
+- No `fs_open` / `fs_read`. `libctos` exports those wrappers; this hello does not call them. See [`fs-libctos`](../fs-libctos/README.md) ([ADR-059](../../docs/03-adr/ADR-059-fs-libctos-sample.md)) for the sample that does.
 - No argv, environ, or libc.
 - A2–A4 and A9 load `target/hello-libctos.elf` from FAT `/hello` (`libctos:*` / `loader:*` / `el0: task-*` / `slot: ok`). Cross-update is the leftover two-boot smoke on this OS and `ba6541c`.
 

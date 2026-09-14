@@ -4,6 +4,8 @@
 Always writes 8.3 PROBE = b'fat-hi' (VFS /probe, A7).
 With --app (or CTOS_APP_ELF / target/hello-libctos.elf) also writes
 8.3 HELLO = the app ELF (VFS /hello, A9 / ADR-030).
+With --app2 (or CTOS_APP2_ELF / target/fs-libctos.elf) also writes
+8.3 FSDEMO = the second sample ELF (VFS /fsdemo, ADR-059).
 
 After a guest FAT write mile (ADR-050), --check-write looks for 8.3 FWR
 = b'fat-nw' left by the guest create+/write probe.
@@ -30,6 +32,7 @@ PROBE_BYTES = b"fat-hi"
 PROBE_CLUSTER = 2
 HELLO_NAME = b"HELLO   " + b"   "
 HELLO_CLUSTER = 3
+FSDEMO_NAME = b"FSDEMO  " + b"   "
 FWR_NAME = b"FWR     " + b"   "
 FWR_BYTES = b"fat-nw"
 APP_MAX = 64 * 1024
@@ -76,6 +79,17 @@ def default_app_path() -> str | None:
     return None
 
 
+def default_app2_path() -> str | None:
+    env = os.environ.get("CTOS_APP2_ELF")
+    if env:
+        return env
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cand = os.path.join(root, "target", "fs-libctos.elf")
+    if os.path.isfile(cand):
+        return cand
+    return None
+
+
 def _write_fat_entry(fat: bytearray, cluster: int, value: int) -> None:
     off = cluster * 2
     fat[off : off + 2] = _u16(value)
@@ -103,7 +117,7 @@ def _put_data(img: bytearray, start_cluster: int, data: bytes) -> None:
     img[data_off : data_off + len(data)] = data
 
 
-def build(app: bytes | None) -> bytearray:
+def build(app: bytes | None, app2: bytes | None = None) -> bytearray:
     clusters = cluster_count()
     if clusters < 4085 or clusters >= 65525:
         raise SystemExit(f"mkfat16: cluster count {clusters} is not FAT16")
@@ -140,6 +154,8 @@ def build(app: bytes | None) -> bytearray:
     _put_dirent(img, root, 0, PROBE_NAME, PROBE_CLUSTER, len(PROBE_BYTES))
     _put_data(img, PROBE_CLUSTER, PROBE_BYTES)
 
+    next_cluster = HELLO_CLUSTER
+    dir_index = 1
     if app is not None:
         if not app:
             raise SystemExit("mkfat16: --app is empty")
@@ -148,12 +164,29 @@ def build(app: bytes | None) -> bytearray:
         if app[0:4] != b"\x7fELF":
             raise SystemExit("mkfat16: --app is not an ELF")
         nclus = clusters_for(len(app))
-        last = HELLO_CLUSTER + nclus - 1
+        last = next_cluster + nclus - 1
         if last >= cluster_count() + 2:
             raise SystemExit(f"mkfat16: app needs {nclus} clusters; volume too small")
-        _write_chain(fat, HELLO_CLUSTER, nclus)
-        _put_dirent(img, root, 1, HELLO_NAME, HELLO_CLUSTER, len(app))
-        _put_data(img, HELLO_CLUSTER, app)
+        _write_chain(fat, next_cluster, nclus)
+        _put_dirent(img, root, dir_index, HELLO_NAME, next_cluster, len(app))
+        _put_data(img, next_cluster, app)
+        next_cluster = last + 1
+        dir_index += 1
+
+    if app2 is not None:
+        if not app2:
+            raise SystemExit("mkfat16: --app2 is empty")
+        if len(app2) > APP_MAX:
+            raise SystemExit(f"mkfat16: app2 {len(app2)} bytes is > {APP_MAX}")
+        if app2[0:4] != b"\x7fELF":
+            raise SystemExit("mkfat16: --app2 is not an ELF")
+        nclus = clusters_for(len(app2))
+        last = next_cluster + nclus - 1
+        if last >= cluster_count() + 2:
+            raise SystemExit(f"mkfat16: app2 needs {nclus} clusters; volume too small")
+        _write_chain(fat, next_cluster, nclus)
+        _put_dirent(img, root, dir_index, FSDEMO_NAME, next_cluster, len(app2))
+        _put_data(img, next_cluster, app2)
 
     for i in range(NUM_FATS):
         off = (RESERVED + i * FAT_SZ) * BYTES_PER_SEC
@@ -218,7 +251,7 @@ def check_write(path: str) -> None:
     )
 
 
-def check(path: str, require_app: bool) -> None:
+def check(path: str, require_app: bool, require_app2: bool = False) -> None:
     with open(path, "rb") as f:
         img = f.read()
     if len(img) != TOTAL_SEC * BYTES_PER_SEC:
@@ -233,19 +266,33 @@ def check(path: str, require_app: bool) -> None:
         raise SystemExit("mkfat16: PROBE dirent missing")
     if _cluster_data(img, PROBE_CLUSTER, len(PROBE_BYTES)) != PROBE_BYTES:
         raise SystemExit("mkfat16: PROBE bytes missing")
-    hello = _dirent_at(img, root, 1)
-    has_hello = hello[0:11] == HELLO_NAME
+    hello = _find_dirent(img, root, HELLO_NAME)
+    has_hello = hello is not None
     if require_app and not has_hello:
         raise SystemExit("mkfat16: HELLO dirent missing (--require-app)")
     extra = ""
     if has_hello:
         size = int.from_bytes(hello[28:32], "little")
+        cluster = int.from_bytes(hello[26:28], "little")
         if size < 64 or size > APP_MAX:
             raise SystemExit(f"mkfat16: HELLO size {size} is implausible")
-        data = _cluster_data(img, HELLO_CLUSTER, size)
+        data = _cluster_data(img, cluster, size)
         if data[0:4] != b"\x7fELF":
             raise SystemExit("mkfat16: HELLO is not an ELF")
         extra = f" file=/hello bytes={size}"
+    fsdemo = _find_dirent(img, root, FSDEMO_NAME)
+    has_fsdemo = fsdemo is not None
+    if require_app2 and not has_fsdemo:
+        raise SystemExit("mkfat16: FSDEMO dirent missing (--require-app2)")
+    if has_fsdemo:
+        size = int.from_bytes(fsdemo[28:32], "little")
+        cluster = int.from_bytes(fsdemo[26:28], "little")
+        if size < 64 or size > APP_MAX:
+            raise SystemExit(f"mkfat16: FSDEMO size {size} is implausible")
+        data = _cluster_data(img, cluster, size)
+        if data[0:4] != b"\x7fELF":
+            raise SystemExit("mkfat16: FSDEMO is not an ELF")
+        extra += f" file=/fsdemo bytes={size}"
     print(
         f"mkfat16: check ok file=/probe bytes={PROBE_BYTES.decode()}{extra} "
         f"sectors={TOTAL_SEC} clusters={cluster_count()}"
@@ -259,6 +306,11 @@ def main() -> int:
         "--app",
         metavar="ELF",
         help="app ELF to store as FAT /hello (A9). Default: CTOS_APP_ELF or target/hello-libctos.elf",
+    )
+    p.add_argument(
+        "--app2",
+        metavar="ELF",
+        help="second sample ELF as FAT /fsdemo (ADR-059). Default: CTOS_APP2_ELF or target/fs-libctos.elf",
     )
     p.add_argument(
         "--no-app",
@@ -276,6 +328,11 @@ def main() -> int:
         help="with --check, require FAT /hello ELF",
     )
     p.add_argument(
+        "--require-app2",
+        action="store_true",
+        help="with --check, require FAT /fsdemo ELF",
+    )
+    p.add_argument(
         "--check-write",
         action="store_true",
         help="verify guest FAT write mile left /fwr=fat-nw and restored /probe (ADR-050)",
@@ -285,10 +342,15 @@ def main() -> int:
         check_write(args.image)
         return 0
     if args.check:
-        check(args.image, require_app=args.require_app)
+        check(
+            args.image,
+            require_app=args.require_app,
+            require_app2=args.require_app2,
+        )
         return 0
 
     app_bytes = None
+    app2_bytes = None
     if not args.no_app:
         app_path = args.app or default_app_path()
         if app_path is None:
@@ -299,14 +361,25 @@ def main() -> int:
                 raise SystemExit(f"mkfat16: app ELF not found: {app_path}")
             with open(app_path, "rb") as f:
                 app_bytes = f.read()
+        app2_path = args.app2 or default_app2_path()
+        if app2_path is None:
+            if args.app2:
+                raise SystemExit("mkfat16: --app2 path missing")
+        else:
+            if not os.path.isfile(app2_path):
+                raise SystemExit(f"mkfat16: app2 ELF not found: {app2_path}")
+            with open(app2_path, "rb") as f:
+                app2_bytes = f.read()
 
     os.makedirs(os.path.dirname(os.path.abspath(args.image)) or ".", exist_ok=True)
-    img = build(app_bytes)
+    img = build(app_bytes, app2_bytes)
     with open(args.image, "wb") as f:
         f.write(img)
     extra = ""
     if app_bytes is not None:
         extra = f" file=/hello bytes={len(app_bytes)}"
+    if app2_bytes is not None:
+        extra += f" file=/fsdemo bytes={len(app2_bytes)}"
     print(
         f"mkfat16: wrote {args.image} bytes={len(img)} "
         f"file=/probe payload={PROBE_BYTES.decode()}{extra} "

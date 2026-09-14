@@ -94,7 +94,17 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. The Verified EL0 VFS trip is `/eprobe` (`fs: el0`).
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`.
+
+## Sample: freestanding libctos VFS (`fs-libctos`, ADR-059)
+
+**What it is.** Second freestanding EL0 ELF linked against `libctos`. Creates `/memdemo` on memfs (ADR-058 `/mem` prefix), writes `fs-hi`, reads it back, prints `libctos: fs-ok`. Loaded from FAT `/fsdemo`.
+
+**Where.** `user/fs-libctos/`, `src/fsdemo.rs`, `scripts/mkfat16.py --app2`. Decision: [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md).
+
+**Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh`.
+
+**Probe.** `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: fat` / `fsdemo: mapped` / `fsdemo: ok`. Keep `slot: ok` / `/hello`. Not POSIX. Not `getdents`.
 
 ## Sample: memfs named-buffer probe (A6)
 
