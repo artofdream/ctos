@@ -35,4 +35,4 @@ Not POSIX `open`/`write`. Not FAT32. Not “supports FAT” as a product. Not ap
 
 - Code: `src/fat.rs` (write / create / restore probe), `scripts/mkfat16.py --check-write`, `scripts/qemu-smoke.sh` greps.
 - Docs: this ADR, [filesystem.md](../overview/filesystem.md), [framework/filesystem.md](../framework/filesystem.md), honesty ledger, roadmap note, threat-model v1.28.
-- Follow-ups (not this PR): multi-cluster grow, dirent shrink helpers, `vfs::create` → FAT without breaking A6, `readdir`, delete/unlink.
+- Follow-ups (not this PR): multi-cluster grow, dirent shrink helpers, `vfs::create` → FAT without breaking A6, delete/unlink. Root `readdir`: [ADR-056](ADR-056-fat16-readdir.md).

@@ -1,8 +1,9 @@
-//! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050).
+//! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050 + ADR-056).
 //!
 //! Read + write of root files. Known `/probe` (8.3 `PROBE`) and A9 `/hello`
 //! (8.3 `HELLO`, app ELF). Guest may create a small single-cluster file.
-//! Not FAT32. Not xv6. Not POSIX. Host image is `scripts/mkfat16.py`.
+//! Root listing (`readdir`) returns thin-VFS paths. Not FAT32. Not xv6.
+//! Not POSIX `getdents` / `opendir`. Host image is `scripts/mkfat16.py`.
 //!
 //! `vfs::create` stays memfs-first (A6). FAT create is the FAT backend
 //! (`fat::create`); write on an open FAT handle is the same `vfs::write`.
@@ -28,6 +29,8 @@ const PROBE_BYTES: &[u8] = b"fat-hi";
 const WRITE_BYTES: &[u8] = b"fat-wr";
 const CREATE_PATH: &str = "/fwr";
 const CREATE_BYTES: &[u8] = b"fat-nw";
+/// Cap on names returned by one root `readdir` (ADR-056).
+pub const READDIR_MAX: usize = 16;
 /// Memfs path for the ADR-051 compared write (same payload as WRITE_BYTES).
 const MEMFS_CMP_PATH: &str = "/mwprobe";
 const EOC: u16 = 0xFFFF;
@@ -329,6 +332,48 @@ impl Fat16 {
         Ok((n, new_size))
     }
 
+
+    /// Walk the FAT16 root and fill thin-VFS paths (`/probe`, …).
+    /// Skips deleted, volume label, LFN, and subdirectory entries.
+    fn list_root(&self, out: &mut [[u8; PATH_MAX]], cap: usize) -> Result<usize, FsError> {
+        if !self.mounted {
+            return Err(FsError::Missing);
+        }
+        let cap = core::cmp::min(cap, out.len());
+        let root_secs = (self.root_ents as u32 * 32 + self.bps as u32 - 1) / self.bps as u32;
+        let mut buf = [0u8; SECTOR];
+        let mut n = 0usize;
+        for s in 0..root_secs {
+            if !self.read_sector(self.root_sec + s, &mut buf) {
+                return Err(FsError::BadHandle);
+            }
+            for i in 0..(self.bps as usize / 32) {
+                let e = &buf[i * 32..i * 32 + 32];
+                if e[0] == 0 {
+                    return Ok(n);
+                }
+                if e[0] == 0xE5 {
+                    continue;
+                }
+                let attr = e[11];
+                if attr & 0x08 != 0 || attr & 0x0F == 0x0F || attr & 0x10 != 0 {
+                    continue;
+                }
+                let mut name83 = [0u8; 11];
+                name83.copy_from_slice(&e[0..11]);
+                let Some(path) = name83_to_path(&name83) else {
+                    continue;
+                };
+                if n >= cap {
+                    return Err(FsError::Full);
+                }
+                out[n] = path;
+                n += 1;
+            }
+        }
+        Ok(n)
+    }
+
     fn alloc_handle(&mut self, name: [u8; 11], cluster: u16, size: u32) -> Result<u32, FsError> {
         for (i, h) in self.handles.iter_mut().enumerate() {
             if !h.used {
@@ -441,6 +486,7 @@ static MOUNT_OK: AtomicBool = AtomicBool::new(false);
 static READ_OK: AtomicBool = AtomicBool::new(false);
 static WRITE_OK: AtomicBool = AtomicBool::new(false);
 static CREATE_OK: AtomicBool = AtomicBool::new(false);
+static READDIR_OK: AtomicBool = AtomicBool::new(false);
 static FAT_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 static MEMFS_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 
@@ -457,6 +503,43 @@ fn path_to_83(path: &str) -> Option<[u8; 11]> {
         out[i] = c.to_ascii_uppercase();
     }
     Some(out)
+}
+
+/// Map an 8.3 dirent name to a thin-VFS path (`PROBE   ` → `/probe`).
+/// Extension must be blank this mile (no `.` in the path grammar).
+fn name83_to_path(name83: &[u8; 11]) -> Option<[u8; PATH_MAX]> {
+    if name83[8..11] != *b"   " {
+        return None;
+    }
+    let mut len = 0usize;
+    while len < 8 && name83[len] != b' ' {
+        len += 1;
+    }
+    if len == 0 || (len < 8 && name83[len..8].iter().any(|&c| c != b' ')) {
+        return None;
+    }
+    let mut path = [0u8; PATH_MAX];
+    path[0] = b'/';
+    for i in 0..len {
+        let c = name83[i].to_ascii_lowercase();
+        if !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-') {
+            return None;
+        }
+        path[1 + i] = c;
+    }
+    let s = core::str::from_utf8(&path[..1 + len]).ok()?;
+    if !vfs::valid_path(s) {
+        return None;
+    }
+    Some(path)
+}
+
+fn path_buf_str(buf: &[u8; PATH_MAX]) -> &str {
+    let mut n = 0usize;
+    while n < PATH_MAX && buf[n] != 0 {
+        n += 1;
+    }
+    core::str::from_utf8(&buf[..n]).unwrap_or("")
 }
 
 fn mount_from_boot(boot: &[u8; SECTOR]) -> Option<Fat16> {
@@ -513,6 +596,7 @@ pub fn init() {
     READ_OK.store(false, Ordering::SeqCst);
     WRITE_OK.store(false, Ordering::SeqCst);
     CREATE_OK.store(false, Ordering::SeqCst);
+    READDIR_OK.store(false, Ordering::SeqCst);
     let mut fat = FAT.lock();
     *fat = Fat16::empty();
     if !virtio::ready() {
@@ -558,6 +642,11 @@ pub fn write(fd: u32, buf: &[u8]) -> Result<usize, FsError> {
 
 pub fn close(fd: u32) -> Result<(), FsError> {
     FAT.lock().close(fd)
+}
+
+/// List FAT16 root file names as thin-VFS paths. Not POSIX `getdents`.
+pub fn readdir(out: &mut [[u8; PATH_MAX]], cap: usize) -> Result<usize, FsError> {
+    FAT.lock().list_root(out, cap)
 }
 
 /// Read a mounted FAT path through the same VFS `open` as A7 `/probe`
@@ -720,6 +809,40 @@ fn vfs_probe_create() -> bool {
     true
 }
 
+/// List FAT16 root via the thin VFS entry (`vfs::readdir`). Expect `/probe`,
+/// `/hello` (A9 image), and `/fwr` after the create probe. Not POSIX.
+fn vfs_probe_readdir() -> bool {
+    READDIR_OK.store(false, Ordering::SeqCst);
+    let mut names = [[0u8; PATH_MAX]; READDIR_MAX];
+    let Ok(n) = vfs::readdir(&mut names, READDIR_MAX) else {
+        return false;
+    };
+    if n == 0 || n > READDIR_MAX {
+        return false;
+    }
+    let mut saw_probe = false;
+    let mut saw_hello = false;
+    let mut saw_fwr = false;
+    for i in 0..n {
+        let s = path_buf_str(&names[i]);
+        if s == PROBE_PATH {
+            saw_probe = true;
+        } else if s == "/hello" {
+            saw_hello = true;
+        } else if s == CREATE_PATH {
+            saw_fwr = true;
+        }
+    }
+    if !saw_probe || !saw_hello || !saw_fwr {
+        return false;
+    }
+    uart::write_str_raw("fat: readdir\n");
+    let mut w = uart::raw();
+    let _ = writeln!(w, "fat: entries n={n}");
+    READDIR_OK.store(true, Ordering::SeqCst);
+    true
+}
+
 /// Memfs write of the same small payload as the FAT `/probe` rewrite (ADR-051).
 /// Times only `vfs::write`, not create/open. Not a bench.
 fn measure_memfs_write() -> Option<u64> {
@@ -750,7 +873,7 @@ fn measure_memfs_write() -> Option<u64> {
 }
 
 /// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`,
-/// plus ADR-051 FAT-vs-memfs write CNTPCT pair (raw ticks).
+/// root `readdir` (ADR-056), plus ADR-051 FAT-vs-memfs write CNTPCT pair (raw ticks).
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     if !mounted() {
@@ -764,6 +887,9 @@ pub fn observe_probe() -> bool {
         return false;
     }
     if !vfs_probe_create() {
+        return false;
+    }
+    if !vfs_probe_readdir() {
         return false;
     }
     let mut w = uart::raw();
@@ -849,6 +975,44 @@ fn fat16_missing_and_limits() {
     assert_eq!(create(PROBE_PATH), Err(FsError::Exists));
 }
 
+
+#[cfg(test)]
+#[test_case]
+fn fat16_readdir_lists_root() {
+    assert!(mounted(), "FAT16 must mount for readdir");
+    assert!(
+        vfs_probe_create(),
+        "create /fwr so readdir sees the write-mile name"
+    );
+    assert!(
+        vfs_probe_readdir(),
+        "root readdir must list /probe, /hello, /fwr"
+    );
+    assert!(READDIR_OK.load(Ordering::SeqCst));
+    let mut names = [[0u8; PATH_MAX]; READDIR_MAX];
+    let n = readdir(&mut names, READDIR_MAX).expect("readdir");
+    assert!(n >= 3);
+    let mut paths = [false; 3];
+    for i in 0..n {
+        match path_buf_str(&names[i]) {
+            "/probe" => paths[0] = true,
+            "/hello" => paths[1] = true,
+            "/fwr" => paths[2] = true,
+            _ => {}
+        }
+    }
+    assert!(paths[0] && paths[1] && paths[2]);
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_readdir_fail_closed_cap() {
+    assert!(mounted());
+    let mut names = [[0u8; PATH_MAX]; 1];
+    // Cap of 1 with >=2 root files must return Full (fail-closed).
+    assert_eq!(readdir(&mut names, 1), Err(FsError::Full));
+}
+
 #[cfg(test)]
 #[test_case]
 fn fat16_path_maps_8_3() {
@@ -858,4 +1022,17 @@ fn fat16_path_maps_8_3() {
     assert_eq!(path_to_83("/fwr"), Some(*b"FWR        "));
     assert!(path_to_83("/toolong12").is_none());
     assert!(path_to_83("probe").is_none());
+    assert_eq!(
+        path_buf_str(&name83_to_path(b"PROBE      ").unwrap()),
+        "/probe"
+    );
+    assert_eq!(
+        path_buf_str(&name83_to_path(b"HELLO      ").unwrap()),
+        "/hello"
+    );
+    assert_eq!(
+        path_buf_str(&name83_to_path(b"FWR        ").unwrap()),
+        "/fwr"
+    );
+    assert!(name83_to_path(b"PROBE   TXT").is_none());
 }

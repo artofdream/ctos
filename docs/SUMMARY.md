@@ -82,6 +82,7 @@
 - [ADR-053 Taken SError hard-stop](03-adr/ADR-053-taken-serror-hard-stop.md)
 - [ADR-054 PAN enable lock](03-adr/ADR-054-pan-enable-lock.md)
 - [ADR-055 EL0 isolated checklist](03-adr/ADR-055-el0-isolated-checklist.md)
+- [ADR-056 FAT16 readdir](03-adr/ADR-056-fat16-readdir.md)
 
 # Roadmap
 

@@ -299,6 +299,11 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 
 
 
+| FAT16 readdir behind thin VFS (ADR-056) | Hello-kernel serial `fat: readdir` + `fat: entries n=<k>` + keep `fat: ok` / write / `slot: ok`; `#[test_case]` `fat16_readdir_lists_root` + `fat16_readdir_fail_closed_cap` | Verified | 2026-09-14 agent-box smoke on `feat/fat16-readdir`: hello `fat: readdir` / `fat: entries n=3` / `fat: ok`; `Running 99 tests` all `[ok]` incl. readdir cases; force-fail exit 1; `qemu-smoke: ok`. Guest listed FAT16 root paths through thin VFS (`/probe`, `/hello`, `/fwr`). Not POSIX `getdents`/`opendir`. Not FAT32. Not “supports FAT.” Not EL0 isolated / PAN / taken SError. CloudAgent HELD — evidence tagged agent-box. Tip `abe72cf`. [ADR-056](../03-adr/ADR-056-fat16-readdir.md). |
+| Threat-model v1.31 slice (NFR-10) | Read [security.md](security.md) (ADR-056 FAT16 readdir) | Verified | File + this PR. v1.31 update, not “secure.” Not POSIX `getdents`. |
+| `scripts/qemu-smoke.sh` (ADR-056 FAT16 readdir / this branch) | Ran on this agent box | Verified | 2026-09-14 agent-box `qemu-smoke` (QEMU 10.0.13, `-cpu cortex-a57`) on `feat/fat16-readdir`: markers `fat: mount` / `fat: read` / `fat: write` / `fat: rewrite` / `fat: create` / `fat: readdir` / `fat: entries n=3` / `fat: ok` / `slot: ok`; host `--check-write` ok; A9 cross-update both `slot:ok`; `Running 99 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not POSIX. Tip `abe72cf`. |
+
+
 <a id="adr-048-progress-checklist"></a>
 
 ## ADR-048 progress checklist
