@@ -74,10 +74,11 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_L
 | — | FAT vs memfs write CNTPCT (Future slice 4, ADR-051 / P-PERF-6) | `perf: fat-write` + `perf: memfs-write` + `perf: fs-write-delta`; keep `fat: ok` / `slot: ok` | **Verified** when this tip’s `qemu-smoke` prints the pair (see honesty ledger). Not a bench. Not a percent. App hosting stays **Planned**. |
 | — | FAT16 readdir depth (ADR-056) | `fat: readdir` + `fat: entries`; keep `fat: ok` / write / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX `getdents`. Not FAT32. Not Linux/containers. |
 | — | FAT16 delete depth (ADR-057) | `fat: delete`; keep `fat: ok` / write / readdir / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX `unlink`. Not FAT32. Not Linux/containers. |
+| — | VFS prefix mounts (ADR-058) | `vfs: mount` + `vfs: mounts`; keep `fs: ok` / `fat: ok` / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not Linux `mount(2)`. Not a new disk FS. |
 | A8 | Documented sample apps ([#39](https://github.com/artofdream/ctos/issues/39)) | recipes cite only existing serial markers; docs-build | **Recipes Verified** (docs; smoke markers unchanged). Hub: [what-can-run.md](../overview/what-can-run.md). No new ADR. Not app hosting. |
 | A9 | OS–app slots ([#48](https://github.com/artofdream/ctos/issues/48), ADR-030 / ADR-032) | host OS ELF + `hello-libctos.elf`; FAT `/hello`; `slot: ok`; same ELF on this OS and `ba6541c` | **First cut + leftover** when this tip’s `qemu-smoke` prints `cross-update` lines (see honesty ledger). A2–A4 load FAT (no embed). Product claim Verified under ADR-048/052 (this mile alone ≠ Linux hosting). |
 
-On-disk filesystem work started as A7 (FAT16 read, not xv6-like). FAT16 write depth is [ADR-050](../03-adr/ADR-050-fat16-write.md). FAT16 root listing is [ADR-056](../03-adr/ADR-056-fat16-readdir.md). FAT16 root delete is [ADR-057](../03-adr/ADR-057-fat16-delete.md). See [Filesystem: new vs extend](../overview/filesystem.md).
+On-disk filesystem work started as A7 (FAT16 read, not xv6-like). FAT16 write depth is [ADR-050](../03-adr/ADR-050-fat16-write.md). FAT16 root listing is [ADR-056](../03-adr/ADR-056-fat16-readdir.md). FAT16 root delete is [ADR-057](../03-adr/ADR-057-fat16-delete.md). Thin VFS prefix mounts are [ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md). See [Filesystem: new vs extend](../overview/filesystem.md).
 
 ## Tracks (subordinate to principles)
 

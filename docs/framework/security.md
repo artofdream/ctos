@@ -1,8 +1,8 @@
-# Security — threat model v1.32 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057)
+# Security — threat model v1.33 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.32** (2026-09-14). Slice/update of v1.31. FAT16 root delete behind the thin VFS ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Isolation-gap locks unchanged (ADR-053/054/055). Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX `unlink`/`getdents`/containers. Not a v2 model and not “secure.”
+Version: **v1.33** (2026-09-14). Slice/update of v1.32. Thin VFS prefix mounts ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Isolation-gap locks unchanged (ADR-053/054/055). Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX `mount`/`unlink`/`getdents`/containers. Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -38,7 +38,7 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | Guest ELF PT_LOAD loader | Guest parses embedded ELF64 `ET_EXEC`, maps `PT_LOAD` into the user map-window, `ERET`s to `e_entry`. Rejects `PT_INTERP` and W+X. Not a Linux ABI. | `src/loader.rs` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)) |
 | Standing EL0 as normal mode | Loaded image stands until `SYS_EXIT`. `is_active()` is a task flag. Unexpected lower-EL sync restores fail-closed. Not a process table. | `src/el0.rs` ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)) |
 | Thin VFS + memfs | Named heap buffers. Create / open / read / write / close. User path/I/O pointers must be user-mapped **and** kernel-mapped. Not POSIX. | `src/vfs.rs` ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) |
-| virtio-blk + FAT16 | Guest programs a virtio-mmio DMA master. Image is host-built FAT16. Guest may write/create small root files ([ADR-050](../03-adr/ADR-050-fat16-write.md)), list root names ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)), and delete a root file ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Same VFS `open`/`write`/`readdir`/`unlink`. Not a trusted disk. | `src/virtio.rs` + `src/fat.rs` ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md), [ADR-050](../03-adr/ADR-050-fat16-write.md), [ADR-056](../03-adr/ADR-056-fat16-readdir.md), [ADR-057](../03-adr/ADR-057-fat16-delete.md)) |
+| virtio-blk + FAT16 | Guest programs a virtio-mmio DMA master. Image is host-built FAT16. Guest may write/create small root files ([ADR-050](../03-adr/ADR-050-fat16-write.md)), list root names ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)), and delete a root file ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Same VFS `open`/`write`/`readdir`/`unlink` behind prefix mounts ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Not a trusted disk. | `src/virtio.rs` + `src/fat.rs` + `src/vfs.rs` ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md), [ADR-050](../03-adr/ADR-050-fat16-write.md), [ADR-056](../03-adr/ADR-056-fat16-readdir.md), [ADR-057](../03-adr/ADR-057-fat16-delete.md), [ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)) |
 | OS/app slots | Host kernel ELF + published app ELF. Guest reads FAT `/hello` and maps `PT_LOAD`. A2–A4 use the same file (no embed). Cross-update is a host two-boot probe. Not a trusted disk. | `src/slot.rs` ([ADR-030](../03-adr/ADR-030-os-app-slots.md), [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)) |
 | Console / sensors | PL011 is how we see whether a probe ran. | Device MMIO `0x0900_0000` |
 
@@ -152,3 +152,7 @@ Research ([ADR-044](../03-adr/ADR-044-taken-serror-research.md)); implementation
 ### FAT16 delete (v1.32)
 
 [ADR-057](../03-adr/ADR-057-fat16-delete.md): guest deletes a FAT16 **root** file via thin-VFS `unlink` (`fat: delete`). Not POSIX `unlink` / `remove`. Keep write / readdir / `/hello` / `slot: ok`. Still **not** Linux/containers/“EL0 isolated.”
+
+### VFS prefix mounts (v1.33)
+
+[ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md): guest routes path **prefixes** through a thin VFS mount table (`vfs: mount` / `vfs: mounts`). Not POSIX `mount(2)` / Linux vfsmount. Keep memfs / FAT write / readdir / delete / `/hello` / `slot: ok`. Still **not** Linux/containers/“EL0 isolated.”

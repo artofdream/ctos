@@ -384,6 +384,14 @@ if ! grep -q "fs: ok" "$log"; then
     echo "qemu-smoke: missing 'fs: ok' on serial (A6 thin VFS + memfs mile, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "vfs: mount" "$log"; then
+    echo "qemu-smoke: missing 'vfs: mount' on serial (ADR-058 prefix mounts, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "vfs: mounts" "$log"; then
+    echo "qemu-smoke: missing 'vfs: mounts' on serial (ADR-058 mount table, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 echo "qemu-smoke: thin VFS + memfs (A6) strings present"
 if grep -q "blk: probe missed" "$log"; then
     echo "qemu-smoke: blk probe missed (virtio-mmio sector R/W did not run)" >&2
