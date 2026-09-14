@@ -1,8 +1,9 @@
-//! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028, write ADR-050).
+//! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028, write ADR-050,
+//! readdir ADR-056).
 //!
 //! One `open` story. memfs is in-RAM named buffers. FAT16 is a second
-//! backend on virtio-blk (read + write). `create` stays memfs-first.
-//! Not Linux VFS. Not POSIX. Not app hosting.
+//! backend on virtio-blk (read + write + root listing). `create` stays
+//! memfs-first. Not Linux VFS. Not POSIX `getdents`. Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -302,6 +303,13 @@ pub fn close(fd: u32) -> Result<(), FsError> {
     } else {
         FS.lock().close(fd)
     }
+}
+
+/// List FAT16 root names as thin-VFS paths (`/probe`, …). Same entry point
+/// story as `open`/`read`/`write` — not a second FS. Not POSIX `getdents`
+/// / `opendir`. memfs has no directory tree this mile.
+pub fn readdir(out: &mut [[u8; PATH_MAX]], cap: usize) -> Result<usize, FsError> {
+    crate::fat::readdir(out, cap)
 }
 
 fn kernel_roundtrip() -> bool {

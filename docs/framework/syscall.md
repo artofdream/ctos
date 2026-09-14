@@ -49,7 +49,7 @@ In-RAM named buffers behind a thin VFS ([ADR-027](../03-adr/ADR-027-thin-vfs-mem
 
 ## FAT16 (A7)
 
-Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `blk: ok` / `fat: ok`. `/probe` is the known FAT16 file. Write on a FAT handle is `ReadOnly`. File presence is not that probe.
+Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `blk: ok` / `fat: ok`. `/probe` is the known FAT16 file. Write depth: [ADR-050](../03-adr/ADR-050-fat16-write.md) (`fat: write` / `fat: create`). Root listing: [ADR-056](../03-adr/ADR-056-fat16-readdir.md) (`fat: readdir` / `fat: entries`) — kernel/VFS probe, no new SVC. Not POSIX `getdents`. File presence is not that probe.
 
 ## Sample recipes (A8)
 
