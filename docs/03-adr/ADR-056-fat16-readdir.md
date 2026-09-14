@@ -34,4 +34,4 @@ Not POSIX `getdents` / `opendir` / `readdir(3)`. Not a directory tree. Not delet
 
 - Code: `src/fat.rs` (list_root / readdir / probe), `src/vfs.rs` (`vfs::readdir`), `scripts/qemu-smoke.sh` greps.
 - Docs: this ADR, [filesystem.md](../overview/filesystem.md), [framework/filesystem.md](../framework/filesystem.md), honesty ledger, roadmap note, threat-model v1.31, SUMMARY.
-- Follow-ups (not this PR): EL0 `fs_readdir` SVC, delete/unlink, LFN, subdirectories, virtual mounts, memfs listing.
+- Follow-ups (not this PR): EL0 `fs_readdir` SVC, LFN, subdirectories, virtual mounts, memfs listing. Delete/unlink: [ADR-057](ADR-057-fat16-delete.md).

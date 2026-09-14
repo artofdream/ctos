@@ -438,12 +438,17 @@ if ! grep -q "fat: entries" "$log"; then
     echo "qemu-smoke: missing 'fat: entries' on serial (FAT16 readdir count, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "fat: delete" "$log"; then
+    echo "qemu-smoke: missing 'fat: delete' on serial (FAT16 unlink /fdel, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "fat: ok" "$log"; then
     echo "qemu-smoke: missing 'fat: ok' on serial (A7 FAT16 mile, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 echo "qemu-smoke: FAT16 (A7) strings present"
 echo "qemu-smoke: FAT16 readdir (ADR-056) strings present"
+echo "qemu-smoke: FAT16 delete (ADR-057) strings present"
 # ADR-051: FAT-vs-memfs write CNTPCT pair (raw ticks; not a bench / percent).
 if grep -q "perf: fat-write missed" "$log"; then
     echo "qemu-smoke: fat-write probe missed (CNTPCT around FAT VFS write did not advance)" >&2

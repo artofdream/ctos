@@ -304,6 +304,12 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | `scripts/qemu-smoke.sh` (ADR-056 FAT16 readdir / this branch) | Ran on this agent box | Verified | 2026-09-14 agent-box `qemu-smoke` (QEMU 10.0.13, `-cpu cortex-a57`) on `feat/fat16-readdir`: markers `fat: mount` / `fat: read` / `fat: write` / `fat: rewrite` / `fat: create` / `fat: readdir` / `fat: entries n=3` / `fat: ok` / `slot: ok`; host `--check-write` ok; A9 cross-update both `slot:ok`; `Running 99 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not POSIX. Tip `abe72cf`. |
 
 
+
+| FAT16 delete behind thin VFS (ADR-057) | Hello-kernel serial `fat: delete` + keep `fat: ok` / write / readdir / `slot: ok`; `#[test_case]` `fat16_unlink_removes_file` + `fat16_unlink_missing_is_err` | Verified | 2026-09-14 agent-box smoke on `feat/fat16-delete`: hello `fat: delete` / `fat: readdir` / `fat: entries n=3` / `fat: ok`; `Running 101 tests` all `[ok]` incl. unlink cases; force-fail exit 1; `qemu-smoke: ok`. Guest deleted FAT16 root dirent `/fdel` through thin VFS (`vfs::unlink`). Not POSIX `unlink`/`remove`. Not FAT32. Not “supports FAT.” Not EL0 isolated / PAN / taken SError. CloudAgent HELD — evidence tagged agent-box. Tip `c945ec8`. [ADR-057](../03-adr/ADR-057-fat16-delete.md). |
+| Threat-model v1.32 slice (NFR-10) | Read [security.md](security.md) (ADR-057 FAT16 delete) | Verified | File + this PR. v1.32 update, not “secure.” Not POSIX `unlink`. |
+| `scripts/qemu-smoke.sh` (ADR-057 FAT16 delete / this branch) | Ran on this agent box | Verified | 2026-09-14 agent-box `qemu-smoke` (QEMU 10.0.13, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`) on `feat/fat16-delete`: markers `fat: mount` / `fat: read` / `fat: write` / `fat: rewrite` / `fat: create` / `fat: readdir` / `fat: entries n=3` / `fat: delete` / `fat: ok` / `slot: ok`; host `--check-write` ok; A9 cross-update both `slot:ok`; `Running 101 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not POSIX. Tip `c945ec8`. |
+
+
 <a id="adr-048-progress-checklist"></a>
 
 ## ADR-048 progress checklist

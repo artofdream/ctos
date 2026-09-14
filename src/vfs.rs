@@ -1,9 +1,10 @@
 //! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028, write ADR-050,
-//! readdir ADR-056).
+//! readdir ADR-056, delete ADR-057).
 //!
 //! One `open` story. memfs is in-RAM named buffers. FAT16 is a second
-//! backend on virtio-blk (read + write + root listing). `create` stays
-//! memfs-first. Not Linux VFS. Not POSIX `getdents`. Not app hosting.
+//! backend on virtio-blk (read + write + root listing + delete). `create`
+//! stays memfs-first. Not Linux VFS. Not POSIX `unlink` / `getdents`.
+//! Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -151,6 +152,23 @@ impl MemFs {
             return Err(FsError::BadHandle);
         }
         Ok(h)
+    }
+}
+
+impl MemFs {
+    /// Remove a named buffer and drop handles that pointed at it.
+    fn unlink(&mut self, path: &str) -> Result<(), FsError> {
+        if !valid_path(path) {
+            return Err(FsError::BadPath);
+        }
+        let slot = self.find_name(path).ok_or(FsError::Missing)?;
+        self.files[slot] = None;
+        for h in self.handles.iter_mut() {
+            if h.used && h.file == slot {
+                *h = Handle::empty();
+            }
+        }
+        Ok(())
     }
 }
 
@@ -310,6 +328,18 @@ pub fn close(fd: u32) -> Result<(), FsError> {
 /// / `opendir`. memfs has no directory tree this mile.
 pub fn readdir(out: &mut [[u8; PATH_MAX]], cap: usize) -> Result<usize, FsError> {
     crate::fat::readdir(out, cap)
+}
+
+/// Delete a path. FAT16 root files go through `fat::unlink` when present;
+/// otherwise memfs. Not POSIX `unlink`.
+pub fn unlink(path: &str) -> Result<(), FsError> {
+    if !valid_path(path) {
+        return Err(FsError::BadPath);
+    }
+    if crate::fat::has_name(path) {
+        return crate::fat::unlink(path);
+    }
+    FS.lock().unlink(path)
 }
 
 fn kernel_roundtrip() -> bool {

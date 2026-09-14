@@ -1,12 +1,16 @@
-//! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050 + ADR-056).
+//! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050
+//! + ADR-056 + ADR-057).
 //!
 //! Read + write of root files. Known `/probe` (8.3 `PROBE`) and A9 `/hello`
 //! (8.3 `HELLO`, app ELF). Guest may create a small single-cluster file.
-//! Root listing (`readdir`) returns thin-VFS paths. Not FAT32. Not xv6.
-//! Not POSIX `getdents` / `opendir`. Host image is `scripts/mkfat16.py`.
+//! Root listing (`readdir`) returns thin-VFS paths. Guest may delete a root
+//! file (`unlink`) by marking the dirent deleted and freeing its cluster.
+//! Not FAT32. Not xv6. Not POSIX `unlink` / `getdents` / `opendir`. Host
+//! image is `scripts/mkfat16.py`.
 //!
 //! `vfs::create` stays memfs-first (A6). FAT create is the FAT backend
-//! (`fat::create`); write on an open FAT handle is the same `vfs::write`.
+//! (`fat::create`); write on an open FAT handle is the same `vfs::write`;
+//! delete is `fat::unlink` / `vfs::unlink`.
 //!
 //! ADR-051: CNTPCT around the FAT VFS write of the small `/probe` payload,
 //! compared on the same boot to a memfs write of the same bytes (raw ticks;
@@ -29,6 +33,8 @@ const PROBE_BYTES: &[u8] = b"fat-hi";
 const WRITE_BYTES: &[u8] = b"fat-wr";
 const CREATE_PATH: &str = "/fwr";
 const CREATE_BYTES: &[u8] = b"fat-nw";
+const DELETE_PATH: &str = "/fdel";
+const DELETE_BYTES: &[u8] = b"fat-dl";
 /// Cap on names returned by one root `readdir` (ADR-056).
 pub const READDIR_MAX: usize = 16;
 /// Memfs path for the ADR-051 compared write (same payload as WRITE_BYTES).
@@ -213,6 +219,60 @@ impl Fat16 {
             }
         }
         false
+    }
+
+    /// Mark a root dirent deleted (first byte `0xE5`). Returns (cluster, size).
+    fn mark_dirent_deleted(&self, name83: &[u8; 11]) -> Option<(u16, u32)> {
+        let root_secs = (self.root_ents as u32 * 32 + self.bps as u32 - 1) / self.bps as u32;
+        let mut buf = [0u8; SECTOR];
+        for s in 0..root_secs {
+            if !self.read_sector(self.root_sec + s, &mut buf) {
+                return None;
+            }
+            for i in 0..(self.bps as usize / 32) {
+                let off = i * 32;
+                let e = &buf[off..off + 32];
+                if e[0] == 0 {
+                    return None;
+                }
+                if e[0] == 0xE5 {
+                    continue;
+                }
+                let attr = e[11];
+                if attr & 0x08 != 0 || attr & 0x0F == 0x0F || attr & 0x10 != 0 {
+                    continue;
+                }
+                if &e[0..11] == name83 {
+                    let cluster = u16::from_le_bytes([e[26], e[27]]);
+                    let size = u32::from_le_bytes([e[28], e[29], e[30], e[31]]);
+                    buf[off] = 0xE5;
+                    if !self.write_sector(self.root_sec + s, &buf) {
+                        return None;
+                    }
+                    return Some((cluster, size));
+                }
+            }
+        }
+        None
+    }
+
+    /// Free a FAT cluster chain (single-cluster files this mile; walks to EOC).
+    fn free_chain(&self, start: u16) -> bool {
+        let mut cluster = start;
+        while cluster >= 2 && cluster < 0xFFF8 {
+            let next = match self.fat_entry(cluster) {
+                Some(n) => n,
+                None => return false,
+            };
+            if !self.set_fat_entry(cluster, 0) {
+                return false;
+            }
+            if next >= 0xFFF8 {
+                break;
+            }
+            cluster = next;
+        }
+        true
     }
 
     fn find_free_dirent(&self) -> Option<(u32, usize)> {
@@ -481,12 +541,34 @@ impl VfsOps for Fat16 {
     }
 }
 
+impl Fat16 {
+    /// Delete a root file: mark dirent `0xE5`, free its cluster chain, drop
+    /// open handles to that name. Not POSIX `unlink`. Single-cluster this mile.
+    fn unlink(&mut self, path: &str) -> Result<(), FsError> {
+        if !self.mounted {
+            return Err(FsError::Missing);
+        }
+        let name = path_to_83(path).ok_or(FsError::BadPath)?;
+        let (cluster, _size) = self.mark_dirent_deleted(&name).ok_or(FsError::Missing)?;
+        for h in self.handles.iter_mut() {
+            if h.used && h.name == name {
+                *h = FatHandle::empty();
+            }
+        }
+        if cluster >= 2 && !self.free_chain(cluster) {
+            return Err(FsError::BadHandle);
+        }
+        Ok(())
+    }
+}
+
 static FAT: Mutex<Fat16> = Mutex::new(Fat16::empty());
 static MOUNT_OK: AtomicBool = AtomicBool::new(false);
 static READ_OK: AtomicBool = AtomicBool::new(false);
 static WRITE_OK: AtomicBool = AtomicBool::new(false);
 static CREATE_OK: AtomicBool = AtomicBool::new(false);
 static READDIR_OK: AtomicBool = AtomicBool::new(false);
+static DELETE_OK: AtomicBool = AtomicBool::new(false);
 static FAT_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 static MEMFS_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 
@@ -597,6 +679,7 @@ pub fn init() {
     WRITE_OK.store(false, Ordering::SeqCst);
     CREATE_OK.store(false, Ordering::SeqCst);
     READDIR_OK.store(false, Ordering::SeqCst);
+    DELETE_OK.store(false, Ordering::SeqCst);
     let mut fat = FAT.lock();
     *fat = Fat16::empty();
     if !virtio::ready() {
@@ -647,6 +730,11 @@ pub fn close(fd: u32) -> Result<(), FsError> {
 /// List FAT16 root file names as thin-VFS paths. Not POSIX `getdents`.
 pub fn readdir(out: &mut [[u8; PATH_MAX]], cap: usize) -> Result<usize, FsError> {
     FAT.lock().list_root(out, cap)
+}
+
+/// Delete a FAT16 root file behind the thin VFS. Not POSIX `unlink`.
+pub fn unlink(path: &str) -> Result<(), FsError> {
+    FAT.lock().unlink(path)
 }
 
 /// Read a mounted FAT path through the same VFS `open` as A7 `/probe`
@@ -843,6 +931,65 @@ fn vfs_probe_readdir() -> bool {
     true
 }
 
+
+/// Create `/fdel`, then delete it via `vfs::unlink`. Confirm Missing + absent
+/// from root listing. Keep `/probe`, `/hello`, `/fwr`. Not POSIX `unlink`.
+fn vfs_probe_delete() -> bool {
+    DELETE_OK.store(false, Ordering::SeqCst);
+    // Leftover image: clear any prior /fdel first.
+    if has_name(DELETE_PATH) {
+        if unlink(DELETE_PATH).is_err() {
+            return false;
+        }
+    }
+    let Ok(fd) = create(DELETE_PATH) else {
+        return false;
+    };
+    let Ok(n) = write(fd, DELETE_BYTES) else {
+        let _ = close(fd);
+        return false;
+    };
+    let _ = close(fd);
+    if n != DELETE_BYTES.len() || !has_name(DELETE_PATH) {
+        return false;
+    }
+    if vfs::unlink(DELETE_PATH).is_err() {
+        return false;
+    }
+    if has_name(DELETE_PATH) {
+        return false;
+    }
+    if open(DELETE_PATH) != Err(FsError::Missing) {
+        return false;
+    }
+    // Root listing must keep write-mile + A9 names and must not list /fdel.
+    let mut names = [[0u8; PATH_MAX]; READDIR_MAX];
+    let Ok(n) = vfs::readdir(&mut names, READDIR_MAX) else {
+        return false;
+    };
+    let mut saw_probe = false;
+    let mut saw_hello = false;
+    let mut saw_fwr = false;
+    for i in 0..n {
+        let s = path_buf_str(&names[i]);
+        if s == DELETE_PATH {
+            return false;
+        } else if s == PROBE_PATH {
+            saw_probe = true;
+        } else if s == "/hello" {
+            saw_hello = true;
+        } else if s == CREATE_PATH {
+            saw_fwr = true;
+        }
+    }
+    if !saw_probe || !saw_hello || !saw_fwr {
+        return false;
+    }
+    uart::write_str_raw("fat: delete\n");
+    DELETE_OK.store(true, Ordering::SeqCst);
+    true
+}
+
 /// Memfs write of the same small payload as the FAT `/probe` rewrite (ADR-051).
 /// Times only `vfs::write`, not create/open. Not a bench.
 fn measure_memfs_write() -> Option<u64> {
@@ -873,7 +1020,8 @@ fn measure_memfs_write() -> Option<u64> {
 }
 
 /// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`,
-/// root `readdir` (ADR-056), plus ADR-051 FAT-vs-memfs write CNTPCT pair (raw ticks).
+/// root `readdir` (ADR-056), delete `/fdel` (ADR-057), plus ADR-051 FAT-vs-memfs
+/// write CNTPCT pair (raw ticks).
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     if !mounted() {
@@ -890,6 +1038,9 @@ pub fn observe_probe() -> bool {
         return false;
     }
     if !vfs_probe_readdir() {
+        return false;
+    }
+    if !vfs_probe_delete() {
         return false;
     }
     let mut w = uart::raw();
@@ -1035,4 +1186,29 @@ fn fat16_path_maps_8_3() {
         "/fwr"
     );
     assert!(name83_to_path(b"PROBE   TXT").is_none());
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_unlink_removes_file() {
+    assert!(mounted(), "FAT16 must mount for unlink");
+    assert!(
+        vfs_probe_delete(),
+        "create+/fdel then vfs::unlink must leave Missing and keep /fwr"
+    );
+    assert!(DELETE_OK.load(Ordering::SeqCst));
+    assert!(!has_name(DELETE_PATH));
+    assert_eq!(open(DELETE_PATH), Err(FsError::Missing));
+    assert!(has_name(PROBE_PATH));
+    assert!(has_name(CREATE_PATH));
+    assert!(has_name("/hello"));
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_unlink_missing_is_err() {
+    assert!(mounted());
+    assert_eq!(unlink("/missing"), Err(FsError::Missing));
+    assert_eq!(unlink("bad"), Err(FsError::BadPath));
+    assert_eq!(vfs::unlink("/missing"), Err(FsError::Missing));
 }
