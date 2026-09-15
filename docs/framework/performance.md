@@ -72,6 +72,19 @@ QEMU TCG jitter is still one lab. No `criterion` crate. No “slot disconnect is
 
 QEMU TCG jitter is still one lab. No `criterion` crate. No latency SLA for FAT write.
 
+## FAT16 vs memfs read (ADR-065) — compared pair (QEMU TCG lab)
+
+The guest already reads known FAT16 `/probe` bytes through the thin VFS. [ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md) samples `CNTPCT` around that **single** `vfs::read` (`perf: fat-read ticks=<n>`), then on the same boot seeds memfs `/mrprobe` with the **same** bytes and times `vfs::read` (`perf: memfs-read ticks=<n>`), and prints `perf: fs-read-delta fat=<a> memfs=<b>`. That is a **measurement pair**, not a bench and not a percent. Symmetric to [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md) (write).
+
+| Class | What we measure | Honesty |
+| --- | --- | --- |
+| **FAT read** | One VFS read of `/probe` (`fat-hi`) | `perf: fat-read ticks=<n>` |
+| **Memfs read** | One VFS read of the same bytes on `/mrprobe` | `perf: memfs-read ticks=<n>` |
+| **Pair** | Raw tick counts on one boot | `perf: fs-read-delta fat=<a> memfs=<b>`. No “faster/slower.” No invented percent. QEMU TCG jitter. |
+| **Gate** | Keep `fat: read` / `fat: ok` / ADR-051 write pair / A9 markers. Fail closed on missing pair markers | Verified only when the ledger has serial evidence on a named tip. |
+
+QEMU TCG jitter is still one lab. No `criterion` crate. No latency SLA for FAT read.
+
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.

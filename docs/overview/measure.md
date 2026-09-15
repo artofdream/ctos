@@ -22,6 +22,9 @@ What we measure **today** on QEMU `virt` (serial markers + tests, fail-closed in
 | FAT write (`perf: fat-write`) | CNTPCT around one FAT VFS write of the small `/probe` rewrite payload ([ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md)) | A write latency SLA or “disk cost” |
 | Memfs write (`perf: memfs-write`) | CNTPCT around one memfs VFS write of the same bytes on the same boot | A memfs SLA or published bench |
 | FS write delta (`perf: fs-write-delta`) | Raw `fat=<a> memfs=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
+| FAT read (`perf: fat-read`) | CNTPCT around one FAT VFS read of `/probe` (`fat-hi`) ([ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md)) | A read latency SLA or “disk cost” |
+| Memfs read (`perf: memfs-read`) | CNTPCT around one memfs VFS read of the same bytes on the same boot | A memfs SLA or published bench |
+| FS read delta (`perf: fs-read-delta`) | Raw `fat=<a> memfs=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
 
 QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
@@ -48,6 +51,16 @@ QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not 
 | Gate | Keep `fat: write` / `fat: ok`; fail closed on missing pair markers | Criterion / invented benches |
 
 **Measure first** ([NFR-07](../02-requirements/fr-nfr.md)). Do not tune a loader “for speed” on a hunch. Do not copy QEMU ticks into a product slide.
+
+### FAT read vs memfs read (performance)
+
+[ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md) adds the symmetric same-boot CNTPCT pair for **read**: `perf: fat-read` vs `perf: memfs-read` plus `perf: fs-read-delta fat=<a> memfs=<b>`. Same honesty rules as the write pair — measurement only, not a latency SLA.
+
+| Kind | Honest claim shape | What it is not |
+| --- | --- | --- |
+| Compared **pair** | Raw tick counts for the same small `/probe` payload on one guest | A percent, SLA, or product KPI |
+| Possible **cost** | Extra block/FAT work vs memfs memcpy | Marketing “slower” without naming the tip + ticks |
+| Gate | Keep `fat: read` / `fat: ok` / ADR-051 write markers; fail closed on missing pair markers | Criterion / invented benches |
 
 ## Stability / antifragility
 

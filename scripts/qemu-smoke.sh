@@ -513,6 +513,32 @@ echo "qemu-smoke: FAT16 (A7) strings present"
 echo "qemu-smoke: FAT16 readdir (ADR-056) strings present"
 echo "qemu-smoke: FAT16 delete (ADR-057) strings present"
 echo "qemu-smoke: FAT16 multi-cluster grow (ADR-064) strings present"
+# ADR-065: FAT-vs-memfs read CNTPCT pair (raw ticks; not a bench / percent).
+if grep -q "perf: fat-read missed" "$log"; then
+    echo "qemu-smoke: fat-read probe missed (CNTPCT around FAT VFS read did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: fat-read" "$log"; then
+    echo "qemu-smoke: missing 'perf: fat-read' on serial (ADR-065 FAT read CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "perf: memfs-read missed" "$log"; then
+    echo "qemu-smoke: memfs-read probe missed (CNTPCT around memfs read did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: memfs-read" "$log"; then
+    echo "qemu-smoke: missing 'perf: memfs-read' on serial (ADR-065 memfs read CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "perf: fs-read-delta" "$log"; then
+    echo "qemu-smoke: missing 'perf: fs-read-delta' on serial (ADR-065 compared pair, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -E -q 'perf: fs-read-delta.*(faster|slower|percent|%)' "$log"; then
+    echo "qemu-smoke: fs-read-delta must not claim faster/slower/percent" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-065 FAT-vs-memfs read CNTPCT pair present"
 # ADR-051: FAT-vs-memfs write CNTPCT pair (raw ticks; not a bench / percent).
 if grep -q "perf: fat-write missed" "$log"; then
     echo "qemu-smoke: fat-write probe missed (CNTPCT around FAT VFS write did not advance)" >&2

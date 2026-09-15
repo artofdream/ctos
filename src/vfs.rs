@@ -290,8 +290,9 @@ pub struct Mount {
 }
 
 /// Static first-cut mount table. `/mem` is the documented memfs home;
-/// A6 probe names stay memfs so `/kprobe` / `/eprobe` / `/mwprobe` habits
-/// hold; `/` routes everything else (incl. `/probe`, `/hello`) to FAT16.
+/// A6 probe names stay memfs so `/kprobe` / `/eprobe` / `/mwprobe` /
+/// `/mrprobe` habits hold; `/` routes everything else (incl. `/probe`,
+/// `/hello`) to FAT16.
 pub const MOUNTS: &[Mount] = &[
     Mount {
         prefix: "/kprobe",
@@ -303,6 +304,10 @@ pub const MOUNTS: &[Mount] = &[
     },
     Mount {
         prefix: "/mwprobe",
+        backend: Backend::MemFs,
+    },
+    Mount {
+        prefix: "/mrprobe",
         backend: Backend::MemFs,
     },
     Mount {
@@ -612,6 +617,7 @@ fn vfs_prefix_mounts_route_backends() {
     assert_eq!(resolve("/kprobe"), Ok(Backend::MemFs));
     assert_eq!(resolve("/eprobe"), Ok(Backend::MemFs));
     assert_eq!(resolve("/mwprobe"), Ok(Backend::MemFs));
+    assert_eq!(resolve("/mrprobe"), Ok(Backend::MemFs));
     assert_eq!(resolve("/memx"), Ok(Backend::MemFs));
     assert_eq!(resolve("/missing"), Ok(Backend::Fat16));
     assert_eq!(resolve("nope"), Err(FsError::BadPath));

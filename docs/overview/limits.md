@@ -16,7 +16,7 @@ QEMU `-kernel` and `_start` stay at `0x4008_0000`. High-address work (kernel pag
 
 ## No network yet; disk is virtio-blk + FAT16 only
 
-There is no NIC driver and no virtio-net in the guest today. **Track N Planned** — see [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) / [track-n.md](../04-roadmap/track-n.md) (N0 scope only; N1 first-frame probes not run). A7 programs virtio-mmio block and reads a host-built FAT16 image through the thin VFS; ADR-050 adds a guest FAT16 write / small create mile; ADR-051 adds a same-boot FAT vs memfs write CNTPCT pair (lab measurement, not a bench) ([Filesystem](filesystem.md), [KPIs](measure.md)). That is not a general DMA API, not virtio-pci, not POSIX, and not a Linux rootfs. Input on virt is serial receive. Timer is the virt interrupt controller plus the generic timer. Do not say “has networking.”
+There is no NIC driver and no virtio-net in the guest today. **Track N Planned** — see [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) / [track-n.md](../04-roadmap/track-n.md) (N0 scope only; N1 first-frame probes not run). A7 programs virtio-mmio block and reads a host-built FAT16 image through the thin VFS; ADR-050 adds a guest FAT16 write / small create mile; ADR-051 / ADR-065 add same-boot FAT vs memfs write and read CNTPCT pairs (lab measurements, not benches) ([Filesystem](filesystem.md), [KPIs](measure.md)). That is not a general DMA API, not virtio-pci, not POSIX, and not a Linux rootfs. Input on virt is serial receive. Timer is the virt interrupt controller plus the generic timer. Do not say “has networking.”
 
 ## No real userspace apps
 

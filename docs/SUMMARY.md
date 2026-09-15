@@ -91,6 +91,7 @@
 - [ADR-062 yield-libctos cooperative yield sample](03-adr/ADR-062-yield-libctos-sample.md)
 - [ADR-063 Track N network foundation scope](03-adr/ADR-063-network-foundation-scope.md)
 - [ADR-064 FAT16 multi-cluster grow](03-adr/ADR-064-fat16-multi-cluster-grow.md)
+- [ADR-065 FAT vs memfs read CNTPCT](03-adr/ADR-065-fat-memfs-read-cntpct.md)
 
 # Roadmap
 

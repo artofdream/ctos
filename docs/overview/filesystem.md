@@ -47,12 +47,13 @@ flowchart LR
   F --> H["5. host image + guest read<br/>A7/A9"]
   H --> W["6. FAT16 write<br/>ADR-050"]
   W --> P["7. FAT vs memfs write CNTPCT<br/>ADR-051"]
-  P --> R["8. FAT16 readdir<br/>ADR-056"]
+  P --> PR["7b. FAT vs memfs read CNTPCT<br/>ADR-065"]
+  PR --> R["8. FAT16 readdir<br/>ADR-056"]
   R --> D["9. FAT16 delete<br/>ADR-057"]
   D --> V2["10. Prefix mounts<br/>ADR-058"]
 ```
 
-*A7 is virtio-blk + FAT16 read. ADR-050 is FAT16 write depth. ADR-051 is a same-boot measurement pair (not a bench). ADR-056 is FAT16 root listing. ADR-057 is FAT16 root delete. ADR-058 is prefix mounts. A8 is documented recipes. A9 / ADR-059 / ADR-061 / ADR-062 use the same volume for `/hello` / `/fsdemo` / `/fatdemo` / `/yldemo`. Do not say “supports FAT” as a product.*
+*A7 is virtio-blk + FAT16 read. ADR-050 is FAT16 write depth. ADR-051 / ADR-065 are same-boot measurement pairs (not benches). ADR-056 is FAT16 root listing. ADR-057 is FAT16 root delete. ADR-058 is prefix mounts. A8 is documented recipes. A9 / ADR-059 / ADR-061 / ADR-062 use the same volume for `/hello` / `/fsdemo` / `/fatdemo` / `/yldemo`. Do not say “supports FAT” as a product.*
 
 1. **VFS ADR** — thin interface (create / open / read / write / close of a path).
 2. **memfs** — in-RAM named buffers; serial `fs: ok`.
@@ -61,6 +62,7 @@ flowchart LR
 5. **Host-checkable image** — `scripts/mkfat16.py` writes `target/fat16.img`; smoke attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Guest `vfs::open("/probe")` must read `fat-hi`. A9 adds `--app` so `/hello` is the published app ELF; ADR-059/061/062 add `--app2` / `--app3` / `--app4` for `/fsdemo` / `/fatdemo` / `/yldemo`.
 6. **FAT16 write** — guest `vfs::write` on an open FAT handle + backend create of `/fwr` ([ADR-050](../03-adr/ADR-050-fat16-write.md)). Serial `fat: write` / `fat: create`; host `--check-write`.
 7. **FAT vs memfs write CNTPCT** — same-boot pair `perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta` ([ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md)). QEMU TCG lab — not a percent or latency SLA.
+7b. **FAT vs memfs read CNTPCT** — same-boot pair `perf: fat-read` / `perf: memfs-read` / `perf: fs-read-delta` ([ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md)). QEMU TCG lab — not a percent or latency SLA.
 8. **FAT16 readdir** — guest `vfs::readdir` lists root thin-VFS paths ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Serial `fat: readdir` / `fat: entries`. Not POSIX `getdents`.
 9. **FAT16 delete** — guest `vfs::unlink` deletes a root file ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Serial `fat: delete`. Not POSIX `unlink`.
 10. **Prefix mounts** — mount table routes path prefixes to memfs or FAT16 ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Serial `vfs: mount` / `vfs: mounts`. Not POSIX `mount(2)`.
@@ -74,6 +76,7 @@ flowchart LR
 | FAT16 `/probe` via the same `open` | Serial `fat: ok` + `#[test_case]` | **Verified** on this tip when the ledger has the probe |
 | FAT16 write + small create | Serial `fat: write` / `fat: rewrite` / `fat: create` + host `--check-write` | **Verified** on this tip when the ledger has the probe ([ADR-050](../03-adr/ADR-050-fat16-write.md)) |
 | FAT vs memfs write CNTPCT pair | Serial `perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta` | **Verified** on this tip when the ledger has the probe ([ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md)). Not a bench. |
+| FAT vs memfs read CNTPCT pair | Serial `perf: fat-read` / `perf: memfs-read` / `perf: fs-read-delta` | **Verified** on this tip when the ledger has the probe ([ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md)). Not a bench. |
 | FAT16 root readdir | Serial `fat: readdir` / `fat: entries` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Not POSIX. |
 | FAT16 root delete | Serial `fat: delete` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX. |
 | Thin VFS prefix mounts | Serial `vfs: mount` / `vfs: mounts` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Not `mount(2)`. |
