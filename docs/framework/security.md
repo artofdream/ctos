@@ -1,8 +1,8 @@
-# Security — threat model v1.39 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064)
+# Security — threat model v1.40 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064 / ADR-065)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.39** (2026-09-16). Slice/update of v1.38 (#109 Track N). FAT16 multi-cluster grow ([ADR-064](../03-adr/ADR-064-fat16-multi-cluster-grow.md): allocate chain, write across cluster boundary; EL0 chunked SVC proof). Track N network foundation scope ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)) remains docs-only N0; virtio-net first frame **Planned**; no stack yet. ADR-062 yield sample unchanged. ADR-061 FAT sample deepened for grow only. ADR-060 leftovers closure checklist unchanged. ADR-053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption/exFAT/“has networking.” Not a v2 model and not “secure.”
+Version: **v1.40** (2026-09-16). Slice/update of v1.39 (#110 ADR-064). FAT vs memfs read CNTPCT pair ([ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md): same-boot `perf: fat-read` / `perf: memfs-read` / `perf: fs-read-delta`; measure-first, not a bench). ADR-064 grow mile unchanged. Track N network foundation scope ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)) remains docs-only N0; virtio-net first frame **Planned**; no stack yet. ADR-062 yield sample unchanged. ADR-061 FAT sample unchanged. ADR-060 leftovers closure checklist unchanged. ADR-053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption/exFAT/“has networking.” Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -172,6 +172,10 @@ Three freestanding EL0 samples on FAT: `/hello`, `/fsdemo` (memfs `/memdemo`), a
 ### FAT16 multi-cluster grow (v1.39)
 
 [ADR-064](../03-adr/ADR-064-fat16-multi-cluster-grow.md): guest grows a FAT16 root file across a cluster boundary (`fat: grow`); EL0 `fat-libctos` chunked SVC write/read-back (`libctos: fat-grow`). Not POSIX write API. Not exFAT. Keep write / readdir / delete / `/hello` / `slot: ok`. Still **not** Linux/containers/“EL0 isolated.” Track N untouched.
+
+### FAT vs memfs read CNTPCT (v1.40)
+
+[ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md): same-boot CNTPCT pair around FAT `/probe` read vs memfs `/mrprobe` read (`perf: fat-read` / `perf: memfs-read` / `perf: fs-read-delta`). Measure-first lab ticks only — not a latency SLA, percent, or product KPI. Keep ADR-051 write pair / `fat: ok` / Track N untouched. Still **not** “secure.”
 
 ### Freestanding cooperative-yield sample (v1.37)
 

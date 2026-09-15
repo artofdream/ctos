@@ -183,7 +183,7 @@ FAT16 on QEMU virtio-mmio block ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md
 
 `-drive if=none,file=target/fat16.img,format=raw,id=hd0 -device virtio-blk-device,drive=hd0`
 
-Host `-drive` without the guest serial is **not** the probe. Not POSIX. Not FAT32. Do not say “supports FAT” as a product; say the guest wrote FAT16 bytes when `fat: write` / `fat: create` pass, and grew across a cluster boundary when `fat: grow` / `libctos: fat-grow` pass. Same-boot CNTPCT pair vs memfs write: [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md) / [KPIs](measure.md) (`perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta`) — measurement only, not a latency SLA.
+Host `-drive` without the guest serial is **not** the probe. Not POSIX. Not FAT32. Do not say “supports FAT” as a product; say the guest wrote FAT16 bytes when `fat: write` / `fat: create` pass, and grew across a cluster boundary when `fat: grow` / `libctos: fat-grow` pass. Same-boot CNTPCT pairs vs memfs: write [ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md) (`perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta`) and read [ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md) (`perf: fat-read` / `perf: memfs-read` / `perf: fs-read-delta`) — [KPIs](measure.md); measurement only, not a latency SLA.
 
 ## Recipe 6 — OS image vs app slot (A9 first cut)
 
