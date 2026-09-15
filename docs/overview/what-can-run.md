@@ -25,10 +25,10 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`).
 
 ```bash
-cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos
+cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos
 ./scripts/qemu-smoke.sh     # fail-closed serial greps + cargo test + force-fail
 ```
 
@@ -99,7 +99,7 @@ A kernel `cargo build` already does that via `build.rs` and publishes the result
 
 This is **not** a process. No libc, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
 
-`libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them**. A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
+`libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them**. A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). A third reads **FAT** via the same wrappers: see Recipe 3c (`fat-libctos`, [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
 
 ## Recipe 3b — Standing EL0 / libctos VFS sample (`fs-libctos`)
 
@@ -113,6 +113,19 @@ Second freestanding EL0 payload that **calls** the VFS wrappers ([ADR-059](../03
 | Kernel probe | `src/fsdemo.rs` |
 
 Rebuild: same one-rebuild commands. Keep `/hello` + `slot: ok`. Not POSIX. Not `getdents`. Not a reopen of product app hosting (ADR-048/052).
+
+## Recipe 3c — Standing EL0 / libctos FAT sample (`fat-libctos`)
+
+Third freestanding EL0 payload that opens/reads a **FAT** path through thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). Same class as `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`. Deeper than Recipe 3b (memfs only).
+
+| Piece | Path |
+| --- | --- |
+| Sample | `user/fat-libctos/` |
+| In-app path | `/probe` (ADR-058: `/` → FAT16; existing A7 payload `fat-hi`) |
+| FAT slot | `/fatdemo` (`target/fat-libctos.elf` via `mkfat16.py --app3`) |
+| Kernel probe | `src/fatdemo.rs` |
+
+Rebuild: same one-rebuild commands. Keep `/hello` + `/fsdemo` + `slot: ok` + `fsdemo: ok`. Not POSIX. Not `getdents`. Not a reopen of product app hosting (ADR-048/052).
 
 ## Recipe 4 — memfs named-buffer probe (optional)
 

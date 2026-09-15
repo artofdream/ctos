@@ -1,8 +1,8 @@
-# Security — threat model v1.35 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060)
+# Security — threat model v1.36 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.35** (2026-09-15). Slice/update of v1.34. Sponsor isolation leftovers **closure checklist** ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)) — locks + reopen gates only; does **not** invent Verified for taken SError / PAN enable / “EL0 isolated.” ADR-053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers. Not a v2 model and not “secure.”
+Version: **v1.36** (2026-09-15). Slice/update of v1.35. Third freestanding sample catalog ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md): `fat-libctos` reads FAT `/probe` via thin VFS). ADR-060 leftovers closure checklist unchanged. ADR-053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers. Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -165,3 +165,7 @@ Two freestanding EL0 samples on FAT: `/hello` (`hello-libctos`, UART+yield) and 
 ### Sponsor isolation leftovers closure (v1.35)
 
 [ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md): single sponsor-facing table for taken SError / PAN enable / umbrella “EL0 isolated” / never-yank `_start` — **locks + reopen gates only**. Cites ADR-047 / ADR-053 / ADR-054 / ADR-055 / #98. Does **not** invent Verified. Does **not** reopen Guest Linux / containers / immutable-OS marketing.
+
+### Freestanding FAT-via-VFS sample (v1.36)
+
+Three freestanding EL0 samples on FAT: `/hello`, `/fsdemo` (memfs `/memdemo`), and `/fatdemo` (`fat-libctos`, open/read FAT `/probe` via thin VFS `/` → FAT16). Catalog docs list all three ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). Not POSIX. Not `getdents`. Not a reopen of product app hosting.
