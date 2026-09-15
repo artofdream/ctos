@@ -62,4 +62,5 @@ Say “umbrella EL0 isolation is Planned / non-claim until the ADR-055 checklist
 
 - Honesty ledger umbrella row cites this checklist; optional label **“non-claim until checklist.”**
 - [el0.md](../framework/el0.md), roadmap P-SEC-3l, [security.md](../framework/security.md), [limits.md](../overview/limits.md) point here.
+- Sponsor-facing one-pager (locks + reopen gates table): [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md).
 - No `src/` change. No Verified invent. Threat-model patch bump only.

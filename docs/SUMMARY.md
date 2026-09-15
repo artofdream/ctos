@@ -86,6 +86,7 @@
 - [ADR-057 FAT16 delete](03-adr/ADR-057-fat16-delete.md)
 - [ADR-058 VFS prefix mounts](03-adr/ADR-058-vfs-prefix-mounts.md)
 - [ADR-059 fs-libctos sample catalog](03-adr/ADR-059-fs-libctos-sample.md)
+- [ADR-060 Isolation leftovers closure checklist](03-adr/ADR-060-isolation-leftovers-closure-checklist.md)
 
 # Roadmap
 
