@@ -1,6 +1,6 @@
 # ctos (ctsOS)
 
-**ctos** is a small operating-system **kernel** you can study. It is written in Rust for 64-bit ARM (**AArch64**). You run it in the **QEMU** emulator, not as a desktop or phone OS. The nickname **ctsOS** is only for display; the repo and crate stay `ctos`.
+**ctos** is a small operating-system **kernel** you can study. It is written in Rust for 64-bit ARM (**AArch64**). You run it in the **QEMU** emulator, not as a desktop or phone OS. The nickname **ctsOS** is only for display; the repo and crate stay `ctos`. Why Rust (and what it does not buy): [Advantages — Why Rust](overview/advantages.md#why-rust-for-this-kernel).
 
 This book **is** the website. The same markdown lives under `docs/` in [the GitHub repo](https://github.com/artofdream/ctos). There is no second marketing copy.
 
@@ -90,7 +90,7 @@ flowchart LR
 | Files (memfs + FAT16) | [Filesystem](overview/filesystem.md) |
 | App host / containers | [Hosting apps](overview/hosting-apps.md) — freestanding product claim **Verified** ([ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](03-adr/ADR-052-sponsor-accept-app-hosting.md)); containers: **non-goal** ([ADR-029](03-adr/ADR-029-containers-nongoal.md)). Linux-compat frame: [ADR-031](03-adr/ADR-031-linux-compat-goals.md) (not userspace). |
 | How we measure | [KPIs](overview/measure.md) |
-| Why the repo is run this way | [Advantages](overview/advantages.md) |
+| Why the repo is run this way · Why Rust | [Advantages](overview/advantages.md) · [Why Rust](overview/advantages.md#why-rust-for-this-kernel) |
 | Deep dives | [Vision](01-vision/product-vision.md) · [FR / NFR](02-requirements/fr-nfr.md) · [Architecture](02-architecture/technical-architecture.md) · [Roadmap](04-roadmap/roadmap.md) · [Ledger](framework/honesty-ledger.md) |
 
 Kernel build notes also live in the [GitHub README](https://github.com/artofdream/ctos#readme).
