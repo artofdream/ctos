@@ -501,6 +501,10 @@ if ! grep -q "fat: delete" "$log"; then
     echo "qemu-smoke: missing 'fat: delete' on serial (FAT16 unlink /fdel, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "fat: grow" "$log"; then
+    echo "qemu-smoke: missing 'fat: grow' on serial (FAT16 multi-cluster grow /fgrow, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "fat: ok" "$log"; then
     echo "qemu-smoke: missing 'fat: ok' on serial (A7 FAT16 mile, qemu exit $qemu_ec)" >&2
     exit 1
@@ -508,6 +512,7 @@ fi
 echo "qemu-smoke: FAT16 (A7) strings present"
 echo "qemu-smoke: FAT16 readdir (ADR-056) strings present"
 echo "qemu-smoke: FAT16 delete (ADR-057) strings present"
+echo "qemu-smoke: FAT16 multi-cluster grow (ADR-064) strings present"
 # ADR-051: FAT-vs-memfs write CNTPCT pair (raw ticks; not a bench / percent).
 if grep -q "perf: fat-write missed" "$log"; then
     echo "qemu-smoke: fat-write probe missed (CNTPCT around FAT VFS write did not advance)" >&2
@@ -608,6 +613,10 @@ if ! grep -q "libctos: fat-hi" "$log"; then
 fi
 if ! grep -q "libctos: fat-ok" "$log"; then
     echo "qemu-smoke: missing 'libctos: fat-ok' on serial (fat-libctos FAT VFS trip, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: fat-grow" "$log"; then
+    echo "qemu-smoke: missing 'libctos: fat-grow' on serial (fat-libctos multi-cluster write, qemu exit $qemu_ec)" >&2
     exit 1
 fi
 if grep -q "libctos: fat-fail" "$log"; then

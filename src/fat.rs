@@ -1,16 +1,18 @@
 //! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050
-//! + ADR-056 + ADR-057).
+//! + ADR-056 + ADR-057 + ADR-064).
 //!
 //! Read + write of root files. Known `/probe` (8.3 `PROBE`) and A9 `/hello`
-//! (8.3 `HELLO`, app ELF). Guest may create a small single-cluster file.
-//! Root listing (`readdir`) returns thin-VFS paths. Guest may delete a root
-//! file (`unlink`) by marking the dirent deleted and freeing its cluster.
-//! Not FAT32. Not xv6. Not POSIX `unlink` / `getdents` / `opendir`. Host
-//! image is `scripts/mkfat16.py`.
+//! (8.3 `HELLO`, app ELF). Guest may create a root file and grow it across
+//! multiple clusters (ADR-064). Root listing (`readdir`) returns thin-VFS
+//! paths. Guest may delete a root file (`unlink`) by marking the dirent
+//! deleted and freeing its cluster chain. Not FAT32. Not xv6. Not POSIX
+//! `unlink` / `getdents` / `opendir` / full write API. Host image is
+//! `scripts/mkfat16.py`.
 //!
-//! `vfs::create` stays memfs-first (A6). FAT create is the FAT backend
-//! (`fat::create`); write on an open FAT handle is the same `vfs::write`;
-//! delete is `fat::unlink` / `vfs::unlink`.
+//! `vfs::create` stays memfs-first for A6 probe names; FAT paths under `/`
+//! route to the FAT backend ([ADR-058](../docs/03-adr/ADR-058-vfs-prefix-mounts.md)).
+//! Write on an open FAT handle is the same `vfs::write`; delete is
+//! `fat::unlink` / `vfs::unlink`.
 //!
 //! ADR-051: CNTPCT around the FAT VFS write of the small `/probe` payload,
 //! compared on the same boot to a memfs write of the same bytes (raw ticks;
@@ -35,6 +37,9 @@ const CREATE_PATH: &str = "/fwr";
 const CREATE_BYTES: &[u8] = b"fat-nw";
 const DELETE_PATH: &str = "/fdel";
 const DELETE_BYTES: &[u8] = b"fat-dl";
+/// Multi-cluster grow probe (ADR-064). Length must exceed one cluster (512).
+const GROW_PATH: &str = "/fgrow";
+const GROW_LEN: usize = 600;
 /// Cap on names returned by one root `readdir` (ADR-056).
 pub const READDIR_MAX: usize = 16;
 /// Memfs path for the ADR-051 compared write (same payload as WRITE_BYTES).
@@ -256,7 +261,7 @@ impl Fat16 {
         None
     }
 
-    /// Free a FAT cluster chain (single-cluster files this mile; walks to EOC).
+    /// Free a FAT cluster chain (walks to EOC; multi-cluster after ADR-064).
     fn free_chain(&self, start: u16) -> bool {
         let mut cluster = start;
         while cluster >= 2 && cluster < 0xFFF8 {
@@ -350,7 +355,83 @@ impl Fat16 {
         Ok(done)
     }
 
-    /// Single-cluster write this mile. Caps at `FILE_MAX` and one cluster.
+    /// Walk `index` steps from `start` along the FAT chain.
+    fn cluster_at(&self, start: u16, index: u32) -> Result<u16, FsError> {
+        let mut cluster = start;
+        for _ in 0..index {
+            cluster = self.fat_entry(cluster).ok_or(FsError::BadHandle)?;
+            if cluster < 2 || cluster >= 0xFFF8 {
+                return Err(FsError::BadHandle);
+            }
+        }
+        if cluster < 2 {
+            return Err(FsError::BadHandle);
+        }
+        Ok(cluster)
+    }
+
+    /// Count clusters in the chain starting at `start` (stops at EOC).
+    fn chain_len(&self, start: u16) -> u32 {
+        let mut n = 0u32;
+        let mut cluster = start;
+        while cluster >= 2 && cluster < 0xFFF8 {
+            n += 1;
+            match self.fat_entry(cluster) {
+                Some(next) if next >= 0xFFF8 => return n,
+                Some(next) => cluster = next,
+                None => return n,
+            }
+            if n > 64 {
+                break;
+            }
+        }
+        n
+    }
+
+    /// Ensure the chain from `start` has at least `need` clusters.
+    /// Allocates and zeros new clusters; links prior → new → EOC.
+    fn extend_chain(&self, start: u16, need: u32) -> Result<(), FsError> {
+        if start < 2 || need == 0 || need > 64 {
+            return Err(FsError::BadHandle);
+        }
+        let mut cluster = start;
+        let mut have = 1u32;
+        loop {
+            let next = self.fat_entry(cluster).ok_or(FsError::BadHandle)?;
+            if next >= 0xFFF8 {
+                break;
+            }
+            if next < 2 {
+                return Err(FsError::BadHandle);
+            }
+            cluster = next;
+            have += 1;
+            if have > 64 {
+                return Err(FsError::TooBig);
+            }
+        }
+        while have < need {
+            let newc = self.find_free_cluster().ok_or(FsError::Full)?;
+            if !self.set_fat_entry(newc, EOC) {
+                return Err(FsError::BadHandle);
+            }
+            if !self.set_fat_entry(cluster, newc) {
+                let _ = self.set_fat_entry(newc, 0);
+                return Err(FsError::BadHandle);
+            }
+            let zeros = [0u8; SECTOR];
+            if !self.write_sector(self.cluster_lba(newc), &zeros) {
+                return Err(FsError::BadHandle);
+            }
+            cluster = newc;
+            have += 1;
+        }
+        Ok(())
+    }
+
+    /// Write at `off`, allocating additional FAT clusters when the write
+    /// crosses a cluster boundary (ADR-064). Caps at `FILE_MAX`. Assumes
+    /// one sector per cluster (`mkfat16` spc=1) this mile.
     fn write_at(&self, start: u16, size: u32, off: u32, data: &[u8]) -> Result<(usize, u32), FsError> {
         if data.is_empty() {
             return Err(FsError::TooBig);
@@ -367,29 +448,45 @@ impl Fat16 {
             return Err(FsError::TooBig);
         }
         let end = off as usize + data.len();
-        if end > clus_bytes || end > FILE_MAX {
+        if end > FILE_MAX {
             return Err(FsError::TooBig);
         }
-        // Refuse multi-cluster grow this mile.
-        if off as usize >= clus_bytes {
-            return Err(FsError::TooBig);
+        let need = ((end + clus_bytes - 1) / clus_bytes) as u32;
+        self.extend_chain(start, need)?;
+
+        let mut written = 0usize;
+        let mut pos = off as usize;
+        while written < data.len() {
+            let idx = (pos / clus_bytes) as u32;
+            let within = pos % clus_bytes;
+            let cluster = self.cluster_at(start, idx)?;
+            let mut sec = [0u8; SECTOR];
+            if !self.read_sector(self.cluster_lba(cluster), &mut sec) {
+                return Err(FsError::BadHandle);
+            }
+            let take = core::cmp::min(data.len() - written, clus_bytes - within);
+            // Zero the gap between old EOF and this write start inside the cluster.
+            let old_end = size as usize;
+            let cluster_base = idx as usize * clus_bytes;
+            let zero_from = if old_end > cluster_base {
+                core::cmp::min(old_end - cluster_base, clus_bytes)
+            } else {
+                0
+            };
+            if zero_from < within {
+                for b in sec[zero_from..within].iter_mut() {
+                    *b = 0;
+                }
+            }
+            sec[within..within + take].copy_from_slice(&data[written..written + take]);
+            if !self.write_sector(self.cluster_lba(cluster), &sec) {
+                return Err(FsError::BadHandle);
+            }
+            written += take;
+            pos += take;
         }
-        let mut sec = [0u8; SECTOR];
-        if !self.read_sector(self.cluster_lba(start), &mut sec) {
-            return Err(FsError::BadHandle);
-        }
-        let n = data.len();
-        let start_off = off as usize;
-        sec[start_off..start_off + n].copy_from_slice(&data[..n]);
-        // Zero the gap between old EOF and new write start when extending.
-        if off > size {
-            return Err(FsError::BadHandle);
-        }
-        if !self.write_sector(self.cluster_lba(start), &sec) {
-            return Err(FsError::BadHandle);
-        }
-        let new_size = core::cmp::max(size, off + n as u32);
-        Ok((n, new_size))
+        let new_size = core::cmp::max(size, off + data.len() as u32);
+        Ok((data.len(), new_size))
     }
 
 
@@ -543,7 +640,7 @@ impl VfsOps for Fat16 {
 
 impl Fat16 {
     /// Delete a root file: mark dirent `0xE5`, free its cluster chain, drop
-    /// open handles to that name. Not POSIX `unlink`. Single-cluster this mile.
+    /// open handles to that name. Not POSIX `unlink`. Multi-cluster chains ok.
     fn unlink(&mut self, path: &str) -> Result<(), FsError> {
         if !self.mounted {
             return Err(FsError::Missing);
@@ -569,6 +666,7 @@ static WRITE_OK: AtomicBool = AtomicBool::new(false);
 static CREATE_OK: AtomicBool = AtomicBool::new(false);
 static READDIR_OK: AtomicBool = AtomicBool::new(false);
 static DELETE_OK: AtomicBool = AtomicBool::new(false);
+static GROW_OK: AtomicBool = AtomicBool::new(false);
 static FAT_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 static MEMFS_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 
@@ -680,6 +778,7 @@ pub fn init() {
     CREATE_OK.store(false, Ordering::SeqCst);
     READDIR_OK.store(false, Ordering::SeqCst);
     DELETE_OK.store(false, Ordering::SeqCst);
+    GROW_OK.store(false, Ordering::SeqCst);
     let mut fat = FAT.lock();
     *fat = Fat16::empty();
     if !virtio::ready() {
@@ -992,6 +1091,67 @@ fn vfs_probe_delete() -> bool {
     true
 }
 
+
+/// Create `/fgrow`, write `GROW_LEN` (> one cluster) bytes across a cluster
+/// boundary, confirm chain length ≥ 2 and VFS read-back (ADR-064).
+fn vfs_probe_grow() -> bool {
+    GROW_OK.store(false, Ordering::SeqCst);
+    if has_name(GROW_PATH) {
+        if unlink(GROW_PATH).is_err() {
+            return false;
+        }
+    }
+    let Ok(fd) = create(GROW_PATH) else {
+        return false;
+    };
+    let mut payload = [0u8; GROW_LEN];
+    for (i, b) in payload.iter_mut().enumerate() {
+        *b = b'A'.wrapping_add((i % 26) as u8);
+    }
+    let Ok(n) = write(fd, &payload) else {
+        let _ = close(fd);
+        return false;
+    };
+    let _ = close(fd);
+    if n != GROW_LEN {
+        return false;
+    }
+    let Some(name) = path_to_83(GROW_PATH) else {
+        return false;
+    };
+    let (cluster, size, clen) = {
+        let fat = FAT.lock();
+        let Some((c, s)) = fat.lookup(&name) else {
+            return false;
+        };
+        (c, s, fat.chain_len(c))
+    };
+    if size != GROW_LEN as u32 || clen < 2 || cluster < 2 {
+        return false;
+    }
+    let Ok(fd) = vfs::open(GROW_PATH) else {
+        return false;
+    };
+    let mut buf = [0u8; GROW_LEN];
+    let Ok(n) = vfs::read(fd, &mut buf) else {
+        let _ = vfs::close(fd);
+        return false;
+    };
+    let _ = vfs::close(fd);
+    if n != GROW_LEN || buf != payload {
+        return false;
+    }
+    // Boundary bytes must differ across the cluster edge (spc=1 → 512).
+    let edge = 512usize;
+    if edge >= GROW_LEN || buf[edge - 1] == buf[edge] {
+        // Pattern A..Z makes offset 511 and 512 different (511%26 != 512%26).
+        return false;
+    }
+    uart::write_str_raw("fat: grow\n");
+    GROW_OK.store(true, Ordering::SeqCst);
+    true
+}
+
 /// Memfs write of the same small payload as the FAT `/probe` rewrite (ADR-051).
 /// Times only `vfs::write`, not create/open. Not a bench.
 fn measure_memfs_write() -> Option<u64> {
@@ -1022,8 +1182,8 @@ fn measure_memfs_write() -> Option<u64> {
 }
 
 /// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`,
-/// root `readdir` (ADR-056), delete `/fdel` (ADR-057), plus ADR-051 FAT-vs-memfs
-/// write CNTPCT pair (raw ticks).
+/// root `readdir` (ADR-056), delete `/fdel` (ADR-057), multi-cluster grow
+/// `/fgrow` (ADR-064), plus ADR-051 FAT-vs-memfs write CNTPCT pair (raw ticks).
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     if !mounted() {
@@ -1043,6 +1203,9 @@ pub fn observe_probe() -> bool {
         return false;
     }
     if !vfs_probe_delete() {
+        return false;
+    }
+    if !vfs_probe_grow() {
         return false;
     }
     let mut w = uart::raw();
@@ -1215,3 +1378,36 @@ fn fat16_unlink_missing_is_err() {
     assert_eq!(unlink("bad"), Err(FsError::BadPath));
     assert_eq!(vfs::unlink("/missing"), Err(FsError::Missing));
 }
+
+#[cfg(test)]
+#[test_case]
+fn fat16_multi_cluster_grow() {
+    assert!(mounted(), "FAT16 must mount for multi-cluster grow");
+    assert!(
+        vfs_probe_grow(),
+        "FAT create+/fgrow must allocate ≥2 clusters and read back"
+    );
+    assert!(GROW_OK.load(Ordering::SeqCst));
+    assert!(has_name(GROW_PATH));
+    let name = path_to_83(GROW_PATH).expect("fgrow 8.3");
+    let fat = FAT.lock();
+    let (c, s) = fat.lookup(&name).expect("fgrow dirent");
+    assert_eq!(s, GROW_LEN as u32);
+    assert!(fat.chain_len(c) >= 2);
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_grow_refuses_over_file_max() {
+    assert!(mounted());
+    const PATH: &str = "/fbig";
+    if has_name(PATH) {
+        assert_eq!(unlink(PATH), Ok(()));
+    }
+    let fd = create(PATH).expect("create fbig");
+    let big = [b'x'; FILE_MAX + 1];
+    assert_eq!(write(fd, &big), Err(FsError::TooBig));
+    assert_eq!(close(fd), Ok(()));
+    let _ = unlink(PATH);
+}
+
