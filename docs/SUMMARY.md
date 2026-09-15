@@ -87,6 +87,7 @@
 - [ADR-058 VFS prefix mounts](03-adr/ADR-058-vfs-prefix-mounts.md)
 - [ADR-059 fs-libctos sample catalog](03-adr/ADR-059-fs-libctos-sample.md)
 - [ADR-060 Isolation leftovers closure checklist](03-adr/ADR-060-isolation-leftovers-closure-checklist.md)
+- [ADR-061 fat-libctos FAT-via-VFS sample](03-adr/ADR-061-fat-libctos-sample.md)
 
 # Roadmap
 

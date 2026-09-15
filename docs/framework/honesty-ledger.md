@@ -322,6 +322,12 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Threat-model v1.35 slice (NFR-10) | Read [security.md](security.md) (ADR-060 sponsor leftovers closure; non-claims unchanged) | Verified | File + this PR. v1.35 update, not “secure.” Not “EL0 isolated.” Not PAN enabled. Not taken SError Verified. |
 
 
+| Freestanding `fat-libctos` sample + catalog (ADR-061) | Hello-kernel serial `libctos: fat-hi` + `libctos: fat-ok` + `fatdemo: ok` + keep `slot: ok` / `fsdemo: ok` / `/hello` / `/fsdemo`; `#[test_case]` `fatdemo_fat_is_elf` + `fatdemo_load_from_fat_erets` + `fatdemo_path_is_fat_probe` | Verified | 2026-09-15 agent-box smoke on `feat/fat-libctos-sample`: hello `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: fat` / `fatdemo: mapped` / `fatdemo: ok` / `slot: ok` / `fsdemo: ok`; `Running 109 tests` all `[ok]` incl. fatdemo cases; force-fail exit 1; `qemu-smoke: ok`. Guest loaded FAT `/fatdemo` and the payload opened/read FAT `/probe` (`fat-hi`) via thin VFS (EL0 exec pages fetch-only — compare with immediates). Not POSIX. Not `getdents`. Not EL0 isolated / PAN / taken SError. Do not reopen ADR-048/052 app hosting. CloudAgent HELD — evidence tagged agent-box (EVO-X2 Computer/CloudAgent unavailable this turn). Tip `8bf25d2`. [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md). |
+| Threat-model v1.36 slice (NFR-10) | Read [security.md](security.md) (ADR-061 fat-libctos catalog) | Verified | File + this PR. v1.36 update, not “secure.” Not POSIX. |
+| `scripts/qemu-smoke.sh` (ADR-061 fat-libctos / this branch) | Ran on this agent box | Verified | 2026-09-15 agent-box `qemu-smoke` (QEMU 10.0.13, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`) on `feat/fat-libctos-sample`: markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok` + preserved `libctos: fs-ok` / `fsdemo: ok` / `vfs: mounts` / `fs: ok` / `fat: ok` / `slot: ok` / A9 cross-update both `slot:ok`; `Running 109 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not POSIX. Tip `8bf25d2`. |
+
+
+
 <a id="adr-048-progress-checklist"></a>
 
 ## ADR-048 progress checklist

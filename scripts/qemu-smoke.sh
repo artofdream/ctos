@@ -81,8 +81,10 @@ echo "qemu-smoke: host ELF size present ($elf_bytes bytes)"
 
 # A9 host artifacts: OS image (already $elf) + published app ELF.
 # ADR-059: second freestanding sample ELF for FAT /fsdemo.
+# ADR-061: third freestanding sample ELF for FAT /fatdemo.
 app="${CTOS_APP_ELF:-$ROOT/target/hello-libctos.elf}"
 app2="${CTOS_APP2_ELF:-$ROOT/target/fs-libctos.elf}"
+app3="${CTOS_APP3_ELF:-$ROOT/target/fat-libctos.elf}"
 if [ ! -f "$app" ]; then
     echo "qemu-smoke: missing app payload $app (A9 / ADR-030; cargo build publishes it)" >&2
     exit 1
@@ -91,14 +93,23 @@ if [ ! -f "$app2" ]; then
     echo "qemu-smoke: missing app2 payload $app2 (ADR-059; cargo build publishes it)" >&2
     exit 1
 fi
+if [ ! -f "$app3" ]; then
+    echo "qemu-smoke: missing app3 payload $app3 (ADR-061; cargo build publishes it)" >&2
+    exit 1
+fi
 app_bytes=$(wc -c < "$app" | tr -d ' ')
 app2_bytes=$(wc -c < "$app2" | tr -d ' ')
+app3_bytes=$(wc -c < "$app3" | tr -d ' ')
 if [ -z "$app_bytes" ] || [ "$app_bytes" -lt 64 ]; then
     echo "qemu-smoke: app ELF implausibly small ($app_bytes)" >&2
     exit 1
 fi
 if [ -z "$app2_bytes" ] || [ "$app2_bytes" -lt 64 ]; then
     echo "qemu-smoke: app2 ELF implausibly small ($app2_bytes)" >&2
+    exit 1
+fi
+if [ -z "$app3_bytes" ] || [ "$app3_bytes" -lt 64 ]; then
+    echo "qemu-smoke: app3 ELF implausibly small ($app3_bytes)" >&2
     exit 1
 fi
 if cmp -s "$elf" "$app"; then
@@ -109,9 +120,14 @@ if cmp -s "$app" "$app2"; then
     echo "qemu-smoke: hello and fsdemo payloads are the same file" >&2
     exit 1
 fi
-echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes) + app2 $app2 ($app2_bytes bytes)"
+if cmp -s "$app" "$app3" || cmp -s "$app2" "$app3"; then
+    echo "qemu-smoke: fatdemo payload duplicates hello or fsdemo" >&2
+    exit 1
+fi
+echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes) + app2 $app2 ($app2_bytes bytes) + app3 $app3 ($app3_bytes bytes)"
 echo "qemu-smoke: kernel rebuild compiled app payload (build.rs published $app)"
 echo "qemu-smoke: kernel rebuild compiled fsdemo payload (build.rs published $app2)"
+echo "qemu-smoke: kernel rebuild compiled fatdemo payload (build.rs published $app3)"
 
 # ADR-039: standing/EL0 trampoline path must not TLBI VMALLE1.
 if grep -n 'tlbi vmalle1' src/exception.rs; then
@@ -134,11 +150,12 @@ echo "qemu-smoke: A2/A3 do not include_bytes! hello-libctos (slot.rs probe-only 
 
 # A7 host-visible FAT16 (ADR-028) + A9 /hello app slot.
 img="${CTOS_BLK_IMAGE:-$ROOT/target/fat16.img}"
-python3 "$ROOT/scripts/mkfat16.py" --app "$app" --app2 "$app2" "$img"
-python3 "$ROOT/scripts/mkfat16.py" --check --require-app --require-app2 "$img"
+python3 "$ROOT/scripts/mkfat16.py" --app "$app" --app2 "$app2" --app3 "$app3" "$img"
+python3 "$ROOT/scripts/mkfat16.py" --check --require-app --require-app2 --require-app3 "$img"
 export CTOS_BLK_IMAGE="$img"
 export CTOS_APP_ELF="$app"
 export CTOS_APP2_ELF="$app2"
+export CTOS_APP3_ELF="$app3"
 echo "qemu-smoke: FAT16 image $img (host-visible; not a guest probe)"
 
 log=$(mktemp)
@@ -555,6 +572,36 @@ if ! grep -q "fsdemo: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: ADR-059 fs-libctos /fsdemo strings present"
+
+if grep -q "fatdemo: probe missed" "$log"; then
+    echo "qemu-smoke: fatdemo probe missed (FAT /fatdemo load path did not run)" >&2
+    exit 1
+fi
+if ! grep -q "fatdemo: fat" "$log"; then
+    echo "qemu-smoke: missing 'fatdemo: fat' on serial (ADR-061 FAT /fatdemo read, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fatdemo: mapped" "$log"; then
+    echo "qemu-smoke: missing 'fatdemo: mapped' on serial (ADR-061 PT_LOAD map, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: fat-hi" "$log"; then
+    echo "qemu-smoke: missing 'libctos: fat-hi' on serial (fat-libctos uart_write, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: fat-ok" "$log"; then
+    echo "qemu-smoke: missing 'libctos: fat-ok' on serial (fat-libctos FAT VFS trip, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "libctos: fat-fail" "$log"; then
+    echo "qemu-smoke: saw 'libctos: fat-fail' on serial (fat-libctos FAT VFS trip failed, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fatdemo: ok" "$log"; then
+    echo "qemu-smoke: missing 'fatdemo: ok' on serial (ADR-061 third sample, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-061 fat-libctos /fatdemo strings present"
 if grep -q "perf: app-load missed" "$log"; then
     echo "qemu-smoke: app-load probe missed (CNTPCT around FAT load did not advance)" >&2
     exit 1
@@ -986,6 +1033,7 @@ echo "qemu-smoke: A9 cross-update (same app sha256=$app_hash) strings present"
 # cargo test rebuilds target/fat16.img from the published apps.
 export CTOS_APP_ELF="$app"
 export CTOS_APP2_ELF="$app2"
+export CTOS_APP3_ELF="$app3"
 export CTOS_BLK_IMAGE="$img"
 
 echo "qemu-smoke: cargo test (semihosting exit)"
@@ -1001,7 +1049,7 @@ if [ "$test_ec" -ne 0 ]; then
 fi
 
 # Force-fail rebuilds ctos with --features force-fail. On ubuntu-24.04-arm GHA
-# that recompile alone can take ~30s, and ADR-059 /fsdemo also lengthens boot —
+# that recompile alone can take ~30s, and ADR-059 /fsdemo + ADR-061 /fatdemo also lengthen boot —
 # so the old 30s wall often expired before semihosting exit. Override via env.
 FORCE_FAIL_TIMEOUT_SECS="${CTOS_FORCE_FAIL_TIMEOUT:-120}"
 echo "qemu-smoke: force-fail must be non-zero (timeout ${FORCE_FAIL_TIMEOUT_SECS}s)"

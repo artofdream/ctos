@@ -94,7 +94,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`.
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`.
 
 ## Sample: freestanding libctos VFS (`fs-libctos`, ADR-059)
 
@@ -105,6 +105,16 @@ That ELF still has to land on FAT `/hello` to run. The hello does **not** call `
 **Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh`.
 
 **Probe.** `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: fat` / `fsdemo: mapped` / `fsdemo: ok`. Keep `slot: ok` / `/hello`. Not POSIX. Not `getdents`.
+
+## Sample: freestanding libctos FAT (`fat-libctos`, ADR-061)
+
+**What it is.** Third freestanding EL0 ELF linked against `libctos`. Opens FAT `/probe`, reads `fat-hi` through thin VFS (`/` → FAT16), prints `libctos: fat-ok`. Loaded from FAT `/fatdemo`. Deeper than `fs-libctos` (memfs only).
+
+**Where.** `user/fat-libctos/`, `src/fatdemo.rs`, `scripts/mkfat16.py --app3`. Decision: [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md).
+
+**Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh`.
+
+**Probe.** `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: fat` / `fatdemo: mapped` / `fatdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `/hello` / `/fsdemo`. Not POSIX. Not `getdents`.
 
 ## Sample: memfs named-buffer probe (A6)
 
