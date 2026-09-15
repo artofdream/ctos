@@ -8,19 +8,21 @@ Do not say ctos hosts Linux programs, POSIX apps, or containers. The scoped free
 
 ## Today vs the slot split (A9 + product claim)
 
-**Today (Verified miles + product claim):** QEMU `-kernel` still loads one **OS** ELF. A separate published app ELF lives on FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). A2–A4 load that file (no production embed). The same ELF boots on this OS and on `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) criteria Met×5 ([ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)), the product sentence “apps run independently of the OS” / “app hosting is done” is **Verified** for that freestanding slot path. It is **not** containers, **not** OTA, and **not** Linux/POSIX.
+**Today (Verified miles + product claim):** QEMU `-kernel` still loads one **OS** ELF. Published freestanding samples live on FAT `/hello` (A9), `/fsdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)), and `/fatdemo` ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). A2–A4 load `/hello` (no production embed). The same hello ELF boots on this OS and on `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) criteria Met×5 ([ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)), the product sentence “apps run independently of the OS” / “app hosting is done” is **Verified** for that freestanding slot path. It is **not** containers, **not** OTA, and **not** Linux/POSIX.
 
 **Product claim (Verified):** “apps run independently / hosting done” is **Verified** under ADR-048 (checklist below). Scope stays freestanding slots — not Linux userspace.
 
 ```mermaid
 flowchart LR
-  OS["OS ELF<br/>QEMU -kernel"] --> FAT["FAT16 /hello"]
-  APP["Published app ELF"] --> FAT
+  OS["OS ELF<br/>QEMU -kernel"] --> FAT["FAT16 volume"]
+  H["/hello"] --> FAT
+  F["/fsdemo"] --> FAT
+  D["/fatdemo"] --> FAT
   FAT --> LOAD["Guest PT_LOAD<br/>standing EL0"]
   LOAD --> CLAIM["Product hosting<br/>Verified — ADR-048/052"]
 ```
 
-*Freestanding slot-hosting is Verified (Met×5). Do not say Linux hosting, containers, OTA, or “EL0 isolated.” Runtime cost vs embed is a lab measurement pair ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)), not a marketing delta.*
+*Freestanding slot-hosting is Verified (Met×5). Catalog samples deepen recipes; they do not reopen the claim. Do not say Linux hosting, containers, OTA, or “EL0 isolated.” Runtime cost vs embed is a lab measurement pair ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)), not a marketing delta.*
 
 ## Gaps before hosting applications
 
@@ -35,7 +37,7 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Rese
 | **ELF / user loader** | A3: guest ELF64 `PT_LOAD` into user TTBR0, then `ERET` to `e_entry` ([ADR-023](../03-adr/ADR-023-elf-pt-load-loader.md)). A2–A4 load FAT `/hello` (no production embed, [ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Not a Linux ELF ABI. | **Loader mile** — Verified only when the ledger has `loader: ok` on this tip. Not a Linux ABI. |
 | **OS vs app slots** | A9: host kernel ELF + `hello-libctos.elf`; guest FAT `/hello` ([ADR-030](../03-adr/ADR-030-os-app-slots.md)). Same ELF on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). | **Slot first cut + leftover** — Verified only when the ledger has `slot: ok` and the cross-update host lines on this tip. Product claim uses this mile under ADR-048. |
 | **Standing user mode as normal** | A4: loaded image stands until `exit`; fail-closed restore ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Not a process table. | **Standing-task mile** — Verified only when the ledger has `el0: task-ok` on this tip. Not isolation. |
-| **Stronger isolation** | Umbrella stays Planned/non-claim until checklist ([ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md); PAN enable locked [ADR-054](../03-adr/ADR-054-pan-enable-lock.md); `_start` stays; taken SError hard-stopped [ADR-053](../03-adr/ADR-053-taken-serror-hard-stop.md)) | **Planned / non-claim until checklist** — do not say “EL0 isolated” |
+| **Stronger isolation** | Umbrella stays Planned/non-claim until checklist ([ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md); sponsor closure [ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md); PAN enable locked [ADR-054](../03-adr/ADR-054-pan-enable-lock.md); `_start` stays; taken SError hard-stopped [ADR-053](../03-adr/ADR-053-taken-serror-hard-stop.md)) | **Planned / non-claim until checklist** — do not say “EL0 isolated” |
 | **VFS + memfs** | Thin VFS + in-RAM named buffers ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)); see [Filesystem](filesystem.md) | **memfs mile** — Verified only when the ledger has `fs: ok` on this tip. Not POSIX. Not FAT. |
 | **On-disk FS** | virtio-blk + FAT16 behind the same VFS ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)); write depth ([ADR-050](../03-adr/ADR-050-fat16-write.md)) | **block + FAT mile** — Verified only when the ledger has `blk: ok` / `fat: ok` (and `fat: write` / `fat: create` for write). Not POSIX. Not “supports FAT” as a product. |
 | **Richer I/O** | UART byte in/out only; no TTY, disk beyond FAT, or sockets | UART probed; the rest unbuilt |
@@ -73,7 +75,7 @@ Product “apps run independently / hosting done” is **Verified** when all of 
 
 ### Progress vs tip `main` (honesty checklist)
 
-Tip audited: `be789c5` (or newer `main`). **Product row Verified** — criteria 1–5 **Met**.
+Tip audited: `97a8559` (Merge #105 / ADR-061; or newer `main`). **Product row Verified** — criteria 1–5 **Met**. Catalog samples `/fsdemo` / `/fatdemo` deepen recipes; they do not reopen ADR-048/052.
 
 | # | Criterion | Status | Tip evidence (cite ledger / tip) |
 | --- | --- | --- | --- |

@@ -20,7 +20,7 @@ There is no NIC driver and no virtio-net. A7 programs virtio-mmio block and read
 
 ## No real userspace apps
 
-The standing user-mode stub is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no extra CPUs, no GPU. Rebuild recipes: [What can run today](what-can-run.md). How to extend the kernel (not port POSIX): [Building or porting](porting.md). OS vs app slot has an A9 first cut (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles). Product freestanding app hosting is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX).
+The standing user-mode stub is a mile, not an application runtime. No ELF loader for third-party programs, no libc, no extra CPUs, no GPU. Rebuild recipes: [What can run today](what-can-run.md) — three freestanding samples on FAT (`/hello`, `/fsdemo`, `/fatdemo`). How to extend the kernel (not port POSIX): [Building or porting](porting.md). OS vs app slot has an A9 first cut (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles). Product freestanding app hosting is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX). Isolation leftovers stay locked non-claim ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).
 
 ## Docs URL
 
