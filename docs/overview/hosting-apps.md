@@ -8,7 +8,7 @@ Do not say ctos hosts Linux programs, POSIX apps, or containers. The scoped free
 
 ## Today vs the slot split (A9 + product claim)
 
-**Today (Verified miles + product claim):** QEMU `-kernel` still loads one **OS** ELF. Published freestanding samples live on FAT `/hello` (A9), `/fsdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)), and `/fatdemo` ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). A2–A4 load `/hello` (no production embed). The same hello ELF boots on this OS and on `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) criteria Met×5 ([ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)), the product sentence “apps run independently of the OS” / “app hosting is done” is **Verified** for that freestanding slot path. It is **not** containers, **not** OTA, and **not** Linux/POSIX.
+**Today (Verified miles + product claim):** QEMU `-kernel` still loads one **OS** ELF. Published freestanding samples live on FAT `/hello` (A9), `/fsdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)), `/fatdemo` ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)), and `/yldemo` ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md)). A2–A4 load `/hello` (no production embed). The same hello ELF boots on this OS and on `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) criteria Met×5 ([ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)), the product sentence “apps run independently of the OS” / “app hosting is done” is **Verified** for that freestanding slot path. It is **not** containers, **not** OTA, and **not** Linux/POSIX.
 
 **Product claim (Verified):** “apps run independently / hosting done” is **Verified** under ADR-048 (checklist below). Scope stays freestanding slots — not Linux userspace.
 
@@ -18,6 +18,7 @@ flowchart LR
   H["/hello"] --> FAT
   F["/fsdemo"] --> FAT
   D["/fatdemo"] --> FAT
+  Y["/yldemo"] --> FAT
   FAT --> LOAD["Guest PT_LOAD<br/>standing EL0"]
   LOAD --> CLAIM["Product hosting<br/>Verified — ADR-048/052"]
 ```
@@ -75,7 +76,7 @@ Product “apps run independently / hosting done” is **Verified** when all of 
 
 ### Progress vs tip `main` (honesty checklist)
 
-Tip audited: `97a8559` (Merge #105 / ADR-061; or newer `main`). **Product row Verified** — criteria 1–5 **Met**. Catalog samples `/fsdemo` / `/fatdemo` deepen recipes; they do not reopen ADR-048/052.
+Tip audited: `190ef5a` (Merge #106 / docs polish; or newer `main` with ADR-062). **Product row Verified** — criteria 1–5 **Met**. Catalog samples `/fsdemo` / `/fatdemo` / `/yldemo` deepen recipes; they do not reopen ADR-048/052.
 
 | # | Criterion | Status | Tip evidence (cite ledger / tip) |
 | --- | --- | --- | --- |

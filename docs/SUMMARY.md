@@ -88,6 +88,7 @@
 - [ADR-059 fs-libctos sample catalog](03-adr/ADR-059-fs-libctos-sample.md)
 - [ADR-060 Isolation leftovers closure checklist](03-adr/ADR-060-isolation-leftovers-closure-checklist.md)
 - [ADR-061 fat-libctos FAT-via-VFS sample](03-adr/ADR-061-fat-libctos-sample.md)
+- [ADR-062 yield-libctos cooperative yield sample](03-adr/ADR-062-yield-libctos-sample.md)
 
 # Roadmap
 

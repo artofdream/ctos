@@ -8,19 +8,21 @@ Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthro
 
 ## Freestanding sample catalog (glance)
 
-Three published EL0 ELFs on one FAT16 volume. Same rebuild path. Not Linux/POSIX.
+Four published EL0 ELFs on one FAT16 volume. Same rebuild path. Not Linux/POSIX.
 
 ```mermaid
 flowchart LR
-  FAT["FAT16 volume"] --> H["/hello<br/>UART + yield"]
+  FAT["FAT16 volume"] --> H["/hello<br/>UART + one yield"]
   FAT --> F["/fsdemo<br/>memfs VFS"]
   FAT --> D["/fatdemo<br/>FAT /probe"]
+  FAT --> Y["/yldemo<br/>yield rounds"]
   H --> EL0["Standing EL0<br/>libctos"]
   F --> EL0
   D --> EL0
+  Y --> EL0
 ```
 
-*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059) and `/fatdemo` (ADR-061) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
+*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), and `/yldemo` (ADR-062) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
 
 ## Privilege — where code runs
 
@@ -41,10 +43,10 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`).
 
 ```bash
-cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos
+cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos + user/yield-libctos
 ./scripts/qemu-smoke.sh     # fail-closed serial greps + cargo test + force-fail
 ```
 
@@ -115,7 +117,7 @@ A kernel `cargo build` already does that via `build.rs` and publishes the result
 
 This is **not** a process. No libc, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
 
-`libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them**. A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). A third reads **FAT** via the same wrappers: see Recipe 3c (`fat-libctos`, [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
+`libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them** (UART + one yield). A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). A third reads **FAT** via the same wrappers: see Recipe 3c (`fat-libctos`, [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). A fourth exercises **several cooperative yields**: see Recipe 3d (`yield-libctos`, [ADR-062](../03-adr/ADR-062-yield-libctos-sample.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
 
 ## Recipe 3b — Standing EL0 / libctos VFS sample (`fs-libctos`)
 
@@ -142,6 +144,18 @@ Third freestanding EL0 payload that opens/reads a **FAT** path through thin VFS 
 | Kernel probe | `src/fatdemo.rs` |
 
 Rebuild: same one-rebuild commands. Keep `/hello` + `/fsdemo` + `slot: ok` + `fsdemo: ok`. Not POSIX. Not `getdents`. Not a reopen of product app hosting (ADR-048/052).
+
+## Recipe 3d — Standing EL0 / libctos yield rounds (`yield-libctos`)
+
+Fourth freestanding EL0 payload that issues **several cooperative `yield_now()` rounds** ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md)). Same class as `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`. Deeper than hello's single yield. Not preemption. Not multi-task EL0. Not a process table.
+
+| Piece | Path |
+| --- | --- |
+| Sample | `user/yield-libctos/` |
+| FAT slot | `/yldemo` (`target/yield-libctos.elf` via `mkfat16.py --app4`) |
+| Kernel probe | `src/yldemo.rs` |
+
+Rebuild: same one-rebuild commands. Keep `/hello` + `/fsdemo` + `/fatdemo` + `slot: ok` + `fsdemo: ok` + `fatdemo: ok`. Not POSIX. Not preemption. Not a reopen of product app hosting (ADR-048/052).
 
 ## Recipe 4 — memfs named-buffer probe (optional)
 
