@@ -89,12 +89,14 @@
 - [ADR-060 Isolation leftovers closure checklist](03-adr/ADR-060-isolation-leftovers-closure-checklist.md)
 - [ADR-061 fat-libctos FAT-via-VFS sample](03-adr/ADR-061-fat-libctos-sample.md)
 - [ADR-062 yield-libctos cooperative yield sample](03-adr/ADR-062-yield-libctos-sample.md)
+- [ADR-063 Track N network foundation scope](03-adr/ADR-063-network-foundation-scope.md)
 
 # Roadmap
 
 - [Roadmap](04-roadmap/roadmap.md)
 - [Track A (subordinate)](04-roadmap/track-a.md)
 - [Track B (subordinate)](04-roadmap/track-b.md)
+- [Track N (subordinate)](04-roadmap/track-n.md)
 
 # Research
 
