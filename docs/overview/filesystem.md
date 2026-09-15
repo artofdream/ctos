@@ -1,6 +1,6 @@
 # Filesystem: new vs extend
 
-**Today: thin VFS with two backends and a prefix mount table.** In-RAM **memfs** (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) and **FAT16 on virtio-blk** (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same `open` / `read` / `write` / `close`. Path **prefixes** route to a backend ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)): `/mem` (+ A6 probe names) → memfs; `/` → FAT16 (`/probe`, plus freestanding samples `/hello` / `/fsdemo` / `/fatdemo`). FAT16 write is a depth mile ([ADR-050](../03-adr/ADR-050-fat16-write.md)). FAT16 root listing is a depth mile ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). FAT16 root delete is a depth mile ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX `open` / `mount` / `getdents` / `unlink`, not Linux VFS, not FAT32, not xv6. Track B B5 compares the concepts: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md). **Not claiming a Linux filesystem.**
+**Today: thin VFS with two backends and a prefix mount table.** In-RAM **memfs** (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) and **FAT16 on virtio-blk** (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same `open` / `read` / `write` / `close`. Path **prefixes** route to a backend ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)): `/mem` (+ A6 probe names) → memfs; `/` → FAT16 (`/probe`, plus freestanding samples `/hello` / `/fsdemo` / `/fatdemo` / `/yldemo`). FAT16 write is a depth mile ([ADR-050](../03-adr/ADR-050-fat16-write.md)). FAT16 root listing is a depth mile ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). FAT16 root delete is a depth mile ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX `open` / `mount` / `getdents` / `unlink`, not Linux VFS, not FAT32, not xv6. Track B B5 compares the concepts: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md). **Not claiming a Linux filesystem.**
 
 Do not say “supports FAT” as a product. Say the guest read a known FAT16 file when the ledger has `fat: ok`, wrote FAT16 bytes when it has `fat: write` / `fat: create`, listed root entries when it has `fat: readdir` / `fat: entries`, and deleted a root file when it has `fat: delete`. Hub: [honesty ledger](../framework/honesty-ledger.md), [What can run today](what-can-run.md). Extra stance: [filesystem.md](../framework/filesystem.md).
 
@@ -51,13 +51,13 @@ flowchart LR
   D --> V2["10. Prefix mounts<br/>ADR-058"]
 ```
 
-*A7 is virtio-blk + FAT16 read. ADR-050 is FAT16 write depth. ADR-051 is a same-boot measurement pair (not a bench). ADR-056 is FAT16 root listing. ADR-057 is FAT16 root delete. ADR-058 is prefix mounts. A8 is documented recipes. A9 / ADR-059 / ADR-061 use the same volume for `/hello` / `/fsdemo` / `/fatdemo`. Do not say “supports FAT” as a product.*
+*A7 is virtio-blk + FAT16 read. ADR-050 is FAT16 write depth. ADR-051 is a same-boot measurement pair (not a bench). ADR-056 is FAT16 root listing. ADR-057 is FAT16 root delete. ADR-058 is prefix mounts. A8 is documented recipes. A9 / ADR-059 / ADR-061 / ADR-062 use the same volume for `/hello` / `/fsdemo` / `/fatdemo` / `/yldemo`. Do not say “supports FAT” as a product.*
 
 1. **VFS ADR** — thin interface (create / open / read / write / close of a path).
 2. **memfs** — in-RAM named buffers; serial `fs: ok`.
 3. **virtio-blk** — virtqueues + sector I/O on QEMU `virt`. Serial `blk: ok`.
 4. **On-disk FS** — FAT16 ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `fat: ok`.
-5. **Host-checkable image** — `scripts/mkfat16.py` writes `target/fat16.img`; smoke attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Guest `vfs::open("/probe")` must read `fat-hi`. A9 adds `--app` so `/hello` is the published app ELF; ADR-059/061 add `--app2` / `--app3` for `/fsdemo` / `/fatdemo`.
+5. **Host-checkable image** — `scripts/mkfat16.py` writes `target/fat16.img`; smoke attaches `-drive if=none,file=…,id=hd0 -device virtio-blk-device,drive=hd0`. Guest `vfs::open("/probe")` must read `fat-hi`. A9 adds `--app` so `/hello` is the published app ELF; ADR-059/061/062 add `--app2` / `--app3` / `--app4` for `/fsdemo` / `/fatdemo` / `/yldemo`.
 6. **FAT16 write** — guest `vfs::write` on an open FAT handle + backend create of `/fwr` ([ADR-050](../03-adr/ADR-050-fat16-write.md)). Serial `fat: write` / `fat: create`; host `--check-write`.
 7. **FAT vs memfs write CNTPCT** — same-boot pair `perf: fat-write` / `perf: memfs-write` / `perf: fs-write-delta` ([ADR-051](../03-adr/ADR-051-fat-memfs-write-cntpct.md)). QEMU TCG lab — not a percent or latency SLA.
 8. **FAT16 readdir** — guest `vfs::readdir` lists root thin-VFS paths ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Serial `fat: readdir` / `fat: entries`. Not POSIX `getdents`.

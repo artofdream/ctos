@@ -13,6 +13,7 @@ mod exception;
 mod fat;
 mod fsdemo;
 mod fatdemo;
+mod yldemo;
 mod frame;
 mod gic;
 mod guard;
@@ -232,6 +233,11 @@ extern "C" fn kernel_main_high() -> ! {
         // from FAT `/fatdemo` exercises FAT via thin VFS. Keep `/hello` + `/fsdemo`.
         if !fatdemo::observe_probe() {
             uart::write_str_raw("fatdemo: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (ADR-062): fourth freestanding sample
+        // from FAT `/yldemo` exercises cooperative yield rounds. Keep prior three.
+        if !yldemo::observe_probe() {
+            uart::write_str_raw("yldemo: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {

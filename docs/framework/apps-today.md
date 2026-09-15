@@ -94,7 +94,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`.
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption.
 
 ## Sample: freestanding libctos VFS (`fs-libctos`, ADR-059)
 
@@ -114,7 +114,18 @@ That ELF still has to land on FAT `/hello` to run. The hello does **not** call `
 
 **Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh`.
 
-**Probe.** `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: fat` / `fatdemo: mapped` / `fatdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `/hello` / `/fsdemo`. Not POSIX. Not `getdents`.
+**Probe.** `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: fat` / `fatdemo: mapped` / `fatdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `/hello` / `/fsdemo`. Not POSIX. Not `getdents`. Fourth sample: Recipe yield below.
+
+
+## Sample: freestanding libctos yield rounds (`yield-libctos`, ADR-062)
+
+**What it is.** Fourth freestanding EL0 ELF linked against `libctos`. Prints `libctos: yld-hi`, then several `libctos: beat` lines across `yield_now()` rounds (deeper than hello's single yield), then `libctos: yld-ok`. Loaded from FAT `/yldemo`. Cooperative only — not preemption, not multi-task EL0, not a process table.
+
+**Where.** `user/yield-libctos/`, `src/yldemo.rs`, `scripts/mkfat16.py --app4`. Decision: [ADR-062](../03-adr/ADR-062-yield-libctos-sample.md).
+
+**Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh`.
+
+**Probe.** `libctos: yld-hi` / ≥3× `libctos: beat` / `libctos: yld-ok` / `yldemo: fat` / `yldemo: mapped` / `yldemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `fatdemo: ok` / `/hello` / `/fsdemo` / `/fatdemo`.
 
 ## Sample: memfs named-buffer probe (A6)
 

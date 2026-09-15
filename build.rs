@@ -4,6 +4,7 @@
 //! published `target/hello-libctos.elf` for FAT `/hello`.
 //! ADR-059: also publish `target/fs-libctos.elf` for FAT `/fsdemo`.
 //! ADR-061: also publish `target/fat-libctos.elf` for FAT `/fatdemo`.
+//! ADR-062: also publish `target/yield-libctos.elf` for FAT `/yldemo`.
 //!
 //! This is **not** a guest ELF loader (A3). The parse is host-side only.
 
@@ -23,11 +24,13 @@ fn main() {
     let hello_dir = manifest_dir.join("user/hello-libctos");
     let fs_dir = manifest_dir.join("user/fs-libctos");
     let fat_dir = manifest_dir.join("user/fat-libctos");
+    let yield_dir = manifest_dir.join("user/yield-libctos");
     let libctos_dir = manifest_dir.join("libctos");
 
     println!("cargo:rerun-if-changed={}", hello_dir.display());
     println!("cargo:rerun-if-changed={}", fs_dir.display());
     println!("cargo:rerun-if-changed={}", fat_dir.display());
+    println!("cargo:rerun-if-changed={}", yield_dir.display());
     println!("cargo:rerun-if-changed={}", libctos_dir.display());
     println!("cargo:rerun-if-changed=build.rs");
 
@@ -131,6 +134,31 @@ fn main() {
     )
     .unwrap();
     println!("cargo:rustc-env=CTOS_FAT_LIBCTOS_ELF_LEN={}", fat_elf.len());
+
+    // ADR-062: fourth freestanding sample (cooperative yield rounds). FAT `/yldemo` only.
+    let yield_elf = build_user_rust(&manifest_dir, &yield_dir, &out_dir, "yield-libctos")
+        .unwrap_or_else(|e| panic!("libctos yield-libctos payload: {e}"));
+    let (yield_va, yield_image) =
+        elf64_pt_load(&yield_elf).unwrap_or_else(|e| panic!("yield-libctos ELF: {e}"));
+    if yield_va != EL0_PAGE {
+        panic!("yield-libctos load VA {yield_va:#x} != EL0_PAGE {EL0_PAGE:#x}");
+    }
+    if yield_elf.is_empty() || yield_elf.len() > 64 * 1024 {
+        panic!("yield-libctos ELF {} bytes empty or > 64 KiB", yield_elf.len());
+    }
+    assert_yield_payload(&yield_image);
+    fs::write(out_dir.join("yield-libctos.elf"), &yield_elf).unwrap();
+    fs::write(manifest_dir.join("target/yield-libctos.elf"), &yield_elf).unwrap();
+    fs::write(
+        out_dir.join("yield_libctos_meta.rs"),
+        format!(
+            "pub const YLDEMO_LOAD_VA: u64 = {EL0_PAGE:#x};\n\
+             pub const YLDEMO_ELF_LEN: usize = {};\n",
+            yield_elf.len()
+        ),
+    )
+    .unwrap();
+    println!("cargo:rustc-env=CTOS_YIELD_LIBCTOS_ELF_LEN={}", yield_elf.len());
 }
 
 fn build_user_rust(
@@ -370,5 +398,32 @@ fn assert_fat_payload(image: &[u8]) {
     }
     if !image.windows(16).any(|w| w == b"libctos: fat-ok\n") {
         panic!("fat-libctos missing libctos: fat-ok");
+    }
+}
+
+fn assert_yield_payload(image: &[u8]) {
+    let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
+    let words: Vec<u32> = image
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .collect();
+    for reserved in [0u32, 1, 2] {
+        if words.contains(&svc(reserved)) {
+            panic!("yield-libctos encodes reserved SVC #{reserved} (ADR-013)");
+        }
+    }
+    for need in [16u32, 17, 18] {
+        if !words.contains(&svc(need)) {
+            panic!("yield-libctos missing SVC #{need}");
+        }
+    }
+    if !image.windows(16).any(|w| w == b"libctos: yld-hi\n") {
+        panic!("yield-libctos missing libctos: yld-hi");
+    }
+    if !image.windows(14).any(|w| w == b"libctos: beat\n") {
+        panic!("yield-libctos missing libctos: beat");
+    }
+    if !image.windows(16).any(|w| w == b"libctos: yld-ok\n") {
+        panic!("yield-libctos missing libctos: yld-ok");
     }
 }
