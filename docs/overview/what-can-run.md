@@ -6,6 +6,22 @@ Plain English. These are **rebuild recipes** for in-tree samples that already ha
 
 Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Umbrella “EL0 isolated” stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
 
+## Freestanding sample catalog (glance)
+
+Three published EL0 ELFs on one FAT16 volume. Same rebuild path. Not Linux/POSIX.
+
+```mermaid
+flowchart LR
+  FAT["FAT16 volume"] --> H["/hello<br/>UART + yield"]
+  FAT --> F["/fsdemo<br/>memfs VFS"]
+  FAT --> D["/fatdemo<br/>FAT /probe"]
+  H --> EL0["Standing EL0<br/>libctos"]
+  F --> EL0
+  D --> EL0
+```
+
+*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059) and `/fatdemo` (ADR-061) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
+
 ## Privilege — where code runs
 
 The CPU has privilege levels. **EL1** is kernel privilege (where ctos runs). **EL0** is lower privilege (user mode). A **process** would be a loaded program with its own address space, files, and a public ABI. That process does **not** exist yet.

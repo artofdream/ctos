@@ -42,9 +42,9 @@ Rebuild recipes for samples that already have probes. Details: [What can run tod
 
 1. **Two kernel tasks that take turns** — they print on the serial port and yield. Not preemptive. Not two CPUs.
 2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
-3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc. Optional recipes: memfs named buffers and FAT16 on virtio-blk (read + write depth).
+3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc. Freestanding catalog on FAT: `/hello`, `/fsdemo` (memfs VFS), `/fatdemo` (FAT `/probe`). Optional recipes: memfs named buffers and FAT16 on virtio-blk (read + write depth).
 
-**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles). Product freestanding app hosting is **Verified** under [ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX).
+**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles); catalog also has `/fsdemo` / `/fatdemo`. Product freestanding app hosting is **Verified** under [ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX). Umbrella “EL0 isolated” stays Planned ([ADR-060](03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).
 
 ```mermaid
 flowchart LR
