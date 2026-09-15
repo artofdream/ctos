@@ -16,7 +16,7 @@ A Linux, musl, or glibc program is a different contract. Recompiling it “for A
 
 ## Easiest today
 
-Write **in-tree `no_std` Rust** and ship it as part of the kernel image.
+Write **in-tree `no_std` Rust** and ship it as part of the kernel image. Language discipline notes: [Why Rust](advantages.md#why-rust-for-this-kernel).
 
 Typical shape (A8 recipes — [what-can-run.md](what-can-run.md)):
 
