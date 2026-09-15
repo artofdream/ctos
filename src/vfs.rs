@@ -18,7 +18,7 @@ use crate::uart;
 /// Flat path: `/` + 1..=15 of `[a-z0-9_-]`.
 pub const PATH_MAX: usize = 16;
 /// Per-file cap. Named buffers, not a disk.
-pub const FILE_MAX: usize = 256;
+pub const FILE_MAX: usize = 1024;
 const MAX_FILES: usize = 8;
 const MAX_HANDLES: usize = 4;
 
@@ -593,7 +593,7 @@ fn vfs_paths_and_caps_are_documented() {
     assert!(!valid_path("probe"));
     assert!(!valid_path("/Probe"));
     assert_eq!(PATH_MAX, 16);
-    assert_eq!(FILE_MAX, 256);
+    assert_eq!(FILE_MAX, 1024);
 }
 
 #[cfg(test)]

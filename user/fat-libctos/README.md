@@ -1,12 +1,12 @@
 # `fat-libctos` — freestanding EL0 FAT-via-VFS sample
 
-Third freestanding `no_std` sample linked against [`libctos`](../../libctos). Catalog expansion ([ADR-061](../../docs/03-adr/ADR-061-fat-libctos-sample.md)). Complements [`hello-libctos`](../hello-libctos/README.md) (UART + yield) and [`fs-libctos`](../fs-libctos/README.md) (memfs `/memdemo` only).
+Third freestanding `no_std` sample linked against [`libctos`](../../libctos). Catalog expansion ([ADR-061](../../docs/03-adr/ADR-061-fat-libctos-sample.md); grow depth [ADR-064](../../docs/03-adr/ADR-064-fat16-multi-cluster-grow.md)). Complements [`hello-libctos`](../hello-libctos/README.md) (UART + yield) and [`fs-libctos`](../fs-libctos/README.md) (memfs `/memdemo` only).
 
 This is **not** a hosted app, not glibc, not POSIX, not `getdents` from EL0.
 
 ## What it prints
 
-`main` writes `libctos: fat-hi`, yields, then `fs_open` / `fs_read` / `fs_close` on FAT `/probe` (expects payload `fat-hi` via thin VFS `/` → FAT16). On success it writes `libctos: fat-ok` and returns 0. Smoke also greps kernel `fatdemo: ok` from the FAT `/fatdemo` load path.
+`main` writes `libctos: fat-hi`, yields, then `fs_open` / `fs_read` / `fs_close` on FAT `/probe` (expects payload `fat-hi` via thin VFS `/` → FAT16). It then creates `/egrow`, writes 600 bytes across a cluster boundary via chunked `fs_write` (ADR-064), read-back proves boundary bytes, prints `libctos: fat-grow`, then `libctos: fat-ok`. Smoke also greps kernel `fatdemo: ok` / `fat: grow` from the FAT `/fatdemo` load path and kernel grow probe.
 
 ## Rebuild
 
@@ -40,7 +40,7 @@ User `PT_LOAD` RX pages are mapped fetch-only for EL0 (`paging::l3_page_el0_exec
 ## What this payload does not do
 
 - No Linux/POSIX filesystem ABI. Thin VFS SVCs only.
-- No create/write on FAT from this sample (read-only trip through `/probe`).
+- No POSIX write API. Create/write here is the thin VFS SVC trip that proves multi-cluster grow (ADR-064), not a product claim.
 - No `getdents` / directory listing from EL0.
 - No argv, environ, or libc.
 - Does not replace `/hello` or `/fsdemo` — all three slots stay on the image.

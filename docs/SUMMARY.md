@@ -90,6 +90,7 @@
 - [ADR-061 fat-libctos FAT-via-VFS sample](03-adr/ADR-061-fat-libctos-sample.md)
 - [ADR-062 yield-libctos cooperative yield sample](03-adr/ADR-062-yield-libctos-sample.md)
 - [ADR-063 Track N network foundation scope](03-adr/ADR-063-network-foundation-scope.md)
+- [ADR-064 FAT16 multi-cluster grow](03-adr/ADR-064-fat16-multi-cluster-grow.md)
 
 # Roadmap
 
