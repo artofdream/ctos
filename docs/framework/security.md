@@ -1,14 +1,14 @@
-# Security — threat model v1.37 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062)
+# Security — threat model v1.38 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.37** (2026-09-16). Slice/update of v1.36. Fourth freestanding sample catalog ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md): `yield-libctos` cooperative yield rounds from standing EL0). ADR-061 FAT sample unchanged. ADR-060 leftovers closure checklist unchanged. ADR-053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption. Not a v2 model and not “secure.”
+Version: **v1.38** (2026-09-16). Slice/update of v1.37. Track N network foundation scope ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)): docs-only N0; virtio-net first frame **Planned**; no stack yet. ADR-062 yield sample unchanged. ADR-053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption/“has networking.” Not a v2 model and not “secure.”
 
 ## Scope
 
 **In:** the `ctos` guest as built for `qemu-system-aarch64 -machine virt` (EL1, identity map + TTBR1 private page + TTBR1 RAM alias for EL1 fetch, PL011, GICv2, CNTP, first-fit heap, cooperative EL1 tasks, a deliberate EL0 first mile and a bounded standing context). The git repo (no secrets).
 
-**Out:** Raspberry Pi or other boards, a second ISA, networking, multi-tenant hosting, secure / measured boot, physical side channels, a hostile hypervisor.
+**Out:** Raspberry Pi or other boards, a second ISA, multi-tenant hosting, secure / measured boot, physical side channels, a hostile hypervisor. **Networking:** no guest NIC today; Track N **Planned** ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)) — not in-scope until N1 probes; not a product stack.
 
 QEMU and the host are the **TCB we do not defend against**. If the emulator or the CI runner is hostile, the guest cannot recover.
 
@@ -49,9 +49,9 @@ QEMU and the host are the **TCB we do not defend against**. If the emulator or t
 | **Buggy kernel code** (wrong store, bad `unsafe`, execute-from-heap, stack smash) | **Yes** | Primary adversary today. Mitigate with PXN on heap/frames, unmapped linker-stack guards, minimize `unsafe` (NFR-01), fail-closed smoke. |
 | **Malicious EL0** (standing or trampoline task executing kernel data or escalating via a bad map) | **Named; standing context is bounded** | First mile + user-TTBR0 read mile + ASID TLB mile + standing dual-SVC + standing **task** until `exit` + TTBR1 private page + EL1 high-VA fetch + a documented SVC ABI exist. That is **not** “EL0 isolated” (boot-stub identity page stays by decision — `ident: start-stay`; PAN enable non-goal on default a57; leftover identity RAM torn — `ident: ram*`; taken SError deferred/non-goal — `el0: serror-park` / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Product freestanding hosting Verified under ADR-048/052; not Linux/POSIX/containers ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)). |
 | **Compromised device tree** | **Mostly out** | M7 does not walk FDT. DTB sits at RAM base below the image. A hostile DTB is a QEMU/host problem until a walker exists; then it becomes an input-validation ADR. |
-| **DMA / virtio devices** | **Named; bounded** | A7 programs virtio-mmio blk (one queue, poll `used.idx`, identity-PA DMA). QEMU is still TCB. A malicious virtio device is out (hostile hypervisor). Not virtio-net. |
+| **DMA / virtio devices** | **Named; bounded** | A7 programs virtio-mmio blk (one queue, poll `used.idx`, identity-PA DMA). QEMU is still TCB. A malicious virtio device is out (hostile hypervisor). virtio-net: Track N **Planned** ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)); no driver yet. |
 | **Hostile QEMU or CI host** | **Out** | Hypervisor / runner is trusted. Repo-secret leak is a *host* control (`.gitignore`, review), not a guest mitigation. |
-| **Network attacker** | **Out** | No stack. |
+| **Network attacker** | **Out (today)** | No NIC / no stack. Track N Planned ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)); revisit when N1 lands. |
 
 ## Trust boundaries
 
@@ -173,3 +173,7 @@ Three freestanding EL0 samples on FAT: `/hello`, `/fsdemo` (memfs `/memdemo`), a
 
 [ADR-062](../03-adr/ADR-062-yield-libctos-sample.md): fourth freestanding EL0 sample `yield-libctos` on FAT `/yldemo`. Several cooperative `yield_now()` rounds (`libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok`). Not preemption. Not multi-task EL0. Not a process table. Does not reopen ADR-048/052.
 
+
+### Track N network foundation scope (v1.38)
+
+[ADR-063](../03-adr/ADR-063-network-foundation-scope.md): new Track N (network), separate from A/B. N0 = docs scope. Foundation intent: QEMU `virt` + virtio-net (mmio); discover; TX/RX one raw Ethernet frame; fail-closed smoke. **No Verified invent** — runtime stays Planned until N1. Non-goals locked: TCP/UDP/sockets/DHCP/DNS product, Wi‑Fi, virtio-pci-only foundation, Linux net stack, “has networking” marketing, EL0 net ABI before link bring-up Verified. I/O surface: virtio-blk remains the only programmed DMA master today.

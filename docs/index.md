@@ -10,7 +10,7 @@ It is **not** a product site. Do not say “secure OS,” “production ready,�
 
 ctos boots under QEMU’s `virt` machine and prints on a serial port (the **PL011 UART**). After that it grows one honest mile at a time: exceptions, paging, a heap, a tiny scheduler, then measured security and performance cuts.
 
-**Core principles drive.** Roadmap tracks (A = loader and syscall ABI, B = later slots and a filesystem) are **subordinate**. A track does not outrank a principle.
+**Core principles drive.** Roadmap tracks (A = freestanding hosting, B = Linux-compat research, **N = network foundation — Planned**, [ADR-063](03-adr/ADR-063-network-foundation-scope.md)) are **subordinate**. A track does not outrank a principle.
 
 Primary path: QEMU `virt` + UART ([ADR-003](03-adr/ADR-003-primary-isa-aarch64.md)). Frozen requirement IDs: [FR-01–FR-15 and NFR-01–NFR-14](02-requirements/fr-nfr.md).
 
@@ -30,7 +30,7 @@ Everyday meaning first; frozen IDs second. Same list as the [pillars hub](framew
 flowchart TD
   P["Core principles<br/>honesty · antifragility · security<br/>performance · document-first"]
   L["Three pillars<br/>antifragility · security · performance"]
-  T["Tracks A / B<br/>loader, ABI, later slots / FS<br/>subordinate — not the driver"]
+  T["Tracks A / B / N<br/>hosting · Linux research · network (Planned)<br/>subordinate — not the driver"]
   P --> L --> T
 ```
 
@@ -44,7 +44,7 @@ Rebuild recipes for samples that already have probes. Details: [What can run tod
 2. **A serial echo gadget** — one byte in, a line out. No terminal, no line editor.
 3. **A short lower-privilege stub** — a few instructions in the CPU’s user mode, including the A1 SVC ABI trip, an A2 `libctos` hello, an A3 guest `PT_LOAD` of that same hello, and an A4 standing **task** until `exit` (`exit` / `uart_write` / `yield`), then a call back into the kernel. **Not a process.** No libc. Freestanding catalog on FAT: `/hello`, `/fsdemo` (memfs VFS), `/fatdemo` (FAT `/probe`), `/yldemo` (yield rounds). Optional recipes: memfs named buffers and FAT16 on virtio-blk (read + write depth).
 
-**Cannot run:** Linux programs, a shell, Python, network servers, POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles); catalog also has `/fsdemo` / `/fatdemo` / `/yldemo`. Product freestanding app hosting is **Verified** under [ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX). Umbrella “EL0 isolated” stays Planned ([ADR-060](03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).
+**Cannot run:** Linux programs, a shell, Python, network servers (Track N **Planned** — [ADR-063](03-adr/ADR-063-network-foundation-scope.md); no virtio-net yet), POSIX filesystem apps, extra CPUs, or containers (guest OCI/Docker is a **non-goal**). An OS slot vs a separate app slot has an **A9 first cut** (FAT `/hello`) plus leftover cross-update on `ba6541c` (Verified miles); catalog also has `/fsdemo` / `/fatdemo` / `/yldemo`. Product freestanding app hosting is **Verified** under [ADR-048](03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](03-adr/ADR-052-sponsor-accept-app-hosting.md) (not Linux/POSIX). Umbrella “EL0 isolated” stays Planned ([ADR-060](03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).
 
 ```mermaid
 flowchart LR

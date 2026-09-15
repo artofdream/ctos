@@ -330,6 +330,13 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 
 
 
+| Track N network foundation scope (ADR-063 / N0) | Read [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) + [track-n.md](../04-roadmap/track-n.md); SUMMARY / roadmap / limits wired; no virtio-net driver in this PR | Docs lock (non-Verified) | Docs-only 2026-09-16. Opens Track N. Runtime link/first-frame stays **Planned**. Do not invent Verified. Do not claim TCP/UDP/sockets/DHCP/DNS/Wi‑Fi/Linux net/“has networking.” [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). |
+| Track N virtio-net first frame (N1) | Guest discover + TX/RX one raw Ethernet frame; serial markers + fail-closed smoke; QEMU `-netdev` / `-device virtio-net-device`; keep blk/FAT green | Planned | Not built. Closes only with N1 PR probes. Scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). |
+| Threat-model v1.38 slice (NFR-10) | Read [security.md](security.md) (ADR-063 Track N Planned; I/O surface) | Verified | File + this PR. v1.38 update, not “secure.” Not “has networking.” |
+
+
+
+
 <a id="adr-048-progress-checklist"></a>
 
 ## ADR-048 progress checklist

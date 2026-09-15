@@ -85,7 +85,20 @@ On-disk filesystem work started as A7 (FAT16 read, not xv6-like). FAT16 write de
 
 ## Tracks (subordinate to principles)
 
-[Track A](track-a.md) (freestanding apps, [#31](https://github.com/artofdream/ctos/issues/31)) and [Track B](track-b.md) (Linux-compat research, [#40](https://github.com/artofdream/ctos/issues/40)) do **not** override [principles.md](../framework/principles.md). A9 is after Track A ABI/loader. Track B B1: Linux-compat **subset** research frame ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)) — **not claiming Linux userspace yet**. Track B B2: Linux AArch64 vs ctos SVC gap map ([linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)) — inspection only; no Linux numbers in `src/`. Track B B3: standing EL0 stays the ctos process model ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)) — Linux `clone`/`execve`/`wait4` is a gap; do not add those syscalls. Track B B4: Linux ELF / auxv / `PT_INTERP` vs the freestanding loader ([ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)) — gap ADR; Track A loader stays reusable; **not claiming dynamic Linux ELF**. Track B B5: Linux VFS vs thin ctos VFS ([ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)) — concept compare only; no POSIX flags / dentries. Track B B6: **never** Linux-compat implementation from this ladder ([ADR-036](../03-adr/ADR-036-linux-compat-decision.md)). Track B B7: guest OCI/Docker is a **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
+[Track A](track-a.md) (freestanding apps, [#31](https://github.com/artofdream/ctos/issues/31)), [Track B](track-b.md) (Linux-compat research, [#40](https://github.com/artofdream/ctos/issues/40)), and [Track N](track-n.md) (network foundation, [ADR-063](../03-adr/ADR-063-network-foundation-scope.md)) do **not** override [principles.md](../framework/principles.md). A9 is after Track A ABI/loader. Track B B1: Linux-compat **subset** research frame ([ADR-031](../03-adr/ADR-031-linux-compat-goals.md)) — **not claiming Linux userspace yet**. Track B B2: Linux AArch64 vs ctos SVC gap map ([linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md)) — inspection only; no Linux numbers in `src/`. Track B B3: standing EL0 stays the ctos process model ([ADR-035](../03-adr/ADR-035-process-model-standing-el0.md)) — Linux `clone`/`execve`/`wait4` is a gap; do not add those syscalls. Track B B4: Linux ELF / auxv / `PT_INTERP` vs the freestanding loader ([ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md)) — gap ADR; Track A loader stays reusable; **not claiming dynamic Linux ELF**. Track B B5: Linux VFS vs thin ctos VFS ([ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md)) — concept compare only; no POSIX flags / dentries. Track B B6: **never** Linux-compat implementation from this ladder ([ADR-036](../03-adr/ADR-036-linux-compat-decision.md)). Track B B7: guest OCI/Docker is a **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)).
+
+
+## Track N — network foundation ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md))
+
+Separate track from A/B. Hub: [track-n.md](track-n.md). N0 is this scope ADR (docs). Runtime networking stays **Planned** until N1 probes. Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Non-goals locked until a new ADR + sponsor: TCP/UDP stack, BSD sockets, DHCP/DNS as product, Wi‑Fi, virtio-pci-only foundation, Linux net stack, “has networking” marketing, EL0 net ABI before link bring-up Verified.
+
+| ID | Work | Probe that closes it | Status |
+| --- | --- | --- | --- |
+| N0 | Scope ADR + docs wiring (ADR-063) | Docs-build; ledger Planned; no Verified invent | **Accepted (docs)** — this PR |
+| N1 | Link bring-up / first frame (virtio-net mmio) | Discover + TX/RX one raw Ethernet frame; `-netdev` / `-device virtio-net-device`; smoke greps; keep blk/FAT green | **Planned** |
+| N2 | Optional ARP + ICMP ping | Named markers + fail-closed smoke | **Planned** (optional) |
+| N3 | Transport / sockets | New sponsor scope + new ADR only | **Locked out** |
+| N4 | Freestanding sample using net SVCs | After N1+ Verified | **Planned** (after N1+) |
 
 ## Docs website
 
