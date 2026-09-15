@@ -74,3 +74,4 @@ Say the decisions above only as documentation. Do **not** say:
 - Code: unchanged. Smoke still requires park / start-stay / `pan: absent`; still rejects `el0: serror` as a required marker and rejects `pan: enabled`.
 - A later ADR may reopen taken SError (honest inject), PAN (new CPU story), or boot redesign so `_start` can leave identity — each needs sponsor scope.
 - **2026-09-14 locks:** [ADR-053](ADR-053-taken-serror-hard-stop.md) hard-stops taken SError with dated QMP evidence; [ADR-054](ADR-054-pan-enable-lock.md) locks PAN enable + reopen gate; [ADR-055](ADR-055-el0-isolated-checklist.md) publishes the umbrella non-claim checklist. Decisions in this ADR stand; those ADRs remove fuzzy Planned wording.
+- **2026-09-15 sponsor closure:** [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md) is the sponsor-facing one-pager (locks + reopen gates). Does not rewrite decisions here.
