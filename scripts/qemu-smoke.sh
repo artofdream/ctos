@@ -15,6 +15,8 @@
 # N1 / ADR-066 + N2 / ADR-067: QEMU also attaches `-netdev user,id=net0`
 # `-device virtio-net-device,netdev=net0`. Host netdev alone is not a probe.
 # N2 adds ICMP echo markers `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok`.
+# N3 / ADR-070: UDP markers `net: udp-tx` / `net: udp-rx` / `net: udp-ok`
+# (DNS query to SLIRP 10.0.2.3:53 — transport probe, not a DNS product).
 # ADR-069: `perf: net-ping` (EL0 net_ping CNTPCT; prefix only — ticks vary).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
@@ -522,7 +524,19 @@ if ! grep -q "net: ping-ok" "$log"; then
     echo "qemu-smoke: missing 'net: ping-ok' on serial (N2 ICMP ping, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: virtio-net (N1+N2) strings present"
+if ! grep -q "net: udp-tx" "$log"; then
+    echo "qemu-smoke: missing 'net: udp-tx' on serial (N3 UDP TX, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: udp-rx" "$log"; then
+    echo "qemu-smoke: missing 'net: udp-rx' on serial (N3 UDP RX, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: udp-ok" "$log"; then
+    echo "qemu-smoke: missing 'net: udp-ok' on serial (N3 UDP transport, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: virtio-net (N1+N2+N3) strings present"
 if grep -q "fat: probe missed" "$log"; then
     echo "qemu-smoke: fat probe missed (FAT16 VFS /probe read did not run)" >&2
     exit 1

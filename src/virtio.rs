@@ -504,14 +504,15 @@ fn virtio_blk_boot_sector_is_fat() {
 }
 
 // ---------------------------------------------------------------------------
-// virtio-net (Track N / N1–N2 / ADR-066 / ADR-067) — discover + ARP + ICMP
-// echo vs QEMU user netdev. Not TCP/UDP. Not sockets. Not DHCP/DNS. Not Wi-Fi.
+// virtio-net (Track N / N1–N3 / ADR-066 / ADR-067 / ADR-070) — discover + ARP
+// + ICMP + minimal UDP TX/RX vs QEMU user netdev. Not a BSD sockets product.
+// Not TCP. Not DHCP/DNS as product. Not Wi-Fi.
 // ---------------------------------------------------------------------------
 
 const DEV_NET: u32 = 1;
 const VIRTIO_NET_F_MAC: u32 = 1 << 5;
 const NET_HDR: usize = 10; // no MRG_RXBUF → no num_buffers
-const NET_FRAME: usize = 128; // ARP fits; keep DMA modest
+const NET_FRAME: usize = 256; // ARP/ICMP/UDP DNS reply; keep DMA modest
 const NET_Q_RX: u32 = 0;
 const NET_Q_TX: u32 = 1;
 
@@ -577,6 +578,9 @@ static NET_RX_OK: AtomicBool = AtomicBool::new(false);
 static NET_ICMP_TX_OK: AtomicBool = AtomicBool::new(false);
 static NET_ICMP_RX_OK: AtomicBool = AtomicBool::new(false);
 static NET_PING_OK: AtomicBool = AtomicBool::new(false);
+static NET_UDP_TX_OK: AtomicBool = AtomicBool::new(false);
+static NET_UDP_RX_OK: AtomicBool = AtomicBool::new(false);
+static NET_UDP_OK: AtomicBool = AtomicBool::new(false);
 /// ADR-069: last EL0 `net_ping` quiet ARP+ICMP CNTPCT sample (lab only).
 static NET_PING_TICKS: AtomicU64 = AtomicU64::new(0);
 
@@ -1010,6 +1014,151 @@ fn net_rx_icmp_echo_reply(dev: &NetDev, mut last: u16) -> bool {
     false
 }
 
+
+const UDP_SRC_PORT: u16 = 0x6333; // "c3" ephemeral for N3
+const UDP_DNS_DST: u16 = 53;
+const UDP_DNS_TXID: u16 = 0x6333;
+/// Minimal DNS A query for label "ctos" (not a DNS product — probe only).
+const UDP_DNS_QNAME: &[u8] = b"\x04ctos\x00";
+
+/// Build Ethernet+IPv4+UDP+DNS query to SLIRP DNS 10.0.2.3:53.
+/// Reuses gateway MAC from N1 ARP (SLIRP L2 for host-side addrs).
+fn fill_udp_dns_query(
+    mac: &[u8; 6],
+    gw_mac: &[u8; 6],
+    frame: &mut [u8; NET_FRAME],
+) -> usize {
+    frame.fill(0);
+    frame[0..6].copy_from_slice(gw_mac);
+    frame[6..12].copy_from_slice(mac);
+    frame[12] = 0x08;
+    frame[13] = 0x00; // IPv4
+
+    // DNS message body
+    let dns_off = 14 + 20 + 8;
+    frame[dns_off] = (UDP_DNS_TXID >> 8) as u8;
+    frame[dns_off + 1] = (UDP_DNS_TXID & 0xff) as u8;
+    frame[dns_off + 2] = 0x01; // RD
+    frame[dns_off + 3] = 0x00;
+    frame[dns_off + 4] = 0x00;
+    frame[dns_off + 5] = 0x01; // QDCOUNT=1
+    // ANCOUNT/NSCOUNT/ARCOUNT = 0
+    let mut dns_len = 12;
+    frame[dns_off + dns_len..dns_off + dns_len + UDP_DNS_QNAME.len()]
+        .copy_from_slice(UDP_DNS_QNAME);
+    dns_len += UDP_DNS_QNAME.len();
+    frame[dns_off + dns_len] = 0x00;
+    frame[dns_off + dns_len + 1] = 0x01; // type A
+    frame[dns_off + dns_len + 2] = 0x00;
+    frame[dns_off + dns_len + 3] = 0x01; // class IN
+    dns_len += 4;
+
+    let udp_len = 8 + dns_len;
+    let ip_total = 20 + udp_len;
+
+    // IPv4
+    frame[14] = 0x45;
+    frame[15] = 0;
+    frame[16] = (ip_total >> 8) as u8;
+    frame[17] = (ip_total & 0xff) as u8;
+    frame[18] = 0x00;
+    frame[19] = 0x03; // id
+    frame[20] = 0x00;
+    frame[21] = 0x00;
+    frame[22] = 64; // ttl
+    frame[23] = 17; // UDP
+    // src 10.0.2.15
+    frame[26] = 10;
+    frame[27] = 0;
+    frame[28] = 2;
+    frame[29] = 15;
+    // dst 10.0.2.3 (QEMU SLIRP DNS — answers UDP locally; no external net)
+    frame[30] = 10;
+    frame[31] = 0;
+    frame[32] = 2;
+    frame[33] = 3;
+    let ip_csum = inet_checksum(&frame[14..34]);
+    frame[24] = (ip_csum >> 8) as u8;
+    frame[25] = (ip_csum & 0xff) as u8;
+
+    // UDP (checksum 0 = optional / unused for IPv4 — honest for this probe)
+    let udp_off = 14 + 20;
+    frame[udp_off] = (UDP_SRC_PORT >> 8) as u8;
+    frame[udp_off + 1] = (UDP_SRC_PORT & 0xff) as u8;
+    frame[udp_off + 2] = (UDP_DNS_DST >> 8) as u8;
+    frame[udp_off + 3] = (UDP_DNS_DST & 0xff) as u8;
+    frame[udp_off + 4] = (udp_len >> 8) as u8;
+    frame[udp_off + 5] = (udp_len & 0xff) as u8;
+    // checksum left 0
+
+    14 + ip_total
+}
+
+fn is_udp_dns_reply(frame: &[u8], len: usize) -> bool {
+    if len < 14 + 20 + 8 + 12 {
+        return false;
+    }
+    if frame[12] != 0x08 || frame[13] != 0x00 {
+        return false;
+    }
+    let ihl = (frame[14] & 0x0f) as usize * 4;
+    if ihl < 20 || len < 14 + ihl + 8 + 12 {
+        return false;
+    }
+    if frame[23] != 17 {
+        return false; // not UDP
+    }
+    // src 10.0.2.3
+    if !(frame[26] == 10 && frame[27] == 0 && frame[28] == 2 && frame[29] == 3) {
+        return false;
+    }
+    // dst 10.0.2.15
+    if !(frame[30] == 10 && frame[31] == 0 && frame[32] == 2 && frame[33] == 15) {
+        return false;
+    }
+    let udp = 14 + ihl;
+    let sport = u16::from_be_bytes([frame[udp], frame[udp + 1]]);
+    let dport = u16::from_be_bytes([frame[udp + 2], frame[udp + 3]]);
+    if sport != UDP_DNS_DST || dport != UDP_SRC_PORT {
+        return false;
+    }
+    let dns = udp + 8;
+    let txid = u16::from_be_bytes([frame[dns], frame[dns + 1]]);
+    // QR bit set (response) + matching transaction id — any RCODE is fine.
+    let flags_hi = frame[dns + 2];
+    txid == UDP_DNS_TXID && (flags_hi & 0x80) != 0
+}
+
+/// Wait for a UDP DNS reply from SLIRP DNS (may skip unrelated RX).
+fn net_rx_udp_dns_reply(dev: &NetDev, mut last: u16) -> bool {
+    for _ in 0..8 {
+        unsafe {
+            let dma = addr_of_mut!(NET_RX);
+            if !net_wait_used(dma, last, 2, 1) {
+                return false;
+            }
+            let used_off = core::mem::offset_of!(NetDma, used);
+            let used_span = core::mem::size_of::<NetDma>() - used_off;
+            cache_sync(addr_of!((*dma).used) as u64, used_span);
+            cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
+            let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
+            let total = (*dma).used.ring[uidx].len as usize;
+            if total > NET_HDR {
+                let frame_len = total - NET_HDR;
+                let n = frame_len.min(NET_FRAME);
+                if is_udp_dns_reply(&(*dma).frame, n) {
+                    return true;
+                }
+            }
+        }
+        let Some(new_last) = net_post_rx(dev) else {
+            return false;
+        };
+        last = new_last;
+    }
+    false
+}
+
 /// Discover + program the first virtio-mmio net device (RX+TX queues).
 pub fn init_net() {
     NET_READY.store(false, Ordering::SeqCst);
@@ -1018,6 +1167,9 @@ pub fn init_net() {
     NET_ICMP_TX_OK.store(false, Ordering::SeqCst);
     NET_ICMP_RX_OK.store(false, Ordering::SeqCst);
     NET_PING_OK.store(false, Ordering::SeqCst);
+    NET_UDP_TX_OK.store(false, Ordering::SeqCst);
+    NET_UDP_RX_OK.store(false, Ordering::SeqCst);
+    NET_UDP_OK.store(false, Ordering::SeqCst);
     let mut net = NET.lock();
     *net = NetDev::empty();
     let Some((base, ver)) = find_net() else {
@@ -1037,9 +1189,9 @@ pub fn net_ready() -> bool {
     NET_READY.load(Ordering::SeqCst)
 }
 
-/// Serial proof: discover + ARP TX/RX + ICMP echo vs SLIRP gateway.
-/// Host `-netdev` without this guest path is not a probe. Kernel-path only
-/// Kernel probe path — ADR-067 N2. EL0 uses separate quiet helpers (ADR-068).
+/// Serial proof: discover + ARP TX/RX + ICMP echo + UDP DNS vs SLIRP.
+/// Host `-netdev` without this guest path is not a probe. Kernel-path.
+/// N1/N2: ADR-066/067. N3 UDP: ADR-070. EL0 quiet helpers: ADR-068/069.
 #[allow(dead_code)]
 pub fn observe_net_probe() -> bool {
     if !paging::mmu_enabled() {
@@ -1135,8 +1287,38 @@ pub fn observe_net_probe() -> bool {
     }
 
     NET_PING_OK.store(true, Ordering::SeqCst);
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "net: ping-ok");
+    }
+
+    // --- N3 / ADR-070: minimal UDP TX/RX (DNS query to SLIRP 10.0.2.3:53) ---
+    // Not a DNS product — any matching UDP DNS *response* proves transport.
+    let Some(rx3) = net_post_rx(&net) else {
+        return false;
+    };
+    let udp_len = unsafe {
+        fill_udp_dns_query(
+            &net.mac,
+            &gw_mac,
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    if !net_tx_frame(&net, udp_len) {
+        return false;
+    }
+    NET_UDP_TX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: udp-tx\n");
+
+    if !net_rx_udp_dns_reply(&net, rx3) {
+        return false;
+    }
+    NET_UDP_RX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: udp-rx\n");
+
+    NET_UDP_OK.store(true, Ordering::SeqCst);
     let mut w = uart::raw();
-    let _ = writeln!(w, "net: ping-ok");
+    let _ = writeln!(w, "net: udp-ok");
     true
 }
 
@@ -1255,4 +1437,29 @@ fn el0_net_ping_cntpct_advances() {
     );
     let ticks = net_ping_ticks();
     assert!(ticks > 0, "ADR-069 net-ping CNTPCT sample must advance");
+}
+
+#[cfg(test)]
+#[test_case]
+fn virtio_net_udp_dns_probe() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev)");
+    let net = NET.lock();
+    let Some(rx_last) = net_post_rx(&net) else {
+        panic!("post RX for ARP");
+    };
+    let arp_len =
+        unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
+    assert!(net_tx_frame(&net, arp_len), "TX ARP request");
+    let gw = net_rx_arp_reply(&net, rx_last).expect("ARP reply for UDP");
+    let Some(rx2) = net_post_rx(&net) else {
+        panic!("post RX for UDP");
+    };
+    let udp_len = unsafe {
+        fill_udp_dns_query(&net.mac, &gw, &mut (*addr_of_mut!(NET_TX)).frame)
+    };
+    assert!(net_tx_frame(&net, udp_len), "TX UDP DNS query to 10.0.2.3:53");
+    assert!(
+        net_rx_udp_dns_reply(&net, rx2),
+        "RX UDP DNS reply from QEMU SLIRP DNS 10.0.2.3"
+    );
 }

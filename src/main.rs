@@ -213,9 +213,10 @@ extern "C" fn kernel_main_high() -> ! {
         if !virtio::observe_probe() {
             uart::write_str_raw("blk: probe missed\n");
         }
-        // Serial proof for qemu-smoke (Track N / N1–N2 / ADR-066 / ADR-067):
-        // virtio-net discover + ARP + ICMP echo vs SLIRP gateway. Host
-        // `-netdev` alone is not a probe. Not TCP/UDP/sockets/DHCP/DNS.
+        // Serial proof for qemu-smoke (Track N / N1–N3 / ADR-066 / ADR-067 /
+        // ADR-070): virtio-net discover + ARP + ICMP + UDP DNS vs SLIRP.
+        // Host `-netdev` alone is not a probe. Not BSD sockets / TCP product /
+        // DHCP/DNS product.
         if !virtio::observe_net_probe() {
             uart::write_str_raw("net: probe missed\n");
         }
