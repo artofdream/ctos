@@ -18,6 +18,7 @@
 # N3 / ADR-070: UDP markers `net: udp-tx` / `net: udp-rx` / `net: udp-ok`
 # (DNS query to SLIRP 10.0.2.3:53 — transport probe, not a DNS product).
 # ADR-069: `perf: net-ping` (EL0 net_ping CNTPCT; prefix only — ticks vary).
+# ADR-072: `perf: udp-dns` (EL0 net_udp_dns CNTPCT; prefix only — ticks vary).
 # N3.x / ADR-071: EL0 `net_udp_dns` (26) + FAT `/udpdemo` (`libctos: udp-ok` / `udpdemo: ok`).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
@@ -848,6 +849,20 @@ if grep -E -q 'perf: net-ping.*(faster|slower|percent|%)' "$log"; then
     exit 1
 fi
 echo "qemu-smoke: ADR-069 net-ping CNTPCT marker present"
+# ADR-072: EL0 net_udp_dns CNTPCT (prefix only — tick values vary under TCG).
+if grep -q "perf: udp-dns missed" "$log"; then
+    echo "qemu-smoke: udp-dns probe missed (CNTPCT around EL0 net_udp_dns did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: udp-dns" "$log"; then
+    echo "qemu-smoke: missing 'perf: udp-dns' on serial (ADR-072 net_udp_dns CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -E -q 'perf: udp-dns.*(faster|slower|percent|%)' "$log"; then
+    echo "qemu-smoke: udp-dns must not claim faster/slower/percent" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-072 udp-dns CNTPCT marker present"
 if grep -q "perf: app-load missed" "$log"; then
     echo "qemu-smoke: app-load probe missed (CNTPCT around FAT load did not advance)" >&2
     exit 1

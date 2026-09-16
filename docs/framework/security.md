@@ -1,8 +1,8 @@
-# Security — threat model v1.46 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064 / ADR-065 / ADR-066 / ADR-067 / ADR-068 / ADR-069 / ADR-070 / ADR-071)
+# Security — threat model v1.47 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064 / ADR-065 / ADR-066 / ADR-067 / ADR-068 / ADR-069 / ADR-070 / ADR-071 / ADR-072)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.46** (2026-09-16). Slice/update of v1.45 (#116 ADR-070). N3.x EL0 UDP DNS SVC + `/udpdemo` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md): `net_udp_dns`=26; `libctos: udp-ok` / `udpdemo: ok`). Keep N1/N2/N3/N4 + ADR-069 CNTPCT. Still **not** BSD sockets / TCP product / DHCP/DNS product / Wi‑Fi / “has networking / sockets OS.” ADR-070/068/067/066/063/069 unchanged on prior miles. ADR-062/061/060/053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption/exFAT. Not a v2 model and not “secure.”
+Version: **v1.47** (2026-09-16). Slice/update of v1.46 (#117 ADR-071). UDP DNS path CNTPCT ([ADR-072](../03-adr/ADR-072-udp-dns-cntpct.md): `perf: udp-dns ticks=<n>` on EL0 `net_udp_dns`). Keep N1/N2/N3/N3.x/N4 + ADR-069 CNTPCT. Still **not** BSD sockets / TCP product / DHCP/DNS product / Wi‑Fi / “has networking / sockets OS.” ADR-071/070/068/067/066/063/069 unchanged on prior miles. ADR-062/061/060/053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption/exFAT. Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -213,3 +213,7 @@ Three freestanding EL0 samples on FAT: `/hello`, `/fsdemo` (memfs `/memdemo`), a
 ### Track N EL0 UDP DNS SVC (v1.46)
 
 [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md): `SYS_NET_UDP_DNS` (26); freestanding `udp-libctos` on FAT `/udpdemo` (`libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). Quiet kernel-path ARP + UDP DNS to SLIRP `10.0.2.3:53` (same bait as ADR-070). Kernel still owns virtio-net. Still not BSD sockets / TCP product / DHCP/DNS product / Wi‑Fi / “has networking.” Still **not** “secure.”
+
+### UDP DNS path CNTPCT (v1.47)
+
+[ADR-072](../03-adr/ADR-072-udp-dns-cntpct.md): CNTPCT around EL0 `net_udp_dns` quiet ARP+UDP DNS (`perf: udp-dns ticks=<n>`). Measure-first lab ticks only — not a latency SLA, percent, or product KPI. Smoke greps the marker **prefix** (tick values vary). Keep N1/N2/N3/N3.x/N4 / ADR-069 / FAT / slot. Still **not** TCP/sockets/DNS product/“has networking.” Still **not** “secure.”
