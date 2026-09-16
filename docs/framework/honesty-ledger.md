@@ -349,6 +349,11 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | Threat-model v1.42 slice (NFR-10) | Read [security.md](security.md) (ADR-067 N2 ICMP ping; I/O surface still blk+net) | Verified | File + this PR. v1.42 update on tip post-#112 v1.41, not “secure.” Not TCP/UDP. Not “has networking.” |
 | `scripts/qemu-smoke.sh` (ADR-067 N2 ICMP ping / this branch) | Ran on this agent box | Verified | 2026-09-16 agent-box `qemu-smoke` on `feat/n2-icmp-ping`: markers `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok` + N1 `net: ok` + preserved `blk: ok` / `fat: ok` / `slot: ok` / ADR-065 read pair; `qemu-smoke: virtio-net (N1+N2) strings present`; `Running 117 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not a product stack. Tip `b71d7f4`. |
 
+| Track N EL0 net SVC + net-libctos (N4 / ADR-068) | Hello-kernel serial `libctos: net-hi` + `libctos: net-mac` + `libctos: net-ok` + `netdemo: ok` (+ keep N1 `net: ok` / N2 `net: ping-ok` / prior samples); `#[test_case]` `netdemo_fat_is_elf` + `netdemo_load_from_fat_erets` + `netdemo_path_is_fat` | Verified | 2026-09-16 agent-box `qemu-smoke` (QEMU / rustc recorded at tip): markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: fat` / `netdemo: mapped` / `netdemo: ok` + keep `net: ok` / `net: ping-ok` / `blk: ok` / `fat: ok` / `slot: ok` / `yldemo: ok`; force-fail exit 1; `qemu-smoke: ok`. SVC surface: `net_mac`=24, `net_ping`=25. Kernel owns virtio-net. Not TCP/UDP/sockets/DHCP/DNS/Wi‑Fi/“has networking.” CloudAgent HELD — evidence tagged agent-box. Tip `TIP_PLACEHOLDER`. [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md). |
+| Threat-model v1.43 slice (NFR-10) | Read [security.md](security.md) (ADR-068 N4 EL0 net SVC sample; I/O surface still blk+net) | Verified | File + this PR. v1.43 update on tip post-#113 v1.42, not “secure.” Not TCP/UDP. Not “has networking.” |
+| `scripts/qemu-smoke.sh` (ADR-068 N4 net-libctos / this branch) | Ran on this agent box | Verified | 2026-09-16 agent-box `qemu-smoke` on `feat/n4-el0-net-svc`: markers `libctos: net-ok` / `netdemo: ok` + preserved N1/N2/samples; `qemu-smoke: ADR-068 net-libctos /netdemo strings present`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not a product stack. Tip `TIP_PLACEHOLDER`. |
+
+
 
 <a id="adr-048-progress-checklist"></a>
 

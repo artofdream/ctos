@@ -1,4 +1,4 @@
-# Track N — network foundation (virtio-net ARP + ICMP ping)
+# Track N — network foundation (virtio-net ARP + ICMP ping + EL0 net sample)
 
 Scope ADR: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). Separate from [Track A](track-a.md) (freestanding apps) and [Track B](track-b.md) (Linux-compat research — **never** implementation).
 
@@ -28,12 +28,12 @@ Honesty ledger, fail-closed `qemu-smoke`, existing virtio-blk + FAT16 + sample c
 | N1 | Link bring-up / first frame | Discover + TX/RX one raw Ethernet frame; QEMU `-netdev` / `-device virtio-net-device`; smoke greps; keep blk/FAT green | **Verified** when this tip’s `qemu-smoke` prints `net: ok` ([ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md)) |
 | N2 | ARP + ICMP ping (kernel-path) | After ARP: ICMP echo request/reply vs `10.0.2.2`; `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok`; keep N1 + blk/FAT green | **Verified** when this tip’s `qemu-smoke` prints `net: ping-ok` ([ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md)) |
 | N3 | Transport / sockets | New sponsor scope + new ADR only | **Locked out** |
-| N4 | Freestanding sample using net SVCs | After N1+ Verified | **Planned** (after N1+) |
+| N4 | Freestanding sample using net SVCs | After N1+ Verified; EL0 `net_mac`/`net_ping` + FAT `/netdemo`; smoke greps | **Verified** when this tip’s `qemu-smoke` prints `libctos: net-ok` / `netdemo: ok` ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)) |
 
 ## Explicit non-goals (locked until new ADR + sponsor)
 
-TCP/UDP stack as product; BSD sockets as product; DHCP/DNS as product; Wi‑Fi; virtio-pci-only foundation stories; Linux net stack; “has networking” marketing; EL0 net ABI until after link bring-up Verified.
+TCP/UDP stack as product; BSD sockets as product; DHCP/DNS as product; Wi‑Fi; virtio-pci-only foundation stories; Linux net stack; “has networking” marketing; EL0 net ABI unlocked after N1+ ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)); still no sockets product.
 
 ## Honesty
 
-Do **not** say the guest “has networking.” N0 is scope ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)). N1 first-frame is [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) (`net: ok`). N2 ICMP ping is [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) — Verified only with `net: ping-ok` on a named tip. Still not TCP/UDP/sockets/DHCP/DNS. CloudAgent HELD; evidence tags agent-box / EVO-X2. No self-merge ([ADR-002](../03-adr/ADR-002-pr-identity-split.md)).
+Do **not** say the guest “has networking.” N0 is scope ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)). N1 first-frame is [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) (`net: ok`). N2 ICMP ping is [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) — Verified only with `net: ping-ok` on a named tip. N4 EL0 net sample is [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md) — Verified only with `libctos: net-ok` / `netdemo: ok` on a named tip. Still not TCP/UDP/sockets/DHCP/DNS. CloudAgent HELD; evidence tags agent-box / EVO-X2. No self-merge ([ADR-002](../03-adr/ADR-002-pr-identity-split.md)).

@@ -53,3 +53,15 @@ ctos_fs_write:
 ctos_fs_close:
     svc #23
     ret
+
+    .global ctos_net_mac
+    .type ctos_net_mac, %function
+ctos_net_mac:
+    svc #24
+    ret
+
+    .global ctos_net_ping
+    .type ctos_net_ping, %function
+ctos_net_ping:
+    svc #25
+    ret

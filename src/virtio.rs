@@ -2,8 +2,10 @@
 //!
 //! Block: Track A / A7 / ADR-028 — one split virtqueue, sector R/W.
 //! Net: Track N / N1–N2 / ADR-066 / ADR-067 — RX+TX queues, ARP then ICMP
-//! echo vs QEMU user netdev. Scan transports, DMA at identity PAs, poll
-//! `used.idx`. Not virtio-pci. Not a virtio IRQ. Not TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
+//! echo vs QEMU user netdev. N4 / ADR-068 exposes tiny EL0 SVCs that call
+//! into this module (kernel still owns the NIC). Scan transports, DMA at
+//! identity PAs, poll `used.idx`. Not virtio-pci. Not a virtio IRQ. Not
+//! TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -1034,7 +1036,7 @@ pub fn net_ready() -> bool {
 
 /// Serial proof: discover + ARP TX/RX + ICMP echo vs SLIRP gateway.
 /// Host `-netdev` without this guest path is not a probe. Kernel-path only
-/// (no EL0 net SVC) — ADR-067 N2.
+/// Kernel probe path — ADR-067 N2. EL0 uses separate quiet helpers (ADR-068).
 #[allow(dead_code)]
 pub fn observe_net_probe() -> bool {
     if !paging::mmu_enabled() {
@@ -1133,6 +1135,44 @@ pub fn observe_net_probe() -> bool {
     let mut w = uart::raw();
     let _ = writeln!(w, "net: ping-ok");
     true
+}
+
+/// Guest MAC when virtio-net is ready (ADR-068 EL0 `net_mac`).
+pub fn guest_mac() -> Option<[u8; 6]> {
+    if !net_ready() {
+        return None;
+    }
+    let net = NET.lock();
+    Some(net.mac)
+}
+
+/// Quiet ARP + ICMP echo vs SLIRP gateway for EL0 `net_ping` (ADR-068).
+/// Kernel still programs virtio-net; no serial N1/N2 markers here.
+pub fn el0_icmp_ping() -> bool {
+    if !paging::mmu_enabled() || !net_ready() {
+        return false;
+    }
+    let net = NET.lock();
+    let Some(rx_last) = net_post_rx(&net) else {
+        return false;
+    };
+    let arp_len = unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
+    if !net_tx_frame(&net, arp_len) {
+        return false;
+    }
+    let Some(gw) = net_rx_arp_reply(&net, rx_last) else {
+        return false;
+    };
+    let Some(rx2) = net_post_rx(&net) else {
+        return false;
+    };
+    let icmp_len = unsafe {
+        fill_icmp_echo_request(&net.mac, &gw, &mut (*addr_of_mut!(NET_TX)).frame)
+    };
+    if !net_tx_frame(&net, icmp_len) {
+        return false;
+    }
+    net_rx_icmp_echo_reply(&net, rx2)
 }
 
 #[cfg(test)]

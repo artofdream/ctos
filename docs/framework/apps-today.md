@@ -94,7 +94,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption.
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). A fifth (`user/net-libctos`, FAT `/netdemo`) exercises EL0 net SVCs ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md); markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption. Not sockets.
 
 ## Sample: freestanding libctos VFS (`fs-libctos`, ADR-059)
 
@@ -126,6 +126,15 @@ That ELF still has to land on FAT `/hello` to run. The hello does **not** call `
 **Rebuild.** Same `cargo build` + `./scripts/qemu-smoke.sh`.
 
 **Probe.** `libctos: yld-hi` / ≥3× `libctos: beat` / `libctos: yld-ok` / `yldemo: fat` / `yldemo: mapped` / `yldemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `fatdemo: ok` / `/hello` / `/fsdemo` / `/fatdemo`.
+
+## Sample: freestanding libctos net SVCs (`net-libctos`, ADR-068)
+
+**What it is.** Fifth freestanding EL0 ELF linked against `libctos`. Prints `libctos: net-hi`, reads guest MAC (`libctos: net-mac`), asks the kernel for an ICMP echo to SLIRP (`net_ping`), then `libctos: net-ok`. Loaded from FAT `/netdemo`. Kernel owns virtio-net — no guest driver in EL0.
+
+**Where.** `user/net-libctos/`, `src/netdemo.rs`, `scripts/mkfat16.py --app5`. Decision: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md).
+
+**Probe.** `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: fat` / `netdemo: mapped` / `netdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `fatdemo: ok` / `yldemo: ok` / N1 `net: ok` / N2 `net: ping-ok`. Not TCP/UDP. Not sockets. Not “has networking.”
+
 
 ## Sample: memfs named-buffer probe (A6)
 

@@ -3,7 +3,8 @@
 //! Public numbers start at 16 so they do not collide with the ADR-013
 //! probe immediates (`SVC #0` first mile, `#1` standing, `#2` restore).
 //! A6 adds 19–23 (thin VFS / memfs, ADR-027).
-//! Not Linux. Not POSIX. Not app hosting.
+//! Track N / N4 adds 24–25 (net MAC + ICMP ping, ADR-068).
+//! Not Linux. Not POSIX. Not app hosting. Not a TCP/UDP stack.
 
 use core::fmt::Write;
 use core::hint::black_box;
@@ -15,6 +16,7 @@ use crate::frame;
 use crate::paging;
 use crate::uart;
 use crate::vfs;
+use crate::virtio;
 
 /// `SVC #0` first-mile return (ADR-013). Not a public ABI number.
 pub const SVC_PROBE_RETURN: u64 = 0;
@@ -42,6 +44,10 @@ pub const SYS_FS_READ: u64 = 21;
 pub const SYS_FS_WRITE: u64 = 22;
 /// Close a memfs handle (ADR-027).
 pub const SYS_FS_CLOSE: u64 = 23;
+/// Copy guest virtio-net MAC into a user buffer (ADR-068).
+pub const SYS_NET_MAC: u64 = 24;
+/// Kernel-path ICMP echo to SLIRP gateway (ADR-068).
+pub const SYS_NET_PING: u64 = 25;
 
 /// Hard cap on `SYS_UART_WRITE`. Longer lengths return 0.
 pub const UART_WRITE_MAX: u64 = 64;
@@ -49,6 +55,10 @@ pub const UART_WRITE_MAX: u64 = 64;
 pub const FS_IO_MAX: u64 = 64;
 /// Reject value for `SYS_FS_READ` / `SYS_FS_CLOSE` (0 is a valid empty read).
 pub const FS_ERR: u64 = u64::MAX;
+/// Guest MAC length for `SYS_NET_MAC`.
+pub const NET_MAC_LEN: u64 = 6;
+/// Reject value for `SYS_NET_PING`.
+pub const NET_ERR: u64 = u64::MAX;
 
 /// User buffer the ABI probe writes via `SYS_UART_WRITE`.
 pub const USER_UART_MSG: &[u8] = b"svc: user-hi\n";
@@ -61,6 +71,10 @@ const SVC20_A64: u32 = 0xD4000001 | ((SYS_FS_OPEN as u32) << 5);
 const SVC21_A64: u32 = 0xD4000001 | ((SYS_FS_READ as u32) << 5);
 const SVC22_A64: u32 = 0xD4000001 | ((SYS_FS_WRITE as u32) << 5);
 const SVC23_A64: u32 = 0xD4000001 | ((SYS_FS_CLOSE as u32) << 5);
+#[cfg(test)]
+const SVC24_A64: u32 = 0xD4000001 | ((SYS_NET_MAC as u32) << 5);
+#[cfg(test)]
+const SVC25_A64: u32 = 0xD4000001 | ((SYS_NET_PING as u32) << 5);
 
 const EL0_FS_PATH: &[u8] = b"/eprobe";
 const EL0_FS_BYTES: &[u8] = b"memfs-el0";
@@ -77,6 +91,8 @@ static FS_OPEN: AtomicU64 = AtomicU64::new(0);
 static FS_READ: AtomicU64 = AtomicU64::new(u64::MAX);
 static FS_WRITE: AtomicU64 = AtomicU64::new(u64::MAX);
 static FS_CLOSE_OK: AtomicBool = AtomicBool::new(false);
+static NET_MAC_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
+static NET_PING_OK: AtomicBool = AtomicBool::new(false);
 
 /// What the lower-EL handler should do after a public ABI call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -348,6 +364,44 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
             }
             Some(SvcAction::StayEl0)
         }
+        SYS_NET_MAC => {
+            el0::note_active_while_standing();
+            let ptr = ctx.x[0];
+            let len = ctx.x[1];
+            if len < NET_MAC_LEN || !user_range_ok_max(ptr, NET_MAC_LEN, NET_MAC_LEN) {
+                NET_MAC_LAST.store(0, Ordering::SeqCst);
+                ctx.x[0] = 0;
+                return Some(SvcAction::StayEl0);
+            }
+            match virtio::guest_mac() {
+                Some(mac) => match copy_to_user(ptr, &mac) {
+                    Some(_) => {
+                        NET_MAC_LAST.store(NET_MAC_LEN, Ordering::SeqCst);
+                        ctx.x[0] = NET_MAC_LEN;
+                    }
+                    None => {
+                        NET_MAC_LAST.store(0, Ordering::SeqCst);
+                        ctx.x[0] = 0;
+                    }
+                },
+                None => {
+                    NET_MAC_LAST.store(0, Ordering::SeqCst);
+                    ctx.x[0] = 0;
+                }
+            }
+            Some(SvcAction::StayEl0)
+        }
+        SYS_NET_PING => {
+            el0::note_active_while_standing();
+            if virtio::el0_icmp_ping() {
+                NET_PING_OK.store(true, Ordering::SeqCst);
+                ctx.x[0] = 0;
+            } else {
+                NET_PING_OK.store(false, Ordering::SeqCst);
+                ctx.x[0] = NET_ERR;
+            }
+            Some(SvcAction::StayEl0)
+        }
         _ => None,
     }
 }
@@ -368,6 +422,8 @@ pub(crate) fn reset_fs_flags() {
     FS_READ.store(u64::MAX, Ordering::SeqCst);
     FS_WRITE.store(u64::MAX, Ordering::SeqCst);
     FS_CLOSE_OK.store(false, Ordering::SeqCst);
+    NET_MAC_LAST.store(u64::MAX, Ordering::SeqCst);
+    NET_PING_OK.store(false, Ordering::SeqCst);
 }
 
 fn write_bytes(base: *mut u8, off: usize, bytes: &[u8]) {
@@ -677,6 +733,8 @@ fn syscall_numbers_are_documented() {
     assert_eq!(svc_a64(SYS_FS_READ), SVC21_A64);
     assert_eq!(svc_a64(SYS_FS_WRITE), SVC22_A64);
     assert_eq!(svc_a64(SYS_FS_CLOSE), SVC23_A64);
+    assert_eq!(svc_a64(SYS_NET_MAC), SVC24_A64);
+    assert_eq!(svc_a64(SYS_NET_PING), SVC25_A64);
     assert_ne!(SYS_EXIT, SVC_PROBE_RETURN);
     assert_ne!(SYS_EXIT, SVC_PROBE_STANDING);
     assert_ne!(SYS_EXIT, SVC_PROBE_RESTORE);

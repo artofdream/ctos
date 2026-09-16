@@ -1,12 +1,13 @@
 //! Freestanding `libctos` — wrappers for the A1 EL0 SVC ABI (ADR-021 / ADR-022)
-//! plus A6 memfs numbers (ADR-027).
+//! plus A6 memfs numbers (ADR-027) and Track N net numbers (ADR-068).
 //!
 //! Public numbers: `exit` = 16, `uart_write` = 17, `yield` = 18,
 //! `fs_create` = 19, `fs_open` = 20, `fs_read` = 21, `fs_write` = 22,
-//! `fs_close` = 23. Reserved 0–2 stay ADR-013 probes. This crate must
-//! not issue them.
+//! `fs_close` = 23, `net_mac` = 24, `net_ping` = 25. Reserved 0–2 stay
+//! ADR-013 probes. This crate must not issue them.
 //!
 //! Not Linux. Not POSIX. Not glibc. Not a process model. Not FAT.
+//! Not a TCP/UDP stack. Not BSD sockets.
 
 #![no_std]
 
@@ -30,6 +31,10 @@ pub const SYS_FS_READ: u64 = 21;
 pub const SYS_FS_WRITE: u64 = 22;
 /// Close a memfs handle. Returns `0` on success, `u64::MAX` on reject.
 pub const SYS_FS_CLOSE: u64 = 23;
+/// Copy the guest virtio-net MAC into a user buffer (6 bytes). Returns 6, or 0.
+pub const SYS_NET_MAC: u64 = 24;
+/// Kernel-path ICMP echo to SLIRP gateway. Returns 0 on success, `u64::MAX` on fail.
+pub const SYS_NET_PING: u64 = 25;
 
 /// ADR-013 probe immediates. CRT / libctos must not issue these.
 pub const SVC_PROBE_RETURN: u64 = 0;
@@ -44,6 +49,7 @@ const _: () = assert!(
         && SYS_FS_WRITE == 22
         && SYS_FS_CLOSE == 23
 );
+const _: () = assert!(SYS_NET_MAC == 24 && SYS_NET_PING == 25);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RETURN);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_STANDING);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RESTORE);
@@ -57,6 +63,8 @@ extern "C" {
     pub fn ctos_fs_read(fd: u64, ptr: *mut u8, len: usize) -> u64;
     pub fn ctos_fs_write(fd: u64, ptr: *const u8, len: usize) -> u64;
     pub fn ctos_fs_close(fd: u64) -> u64;
+    pub fn ctos_net_mac(ptr: *mut u8, len: usize) -> u64;
+    pub fn ctos_net_ping() -> u64;
 }
 
 /// End the EL0 trip. Does not return to the caller.
@@ -105,4 +113,16 @@ pub fn fs_write(fd: u64, buf: &[u8]) -> u64 {
 #[inline]
 pub fn fs_close(fd: u64) -> u64 {
     unsafe { ctos_fs_close(fd) }
+}
+
+/// `SYS_NET_MAC`. Copies 6 MAC bytes into `buf`. Returns 6, or 0 if rejected.
+#[inline]
+pub fn net_mac(buf: &mut [u8]) -> u64 {
+    unsafe { ctos_net_mac(buf.as_mut_ptr(), buf.len()) }
+}
+
+/// `SYS_NET_PING`. Returns 0 on ICMP echo success, `u64::MAX` if rejected.
+#[inline]
+pub fn net_ping() -> u64 {
+    unsafe { ctos_net_ping() }
 }
