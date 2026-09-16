@@ -6,8 +6,9 @@
 # pin it so a host `-m` habit cannot shrink RAM under the allocator.
 # A7: attach a host-visible FAT16 image on virtio-mmio blk (ADR-028).
 # Host `-drive` without guest virtio code is not a probe.
-# N1 / ADR-066 + N2 / ADR-067: QEMU user netdev + virtio-net-device (mmio). Host
-# `-netdev` without guest virtio-net code is not a probe.
+# N1 / ADR-066 + N2 / ADR-067 + N3 / ADR-070: QEMU user netdev + virtio-net-device.
+# N5 / ADR-074: guestfwd TCP echo at 10.0.2.4:7 → scripts/tcp-echo-stdio.sh.
+# Host `-netdev` without guest virtio-net code is not a probe.
 # ADR-045 taken-SError QMP lives in qemu-serial-inject.py (hello smoke),
 # not this cargo-test runner — no #[test_case] without a host inject.
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -59,6 +60,6 @@ exec qemu-system-aarch64 \
     -semihosting \
     -drive if=none,file="$IMG",format=raw,cache=writethrough,id=hd0 \
     -device virtio-blk-device,drive=hd0 \
-    -netdev user,id=net0 \
+    -netdev user,id=net0,guestfwd=tcp:10.0.2.4:7-cmd:"$ROOT/scripts/tcp-echo-stdio.sh" \
     -device virtio-net-device,netdev=net0 \
     -kernel "$1"

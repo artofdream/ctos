@@ -79,6 +79,7 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_L
 | — | Net-ping CNTPCT (perf slice, ADR-069 / P-PERF-8) | `perf: net-ping ticks=<n>`; prefix grep; keep N1/N2/N4 | **Verified** when this tip’s `qemu-smoke` prints the prefix (see honesty ledger). Not a bench. Not a percent. N3 UDP unlocked by ADR-070 (not BSD sockets). |
 | — | UDP DNS CNTPCT (perf slice, ADR-072 / P-PERF-9) | `perf: udp-dns ticks=<n>`; prefix grep; keep N1/N2/N3/N3.x/N4 + ADR-069 | **Verified** when this tip’s `qemu-smoke` prints the prefix (see honesty ledger). Not a bench. Not a percent. Not TCP. |
 | — | FAT16 mkdir depth (ADR-073 / sponsor mile 2) | `fat: mkdir`; keep `fat: ok` / write / readdir / delete / grow / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX `mkdir`. Not a directory tree. Not TCP (mile 3). |
+| — | Thin TCP (ADR-074 / N5 / sponsor mile 3) | `net: tcp-ok` (+ `tcp-syn`/`tcp-est`/`tcp-tx`/`tcp-rx`); guestfwd `10.0.2.4:7`; keep N1–N3 + blk/FAT | **Verified** when this tip’s `qemu-smoke` prints `net: tcp-ok` (see honesty ledger). Not BSD sockets. Not listen/accept. Not TLS/HTTP. |
 | — | FAT16 readdir depth (ADR-056) | `fat: readdir` + `fat: entries`; keep `fat: ok` / write / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX `getdents`. Not FAT32. Not Linux/containers. |
 | — | FAT16 delete depth (ADR-057) | `fat: delete`; keep `fat: ok` / write / readdir / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX `unlink`. Not FAT32. Not Linux/containers. |
 | — | VFS prefix mounts (ADR-058) | `vfs: mount` + `vfs: mounts`; keep `fs: ok` / `fat: ok` / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not Linux `mount(2)`. Not a new disk FS. |
@@ -97,7 +98,7 @@ On-disk filesystem work started as A7 (FAT16 read, not xv6-like). FAT16 write de
 
 ## Track N — network foundation ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md))
 
-Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). N1 first frame: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md). N2 ICMP ping: [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md). N3 UDP transport: [ADR-070](../03-adr/ADR-070-n3-udp-transport.md). N3.x EL0 UDP SVC: [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md). N4 EL0 net sample: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md). Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Still not product: BSD sockets, TCP stack, DHCP/DNS as product, Wi‑Fi, Linux net stack, “has networking / sockets OS” marketing.
+Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). N1 first frame: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md). N2 ICMP ping: [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md). N3 UDP transport: [ADR-070](../03-adr/ADR-070-n3-udp-transport.md). N3.x EL0 UDP SVC: [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md). N4 EL0 net sample: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md). N5 thin TCP: [ADR-074](../03-adr/ADR-074-n5-thin-tcp.md). Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Still not product: BSD sockets, TCP stack as product / listen-accept, DHCP/DNS as product, Wi‑Fi, Linux net stack, “has networking / sockets OS” marketing.
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
@@ -107,6 +108,7 @@ Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../0
 | N3 | Minimal UDP transport (ADR-070) | UDP DNS query/reply vs SLIRP `10.0.2.3:53`; `net: udp-tx` / `net: udp-rx` / `net: udp-ok`; keep N1/N2 | **Verified** when this tip’s `qemu-smoke` prints `net: udp-ok` |
 | N4 | Freestanding sample using net SVCs (ADR-068) | `libctos: net-ok` / `netdemo: ok`; keep N1/N2/N3/samples | **Verified** when tip prints those markers |
 | N3.x | EL0 UDP DNS SVC + udpdemo (ADR-071) | `libctos: udp-ok` / `udpdemo: ok`; keep N1/N2/N3/N4/samples | **Verified** when tip prints those markers |
+| N5 | Thin TCP active-open + one payload (ADR-074) | `net: tcp-ok` (+ syn/est/tx/rx); guestfwd `10.0.2.4:7`; keep N1–N3 | **Verified** when tip prints `net: tcp-ok` |
 
 ## Docs website
 

@@ -245,7 +245,7 @@ Do not imply these work:
 - Linux binaries (no Linux ABI, no ELF loader for third-party programs)
 - A shell
 - Python (or any hosted language runtime)
-- Network servers (virtio-net ARP + ICMP + minimal UDP probe + EL0 UDP DNS SVC sample only — [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-070](../03-adr/ADR-070-n3-udp-transport.md) / [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md); no BSD sockets / TCP product)
+- Network servers (virtio-net ARP + ICMP + minimal UDP + thin TCP probe + EL0 UDP DNS SVC sample only — [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-070](../03-adr/ADR-070-n3-udp-transport.md) / [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md) / [ADR-074](../03-adr/ADR-074-n5-thin-tcp.md); no BSD sockets / TCP product)
 - POSIX / Linux filesystem apps (memfs + FAT16 read/write miles are not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
 - Product freestanding app hosting (**Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md); not Linux/POSIX/containers/OTA — [issue #48](https://github.com/artofdream/ctos/issues/48))
