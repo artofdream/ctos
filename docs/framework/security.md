@@ -212,8 +212,4 @@ Three freestanding EL0 samples on FAT: `/hello`, `/fsdemo` (memfs `/memdemo`), a
 
 ### Track N EL0 UDP DNS SVC (v1.46)
 
-[ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md): `SYS_NET_UDP_DNS` (26); freestanding `udp-libctos` on FAT `/udpdemo` (`libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). Quiet kernel-path ARP + UDP DNS probe (same bait as N3). Still not BSD sockets / TCP product / DHCP/DNS product / Wi‑Fi / “has networking.” Still **not** “secure.”
-
-### Track N EL0 UDP SVC (v1.46)
-
 [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md): `SYS_NET_UDP_DNS` (26); freestanding `udp-libctos` on FAT `/udpdemo` (`libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). Quiet kernel-path ARP + UDP DNS to SLIRP `10.0.2.3:53` (same bait as ADR-070). Kernel still owns virtio-net. Still not BSD sockets / TCP product / DHCP/DNS product / Wi‑Fi / “has networking.” Still **not** “secure.”

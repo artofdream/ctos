@@ -50,7 +50,7 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf` + `target/net-libctos.elf` + `target/udp-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`; ADR-068 loads FAT `/netdemo`; ADR-071 loads FAT `/udpdemo`).
 
 ```bash
-cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos + user/yield-libctos + user/net-libctos + user/udp-libctos + user/udp-libctos
+cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos + user/yield-libctos + user/net-libctos + user/udp-libctos
 ./scripts/qemu-smoke.sh     # fail-closed serial greps + cargo test + force-fail
 ```
 
