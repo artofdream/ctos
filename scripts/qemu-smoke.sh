@@ -15,6 +15,7 @@
 # N1 / ADR-066 + N2 / ADR-067: QEMU also attaches `-netdev user,id=net0`
 # `-device virtio-net-device,netdev=net0`. Host netdev alone is not a probe.
 # N2 adds ICMP echo markers `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok`.
+# ADR-069: `perf: net-ping` (EL0 net_ping CNTPCT; prefix only — ticks vary).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -772,6 +773,20 @@ if ! grep -q "netdemo: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: ADR-068 net-libctos /netdemo strings present"
+# ADR-069: EL0 net_ping CNTPCT (prefix only — tick values vary under TCG).
+if grep -q "perf: net-ping missed" "$log"; then
+    echo "qemu-smoke: net-ping probe missed (CNTPCT around EL0 net_ping did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: net-ping" "$log"; then
+    echo "qemu-smoke: missing 'perf: net-ping' on serial (ADR-069 net_ping CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -E -q 'perf: net-ping.*(faster|slower|percent|%)' "$log"; then
+    echo "qemu-smoke: net-ping must not claim faster/slower/percent" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-069 net-ping CNTPCT marker present"
 if grep -q "perf: app-load missed" "$log"; then
     echo "qemu-smoke: app-load probe missed (CNTPCT around FAT load did not advance)" >&2
     exit 1

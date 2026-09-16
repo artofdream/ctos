@@ -3,9 +3,10 @@
 //! Block: Track A / A7 / ADR-028 — one split virtqueue, sector R/W.
 //! Net: Track N / N1–N2 / ADR-066 / ADR-067 — RX+TX queues, ARP then ICMP
 //! echo vs QEMU user netdev. N4 / ADR-068 exposes tiny EL0 SVCs that call
-//! into this module (kernel still owns the NIC). Scan transports, DMA at
-//! identity PAs, poll `used.idx`. Not virtio-pci. Not a virtio IRQ. Not
-//! TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
+//! into this module (kernel still owns the NIC). ADR-069 times the quiet
+//! EL0 `net_ping` path with CNTPCT (`perf: net-ping`). Scan transports,
+//! DMA at identity PAs, poll `used.idx`. Not virtio-pci. Not a virtio IRQ.
+//! Not TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -576,6 +577,8 @@ static NET_RX_OK: AtomicBool = AtomicBool::new(false);
 static NET_ICMP_TX_OK: AtomicBool = AtomicBool::new(false);
 static NET_ICMP_RX_OK: AtomicBool = AtomicBool::new(false);
 static NET_PING_OK: AtomicBool = AtomicBool::new(false);
+/// ADR-069: last EL0 `net_ping` quiet ARP+ICMP CNTPCT sample (lab only).
+static NET_PING_TICKS: AtomicU64 = AtomicU64::new(0);
 
 fn find_net() -> Option<(usize, u32)> {
     for i in 0..MMIO_COUNT {
@@ -1148,11 +1151,15 @@ pub fn guest_mac() -> Option<[u8; 6]> {
 
 /// Quiet ARP + ICMP echo vs SLIRP gateway for EL0 `net_ping` (ADR-068).
 /// Kernel still programs virtio-net; no serial N1/N2 markers here.
+/// ADR-069: samples CNTPCT around the full quiet path and prints
+/// `perf: net-ping ticks=<n>` (lab measurement — not a latency SLA).
 pub fn el0_icmp_ping() -> bool {
+    NET_PING_TICKS.store(0, Ordering::SeqCst);
     if !paging::mmu_enabled() || !net_ready() {
         return false;
     }
     let net = NET.lock();
+    let t0 = timer::cntpct();
     let Some(rx_last) = net_post_rx(&net) else {
         return false;
     };
@@ -1172,7 +1179,26 @@ pub fn el0_icmp_ping() -> bool {
     if !net_tx_frame(&net, icmp_len) {
         return false;
     }
-    net_rx_icmp_echo_reply(&net, rx2)
+    if !net_rx_icmp_echo_reply(&net, rx2) {
+        return false;
+    }
+    let ticks = timer::cntpct().wrapping_sub(t0);
+    if ticks == 0 {
+        uart::write_str_raw("perf: net-ping missed\n");
+        return false;
+    }
+    NET_PING_TICKS.store(ticks, Ordering::SeqCst);
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "perf: net-ping ticks={}", ticks);
+    }
+    true
+}
+
+/// Last ADR-069 `perf: net-ping` sample (0 if none).
+#[allow(dead_code)]
+pub fn net_ping_ticks() -> u64 {
+    NET_PING_TICKS.load(Ordering::SeqCst)
 }
 
 #[cfg(test)]
@@ -1217,4 +1243,16 @@ fn virtio_net_icmp_echo_ping() {
         net_rx_icmp_echo_reply(&net, rx2),
         "RX ICMP echo reply from QEMU SLIRP gateway 10.0.2.2"
     );
+}
+
+#[cfg(test)]
+#[test_case]
+fn el0_net_ping_cntpct_advances() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev)");
+    assert!(
+        el0_icmp_ping(),
+        "quiet ARP+ICMP for EL0 net_ping must succeed"
+    );
+    let ticks = net_ping_ticks();
+    assert!(ticks > 0, "ADR-069 net-ping CNTPCT sample must advance");
 }

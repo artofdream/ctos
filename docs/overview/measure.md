@@ -25,6 +25,7 @@ What we measure **today** on QEMU `virt` (serial markers + tests, fail-closed in
 | FAT read (`perf: fat-read`) | CNTPCT around one FAT VFS read of `/probe` (`fat-hi`) ([ADR-065](../03-adr/ADR-065-fat-memfs-read-cntpct.md)) | A read latency SLA or “disk cost” |
 | Memfs read (`perf: memfs-read`) | CNTPCT around one memfs VFS read of the same bytes on the same boot | A memfs SLA or published bench |
 | FS read delta (`perf: fs-read-delta`) | Raw `fat=<a> memfs=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
+| Net-ping (`perf: net-ping`) | CNTPCT around EL0 `net_ping` quiet ARP+ICMP vs SLIRP (`el0_icmp_ping`) ([ADR-069](../03-adr/ADR-069-net-ping-cntpct.md)) | A ping latency SLA, “has networking,” or SPEC |
 
 QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
@@ -61,6 +62,17 @@ QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not 
 | Compared **pair** | Raw tick counts for the same small `/probe` payload on one guest | A percent, SLA, or product KPI |
 | Possible **cost** | Extra block/FAT work vs memfs memcpy | Marketing “slower” without naming the tip + ticks |
 | Gate | Keep `fat: read` / `fat: ok` / ADR-051 write markers; fail closed on missing pair markers | Criterion / invented benches |
+
+
+### Net-ping path (performance)
+
+[ADR-069](../03-adr/ADR-069-net-ping-cntpct.md) times the EL0 `net_ping` quiet path: `perf: net-ping ticks=<n>`. Smoke checks the **prefix** only — tick values vary under QEMU TCG. Optional N2 crumbs `perf: net-icmp-tx` / `perf: net-icmp-rx` remain lab-only ([ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md)).
+
+| Kind | Honest claim shape | What it is not |
+| --- | --- | --- |
+| Single-path **sample** | Raw tick count for quiet ARP+ICMP as `SYS_NET_PING` does it | A percent, SLA, or product KPI |
+| Gate | Prefix `perf: net-ping` present; reject faster/slower/percent | Exact tick count; criterion / invented benches |
+| Non-claim | — | TCP/UDP, sockets, “has networking,” Wi‑Fi |
 
 ## Stability / antifragility
 
