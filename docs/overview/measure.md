@@ -26,6 +26,7 @@ What we measure **today** on QEMU `virt` (serial markers + tests, fail-closed in
 | Memfs read (`perf: memfs-read`) | CNTPCT around one memfs VFS read of the same bytes on the same boot | A memfs SLA or published bench |
 | FS read delta (`perf: fs-read-delta`) | Raw `fat=<a> memfs=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
 | Net-ping (`perf: net-ping`) | CNTPCT around EL0 `net_ping` quiet ARP+ICMP vs SLIRP (`el0_icmp_ping`) ([ADR-069](../03-adr/ADR-069-net-ping-cntpct.md)) | A ping latency SLA, “has networking,” or SPEC |
+| UDP DNS (`perf: udp-dns`) | CNTPCT around EL0 `net_udp_dns` quiet ARP+UDP DNS vs SLIRP (`el0_udp_dns`) ([ADR-072](../03-adr/ADR-072-udp-dns-cntpct.md)) | A DNS latency SLA, “has networking,” or SPEC |
 
 QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
@@ -73,6 +74,16 @@ QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not 
 | Single-path **sample** | Raw tick count for quiet ARP+ICMP as `SYS_NET_PING` does it | A percent, SLA, or product KPI |
 | Gate | Prefix `perf: net-ping` present; reject faster/slower/percent | Exact tick count; criterion / invented benches |
 | Non-claim | — | TCP/UDP, sockets, “has networking,” Wi‑Fi |
+
+### UDP DNS path (performance)
+
+[ADR-072](../03-adr/ADR-072-udp-dns-cntpct.md) times the EL0 `net_udp_dns` quiet path: `perf: udp-dns ticks=<n>`. Smoke checks the **prefix** only — tick values vary under QEMU TCG. Window = quiet ARP + UDP DNS as `SYS_NET_UDP_DNS` / `el0_udp_dns` (same pattern as ADR-069).
+
+| Kind | Honest claim shape | What it is not |
+| --- | --- | --- |
+| Single-path **sample** | Raw tick count for quiet ARP+UDP DNS as `SYS_NET_UDP_DNS` does it | A percent, SLA, or product KPI |
+| Gate | Prefix `perf: udp-dns` present; reject faster/slower/percent | Exact tick count; criterion / invented benches |
+| Non-claim | — | TCP, sockets, DNS product, “has networking,” Wi‑Fi |
 
 ## Stability / antifragility
 

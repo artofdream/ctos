@@ -98,6 +98,7 @@
 - [ADR-069 net-ping CNTPCT](03-adr/ADR-069-net-ping-cntpct.md)
 - [ADR-070 N3 UDP transport](03-adr/ADR-070-n3-udp-transport.md)
 - [ADR-071 N3.x EL0 UDP SVC + udp-libctos sample](03-adr/ADR-071-n3x-el0-udp-svc.md)
+- [ADR-072 UDP DNS path CNTPCT](03-adr/ADR-072-udp-dns-cntpct.md)
 
 # Roadmap
 

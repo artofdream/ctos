@@ -98,6 +98,17 @@ QEMU TCG jitter is still one lab. No `criterion` crate. No latency SLA for FAT r
 
 QEMU TCG jitter is still one lab. Tick values **vary** — do not invent a budget. No `criterion` crate. No sockets / TCP/UDP this mile.
 
+## UDP DNS path CNTPCT (ADR-072) — single path (QEMU TCG lab)
+
+[ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md) EL0 `net_udp_dns` (SVC 26) already runs a quiet kernel-owned ARP + UDP DNS query vs SLIRP `10.0.2.3:53`. [ADR-072](../03-adr/ADR-072-udp-dns-cntpct.md) samples `CNTPCT` around that **full quiet path** and prints `perf: udp-dns ticks=<n>`. That is a **measurement**, not a bench and not a latency SLA. Same pattern as ADR-069 on `net_ping` — **EL0 SVC surface**, not a separate kernel-only N3 timer.
+
+| Class | What we measure | Honesty |
+| --- | --- | --- |
+| **EL0 net_udp_dns** | Quiet ARP + UDP DNS RTT as `SYS_NET_UDP_DNS` / `el0_udp_dns` | `perf: udp-dns ticks=<n>` |
+| **Gate** | Smoke greps the **prefix** `perf: udp-dns` (not an exact tick count). Reject faster/slower/percent. Keep N1/N2/N3/N3.x/N4 / ADR-069 / FAT / slot markers. | Verified only when the ledger has serial evidence on a named tip. |
+
+QEMU TCG jitter is still one lab. Tick values **vary** — do not invent a budget. No `criterion` crate. No TCP / FAT mkdir this mile.
+
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
