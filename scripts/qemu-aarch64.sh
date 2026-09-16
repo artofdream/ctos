@@ -6,7 +6,7 @@
 # pin it so a host `-m` habit cannot shrink RAM under the allocator.
 # A7: attach a host-visible FAT16 image on virtio-mmio blk (ADR-028).
 # Host `-drive` without guest virtio code is not a probe.
-# N1 / ADR-066: QEMU user netdev + virtio-net-device (mmio). Host
+# N1 / ADR-066 + N2 / ADR-067: QEMU user netdev + virtio-net-device (mmio). Host
 # `-netdev` without guest virtio-net code is not a probe.
 # ADR-045 taken-SError QMP lives in qemu-serial-inject.py (hello smoke),
 # not this cargo-test runner — no #[test_case] without a host inject.

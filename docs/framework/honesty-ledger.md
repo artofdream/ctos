@@ -344,6 +344,12 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 
 
 
+
+| Track N virtio-net ICMP ping (N2 / ADR-067) | Hello-kernel serial `net: icmp-tx` + `net: icmp-rx` + `net: ping-ok` (+ keep N1 `net: ok`); QEMU `-netdev user,id=net0 -device virtio-net-device,netdev=net0` unchanged; keep `blk: ok` / `fat: ok`; `#[test_case]` `virtio_net_icmp_echo_ping` | Verified | 2026-09-16 agent-box `qemu-smoke` (QEMU 10.0.13, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`) on `feat/n2-icmp-ping`: hello `net: virtio` / `net: mac 52:54:00:12:34:56` / `net: tx` / `net: rx` / `net: ok` / `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok` + optional `perf: net-icmp-tx` / `perf: net-icmp-rx` + keep `blk: ok` / `fat: ok` / `slot: ok`; `Running 117 tests` all `[ok]` incl. `virtio_net_discover_and_arp` + `virtio_net_icmp_echo_ping`; force-fail exit 1; `qemu-smoke: ok`. Probe = ICMP echo vs SLIRP gateway `10.0.2.2` after ARP. Not TCP/UDP/sockets/DHCP/DNS/Wi‑Fi/“has networking.” CloudAgent HELD — evidence tagged agent-box. [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md). |
+| Threat-model v1.42 slice (NFR-10) | Read [security.md](security.md) (ADR-067 N2 ICMP ping; I/O surface still blk+net) | Verified | File + this PR. v1.42 update on tip post-#112 v1.41, not “secure.” Not TCP/UDP. Not “has networking.” |
+| `scripts/qemu-smoke.sh` (ADR-067 N2 ICMP ping / this branch) | Ran on this agent box | Verified | 2026-09-16 agent-box `qemu-smoke` on `feat/n2-icmp-ping`: markers `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok` + N1 `net: ok` + preserved `blk: ok` / `fat: ok` / `slot: ok` / ADR-065 read pair; `qemu-smoke: virtio-net (N1+N2) strings present`; `Running 117 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not a product stack. Tip SHA filled after commit. |
+
+
 <a id="adr-048-progress-checklist"></a>
 
 ## ADR-048 progress checklist

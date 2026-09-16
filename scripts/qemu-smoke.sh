@@ -12,8 +12,9 @@
 # host smoke then boots the same app ELF on documented prior OS
 # ba6541c (A9 merge — earliest main tip with the slot path).
 # Host `-drive` without guest virtio + VFS read is not a probe.
-# N1 / ADR-066: QEMU also attaches `-netdev user,id=net0`
+# N1 / ADR-066 + N2 / ADR-067: QEMU also attaches `-netdev user,id=net0`
 # `-device virtio-net-device,netdev=net0`. Host netdev alone is not a probe.
+# N2 adds ICMP echo markers `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok`.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -491,7 +492,19 @@ if ! grep -q "net: ok" "$log"; then
     echo "qemu-smoke: missing 'net: ok' on serial (N1 virtio-net first frame, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: virtio-net (N1) strings present"
+if ! grep -q "net: icmp-tx" "$log"; then
+    echo "qemu-smoke: missing 'net: icmp-tx' on serial (N2 ICMP echo TX, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: icmp-rx" "$log"; then
+    echo "qemu-smoke: missing 'net: icmp-rx' on serial (N2 ICMP echo RX, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: ping-ok" "$log"; then
+    echo "qemu-smoke: missing 'net: ping-ok' on serial (N2 ICMP ping, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: virtio-net (N1+N2) strings present"
 if grep -q "fat: probe missed" "$log"; then
     echo "qemu-smoke: fat probe missed (FAT16 VFS /probe read did not run)" >&2
     exit 1

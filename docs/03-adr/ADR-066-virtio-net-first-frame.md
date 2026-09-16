@@ -50,7 +50,7 @@
 
 6. **Smoke.** `scripts/qemu-smoke.sh` greps the markers above and rejects `net: probe missed`. Must keep existing `blk:*` / `fat:*` / slot / sample / perf greps green.
 
-7. **Non-goals restated (locked).** TCP/UDP product; BSD sockets; DHCP/DNS product; Wi‑Fi; virtio-pci-only foundation; Linux net stack; “has networking” marketing; EL0 net SVC/ABI. N2 ARP+ICMP optional later; N3+ needs new sponsor ADR.
+7. **Non-goals restated (locked).** TCP/UDP product; BSD sockets; DHCP/DNS product; Wi‑Fi; virtio-pci-only foundation; Linux net stack; “has networking” marketing; EL0 net SVC/ABI. N2 ICMP is [ADR-067](ADR-067-virtio-net-icmp-ping.md); N3+ needs new sponsor ADR.
 
 8. **Honesty.** Say “the guest programmed virtio-net and exchanged one ARP request/reply with QEMU SLIRP” only when serial/`qemu-smoke` print `net: ok` on a named tip. Do not say the OS “has networking.” CloudAgent HELD; tag agent-box / EVO-X2. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
@@ -58,4 +58,4 @@
 
 - Code: extend `src/virtio.rs` (net discover/setup/TX/RX + `observe_net_probe`); `src/main.rs` calls `init_net` + probe; QEMU runners + smoke greps; `#[test_case] virtio_net_discover_and_arp`.
 - Docs: this ADR; [track-n.md](../04-roadmap/track-n.md); SUMMARY; roadmap; honesty ledger; [limits.md](../overview/limits.md); threat-model bump; index one-liner.
-- Follow-ups: optional N2 ICMP ping; N3/N4 locked out until new ADR + sponsor.
+- Follow-ups: N2 ICMP ping — [ADR-067](ADR-067-virtio-net-icmp-ping.md); N3/N4 locked out until new ADR + sponsor.

@@ -98,6 +98,21 @@ flowchart TD
 
 *Same API, two backends, prefix mounts. Say “routed path prefixes through a mount table” when `vfs: mounts` passes — not `mount(2)` or “supports FAT” as a product.*
 
+## Track N — virtio-net path (ARP + ICMP)
+
+QEMU **user** netdev (SLIRP) plus guest **virtio-net-mmio**. N1 exchanges one ARP request/reply with gateway `10.0.2.2` ([ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md)). N2 sends an ICMP echo and expects a reply ([ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md)). Kernel-path only — no sockets, no EL0 net ABI this mile. Spec/ADR wins on conflict with this sketch.
+
+```mermaid
+flowchart LR
+  QN["QEMU user netdev<br/>SLIRP 10.0.2.2"] --> VN["virtio-net-device<br/>mmio"]
+  VN --> GTX["Guest TX<br/>ARP / ICMP"]
+  VN --> GRX["Guest RX<br/>ARP / ICMP reply"]
+  GTX --> VN
+  GRX --> OK["Markers<br/>net: ok · net: ping-ok"]
+```
+
+*Host flags alone are not a probe. Do not say “has networking.” Cite [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) / [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md).*
+
 ## Current stage (UART hello + M2–M9 + ADR-011 pillars)
 
 - `Pl011` writer with TX-full wait and `\n` → `\r\n`; `try_recv` on `UARTFR.RXFE` / `UARTDR`

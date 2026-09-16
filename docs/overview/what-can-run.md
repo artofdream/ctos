@@ -205,7 +205,7 @@ flowchart TD
   Q{"Want to run it on ctos today?"}
   Q -->|UART worker / echo / stub / memfs / FAT probe| Y["Yes — extend the kernel in-tree"]
   Q -->|Linux binary, shell, Python| N1["No"]
-  Q -->|Network server or Linux disk apps| N2["No — no NIC, no POSIX FS"]
+  Q -->|Network server or Linux disk apps| N2["No — ARP/ICMP only, no sockets / no POSIX FS"]
   Q -->|Docker / OCI container| N3["No — not a goal"]
 ```
 
@@ -216,7 +216,7 @@ Do not imply these work:
 - Linux binaries (no Linux ABI, no ELF loader for third-party programs)
 - A shell
 - Python (or any hosted language runtime)
-- Network servers (no NIC, no sockets, no DMA)
+- Network servers (virtio-net ARP + ICMP ping only — [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md); no TCP/UDP/sockets product)
 - POSIX / Linux filesystem apps (memfs + FAT16 read/write miles are not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
 - Product freestanding app hosting (**Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md); not Linux/POSIX/containers/OTA — [issue #48](https://github.com/artofdream/ctos/issues/48))
