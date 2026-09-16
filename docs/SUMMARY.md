@@ -92,6 +92,7 @@
 - [ADR-063 Track N network foundation scope](03-adr/ADR-063-network-foundation-scope.md)
 - [ADR-064 FAT16 multi-cluster grow](03-adr/ADR-064-fat16-multi-cluster-grow.md)
 - [ADR-065 FAT vs memfs read CNTPCT](03-adr/ADR-065-fat-memfs-read-cntpct.md)
+- [ADR-066 virtio-net first frame (N1)](03-adr/ADR-066-virtio-net-first-frame.md)
 
 # Roadmap
 

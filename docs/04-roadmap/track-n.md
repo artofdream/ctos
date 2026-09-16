@@ -14,7 +14,7 @@ This track is **subordinate** to ctos core principles ([principles.md](../framew
 
 ## Goal
 
-Bring up a **minimal** guest network path on QEMU `virt`: virtio-mmio **virtio-net**, discover the device, TX/RX **one raw Ethernet frame**, with serial markers and fail-closed smoke. Reuse virtio-mmio patterns from blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)).
+Bring up a **minimal** guest network path on QEMU `virt`: virtio-mmio **virtio-net**, discover the device, TX/RX **one raw Ethernet frame**, with serial markers and fail-closed smoke. Reuse virtio-mmio patterns from blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). N1 decision record: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md).
 
 ## Keep
 
@@ -25,7 +25,7 @@ Honesty ledger, fail-closed `qemu-smoke`, existing virtio-blk + FAT16 + sample c
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
 | N0 | Scope ADR + docs wiring | Docs-build; ledger Planned row; no Verified invent | **Accepted (docs)** — [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) |
-| N1 | Link bring-up / first frame | Discover + TX/RX one raw Ethernet frame; QEMU `-netdev` / `-device virtio-net-device`; smoke greps; keep blk/FAT green | **Planned** |
+| N1 | Link bring-up / first frame | Discover + TX/RX one raw Ethernet frame; QEMU `-netdev` / `-device virtio-net-device`; smoke greps; keep blk/FAT green | **Verified** when this tip’s `qemu-smoke` prints `net: ok` ([ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md)) |
 | N2 | Optional ARP + ICMP ping | Named markers + fail-closed smoke | **Planned** (optional) |
 | N3 | Transport / sockets | New sponsor scope + new ADR only | **Locked out** |
 | N4 | Freestanding sample using net SVCs | After N1+ Verified | **Planned** (after N1+) |
@@ -36,4 +36,4 @@ TCP/UDP stack as product; BSD sockets as product; DHCP/DNS as product; Wi‑Fi; 
 
 ## Honesty
 
-Do **not** say the guest “has networking” from this page alone. N0 is scope. Runtime claims stay **Planned** until N1 probes. CloudAgent HELD; evidence tags agent-box / EVO-X2 when N1 lands. No self-merge ([ADR-002](../03-adr/ADR-002-pr-identity-split.md)).
+Do **not** say the guest “has networking.” N0 is scope ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md)). N1 first-frame is [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) — Verified only with `net: ok` on a named tip. Still not TCP/UDP/sockets/DHCP/DNS. CloudAgent HELD; evidence tags agent-box / EVO-X2. No self-merge ([ADR-002](../03-adr/ADR-002-pr-identity-split.md)).

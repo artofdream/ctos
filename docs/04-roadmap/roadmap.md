@@ -92,12 +92,12 @@ On-disk filesystem work started as A7 (FAT16 read, not xv6-like). FAT16 write de
 
 ## Track N — network foundation ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md))
 
-Separate track from A/B. Hub: [track-n.md](track-n.md). N0 is this scope ADR (docs). Runtime networking stays **Planned** until N1 probes. Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Non-goals locked until a new ADR + sponsor: TCP/UDP stack, BSD sockets, DHCP/DNS as product, Wi‑Fi, virtio-pci-only foundation, Linux net stack, “has networking” marketing, EL0 net ABI before link bring-up Verified.
+Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). N1 first frame: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md). Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Non-goals locked until a new ADR + sponsor: TCP/UDP stack, BSD sockets, DHCP/DNS as product, Wi‑Fi, virtio-pci-only foundation, Linux net stack, “has networking” marketing, EL0 net ABI before deeper net miles.
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
 | N0 | Scope ADR + docs wiring (ADR-063) | Docs-build; ledger Planned; no Verified invent | **Accepted (docs)** — this PR |
-| N1 | Link bring-up / first frame (virtio-net mmio) | Discover + TX/RX one raw Ethernet frame; `-netdev` / `-device virtio-net-device`; smoke greps; keep blk/FAT green | **Planned** |
+| N1 | Link bring-up / first frame (virtio-net mmio, ADR-066) | Discover + TX ARP + RX SLIRP gateway ARP reply; `-netdev user,id=net0 -device virtio-net-device,netdev=net0`; `net: ok`; keep blk/FAT green | **Verified** when this tip’s `qemu-smoke` prints `net: ok` |
 | N2 | Optional ARP + ICMP ping | Named markers + fail-closed smoke | **Planned** (optional) |
 | N3 | Transport / sockets | New sponsor scope + new ADR only | **Locked out** |
 | N4 | Freestanding sample using net SVCs | After N1+ Verified | **Planned** (after N1+) |

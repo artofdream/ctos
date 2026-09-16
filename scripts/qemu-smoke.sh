@@ -12,6 +12,8 @@
 # host smoke then boots the same app ELF on documented prior OS
 # ba6541c (A9 merge — earliest main tip with the slot path).
 # Host `-drive` without guest virtio + VFS read is not a probe.
+# N1 / ADR-066: QEMU also attaches `-netdev user,id=net0`
+# `-device virtio-net-device,netdev=net0`. Host netdev alone is not a probe.
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -465,6 +467,31 @@ if ! grep -q "blk: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: virtio-blk (A7) strings present"
+if grep -q "net: probe missed" "$log"; then
+    echo "qemu-smoke: net probe missed (virtio-net discover/TX/RX did not run)" >&2
+    exit 1
+fi
+if ! grep -q "net: virtio" "$log"; then
+    echo "qemu-smoke: missing 'net: virtio' on serial (virtio-net discover, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: mac" "$log"; then
+    echo "qemu-smoke: missing 'net: mac' on serial (virtio-net MAC config, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: tx" "$log"; then
+    echo "qemu-smoke: missing 'net: tx' on serial (virtio-net TX ARP, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: rx" "$log"; then
+    echo "qemu-smoke: missing 'net: rx' on serial (virtio-net RX ARP reply, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: ok" "$log"; then
+    echo "qemu-smoke: missing 'net: ok' on serial (N1 virtio-net first frame, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: virtio-net (N1) strings present"
 if grep -q "fat: probe missed" "$log"; then
     echo "qemu-smoke: fat probe missed (FAT16 VFS /probe read did not run)" >&2
     exit 1
