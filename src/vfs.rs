@@ -1,9 +1,9 @@
 //! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028, write ADR-050,
-//! readdir ADR-056, delete ADR-057) + prefix mounts (ADR-058).
+//! readdir ADR-056, delete ADR-057, mkdir ADR-073) + prefix mounts (ADR-058).
 //!
 //! One `open` story. A small mount table routes path **prefixes** to a
 //! backend (`/mem` + A6 probe names → memfs; `/` → FAT16). Not Linux VFS.
-//! Not POSIX `mount` / `unlink` / `getdents`. Not app hosting.
+//! Not POSIX `mount` / `unlink` / `getdents` / `mkdir`. Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -431,6 +431,16 @@ pub fn unlink(path: &str) -> Result<(), FsError> {
     match resolve(path)? {
         Backend::MemFs => FS.lock().unlink(path),
         Backend::Fat16 => crate::fat::unlink(path),
+    }
+}
+
+/// Create a directory on the mount that owns its prefix. FAT16 root only
+/// this mile (ADR-073). Memfs has
+/// no directory tree — fail closed with `BadPath`. Not POSIX `mkdir`.
+pub fn mkdir(path: &str) -> Result<(), FsError> {
+    match resolve(path)? {
+        Backend::MemFs => Err(FsError::BadPath),
+        Backend::Fat16 => crate::fat::mkdir(path),
     }
 }
 

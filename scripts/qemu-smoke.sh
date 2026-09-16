@@ -596,6 +596,10 @@ if ! grep -q "fat: grow" "$log"; then
     echo "qemu-smoke: missing 'fat: grow' on serial (FAT16 multi-cluster grow /fgrow, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "fat: mkdir" "$log"; then
+    echo "qemu-smoke: missing 'fat: mkdir' on serial (FAT16 mkdir /fdir, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "fat: ok" "$log"; then
     echo "qemu-smoke: missing 'fat: ok' on serial (A7 FAT16 mile, qemu exit $qemu_ec)" >&2
     exit 1
@@ -604,6 +608,7 @@ echo "qemu-smoke: FAT16 (A7) strings present"
 echo "qemu-smoke: FAT16 readdir (ADR-056) strings present"
 echo "qemu-smoke: FAT16 delete (ADR-057) strings present"
 echo "qemu-smoke: FAT16 multi-cluster grow (ADR-064) strings present"
+echo "qemu-smoke: FAT16 mkdir (ADR-073) strings present"
 # ADR-065: FAT-vs-memfs read CNTPCT pair (raw ticks; not a bench / percent).
 if grep -q "perf: fat-read missed" "$log"; then
     echo "qemu-smoke: fat-read probe missed (CNTPCT around FAT VFS read did not advance)" >&2

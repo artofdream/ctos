@@ -1,18 +1,21 @@
 //! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050
-//! + ADR-056 + ADR-057 + ADR-064).
+//! + ADR-056 + ADR-057 + ADR-064 + ADR-073).
 //!
 //! Read + write of root files. Known `/probe` (8.3 `PROBE`) and A9 `/hello`
 //! (8.3 `HELLO`, app ELF). Guest may create a root file and grow it across
-//! multiple clusters (ADR-064). Root listing (`readdir`) returns thin-VFS
-//! paths. Guest may delete a root file (`unlink`) by marking the dirent
-//! deleted and freeing its cluster chain. Not FAT32. Not xv6. Not POSIX
-//! `unlink` / `getdents` / `opendir` / full write API. Host image is
-//! `scripts/mkfat16.py`.
+//! multiple clusters (ADR-064). Guest may create a root **directory**
+//! (`mkdir`): allocate a dirent + empty directory cluster with `.` / `..`
+//! (ADR-073). Root listing (`readdir`) returns thin-VFS **file** paths
+//! (directories skipped). Guest may delete a root file (`unlink`) by marking
+//! the dirent deleted and freeing its cluster chain. Not FAT32. Not xv6. Not
+//! POSIX `mkdir` / `unlink` / `getdents` / `opendir` / full write API. Host
+//! image is `scripts/mkfat16.py`.
 //!
 //! `vfs::create` stays memfs-first for A6 probe names; FAT paths under `/`
 //! route to the FAT backend ([ADR-058](../docs/03-adr/ADR-058-vfs-prefix-mounts.md)).
 //! Write on an open FAT handle is the same `vfs::write`; delete is
-//! `fat::unlink` / `vfs::unlink`.
+//! `fat::unlink` / `vfs::unlink`; directory create is `fat::mkdir` /
+//! `vfs::mkdir`. No new SVC this mile (EL0 follow-up).
 //!
 //! ADR-051: CNTPCT around the FAT VFS write of the small `/probe` payload,
 //! compared on the same boot to a memfs write of the same bytes (raw ticks;
@@ -43,6 +46,8 @@ const DELETE_BYTES: &[u8] = b"fat-dl";
 /// Multi-cluster grow probe (ADR-064). Length must exceed one cluster (512).
 const GROW_PATH: &str = "/fgrow";
 const GROW_LEN: usize = 600;
+/// Root directory create probe (ADR-073). Flat path grammar — one 8.3 name.
+const MKDIR_PATH: &str = "/fdir";
 /// Cap on names returned by one root `readdir` (ADR-056).
 pub const READDIR_MAX: usize = 16;
 /// Memfs path for the ADR-051 compared write (same payload as WRITE_BYTES).
@@ -51,6 +56,7 @@ const MEMFS_CMP_PATH: &str = "/mwprobe";
 const MEMFS_READ_CMP_PATH: &str = "/mrprobe";
 const EOC: u16 = 0xFFFF;
 const ATTR_ARCHIVE: u8 = 0x20;
+const ATTR_DIR: u8 = 0x10;
 
 #[derive(Clone, Copy)]
 struct FatHandle {
@@ -199,6 +205,204 @@ impl Fat16 {
             }
         }
         None
+    }
+
+    /// Look up a root **directory** dirent (ATTR_DIR). Returns start cluster.
+    fn lookup_dir(&self, name83: &[u8; 11]) -> Option<u16> {
+        if !self.mounted {
+            return None;
+        }
+        let root_secs = (self.root_ents as u32 * 32 + self.bps as u32 - 1) / self.bps as u32;
+        let mut buf = [0u8; SECTOR];
+        for s in 0..root_secs {
+            if !self.read_sector(self.root_sec + s, &mut buf) {
+                return None;
+            }
+            for i in 0..(self.bps as usize / 32) {
+                let e = &buf[i * 32..i * 32 + 32];
+                if e[0] == 0 {
+                    return None;
+                }
+                if e[0] == 0xE5 {
+                    continue;
+                }
+                let attr = e[11];
+                if attr & 0x08 != 0 || attr & 0x0F == 0x0F {
+                    continue;
+                }
+                if attr & ATTR_DIR == 0 {
+                    continue;
+                }
+                if &e[0..11] == name83 {
+                    return Some(u16::from_le_bytes([e[26], e[27]]));
+                }
+            }
+        }
+        None
+    }
+
+    /// True if a root file **or** directory dirent uses this 8.3 name.
+    fn name_taken(&self, name83: &[u8; 11]) -> bool {
+        self.lookup(name83).is_some() || self.lookup_dir(name83).is_some()
+    }
+
+    /// Write `.` and `..` into a freshly allocated directory cluster.
+    /// Parent is the FAT16 root → `..` cluster = 0.
+    fn write_dot_entries(&self, cluster: u16) -> bool {
+        if cluster < 2 {
+            return false;
+        }
+        let mut sec = [0u8; SECTOR];
+        // "."
+        sec[0] = b'.';
+        for b in sec[1..11].iter_mut() {
+            *b = b' ';
+        }
+        sec[11] = ATTR_DIR;
+        let cl = cluster.to_le_bytes();
+        sec[26] = cl[0];
+        sec[27] = cl[1];
+        // ".."
+        sec[32] = b'.';
+        sec[33] = b'.';
+        for b in sec[34..43].iter_mut() {
+            *b = b' ';
+        }
+        sec[43] = ATTR_DIR;
+        // parent = root → cluster 0
+        sec[58] = 0;
+        sec[59] = 0;
+        self.write_sector(self.cluster_lba(cluster), &sec)
+    }
+
+    /// Confirm a directory cluster holds `.` (self) and `..` (root/0).
+    fn dir_dots_ok(&self, cluster: u16) -> bool {
+        if cluster < 2 {
+            return false;
+        }
+        let mut sec = [0u8; SECTOR];
+        if !self.read_sector(self.cluster_lba(cluster), &mut sec) {
+            return false;
+        }
+        if sec[0] != b'.' || sec[11] != ATTR_DIR {
+            return false;
+        }
+        if u16::from_le_bytes([sec[26], sec[27]]) != cluster {
+            return false;
+        }
+        if sec[32] != b'.' || sec[33] != b'.' || sec[43] != ATTR_DIR {
+            return false;
+        }
+        if u16::from_le_bytes([sec[58], sec[59]]) != 0 {
+            return false;
+        }
+        true
+    }
+
+    /// Mark a root **directory** dirent deleted (`0xE5`). Returns start cluster.
+    fn mark_dir_dirent_deleted(&self, name83: &[u8; 11]) -> Option<u16> {
+        let root_secs = (self.root_ents as u32 * 32 + self.bps as u32 - 1) / self.bps as u32;
+        let mut buf = [0u8; SECTOR];
+        for s in 0..root_secs {
+            if !self.read_sector(self.root_sec + s, &mut buf) {
+                return None;
+            }
+            for i in 0..(self.bps as usize / 32) {
+                let off = i * 32;
+                let e = &buf[off..off + 32];
+                if e[0] == 0 {
+                    return None;
+                }
+                if e[0] == 0xE5 {
+                    continue;
+                }
+                let attr = e[11];
+                if attr & 0x08 != 0 || attr & 0x0F == 0x0F || attr & ATTR_DIR == 0 {
+                    continue;
+                }
+                if &e[0..11] == name83 {
+                    let cluster = u16::from_le_bytes([e[26], e[27]]);
+                    buf[off] = 0xE5;
+                    if !self.write_sector(self.root_sec + s, &buf) {
+                        return None;
+                    }
+                    return Some(cluster);
+                }
+            }
+        }
+        None
+    }
+
+    /// Create a root directory: dirent + one cluster with `.` / `..`.
+    /// Not POSIX `mkdir`. Not nested paths (flat thin-VFS grammar).
+    fn mkdir(&mut self, path: &str) -> Result<(), FsError> {
+        if !self.mounted {
+            return Err(FsError::Missing);
+        }
+        let name = path_to_83(path).ok_or(FsError::BadPath)?;
+        if self.name_taken(&name) {
+            return Err(FsError::Exists);
+        }
+        let cluster = self.find_free_cluster().ok_or(FsError::Full)?;
+        let (sec, off) = self.find_free_dirent().ok_or(FsError::Full)?;
+        if !self.set_fat_entry(cluster, EOC) {
+            return Err(FsError::BadHandle);
+        }
+        if !self.write_dot_entries(cluster) {
+            let _ = self.set_fat_entry(cluster, 0);
+            return Err(FsError::BadHandle);
+        }
+        let mut buf = [0u8; SECTOR];
+        if !self.read_sector(sec, &mut buf) {
+            let _ = self.set_fat_entry(cluster, 0);
+            return Err(FsError::BadHandle);
+        }
+        buf[off..off + 11].copy_from_slice(&name);
+        buf[off + 11] = ATTR_DIR;
+        for b in buf[off + 12..off + 26].iter_mut() {
+            *b = 0;
+        }
+        let cl = cluster.to_le_bytes();
+        buf[off + 26] = cl[0];
+        buf[off + 27] = cl[1];
+        buf[off + 28..off + 32].copy_from_slice(&0u32.to_le_bytes());
+        if !self.write_sector(sec, &buf) {
+            let _ = self.set_fat_entry(cluster, 0);
+            return Err(FsError::BadHandle);
+        }
+        Ok(())
+    }
+
+    /// Remove an empty root directory (probe leftover cleanup). Not recursive rm.
+    fn rmdir_empty(&mut self, path: &str) -> Result<(), FsError> {
+        if !self.mounted {
+            return Err(FsError::Missing);
+        }
+        let name = path_to_83(path).ok_or(FsError::BadPath)?;
+        let cluster = self.lookup_dir(&name).ok_or(FsError::Missing)?;
+        if !self.dir_dots_ok(cluster) {
+            return Err(FsError::BadHandle);
+        }
+        // Only `.` and `..` may be present (rest of cluster must be empty/zero).
+        let mut sec = [0u8; SECTOR];
+        if !self.read_sector(self.cluster_lba(cluster), &mut sec) {
+            return Err(FsError::BadHandle);
+        }
+        for b in sec[64..].iter() {
+            if *b != 0 {
+                return Err(FsError::BadHandle);
+            }
+        }
+        let Some(c) = self.mark_dir_dirent_deleted(&name) else {
+            return Err(FsError::Missing);
+        };
+        if c != cluster {
+            return Err(FsError::BadHandle);
+        }
+        if cluster >= 2 && !self.free_chain(cluster) {
+            return Err(FsError::BadHandle);
+        }
+        Ok(())
     }
 
     fn update_dirent_size(&self, name83: &[u8; 11], size: u32) -> bool {
@@ -570,7 +774,7 @@ impl VfsOps for Fat16 {
             return Err(FsError::Missing);
         }
         let name = path_to_83(path).ok_or(FsError::BadPath)?;
-        if self.lookup(&name).is_some() {
+        if self.name_taken(&name) {
             return Err(FsError::Exists);
         }
         let cluster = self.find_free_cluster().ok_or(FsError::Full)?;
@@ -672,6 +876,7 @@ static CREATE_OK: AtomicBool = AtomicBool::new(false);
 static READDIR_OK: AtomicBool = AtomicBool::new(false);
 static DELETE_OK: AtomicBool = AtomicBool::new(false);
 static GROW_OK: AtomicBool = AtomicBool::new(false);
+static MKDIR_OK: AtomicBool = AtomicBool::new(false);
 static FAT_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 static MEMFS_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 static FAT_READ_TICKS: AtomicU64 = AtomicU64::new(0);
@@ -786,6 +991,7 @@ pub fn init() {
     READDIR_OK.store(false, Ordering::SeqCst);
     DELETE_OK.store(false, Ordering::SeqCst);
     GROW_OK.store(false, Ordering::SeqCst);
+    MKDIR_OK.store(false, Ordering::SeqCst);
     let mut fat = FAT.lock();
     *fat = Fat16::empty();
     if !virtio::ready() {
@@ -841,6 +1047,19 @@ pub fn readdir(out: &mut [[u8; PATH_MAX]], cap: usize) -> Result<usize, FsError>
 /// Delete a FAT16 root file behind the thin VFS. Not POSIX `unlink`.
 pub fn unlink(path: &str) -> Result<(), FsError> {
     FAT.lock().unlink(path)
+}
+
+/// True if a FAT16 root **directory** dirent exists for `path`.
+pub fn has_dir(path: &str) -> bool {
+    let Some(name) = path_to_83(path) else {
+        return false;
+    };
+    FAT.lock().lookup_dir(&name).is_some()
+}
+
+/// Create a FAT16 root directory behind the thin VFS. Not POSIX `mkdir`.
+pub fn mkdir(path: &str) -> Result<(), FsError> {
+    FAT.lock().mkdir(path)
 }
 
 /// Read a mounted FAT path through the same VFS `open` as A7 `/probe`
@@ -1164,6 +1383,53 @@ fn vfs_probe_grow() -> bool {
     true
 }
 
+/// Create `/fdir` via `vfs::mkdir`. Confirm dirent + `.`/`..` cluster.
+/// Leftover image: `rmdir_empty` then recreate. Not POSIX `mkdir`.
+fn vfs_probe_mkdir() -> bool {
+    MKDIR_OK.store(false, Ordering::SeqCst);
+    if has_dir(MKDIR_PATH) {
+        if FAT.lock().rmdir_empty(MKDIR_PATH).is_err() {
+            return false;
+        }
+    } else if has_name(MKDIR_PATH) {
+        // A file occupies the probe name — fail closed.
+        return false;
+    }
+    if vfs::mkdir(MKDIR_PATH).is_err() {
+        return false;
+    }
+    if !has_dir(MKDIR_PATH) {
+        return false;
+    }
+    // Files still open via create/open; directory must not open as a file.
+    if open(MKDIR_PATH) != Err(FsError::Missing) {
+        return false;
+    }
+    let Some(name) = path_to_83(MKDIR_PATH) else {
+        return false;
+    };
+    let cluster = {
+        let fat = FAT.lock();
+        let Some(c) = fat.lookup_dir(&name) else {
+            return false;
+        };
+        if !fat.dir_dots_ok(c) {
+            return false;
+        }
+        c
+    };
+    if cluster < 2 {
+        return false;
+    }
+    // Second mkdir must fail closed (Exists).
+    if vfs::mkdir(MKDIR_PATH) != Err(FsError::Exists) {
+        return false;
+    }
+    uart::write_str_raw("fat: mkdir\n");
+    MKDIR_OK.store(true, Ordering::SeqCst);
+    true
+}
+
 /// Memfs read of the same small payload as FAT `/probe` (ADR-065).
 /// Seeds `/mrprobe` then times only `vfs::read`, not create/open/write. Not a bench.
 fn measure_memfs_read() -> Option<u64> {
@@ -1240,8 +1506,8 @@ fn measure_memfs_write() -> Option<u64> {
 
 /// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`,
 /// root `readdir` (ADR-056), delete `/fdel` (ADR-057), multi-cluster grow
-/// `/fgrow` (ADR-064), plus ADR-051 write and ADR-065 read FAT-vs-memfs
-/// CNTPCT pairs (raw ticks).
+/// `/fgrow` (ADR-064), mkdir `/fdir` (ADR-073), plus ADR-051 write and
+/// ADR-065 read FAT-vs-memfs CNTPCT pairs (raw ticks).
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     if !mounted() {
@@ -1264,6 +1530,9 @@ pub fn observe_probe() -> bool {
         return false;
     }
     if !vfs_probe_grow() {
+        return false;
+    }
+    if !vfs_probe_mkdir() {
         return false;
     }
     let mut w = uart::raw();
@@ -1501,5 +1770,33 @@ fn fat16_grow_refuses_over_file_max() {
     assert_eq!(write(fd, &big), Err(FsError::TooBig));
     assert_eq!(close(fd), Ok(()));
     let _ = unlink(PATH);
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_mkdir_root_dir() {
+    assert!(mounted(), "FAT16 must mount for mkdir");
+    assert!(
+        vfs_probe_mkdir(),
+        "FAT mkdir+/fdir must allocate a dir cluster with . and .."
+    );
+    assert!(MKDIR_OK.load(Ordering::SeqCst));
+    assert!(has_dir(MKDIR_PATH));
+    assert!(!has_name(MKDIR_PATH));
+    assert_eq!(open(MKDIR_PATH), Err(FsError::Missing));
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_mkdir_exists_and_bad_path() {
+    assert!(mounted());
+    if !has_dir(MKDIR_PATH) {
+        assert_eq!(mkdir(MKDIR_PATH), Ok(()));
+    }
+    assert_eq!(mkdir(MKDIR_PATH), Err(FsError::Exists));
+    assert_eq!(mkdir("bad"), Err(FsError::BadPath));
+    assert_eq!(vfs::mkdir("bad"), Err(FsError::BadPath));
+    // Creating a file on a directory name must fail closed.
+    assert_eq!(create(MKDIR_PATH), Err(FsError::Exists));
 }
 

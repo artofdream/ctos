@@ -375,6 +375,12 @@ Allowed flags: **Verified** (probe passed), **Unknown** (no probe or probe block
 | `scripts/qemu-smoke.sh` (ADR-072 UDP DNS CNTPCT / this branch) | Ran on this agent box | Verified | 2026-09-16 agent-box `qemu-smoke` on `feat/udp-dns-cntpct`: marker `perf: udp-dns ticks=30943` + preserved N1/N2/N3/N3.x/N4/samples/ADR-069; `qemu-smoke: ADR-072 udp-dns CNTPCT marker present`; `Running 127 tests` all `[ok]`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not a product stack. Tip `4989d68`. |
 
 
+| FAT16 mkdir behind thin VFS (ADR-073 / sponsor mile 2) | Hello-kernel serial `fat: mkdir` + keep `fat: ok` / write / readdir / delete / grow / `slot: ok`; `#[test_case]` `fat16_mkdir_root_dir` + `fat16_mkdir_exists_and_bad_path` | Verified | 2026-09-16 agent-box `qemu-smoke` (QEMU 10.0.13, `rustc` 1.100.0-nightly `0fc141305`, `-cpu cortex-a57`) on `feat/fat-mkdir`: hello `fat: mkdir` + keep `fat: grow` / `fat: delete` / `fat: ok` / `slot: ok` / net+sample markers; `Running 129 tests` all `[ok]` incl. mkdir cases; force-fail exit 1; `qemu-smoke: ok`. Guest created FAT16 root dir `/fdir` (dirent + `.`/`..` cluster) via thin VFS. Not POSIX `mkdir`. Not a directory tree. Not exFAT/FAT32. No new SVC (EL0 follow-up). CloudAgent HELD — evidence tagged agent-box. Tip pending commit SHA. [ADR-073](../03-adr/ADR-073-fat16-mkdir.md). |
+| Threat-model v1.48 slice (NFR-10) | Read [security.md](security.md) (ADR-073 FAT16 mkdir; keeps N1–N4 + ADR-069/072) | Verified | File + this PR. v1.48 update on tip post-#118 v1.47, not “secure.” Not POSIX `mkdir`. Not TCP. |
+| `scripts/qemu-smoke.sh` (ADR-073 FAT16 mkdir / this branch) | Ran on this agent box | Verified | 2026-09-16 agent-box `qemu-smoke` on `feat/fat-mkdir`: marker `fat: mkdir` + preserved grow/delete/ok/net/samples; `qemu-smoke: FAT16 mkdir (ADR-073) strings present`; force-fail exit 1; `qemu-smoke: ok`. Not Docker. Not POSIX. Tip pending commit SHA. |
+
+
+
 <a id="adr-048-progress-checklist"></a>
 
 ## ADR-048 progress checklist

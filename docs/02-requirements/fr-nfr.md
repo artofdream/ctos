@@ -17,6 +17,8 @@ Learning/research **AArch64 (arm64) Rust** bare-metal kernel (not a general-purp
 **FR-11 stage note (2026-09-09):** Stage moved Later → Now when M9 landed cooperative round-robin yield on EL1 ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md)). ID unchanged. Preemption / SMP remain later. A documented EL0 SVC ABI is [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md) / Track A A1 — not a new FR and not app hosting.
 
 
+**NFR-10 note (2026-09-16, ADR-073):** FAT16 root mkdir behind the thin VFS (`fat: mkdir`, [ADR-073](../03-adr/ADR-073-fat16-mkdir.md)). Threat-model **v1.48**. Not POSIX `mkdir`. Not a directory tree. No new SVC this mile. Track N / TCP untouched. IDs unchanged.
+
 **NFR-10 note (2026-09-16, ADR-064):** FAT16 multi-cluster grow behind the thin VFS (`fat: grow` / `libctos: fat-grow`, [ADR-064](../03-adr/ADR-064-fat16-multi-cluster-grow.md)). Threat-model **v1.39**. Not POSIX write API. Not exFAT. Track N untouched. IDs unchanged.
 
 **NFR pillars note (2026-09-09):** [ADR-011](../03-adr/ADR-011-three-pillars.md) revises **NFR-05**, **NFR-07**, and **NFR-10** text in place (antifragility, performance, security as first-class pillars). IDs unchanged. Do not mint NFR-15+.
