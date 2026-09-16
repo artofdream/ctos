@@ -99,6 +99,7 @@
 - [ADR-070 N3 UDP transport](03-adr/ADR-070-n3-udp-transport.md)
 - [ADR-071 N3.x EL0 UDP SVC + udp-libctos sample](03-adr/ADR-071-n3x-el0-udp-svc.md)
 - [ADR-072 UDP DNS path CNTPCT](03-adr/ADR-072-udp-dns-cntpct.md)
+- [ADR-073 FAT16 mkdir](03-adr/ADR-073-fat16-mkdir.md)
 
 # Roadmap
 
