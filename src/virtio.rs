@@ -1,9 +1,9 @@
 //! virtio-mmio block + net on QEMU `virt`.
 //!
 //! Block: Track A / A7 / ADR-028 — one split virtqueue, sector R/W.
-//! Net: Track N / N1 / ADR-066 — RX+TX queues, one ARP TX/RX via QEMU
-//! user netdev. Scan transports, DMA at identity PAs, poll `used.idx`.
-//! Not virtio-pci. Not a virtio IRQ. Not TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
+//! Net: Track N / N1–N2 / ADR-066 / ADR-067 — RX+TX queues, ARP then ICMP
+//! echo vs QEMU user netdev. Scan transports, DMA at identity PAs, poll
+//! `used.idx`. Not virtio-pci. Not a virtio IRQ. Not TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -501,8 +501,8 @@ fn virtio_blk_boot_sector_is_fat() {
 }
 
 // ---------------------------------------------------------------------------
-// virtio-net (Track N / N1 / ADR-066) — discover + one ARP TX/RX on QEMU user
-// netdev. Not TCP/UDP. Not sockets. Not DHCP/DNS product. Not Wi-Fi.
+// virtio-net (Track N / N1–N2 / ADR-066 / ADR-067) — discover + ARP + ICMP
+// echo vs QEMU user netdev. Not TCP/UDP. Not sockets. Not DHCP/DNS. Not Wi-Fi.
 // ---------------------------------------------------------------------------
 
 const DEV_NET: u32 = 1;
@@ -571,6 +571,9 @@ static mut NET_TX: NetDma = NetDma::ZERO;
 static NET_READY: AtomicBool = AtomicBool::new(false);
 static NET_TX_OK: AtomicBool = AtomicBool::new(false);
 static NET_RX_OK: AtomicBool = AtomicBool::new(false);
+static NET_ICMP_TX_OK: AtomicBool = AtomicBool::new(false);
+static NET_ICMP_RX_OK: AtomicBool = AtomicBool::new(false);
+static NET_PING_OK: AtomicBool = AtomicBool::new(false);
 
 fn find_net() -> Option<(usize, u32)> {
     for i in 0..MMIO_COUNT {
@@ -826,12 +829,30 @@ fn is_arp_reply_from_gateway(frame: &[u8], len: usize) -> bool {
     frame[28] == 10 && frame[29] == 0 && frame[30] == 2 && frame[31] == 2
 }
 
-fn net_rx_arp_reply(_dev: &NetDev, last: u16) -> bool {
+/// Ones-complement checksum over `data` (pad odd length with zero).
+fn inet_checksum(data: &[u8]) -> u16 {
+    let mut sum: u32 = 0;
+    let mut i = 0;
+    while i + 1 < data.len() {
+        sum += u32::from(u16::from_be_bytes([data[i], data[i + 1]]));
+        i += 2;
+    }
+    if i < data.len() {
+        sum += u32::from(data[i]) << 8;
+    }
+    while sum >> 16 != 0 {
+        sum = (sum & 0xffff) + (sum >> 16);
+    }
+    !(sum as u16)
+}
+
+/// RX one ARP reply from SLIRP gateway; return gateway MAC (sha) on success.
+fn net_rx_arp_reply(_dev: &NetDev, last: u16) -> Option<[u8; 6]> {
     unsafe {
         let dma = addr_of_mut!(NET_RX);
         // 2s — SLIRP gateway ARP is local and deterministic on GHA.
         if !net_wait_used(dma, last, 2, 1) {
-            return false;
+            return None;
         }
         let used_off = core::mem::offset_of!(NetDma, used);
         let used_span = core::mem::size_of::<NetDma>() - used_off;
@@ -840,12 +861,148 @@ fn net_rx_arp_reply(_dev: &NetDev, last: u16) -> bool {
         let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
         let total = (*dma).used.ring[uidx].len as usize;
         if total <= NET_HDR {
-            return false;
+            return None;
         }
         let frame_len = total - NET_HDR;
         let n = frame_len.min(NET_FRAME);
-        is_arp_reply_from_gateway(&(*dma).frame, n)
+        if !is_arp_reply_from_gateway(&(*dma).frame, n) {
+            return None;
+        }
+        let mut gw = [0u8; 6];
+        for i in 0..6 {
+            gw[i] = (*dma).frame[22 + i];
+        }
+        Some(gw)
     }
+}
+
+const ICMP_ECHO_ID: u16 = 0x6332; // "c2"
+const ICMP_ECHO_SEQ: u16 = 1;
+const ICMP_PAYLOAD: &[u8] = b"ctos-n2";
+
+/// Build Ethernet+IPv4+ICMP echo request to gateway 10.0.2.2.
+fn fill_icmp_echo_request(
+    mac: &[u8; 6],
+    gw_mac: &[u8; 6],
+    frame: &mut [u8; NET_FRAME],
+) -> usize {
+    frame.fill(0);
+    // Ethernet
+    frame[0..6].copy_from_slice(gw_mac);
+    frame[6..12].copy_from_slice(mac);
+    frame[12] = 0x08;
+    frame[13] = 0x00; // IPv4
+
+    let icmp_off = 14 + 20;
+    let icmp_len = 8 + ICMP_PAYLOAD.len();
+    let ip_total = 20 + icmp_len;
+
+    // IPv4 header (checksum filled below)
+    frame[14] = 0x45; // ver=4, ihl=5
+    frame[15] = 0;
+    frame[16] = (ip_total >> 8) as u8;
+    frame[17] = (ip_total & 0xff) as u8;
+    frame[18] = 0x00; // id
+    frame[19] = 0x01;
+    frame[20] = 0x00; // flags/frag
+    frame[21] = 0x00;
+    frame[22] = 64; // ttl
+    frame[23] = 1; // ICMP
+    // checksum at 24..26 = 0 for now
+    // src 10.0.2.15
+    frame[26] = 10;
+    frame[27] = 0;
+    frame[28] = 2;
+    frame[29] = 15;
+    // dst 10.0.2.2
+    frame[30] = 10;
+    frame[31] = 0;
+    frame[32] = 2;
+    frame[33] = 2;
+    let ip_csum = inet_checksum(&frame[14..34]);
+    frame[24] = (ip_csum >> 8) as u8;
+    frame[25] = (ip_csum & 0xff) as u8;
+
+    // ICMP echo request
+    frame[icmp_off] = 8; // type echo request
+    frame[icmp_off + 1] = 0; // code
+    // checksum 0 for now
+    frame[icmp_off + 4] = (ICMP_ECHO_ID >> 8) as u8;
+    frame[icmp_off + 5] = (ICMP_ECHO_ID & 0xff) as u8;
+    frame[icmp_off + 6] = (ICMP_ECHO_SEQ >> 8) as u8;
+    frame[icmp_off + 7] = (ICMP_ECHO_SEQ & 0xff) as u8;
+    frame[icmp_off + 8..icmp_off + icmp_len].copy_from_slice(ICMP_PAYLOAD);
+    let icmp_csum = inet_checksum(&frame[icmp_off..icmp_off + icmp_len]);
+    frame[icmp_off + 2] = (icmp_csum >> 8) as u8;
+    frame[icmp_off + 3] = (icmp_csum & 0xff) as u8;
+
+    14 + ip_total
+}
+
+fn is_icmp_echo_reply(frame: &[u8], len: usize) -> bool {
+    if len < 14 + 20 + 8 {
+        return false;
+    }
+    if frame[12] != 0x08 || frame[13] != 0x00 {
+        return false; // not IPv4
+    }
+    let ihl = (frame[14] & 0x0f) as usize * 4;
+    if ihl < 20 || len < 14 + ihl + 8 {
+        return false;
+    }
+    if frame[23] != 1 {
+        return false; // not ICMP
+    }
+    // src 10.0.2.2
+    if !(frame[26] == 10 && frame[27] == 0 && frame[28] == 2 && frame[29] == 2) {
+        return false;
+    }
+    // dst 10.0.2.15
+    if !(frame[30] == 10 && frame[31] == 0 && frame[32] == 2 && frame[33] == 15) {
+        return false;
+    }
+    let icmp = 14 + ihl;
+    if frame[icmp] != 0 {
+        return false; // type echo reply
+    }
+    if frame[icmp + 1] != 0 {
+        return false;
+    }
+    let id = u16::from_be_bytes([frame[icmp + 4], frame[icmp + 5]]);
+    let seq = u16::from_be_bytes([frame[icmp + 6], frame[icmp + 7]]);
+    id == ICMP_ECHO_ID && seq == ICMP_ECHO_SEQ
+}
+
+/// Wait for an ICMP echo reply from the SLIRP gateway (may skip unrelated RX).
+fn net_rx_icmp_echo_reply(dev: &NetDev, mut last: u16) -> bool {
+    // Up to a few RX deliveries — SLIRP is local; allow stray frames.
+    for _ in 0..8 {
+        unsafe {
+            let dma = addr_of_mut!(NET_RX);
+            if !net_wait_used(dma, last, 2, 1) {
+                return false;
+            }
+            let used_off = core::mem::offset_of!(NetDma, used);
+            let used_span = core::mem::size_of::<NetDma>() - used_off;
+            cache_sync(addr_of!((*dma).used) as u64, used_span);
+            cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
+            let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
+            let total = (*dma).used.ring[uidx].len as usize;
+            if total > NET_HDR {
+                let frame_len = total - NET_HDR;
+                let n = frame_len.min(NET_FRAME);
+                if is_icmp_echo_reply(&(*dma).frame, n) {
+                    return true;
+                }
+            }
+        }
+        // Repost RX for the next frame.
+        let Some(new_last) = net_post_rx(dev) else {
+            return false;
+        };
+        last = new_last;
+    }
+    false
 }
 
 /// Discover + program the first virtio-mmio net device (RX+TX queues).
@@ -853,6 +1010,9 @@ pub fn init_net() {
     NET_READY.store(false, Ordering::SeqCst);
     NET_TX_OK.store(false, Ordering::SeqCst);
     NET_RX_OK.store(false, Ordering::SeqCst);
+    NET_ICMP_TX_OK.store(false, Ordering::SeqCst);
+    NET_ICMP_RX_OK.store(false, Ordering::SeqCst);
+    NET_PING_OK.store(false, Ordering::SeqCst);
     let mut net = NET.lock();
     *net = NetDev::empty();
     let Some((base, ver)) = find_net() else {
@@ -872,8 +1032,9 @@ pub fn net_ready() -> bool {
     NET_READY.load(Ordering::SeqCst)
 }
 
-/// Serial proof: discover + TX ARP + RX SLIRP gateway reply. Host `-netdev`
-/// without this guest path is not a probe.
+/// Serial proof: discover + ARP TX/RX + ICMP echo vs SLIRP gateway.
+/// Host `-netdev` without this guest path is not a probe. Kernel-path only
+/// (no EL0 net SVC) — ADR-067 N2.
 #[allow(dead_code)]
 pub fn observe_net_probe() -> bool {
     if !paging::mmu_enabled() {
@@ -917,9 +1078,9 @@ pub fn observe_net_probe() -> bool {
     }
 
     let r0 = timer::cntpct();
-    if !net_rx_arp_reply(&net, rx_last) {
+    let Some(gw_mac) = net_rx_arp_reply(&net, rx_last) else {
         return false;
-    }
+    };
     let rx_ticks = timer::cntpct().saturating_sub(r0);
     NET_RX_OK.store(true, Ordering::SeqCst);
     uart::write_str_raw("net: rx\n");
@@ -928,8 +1089,49 @@ pub fn observe_net_probe() -> bool {
         let _ = writeln!(w, "perf: net-rx ticks={}", rx_ticks);
     }
 
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "net: ok");
+    }
+
+    // --- N2 / ADR-067: ICMP echo request/reply after ARP ---
+    let Some(rx2) = net_post_rx(&net) else {
+        return false;
+    };
+    let icmp_len = unsafe {
+        fill_icmp_echo_request(
+            &net.mac,
+            &gw_mac,
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    let i0 = timer::cntpct();
+    if !net_tx_frame(&net, icmp_len) {
+        return false;
+    }
+    let icmp_tx_ticks = timer::cntpct().saturating_sub(i0);
+    NET_ICMP_TX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: icmp-tx\n");
+    if icmp_tx_ticks > 0 {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "perf: net-icmp-tx ticks={}", icmp_tx_ticks);
+    }
+
+    let i1 = timer::cntpct();
+    if !net_rx_icmp_echo_reply(&net, rx2) {
+        return false;
+    }
+    let icmp_rx_ticks = timer::cntpct().saturating_sub(i1);
+    NET_ICMP_RX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: icmp-rx\n");
+    if icmp_rx_ticks > 0 {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "perf: net-icmp-rx ticks={}", icmp_rx_ticks);
+    }
+
+    NET_PING_OK.store(true, Ordering::SeqCst);
     let mut w = uart::raw();
-    let _ = writeln!(w, "net: ok");
+    let _ = writeln!(w, "net: ping-ok");
     true
 }
 
@@ -945,8 +1147,34 @@ fn virtio_net_discover_and_arp() {
     let frame_len =
         unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
     assert!(net_tx_frame(&net, frame_len), "TX ARP request");
+    let gw = net_rx_arp_reply(&net, rx_last)
+        .expect("RX ARP reply from QEMU SLIRP gateway 10.0.2.2");
+    assert!(gw.iter().any(|&b| b != 0), "gateway MAC from ARP sha");
+}
+
+#[cfg(test)]
+#[test_case]
+fn virtio_net_icmp_echo_ping() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev)");
+    let net = NET.lock();
+    // ARP first to learn gateway MAC (SLIRP does not need a prior ARP for
+    // ICMP, but our TX path addresses Ethernet by gw MAC from ARP sha).
+    let Some(rx_last) = net_post_rx(&net) else {
+        panic!("post RX for ARP");
+    };
+    let arp_len =
+        unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
+    assert!(net_tx_frame(&net, arp_len), "TX ARP request");
+    let gw = net_rx_arp_reply(&net, rx_last).expect("ARP reply for ICMP");
+    let Some(rx2) = net_post_rx(&net) else {
+        panic!("post RX for ICMP");
+    };
+    let icmp_len = unsafe {
+        fill_icmp_echo_request(&net.mac, &gw, &mut (*addr_of_mut!(NET_TX)).frame)
+    };
+    assert!(net_tx_frame(&net, icmp_len), "TX ICMP echo request");
     assert!(
-        net_rx_arp_reply(&net, rx_last),
-        "RX ARP reply from QEMU SLIRP gateway 10.0.2.2"
+        net_rx_icmp_echo_reply(&net, rx2),
+        "RX ICMP echo reply from QEMU SLIRP gateway 10.0.2.2"
     );
 }

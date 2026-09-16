@@ -46,8 +46,8 @@ This mile (N0) is **document-first**: name the track, lock foundation scope and 
    | ID | Work | Probe that closes it | Status |
    | --- | --- | --- | --- |
    | **N0** | This ADR — scope, non-goals, wiring | Docs-build; ledger **Planned** row; no Verified invent | **Accepted (docs)** — this PR |
-   | **N1** | Link bring-up / first frame | Serial markers for discover + TX and/or RX one raw frame; smoke greps; QEMU `-netdev`/`-device`; keep blk/FAT smoke green | **Planned** |
-   | **N2** | Optional ARP + ICMP ping | Named markers + fail-closed smoke; still no sockets product | **Planned** (optional; needs own PR) |
+   | **N1** | Link bring-up / first frame | Serial markers for discover + TX and/or RX one raw frame; smoke greps; QEMU `-netdev`/`-device`; keep blk/FAT smoke green | **Verified** via [ADR-066](ADR-066-virtio-net-first-frame.md) when tip prints `net: ok` |
+   | **N2** | ARP + ICMP ping | Named markers + fail-closed smoke; still no sockets product | **Verified** via [ADR-067](ADR-067-virtio-net-icmp-ping.md) when tip prints `net: ping-ok` |
    | **N3** | Transport / sockets | Only with **new sponsor scope** + new ADR | **Locked out** until that ADR |
    | **N4** | Freestanding sample using net SVCs | After N1+ Verified; catalog honesty like ADR-059/061/062 | **Planned** (after N1+) |
 
