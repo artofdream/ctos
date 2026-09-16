@@ -75,7 +75,7 @@ A1 is the SVC ABI mile. A2 is the CRT / `libctos` mile. A3 is the guest ELF PT_L
 | — | FAT16 write depth (Future slice 3, ADR-050) | `fat: write` + `fat: rewrite` + `fat: create` + host `--check-write`; keep `fat: ok` / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX. Not FAT32. App hosting stays **Planned**. |
 | — | FAT vs memfs write CNTPCT (Future slice 4, ADR-051 / P-PERF-6) | `perf: fat-write` + `perf: memfs-write` + `perf: fs-write-delta`; keep `fat: ok` / `slot: ok` | **Verified** when this tip’s `qemu-smoke` prints the pair (see honesty ledger). Not a bench. Not a percent. App hosting stays **Planned**. |
 | — | FAT vs memfs read CNTPCT (perf slice 3, ADR-065 / P-PERF-7) | `perf: fat-read` + `perf: memfs-read` + `perf: fs-read-delta`; keep `fat: ok` / write pair / `slot: ok` | **Verified** when this tip’s `qemu-smoke` prints the pair (see honesty ledger). Not a bench. Not a percent. App hosting stays **Planned**. |
-| — | Net-ping CNTPCT (perf slice, ADR-069 / P-PERF-8) | `perf: net-ping ticks=<n>`; prefix grep; keep N1/N2/N4 | **Verified** when this tip’s `qemu-smoke` prints the prefix (see honesty ledger). Not a bench. Not a percent. N3 sockets stay locked. |
+| — | Net-ping CNTPCT (perf slice, ADR-069 / P-PERF-8) | `perf: net-ping ticks=<n>`; prefix grep; keep N1/N2/N4 | **Verified** when this tip’s `qemu-smoke` prints the prefix (see honesty ledger). Not a bench. Not a percent. N3 UDP unlocked by ADR-070 (not BSD sockets). |
 | — | FAT16 readdir depth (ADR-056) | `fat: readdir` + `fat: entries`; keep `fat: ok` / write / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX `getdents`. Not FAT32. Not Linux/containers. |
 | — | FAT16 delete depth (ADR-057) | `fat: delete`; keep `fat: ok` / write / readdir / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not POSIX `unlink`. Not FAT32. Not Linux/containers. |
 | — | VFS prefix mounts (ADR-058) | `vfs: mount` + `vfs: mounts`; keep `fs: ok` / `fat: ok` / `slot: ok` | **Verified** when this tip’s `qemu-smoke` passes (see honesty ledger). Not Linux `mount(2)`. Not a new disk FS. |
@@ -94,15 +94,15 @@ On-disk filesystem work started as A7 (FAT16 read, not xv6-like). FAT16 write de
 
 ## Track N — network foundation ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md))
 
-Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). N1 first frame: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md). N2 ICMP ping: [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md). N4 EL0 net sample: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md). Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Non-goals locked until a new ADR + sponsor: TCP/UDP stack, BSD sockets, DHCP/DNS as product, Wi‑Fi, virtio-pci-only foundation, Linux net stack, “has networking” marketing.
+Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). N1 first frame: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md). N2 ICMP ping: [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md). N3 UDP transport: [ADR-070](../03-adr/ADR-070-n3-udp-transport.md). N4 EL0 net sample: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md). Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Still not product: BSD sockets, TCP stack, DHCP/DNS as product, Wi‑Fi, Linux net stack, “has networking / sockets OS” marketing.
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
 | N0 | Scope ADR + docs wiring (ADR-063) | Docs-build; ledger Planned; no Verified invent | **Accepted (docs)** — this PR |
 | N1 | Link bring-up / first frame (virtio-net mmio, ADR-066) | Discover + TX ARP + RX SLIRP gateway ARP reply; `-netdev user,id=net0 -device virtio-net-device,netdev=net0`; `net: ok`; keep blk/FAT green | **Verified** when this tip’s `qemu-smoke` prints `net: ok` |
 | N2 | ARP + ICMP ping (kernel-path, ADR-067) | After ARP: ICMP echo vs `10.0.2.2`; `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok`; QEMU args unchanged | **Verified** when this tip’s `qemu-smoke` prints `net: ping-ok` |
-| N3 | Transport / sockets | New sponsor scope + new ADR only | **Locked out** |
-| N4 | Freestanding sample using net SVCs (ADR-068) | `libctos: net-ok` / `netdemo: ok`; keep N1/N2/samples | **Verified** when tip prints those markers |
+| N3 | Minimal UDP transport (ADR-070) | UDP DNS query/reply vs SLIRP `10.0.2.3:53`; `net: udp-tx` / `net: udp-rx` / `net: udp-ok`; keep N1/N2 | **Verified** when this tip’s `qemu-smoke` prints `net: udp-ok` |
+| N4 | Freestanding sample using net SVCs (ADR-068) | `libctos: net-ok` / `netdemo: ok`; keep N1/N2/N3/samples | **Verified** when tip prints those markers |
 
 ## Docs website
 

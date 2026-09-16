@@ -98,21 +98,21 @@ flowchart TD
 
 *Same API, two backends, prefix mounts. Say “routed path prefixes through a mount table” when `vfs: mounts` passes — not `mount(2)` or “supports FAT” as a product.*
 
-## Track N — virtio-net path (ARP + ICMP + EL0 net SVC)
+## Track N — virtio-net path (ARP + ICMP + UDP + EL0 net SVC)
 
-QEMU **user** netdev (SLIRP) plus guest **virtio-net-mmio**. N1 exchanges one ARP request/reply with gateway `10.0.2.2` ([ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md)). N2 sends an ICMP echo and expects a reply ([ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md)). N4 exposes tiny EL0 SVCs (`net_mac` / `net_ping`) and FAT `/netdemo` ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)) — kernel still owns virtio-net. No sockets product. Spec/ADR wins on conflict with this sketch.
+QEMU **user** netdev (SLIRP) plus guest **virtio-net-mmio**. N1 exchanges one ARP request/reply with gateway `10.0.2.2` ([ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md)). N2 sends an ICMP echo and expects a reply ([ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md)). N3 sends one UDP datagram to SLIRP DNS `10.0.2.3:53` and expects a UDP reply ([ADR-070](../03-adr/ADR-070-n3-udp-transport.md)) — DNS is probe bait, not a DNS product. N4 exposes tiny EL0 SVCs (`net_mac` / `net_ping`) and FAT `/netdemo` ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)) — kernel still owns virtio-net. No BSD sockets / TCP product. Spec/ADR wins on conflict with this sketch.
 
 ```mermaid
 flowchart LR
-  QN["QEMU user netdev<br/>SLIRP 10.0.2.2"] --> VN["virtio-net-device<br/>mmio"]
-  VN --> GTX["Guest TX<br/>ARP / ICMP"]
-  VN --> GRX["Guest RX<br/>ARP / ICMP reply"]
+  QN["QEMU user netdev<br/>SLIRP 10.0.2.2 / 10.0.2.3"] --> VN["virtio-net-device<br/>mmio"]
+  VN --> GTX["Guest TX<br/>ARP / ICMP / UDP"]
+  VN --> GRX["Guest RX<br/>ARP / ICMP / UDP reply"]
   GTX --> VN
-  GRX --> OK["Markers<br/>net: ok · net: ping-ok"]
+  GRX --> OK["Markers<br/>net: ok · net: ping-ok · net: udp-ok"]
   OK --> EL0["EL0 SVCs<br/>net_mac / net_ping<br/>/netdemo"]
 ```
 
-*Host flags alone are not a probe. Do not say “has networking.” Cite [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) / [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md).*
+*Host flags alone are not a probe. Do not say “has networking” or “has sockets.” Cite [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) / [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-070](../03-adr/ADR-070-n3-udp-transport.md) / [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md).*
 
 ## Current stage (UART hello + M2–M9 + ADR-011 pillars)
 
