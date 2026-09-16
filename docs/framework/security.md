@@ -1,8 +1,8 @@
-# Security — threat model v1.43 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064 / ADR-065 / ADR-066 / ADR-067 / ADR-068)
+# Security — threat model v1.44 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064 / ADR-065 / ADR-066 / ADR-067 / ADR-068 / ADR-069)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.43** (2026-09-16). Slice/update of v1.42 (#113 ADR-067). Track N / N4 EL0 net SVC + `net-libctos` ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md): `SYS_NET_MAC`/`SYS_NET_PING`; FAT `/netdemo`; `libctos: net-ok` / `netdemo: ok`). Keep N1/N2. Still **not** TCP/UDP/sockets/DHCP/DNS/Wi‑Fi/“has networking.” ADR-067/066/063 unchanged. ADR-062/061/060/053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption/exFAT. Not a v2 model and not “secure.”
+Version: **v1.44** (2026-09-16). Slice/update of v1.43 (#114 ADR-068). Measure-first net-ping CNTPCT ([ADR-069](../03-adr/ADR-069-net-ping-cntpct.md): `perf: net-ping ticks=<n>` around EL0 `net_ping` quiet ARP+ICMP). Keep N1/N2/N4. Still **not** TCP/UDP/sockets/DHCP/DNS/Wi‑Fi/“has networking.” Not a latency SLA. ADR-068/067/066/063 unchanged. ADR-062/061/060/053/054/055 locks unchanged. Product freestanding app-hosting claim remains **Verified** under ADR-048/052. Still not Linux/POSIX/`mount`/`unlink`/`getdents`/containers/preemption/exFAT. Not a v2 model and not “secure.”
 
 ## Scope
 
@@ -200,3 +200,8 @@ Three freestanding EL0 samples on FAT: `/hello`, `/fsdemo` (memfs `/memdemo`), a
 ### Track N EL0 net SVC sample (v1.43)
 
 [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md): `SYS_NET_MAC` (24) + `SYS_NET_PING` (25); freestanding `net-libctos` on FAT `/netdemo` (`libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). Kernel still owns virtio-net. Still not TCP/UDP/sockets/DHCP/DNS/Wi‑Fi/“has networking.”
+
+### Net-ping CNTPCT (v1.44)
+
+[ADR-069](../03-adr/ADR-069-net-ping-cntpct.md): CNTPCT around EL0 `net_ping` quiet ARP+ICMP (`perf: net-ping ticks=<n>`). Measure-first lab ticks only — not a latency SLA, percent, or product KPI. Smoke greps the marker **prefix** (tick values vary). Keep N1/N2/N4 / FAT / slot. Still **not** TCP/UDP/sockets/“has networking.” Still **not** “secure.”
+

@@ -85,6 +85,19 @@ The guest already reads known FAT16 `/probe` bytes through the thin VFS. [ADR-06
 
 QEMU TCG jitter is still one lab. No `criterion` crate. No latency SLA for FAT read.
 
+
+
+## Net-ping path CNTPCT (ADR-069) — single path (QEMU TCG lab)
+
+[ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md) EL0 `net_ping` (SVC 25) already runs a quiet kernel-owned ARP + ICMP echo vs SLIRP `10.0.2.2`. [ADR-069](../03-adr/ADR-069-net-ping-cntpct.md) samples `CNTPCT` around that **full quiet path** and prints `perf: net-ping ticks=<n>`. That is a **measurement**, not a bench and not a latency SLA. Related optional N2 crumbs (`perf: net-icmp-tx` / `perf: net-icmp-rx`) stay as ADR-067 lab notes.
+
+| Class | What we measure | Honesty |
+| --- | --- | --- |
+| **EL0 net_ping** | Quiet ARP + ICMP echo RTT as `SYS_NET_PING` / `el0_icmp_ping` | `perf: net-ping ticks=<n>` |
+| **Gate** | Smoke greps the **prefix** `perf: net-ping` (not an exact tick count). Reject faster/slower/percent. Keep N1/N2/N4 / FAT / slot markers. | Verified only when the ledger has serial evidence on a named tip. |
+
+QEMU TCG jitter is still one lab. Tick values **vary** — do not invent a budget. No `criterion` crate. No sockets / TCP/UDP this mile.
+
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
