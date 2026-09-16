@@ -39,7 +39,7 @@ This mile (N0) is **document-first**: name the track, lock foundation scope and 
    - virtio-pci-only stories as the foundation path.
    - Linux network stack / “runs Linux networking.”
    - Marketing “has networking” / “network-ready OS.”
-   - EL0 net SVC / ABI until **after** link bring-up is **Verified** (N1+).
+   - EL0 net SVC / ABI until **after** link bring-up is **Verified** (N1+) — unlocked by [ADR-068](ADR-068-el0-net-svc-sample.md).
 
 4. **Mile ladder.**
 
@@ -49,7 +49,7 @@ This mile (N0) is **document-first**: name the track, lock foundation scope and 
    | **N1** | Link bring-up / first frame | Serial markers for discover + TX and/or RX one raw frame; smoke greps; QEMU `-netdev`/`-device`; keep blk/FAT smoke green | **Verified** via [ADR-066](ADR-066-virtio-net-first-frame.md) when tip prints `net: ok` |
    | **N2** | ARP + ICMP ping | Named markers + fail-closed smoke; still no sockets product | **Verified** via [ADR-067](ADR-067-virtio-net-icmp-ping.md) when tip prints `net: ping-ok` |
    | **N3** | Transport / sockets | Only with **new sponsor scope** + new ADR | **Locked out** until that ADR |
-   | **N4** | Freestanding sample using net SVCs | After N1+ Verified; catalog honesty like ADR-059/061/062 | **Planned** (after N1+) |
+   | **N4** | Freestanding sample using net SVCs | After N1+ Verified; catalog honesty like ADR-059/061/062 | **Verified** via [ADR-068](ADR-068-el0-net-svc-sample.md) when tip prints `libctos: net-ok` / `netdemo: ok` |
 
 5. **Reuse.** Reuse virtio-mmio patterns from blk ([ADR-028](ADR-028-virtio-blk-fat16.md), `src/virtio.rs`): transport scan, split virtqueue, poll used ring, identity-PA DMA + cache maintenance. Do **not** break FAT/blk smoke or A9/slot/sample markers. Prefer extending virtio carefully over a second transport story.
 
