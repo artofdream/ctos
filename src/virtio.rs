@@ -1,7 +1,7 @@
 //! virtio-mmio block + net on QEMU `virt`.
 //!
 //! Block: Track A / A7 / ADR-028 — one split virtqueue, sector R/W.
-//! Net: Track N / N1–N3 / ADR-066 / ADR-067 / ADR-070 — RX+TX queues, ARP
+//! Net: Track N / N1–N3 / N5 / ADR-066 / ADR-067 / ADR-070 / ADR-074 — RX+TX queues, ARP
 //! then ICMP then one UDP datagram vs QEMU user netdev. N4 / ADR-068 and
 //! N3.x / ADR-071 expose tiny EL0 SVCs that call into this module (kernel
 //! still owns the NIC). ADR-069 times the quiet EL0 `net_ping` path with
@@ -506,9 +506,9 @@ fn virtio_blk_boot_sector_is_fat() {
 }
 
 // ---------------------------------------------------------------------------
-// virtio-net (Track N / N1–N3 / ADR-066 / ADR-067 / ADR-070) — discover + ARP
-// + ICMP + minimal UDP TX/RX vs QEMU user netdev. Not a BSD sockets product.
-// Not TCP. Not DHCP/DNS as product. Not Wi-Fi.
+// virtio-net (Track N / N1–N3 / N5 / ADR-066 / ADR-067 / ADR-070 / ADR-074) —
+// discover + ARP + ICMP + minimal UDP + thin TCP vs QEMU user netdev.
+// Not a BSD sockets product. Not listen/accept. Not DHCP/DNS as product. Not Wi-Fi.
 // ---------------------------------------------------------------------------
 
 const DEV_NET: u32 = 1;
@@ -583,6 +583,11 @@ static NET_PING_OK: AtomicBool = AtomicBool::new(false);
 static NET_UDP_TX_OK: AtomicBool = AtomicBool::new(false);
 static NET_UDP_RX_OK: AtomicBool = AtomicBool::new(false);
 static NET_UDP_OK: AtomicBool = AtomicBool::new(false);
+static NET_TCP_SYN_OK: AtomicBool = AtomicBool::new(false);
+static NET_TCP_EST_OK: AtomicBool = AtomicBool::new(false);
+static NET_TCP_TX_OK: AtomicBool = AtomicBool::new(false);
+static NET_TCP_RX_OK: AtomicBool = AtomicBool::new(false);
+static NET_TCP_OK: AtomicBool = AtomicBool::new(false);
 /// ADR-069: last EL0 `net_ping` quiet ARP+ICMP CNTPCT sample (lab only).
 static NET_PING_TICKS: AtomicU64 = AtomicU64::new(0);
 /// ADR-072: last EL0 `net_udp_dns` quiet ARP+UDP DNS CNTPCT sample (lab only).
@@ -860,33 +865,39 @@ fn inet_checksum(data: &[u8]) -> u16 {
 }
 
 /// RX one ARP reply from SLIRP gateway; return gateway MAC (sha) on success.
-fn net_rx_arp_reply(_dev: &NetDev, last: u16) -> Option<[u8; 6]> {
-    unsafe {
-        let dma = addr_of_mut!(NET_RX);
-        // 2s — SLIRP gateway ARP is local and deterministic on GHA.
-        if !net_wait_used(dma, last, 2, 1) {
+/// Skip unrelated RX (e.g. TCP FIN after N5) — same pattern as ICMP/UDP waiters.
+fn net_rx_arp_reply(dev: &NetDev, mut last: u16) -> Option<[u8; 6]> {
+    for _ in 0..8 {
+        unsafe {
+            let dma = addr_of_mut!(NET_RX);
+            // 2s — SLIRP gateway ARP is local and deterministic on GHA.
+            if !net_wait_used(dma, last, 2, 1) {
+                return None;
+            }
+            let used_off = core::mem::offset_of!(NetDma, used);
+            let used_span = core::mem::size_of::<NetDma>() - used_off;
+            cache_sync(addr_of!((*dma).used) as u64, used_span);
+            cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
+            let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
+            let total = (*dma).used.ring[uidx].len as usize;
+            if total > NET_HDR {
+                let frame_len = total - NET_HDR;
+                let n = frame_len.min(NET_FRAME);
+                if is_arp_reply_from_gateway(&(*dma).frame, n) {
+                    let mut gw = [0u8; 6];
+                    for i in 0..6 {
+                        gw[i] = (*dma).frame[22 + i];
+                    }
+                    return Some(gw);
+                }
+            }
+        }
+        let Some(new_last) = net_post_rx(dev) else {
             return None;
-        }
-        let used_off = core::mem::offset_of!(NetDma, used);
-        let used_span = core::mem::size_of::<NetDma>() - used_off;
-        cache_sync(addr_of!((*dma).used) as u64, used_span);
-        cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
-        let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
-        let total = (*dma).used.ring[uidx].len as usize;
-        if total <= NET_HDR {
-            return None;
-        }
-        let frame_len = total - NET_HDR;
-        let n = frame_len.min(NET_FRAME);
-        if !is_arp_reply_from_gateway(&(*dma).frame, n) {
-            return None;
-        }
-        let mut gw = [0u8; 6];
-        for i in 0..6 {
-            gw[i] = (*dma).frame[22 + i];
-        }
-        Some(gw)
+        };
+        last = new_last;
     }
+    None
 }
 
 const ICMP_ECHO_ID: u16 = 0x6332; // "c2"
@@ -1163,6 +1174,259 @@ fn net_rx_udp_dns_reply(dev: &NetDev, mut last: u16) -> bool {
     false
 }
 
+
+// --- N5 / ADR-074: thin TCP active-open + one payload vs guestfwd echo ---
+// Target: 10.0.2.4:7 via QEMU `-netdev …,guestfwd=tcp:10.0.2.4:7-cmd:…/tcp-echo-stdio.sh`.
+// One connection. No socket table. No listen/accept. Not a BSD sockets product.
+
+const TCP_SRC_PORT: u16 = 0x6334; // ephemeral for N5
+const TCP_DST_PORT: u16 = 7; // guestfwd echo
+const TCP_ISN: u32 = 0x1000_0000;
+const TCP_PAYLOAD: &[u8] = b"ctos-tcp\n";
+const TCP_FLAG_SYN: u8 = 0x02;
+const TCP_FLAG_PSH: u8 = 0x08;
+const TCP_FLAG_ACK: u8 = 0x10;
+
+/// TCP checksum over IPv4 pseudo-header + TCP segment (checksum field 0).
+fn tcp_checksum(src: [u8; 4], dst: [u8; 4], tcp: &[u8]) -> u16 {
+    // 12-byte pseudo + segment; keep modest stack (payload is tiny).
+    let mut buf = [0u8; 12 + 20 + 32];
+    let need = 12 + tcp.len();
+    if need > buf.len() {
+        return 0;
+    }
+    buf[0..4].copy_from_slice(&src);
+    buf[4..8].copy_from_slice(&dst);
+    buf[8] = 0;
+    buf[9] = 6; // TCP
+    let tcp_len = tcp.len() as u16;
+    buf[10] = (tcp_len >> 8) as u8;
+    buf[11] = (tcp_len & 0xff) as u8;
+    buf[12..need].copy_from_slice(tcp);
+    inet_checksum(&buf[..need])
+}
+
+/// Build Ethernet+IPv4+TCP (no options) to 10.0.2.4:7.
+fn fill_tcp_segment(
+    mac: &[u8; 6],
+    gw_mac: &[u8; 6],
+    seq: u32,
+    ack: u32,
+    flags: u8,
+    payload: &[u8],
+    frame: &mut [u8; NET_FRAME],
+) -> usize {
+    frame.fill(0);
+    frame[0..6].copy_from_slice(gw_mac);
+    frame[6..12].copy_from_slice(mac);
+    frame[12] = 0x08;
+    frame[13] = 0x00; // IPv4
+
+    let tcp_off = 14 + 20;
+    let tcp_len = 20 + payload.len();
+    let ip_total = 20 + tcp_len;
+
+    // IPv4
+    frame[14] = 0x45;
+    frame[15] = 0;
+    frame[16] = (ip_total >> 8) as u8;
+    frame[17] = (ip_total & 0xff) as u8;
+    frame[18] = 0x00;
+    frame[19] = 0x04; // id
+    frame[20] = 0x00;
+    frame[21] = 0x00;
+    frame[22] = 64; // ttl
+    frame[23] = 6; // TCP
+    // src 10.0.2.15
+    frame[26] = 10;
+    frame[27] = 0;
+    frame[28] = 2;
+    frame[29] = 15;
+    // dst 10.0.2.4 (guestfwd echo — local; no external net)
+    frame[30] = 10;
+    frame[31] = 0;
+    frame[32] = 2;
+    frame[33] = 4;
+    let ip_csum = inet_checksum(&frame[14..34]);
+    frame[24] = (ip_csum >> 8) as u8;
+    frame[25] = (ip_csum & 0xff) as u8;
+
+    // TCP header
+    frame[tcp_off] = (TCP_SRC_PORT >> 8) as u8;
+    frame[tcp_off + 1] = (TCP_SRC_PORT & 0xff) as u8;
+    frame[tcp_off + 2] = (TCP_DST_PORT >> 8) as u8;
+    frame[tcp_off + 3] = (TCP_DST_PORT & 0xff) as u8;
+    frame[tcp_off + 4] = (seq >> 24) as u8;
+    frame[tcp_off + 5] = (seq >> 16) as u8;
+    frame[tcp_off + 6] = (seq >> 8) as u8;
+    frame[tcp_off + 7] = (seq & 0xff) as u8;
+    frame[tcp_off + 8] = (ack >> 24) as u8;
+    frame[tcp_off + 9] = (ack >> 16) as u8;
+    frame[tcp_off + 10] = (ack >> 8) as u8;
+    frame[tcp_off + 11] = (ack & 0xff) as u8;
+    frame[tcp_off + 12] = 0x50; // data offset = 5 (20 bytes), ns=0
+    frame[tcp_off + 13] = flags;
+    frame[tcp_off + 14] = 0x20; // window 8192
+    frame[tcp_off + 15] = 0x00;
+    // checksum 0 for now; urg=0
+    if !payload.is_empty() {
+        frame[tcp_off + 20..tcp_off + 20 + payload.len()].copy_from_slice(payload);
+    }
+    let src = [10u8, 0, 2, 15];
+    let dst = [10u8, 0, 2, 4];
+    let csum = tcp_checksum(src, dst, &frame[tcp_off..tcp_off + tcp_len]);
+    frame[tcp_off + 16] = (csum >> 8) as u8;
+    frame[tcp_off + 17] = (csum & 0xff) as u8;
+
+    14 + ip_total
+}
+
+/// Parse a TCP segment from 10.0.2.4:7 → us. Returns (seq, ack, flags, payload_off, payload_len).
+fn parse_tcp_from_echo(frame: &[u8], len: usize) -> Option<(u32, u32, u8, usize, usize)> {
+    if len < 14 + 20 + 20 {
+        return None;
+    }
+    if frame[12] != 0x08 || frame[13] != 0x00 {
+        return None;
+    }
+    let ihl = (frame[14] & 0x0f) as usize * 4;
+    if ihl < 20 || len < 14 + ihl + 20 {
+        return None;
+    }
+    if frame[23] != 6 {
+        return None; // not TCP
+    }
+    // Prefer IPv4 total length over Ethernet frame length (padding can inflate `len`).
+    let ip_total = u16::from_be_bytes([frame[16], frame[17]]) as usize;
+    if ip_total < ihl + 20 || 14 + ip_total > len {
+        return None;
+    }
+    // src 10.0.2.4
+    if !(frame[26] == 10 && frame[27] == 0 && frame[28] == 2 && frame[29] == 4) {
+        return None;
+    }
+    // dst 10.0.2.15
+    if !(frame[30] == 10 && frame[31] == 0 && frame[32] == 2 && frame[33] == 15) {
+        return None;
+    }
+    let tcp = 14 + ihl;
+    let sport = u16::from_be_bytes([frame[tcp], frame[tcp + 1]]);
+    let dport = u16::from_be_bytes([frame[tcp + 2], frame[tcp + 3]]);
+    if sport != TCP_DST_PORT || dport != TCP_SRC_PORT {
+        return None;
+    }
+    let seq = u32::from_be_bytes([
+        frame[tcp + 4],
+        frame[tcp + 5],
+        frame[tcp + 6],
+        frame[tcp + 7],
+    ]);
+    let ack = u32::from_be_bytes([
+        frame[tcp + 8],
+        frame[tcp + 9],
+        frame[tcp + 10],
+        frame[tcp + 11],
+    ]);
+    let data_off = ((frame[tcp + 12] >> 4) as usize) * 4;
+    let tcp_seg_len = ip_total - ihl;
+    if data_off < 20 || tcp_seg_len < data_off {
+        return None;
+    }
+    let flags = frame[tcp + 13];
+    let payload_off = tcp + data_off;
+    let payload_len = tcp_seg_len - data_off;
+    Some((seq, ack, flags, payload_off, payload_len))
+}
+
+fn is_tcp_syn_ack(frame: &[u8], len: usize, expect_ack: u32) -> Option<u32> {
+    let (seq, ack, flags, _, plen) = parse_tcp_from_echo(frame, len)?;
+    if plen != 0 {
+        return None;
+    }
+    if flags & TCP_FLAG_SYN == 0 || flags & TCP_FLAG_ACK == 0 {
+        return None;
+    }
+    if ack != expect_ack {
+        return None;
+    }
+    Some(seq)
+}
+
+fn is_tcp_echo_payload(frame: &[u8], len: usize) -> Option<(u32, u32, usize)> {
+    let (seq, ack, flags, off, plen) = parse_tcp_from_echo(frame, len)?;
+    if plen < TCP_PAYLOAD.len() {
+        return None;
+    }
+    // Require ACK (data segments should ack our side); PSH optional.
+    if flags & TCP_FLAG_ACK == 0 {
+        return None;
+    }
+    if &frame[off..off + TCP_PAYLOAD.len()] != TCP_PAYLOAD {
+        return None;
+    }
+    Some((seq, ack, TCP_PAYLOAD.len()))
+}
+
+/// Wait for SYN-ACK from guestfwd peer; return peer ISN.
+fn net_rx_tcp_syn_ack(dev: &NetDev, mut last: u16, expect_ack: u32) -> Option<u32> {
+    for _ in 0..8 {
+        unsafe {
+            let dma = addr_of_mut!(NET_RX);
+            if !net_wait_used(dma, last, 2, 1) {
+                return None;
+            }
+            let used_off = core::mem::offset_of!(NetDma, used);
+            let used_span = core::mem::size_of::<NetDma>() - used_off;
+            cache_sync(addr_of!((*dma).used) as u64, used_span);
+            cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
+            let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
+            let total = (*dma).used.ring[uidx].len as usize;
+            if total > NET_HDR {
+                let frame_len = total - NET_HDR;
+                let n = frame_len.min(NET_FRAME);
+                if let Some(peer_isn) = is_tcp_syn_ack(&(*dma).frame, n, expect_ack) {
+                    return Some(peer_isn);
+                }
+            }
+        }
+        let Some(new_last) = net_post_rx(dev) else {
+            return None;
+        };
+        last = new_last;
+    }
+    None
+}
+
+/// Wait for echoed payload from guestfwd peer.
+fn net_rx_tcp_echo(dev: &NetDev, mut last: u16) -> Option<(u32, u32, usize)> {
+    for _ in 0..8 {
+        unsafe {
+            let dma = addr_of_mut!(NET_RX);
+            if !net_wait_used(dma, last, 2, 1) {
+                return None;
+            }
+            let used_off = core::mem::offset_of!(NetDma, used);
+            let used_span = core::mem::size_of::<NetDma>() - used_off;
+            cache_sync(addr_of!((*dma).used) as u64, used_span);
+            cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
+            let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
+            let total = (*dma).used.ring[uidx].len as usize;
+            if total > NET_HDR {
+                let frame_len = total - NET_HDR;
+                let n = frame_len.min(NET_FRAME);
+                if let Some(got) = is_tcp_echo_payload(&(*dma).frame, n) {
+                    return Some(got);
+                }
+            }
+        }
+        let Some(new_last) = net_post_rx(dev) else {
+            return None;
+        };
+        last = new_last;
+    }
+    None
+}
+
 /// Discover + program the first virtio-mmio net device (RX+TX queues).
 pub fn init_net() {
     NET_READY.store(false, Ordering::SeqCst);
@@ -1174,6 +1438,11 @@ pub fn init_net() {
     NET_UDP_TX_OK.store(false, Ordering::SeqCst);
     NET_UDP_RX_OK.store(false, Ordering::SeqCst);
     NET_UDP_OK.store(false, Ordering::SeqCst);
+    NET_TCP_SYN_OK.store(false, Ordering::SeqCst);
+    NET_TCP_EST_OK.store(false, Ordering::SeqCst);
+    NET_TCP_TX_OK.store(false, Ordering::SeqCst);
+    NET_TCP_RX_OK.store(false, Ordering::SeqCst);
+    NET_TCP_OK.store(false, Ordering::SeqCst);
     let mut net = NET.lock();
     *net = NetDev::empty();
     let Some((base, ver)) = find_net() else {
@@ -1193,9 +1462,10 @@ pub fn net_ready() -> bool {
     NET_READY.load(Ordering::SeqCst)
 }
 
-/// Serial proof: discover + ARP TX/RX + ICMP echo + UDP DNS vs SLIRP.
+/// Serial proof: discover + ARP TX/RX + ICMP echo + UDP DNS + thin TCP.
 /// Host `-netdev` without this guest path is not a probe. Kernel-path.
-/// N1/N2: ADR-066/067. N3 UDP: ADR-070. EL0 quiet helpers: ADR-068/069/071.
+/// N1/N2: ADR-066/067. N3 UDP: ADR-070. N5 thin TCP: ADR-074 (guestfwd echo).
+/// EL0 quiet helpers: ADR-068/069/071.
 #[allow(dead_code)]
 pub fn observe_net_probe() -> bool {
     if !paging::mmu_enabled() {
@@ -1321,8 +1591,85 @@ pub fn observe_net_probe() -> bool {
     uart::write_str_raw("net: udp-rx\n");
 
     NET_UDP_OK.store(true, Ordering::SeqCst);
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "net: udp-ok");
+    }
+
+    // --- N5 / ADR-074: thin TCP active open + one payload vs guestfwd 10.0.2.4:7 ---
+    // Not a sockets product — one connection, no listen/accept.
+    let Some(rx4) = net_post_rx(&net) else {
+        return false;
+    };
+    let syn_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw_mac,
+            TCP_ISN,
+            0,
+            TCP_FLAG_SYN,
+            &[],
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    if !net_tx_frame(&net, syn_len) {
+        return false;
+    }
+    NET_TCP_SYN_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: tcp-syn\n");
+
+    let Some(peer_isn) = net_rx_tcp_syn_ack(&net, rx4, TCP_ISN.wrapping_add(1)) else {
+        return false;
+    };
+
+    let Some(rx5) = net_post_rx(&net) else {
+        return false;
+    };
+    let ack_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw_mac,
+            TCP_ISN.wrapping_add(1),
+            peer_isn.wrapping_add(1),
+            TCP_FLAG_ACK,
+            &[],
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    if !net_tx_frame(&net, ack_len) {
+        return false;
+    }
+    NET_TCP_EST_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: tcp-est\n");
+
+    // Payload may arrive on the same RX posting after we TX.
+    let data_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw_mac,
+            TCP_ISN.wrapping_add(1),
+            peer_isn.wrapping_add(1),
+            TCP_FLAG_PSH | TCP_FLAG_ACK,
+            TCP_PAYLOAD,
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    if !net_tx_frame(&net, data_len) {
+        return false;
+    }
+    NET_TCP_TX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: tcp-tx\n");
+
+    let Some((_peer_seq, _peer_ack, plen)) = net_rx_tcp_echo(&net, rx5) else {
+        return false;
+    };
+    let _ = plen;
+    NET_TCP_RX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: tcp-rx\n");
+
+    NET_TCP_OK.store(true, Ordering::SeqCst);
     let mut w = uart::raw();
-    let _ = writeln!(w, "net: udp-ok");
+    let _ = writeln!(w, "net: tcp-ok");
     true
 }
 
@@ -1543,3 +1890,62 @@ fn el0_udp_dns_cntpct_advances() {
     assert!(ticks > 0, "ADR-072 udp-dns CNTPCT sample must advance");
 }
 
+#[cfg(test)]
+#[test_case]
+fn virtio_net_tcp_echo_probe() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev + guestfwd)");
+    let net = NET.lock();
+    let Some(rx_last) = net_post_rx(&net) else {
+        panic!("post RX for ARP");
+    };
+    let arp_len =
+        unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
+    assert!(net_tx_frame(&net, arp_len), "TX ARP request");
+    let gw = net_rx_arp_reply(&net, rx_last).expect("ARP reply for TCP");
+    let Some(rx2) = net_post_rx(&net) else {
+        panic!("post RX for TCP SYN");
+    };
+    let syn_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw,
+            TCP_ISN,
+            0,
+            TCP_FLAG_SYN,
+            &[],
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    assert!(net_tx_frame(&net, syn_len), "TX TCP SYN to 10.0.2.4:7");
+    let peer_isn = net_rx_tcp_syn_ack(&net, rx2, TCP_ISN.wrapping_add(1))
+        .expect("RX TCP SYN-ACK from guestfwd echo");
+    let Some(rx3) = net_post_rx(&net) else {
+        panic!("post RX after SYN-ACK");
+    };
+    let ack_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw,
+            TCP_ISN.wrapping_add(1),
+            peer_isn.wrapping_add(1),
+            TCP_FLAG_ACK,
+            &[],
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    assert!(net_tx_frame(&net, ack_len), "TX TCP ACK");
+    let data_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw,
+            TCP_ISN.wrapping_add(1),
+            peer_isn.wrapping_add(1),
+            TCP_FLAG_PSH | TCP_FLAG_ACK,
+            TCP_PAYLOAD,
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    assert!(net_tx_frame(&net, data_len), "TX TCP payload");
+    let got = net_rx_tcp_echo(&net, rx3).expect("RX TCP echo payload from guestfwd");
+    assert_eq!(got.2, TCP_PAYLOAD.len(), "echo length");
+}

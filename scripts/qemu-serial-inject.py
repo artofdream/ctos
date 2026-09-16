@@ -21,11 +21,12 @@ import subprocess
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 HELLO = os.environ.get("CTOS_HELLO_STRING", "Hello World!").encode()
 SERROR_ARM = b"el0: serror-arm"
 INJECT = bytes([int(os.environ.get("CTOS_INPUT_BYTE", "0x41"), 0)])
-TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "12"))
+TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "20"))
 # Give the guest a moment after the cue to ERET into the A-clear spin.
 SERROR_INJECT_DELAY = float(os.environ.get("CTOS_SERROR_INJECT_DELAY", "0.05"))
 
@@ -183,7 +184,7 @@ def main() -> int:
         "-device",
         "virtio-blk-device,drive=hd0",
         "-netdev",
-        "user,id=net0",
+        f"user,id=net0,guestfwd=tcp:10.0.2.4:7-cmd:{Path(__file__).resolve().parent / 'tcp-echo-stdio.sh'}",
         "-device",
         "virtio-net-device,netdev=net0",
         "-kernel",

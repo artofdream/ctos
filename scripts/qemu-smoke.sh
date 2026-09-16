@@ -12,11 +12,14 @@
 # host smoke then boots the same app ELF on documented prior OS
 # ba6541c (A9 merge — earliest main tip with the slot path).
 # Host `-drive` without guest virtio + VFS read is not a probe.
-# N1 / ADR-066 + N2 / ADR-067: QEMU also attaches `-netdev user,id=net0`
+# N1 / ADR-066 + N2 / ADR-067 + N5 / ADR-074: QEMU attaches
+# `-netdev user,id=net0,guestfwd=tcp:10.0.2.4:7-cmd:…/tcp-echo-stdio.sh`
 # `-device virtio-net-device,netdev=net0`. Host netdev alone is not a probe.
 # N2 adds ICMP echo markers `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok`.
 # N3 / ADR-070: UDP markers `net: udp-tx` / `net: udp-rx` / `net: udp-ok`
 # (DNS query to SLIRP 10.0.2.3:53 — transport probe, not a DNS product).
+# N5 / ADR-074: thin TCP markers `net: tcp-syn` / `net: tcp-est` / `net: tcp-tx` /
+# `net: tcp-rx` / `net: tcp-ok` via guestfwd echo at 10.0.2.4:7 (not a sockets product).
 # ADR-069: `perf: net-ping` (EL0 net_ping CNTPCT; prefix only — ticks vary).
 # ADR-072: `perf: udp-dns` (EL0 net_udp_dns CNTPCT; prefix only — ticks vary).
 # N3.x / ADR-071: EL0 `net_udp_dns` (26) + FAT `/udpdemo` (`libctos: udp-ok` / `udpdemo: ok`).
@@ -47,7 +50,7 @@ TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
 FATAL="${CTOS_FATAL_STRING:-exception: fatal nested}"
-TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-12}"
+TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-20}"
 
 # NFR-03: Linux coreutils has sha256sum; macOS typically has shasum, not
 # sha256sum. OpenSSL is a third option. The same-app proof is still the
@@ -555,7 +558,27 @@ if ! grep -q "net: udp-ok" "$log"; then
     echo "qemu-smoke: missing 'net: udp-ok' on serial (N3 UDP transport, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: virtio-net (N1+N2+N3) strings present"
+if ! grep -q "net: tcp-syn" "$log"; then
+    echo "qemu-smoke: missing 'net: tcp-syn' on serial (N5 TCP SYN, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: tcp-est" "$log"; then
+    echo "qemu-smoke: missing 'net: tcp-est' on serial (N5 TCP established, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: tcp-tx" "$log"; then
+    echo "qemu-smoke: missing 'net: tcp-tx' on serial (N5 TCP payload TX, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: tcp-rx" "$log"; then
+    echo "qemu-smoke: missing 'net: tcp-rx' on serial (N5 TCP echo RX, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "net: tcp-ok" "$log"; then
+    echo "qemu-smoke: missing 'net: tcp-ok' on serial (N5 thin TCP, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: virtio-net (N1+N2+N3+N5) strings present"
 if grep -q "fat: probe missed" "$log"; then
     echo "qemu-smoke: fat probe missed (FAT16 VFS /probe read did not run)" >&2
     exit 1
