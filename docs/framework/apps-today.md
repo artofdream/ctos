@@ -94,7 +94,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). A fifth (`user/net-libctos`, FAT `/netdemo`) exercises EL0 net SVCs ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md); markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption. Not sockets.
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). A fifth (`user/net-libctos`, FAT `/netdemo`) exercises EL0 net SVCs ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md); markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). A sixth (`user/udp-libctos`, FAT `/udpdemo`) exercises EL0 `net_udp_dns` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md); markers `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption. Not sockets.
 
 ## Sample: freestanding libctos VFS (`fs-libctos`, ADR-059)
 
@@ -133,7 +133,15 @@ That ELF still has to land on FAT `/hello` to run. The hello does **not** call `
 
 **Where.** `user/net-libctos/`, `src/netdemo.rs`, `scripts/mkfat16.py --app5`. Decision: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md).
 
-**Probe.** `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: fat` / `netdemo: mapped` / `netdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `fatdemo: ok` / `yldemo: ok` / N1 `net: ok` / N2 `net: ping-ok`. Not TCP/UDP. Not sockets. Not “has networking.”
+**Probe.** `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: fat` / `netdemo: mapped` / `netdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `fatdemo: ok` / `yldemo: ok` / N1 `net: ok` / N2 `net: ping-ok` / N3 `net: udp-ok`. Not TCP product. Not sockets. Not “has networking.”
+
+## Sample: freestanding libctos UDP DNS SVC (`udp-libctos`, ADR-071)
+
+**What it is.** Sixth freestanding EL0 ELF linked against `libctos`. Prints `libctos: udp-hi`, asks the kernel for a quiet ARP + UDP DNS probe vs SLIRP (`net_udp_dns`), then `libctos: udp-ok`. Loaded from FAT `/udpdemo`. Kernel owns virtio-net — no guest driver in EL0. DNS is probe bait only.
+
+**Where.** `user/udp-libctos/`, `src/udpdemo.rs`, `scripts/mkfat16.py --app6`. Decision: [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md).
+
+**Probe.** `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: fat` / `udpdemo: mapped` / `udpdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `fatdemo: ok` / `yldemo: ok` / `netdemo: ok` / N1 `net: ok` / N2 `net: ping-ok` / N3 `net: udp-ok`. Not TCP product. Not sockets. Not a DNS product. Not “has networking.”
 
 
 ## Sample: memfs named-buffer probe (A6)

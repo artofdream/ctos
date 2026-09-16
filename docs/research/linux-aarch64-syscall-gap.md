@@ -37,7 +37,7 @@ A later kernel `qemu-smoke` is a different row. This mile did not edit `src/`.
 
 Linux `svc #0` **collides** with the ADR-013 first-mile probe (`SVC #0`). [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md) rejected adopting the Linux convention for that reason. A translation shim would be a later epic after B6 — not this page.
 
-Public ctos numbers **16–23** are also **not** the Linux meaning of those integers:
+Public ctos numbers **16–26** are also **not** the Linux meaning of those integers:
 
 | Immediate / `x8` | Linux AArch64 (v6.10 generic) | ctos |
 | --- | --- | --- |
@@ -52,8 +52,11 @@ Public ctos numbers **16–23** are also **not** the Linux meaning of those inte
 | 21 | `epoll_ctl` | `fs_read` |
 | 22 | `epoll_pwait` | `fs_write` |
 | 23 | `dup` | `fs_close` |
+| 24 | `dup3` | `net_mac` |
+| 25 | `fcntl` | `net_ping` |
+| 26 | `inotify_init1` | `net_udp_dns` |
 
-You cannot “just accept Linux numbers” in the SVC immediate, and you cannot treat today’s 16–23 as Linux.
+You cannot “just accept Linux numbers” in the SVC immediate, and you cannot treat today’s 16–26 as Linux.
 
 ## ctos surface (inspection)
 
@@ -69,6 +72,9 @@ Reserved **0–2** are probe-only. Public:
 | 21 | `fs_read` | `read` (63) | Handle 1–4; cap 64; no stdin. UART RX is kernel-side, not this SVC. |
 | 22 | `fs_write` | `write` (64) | memfs only (FAT write is `ReadOnly`); cap 64; not fd 1/2. |
 | 23 | `fs_close` | `close` (57) | Drops the handle; the file stays. Four handles max. |
+| 24 | `net_mac` | — | Guest MAC copy; not Linux `dup3` (24). Kernel owns NIC ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). |
+| 25 | `net_ping` | — | Quiet ICMP echo; not Linux `fcntl` (25). |
+| 26 | `net_udp_dns` | — | Quiet UDP DNS probe; not Linux `inotify_init1` (26). DNS bait only ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). |
 
 Unknown immediates park. Not POSIX. Not Linux VFS.
 

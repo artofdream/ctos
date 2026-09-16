@@ -94,7 +94,7 @@ On-disk filesystem work started as A7 (FAT16 read, not xv6-like). FAT16 write de
 
 ## Track N — network foundation ([ADR-063](../03-adr/ADR-063-network-foundation-scope.md))
 
-Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). N1 first frame: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md). N2 ICMP ping: [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md). N3 UDP transport: [ADR-070](../03-adr/ADR-070-n3-udp-transport.md). N4 EL0 net sample: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md). Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Still not product: BSD sockets, TCP stack, DHCP/DNS as product, Wi‑Fi, Linux net stack, “has networking / sockets OS” marketing.
+Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../03-adr/ADR-063-network-foundation-scope.md). N1 first frame: [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md). N2 ICMP ping: [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md). N3 UDP transport: [ADR-070](../03-adr/ADR-070-n3-udp-transport.md). N3.x EL0 UDP SVC: [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md). N4 EL0 net sample: [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md). Reuse virtio-mmio patterns from blk; do not break FAT/blk smoke. Still not product: BSD sockets, TCP stack, DHCP/DNS as product, Wi‑Fi, Linux net stack, “has networking / sockets OS” marketing.
 
 | ID | Work | Probe that closes it | Status |
 | --- | --- | --- | --- |
@@ -103,6 +103,7 @@ Separate track from A/B. Hub: [track-n.md](track-n.md). N0 scope: [ADR-063](../0
 | N2 | ARP + ICMP ping (kernel-path, ADR-067) | After ARP: ICMP echo vs `10.0.2.2`; `net: icmp-tx` / `net: icmp-rx` / `net: ping-ok`; QEMU args unchanged | **Verified** when this tip’s `qemu-smoke` prints `net: ping-ok` |
 | N3 | Minimal UDP transport (ADR-070) | UDP DNS query/reply vs SLIRP `10.0.2.3:53`; `net: udp-tx` / `net: udp-rx` / `net: udp-ok`; keep N1/N2 | **Verified** when this tip’s `qemu-smoke` prints `net: udp-ok` |
 | N4 | Freestanding sample using net SVCs (ADR-068) | `libctos: net-ok` / `netdemo: ok`; keep N1/N2/N3/samples | **Verified** when tip prints those markers |
+| N3.x | EL0 UDP DNS SVC + udpdemo (ADR-071) | `libctos: udp-ok` / `udpdemo: ok`; keep N1/N2/N3/N4/samples | **Verified** when tip prints those markers |
 
 ## Docs website
 

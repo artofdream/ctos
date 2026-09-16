@@ -1,12 +1,13 @@
 //! virtio-mmio block + net on QEMU `virt`.
 //!
 //! Block: Track A / A7 / ADR-028 — one split virtqueue, sector R/W.
-//! Net: Track N / N1–N2 / ADR-066 / ADR-067 — RX+TX queues, ARP then ICMP
-//! echo vs QEMU user netdev. N4 / ADR-068 exposes tiny EL0 SVCs that call
-//! into this module (kernel still owns the NIC). ADR-069 times the quiet
-//! EL0 `net_ping` path with CNTPCT (`perf: net-ping`). Scan transports,
-//! DMA at identity PAs, poll `used.idx`. Not virtio-pci. Not a virtio IRQ.
-//! Not TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
+//! Net: Track N / N1–N3 / ADR-066 / ADR-067 / ADR-070 — RX+TX queues, ARP
+//! then ICMP then one UDP datagram vs QEMU user netdev. N4 / ADR-068 and
+//! N3.x / ADR-071 expose tiny EL0 SVCs that call into this module (kernel
+//! still owns the NIC). ADR-069 times the quiet EL0 `net_ping` path with
+//! CNTPCT (`perf: net-ping`). Scan transports, DMA at identity PAs, poll
+//! `used.idx`. Not virtio-pci. Not a virtio IRQ.
+//! Not BSD sockets / TCP product / DHCP/DNS product / Wi-Fi.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -1191,7 +1192,7 @@ pub fn net_ready() -> bool {
 
 /// Serial proof: discover + ARP TX/RX + ICMP echo + UDP DNS vs SLIRP.
 /// Host `-netdev` without this guest path is not a probe. Kernel-path.
-/// N1/N2: ADR-066/067. N3 UDP: ADR-070. EL0 quiet helpers: ADR-068/069.
+/// N1/N2: ADR-066/067. N3 UDP: ADR-070. EL0 quiet helpers: ADR-068/069/071.
 #[allow(dead_code)]
 pub fn observe_net_probe() -> bool {
     if !paging::mmu_enabled() {
@@ -1383,6 +1384,36 @@ pub fn net_ping_ticks() -> u64 {
     NET_PING_TICKS.load(Ordering::SeqCst)
 }
 
+/// Quiet ARP + UDP DNS probe vs SLIRP DNS for EL0 `net_udp_dns` (ADR-071).
+/// Kernel still programs virtio-net; no serial N3 markers here.
+/// DNS is probe bait only — not a guest DNS product.
+pub fn el0_udp_dns() -> bool {
+    if !paging::mmu_enabled() || !net_ready() {
+        return false;
+    }
+    let net = NET.lock();
+    let Some(rx_last) = net_post_rx(&net) else {
+        return false;
+    };
+    let arp_len = unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
+    if !net_tx_frame(&net, arp_len) {
+        return false;
+    }
+    let Some(gw) = net_rx_arp_reply(&net, rx_last) else {
+        return false;
+    };
+    let Some(rx2) = net_post_rx(&net) else {
+        return false;
+    };
+    let udp_len = unsafe {
+        fill_udp_dns_query(&net.mac, &gw, &mut (*addr_of_mut!(NET_TX)).frame)
+    };
+    if !net_tx_frame(&net, udp_len) {
+        return false;
+    }
+    net_rx_udp_dns_reply(&net, rx2)
+}
+
 #[cfg(test)]
 #[test_case]
 fn virtio_net_discover_and_arp() {
@@ -1463,3 +1494,14 @@ fn virtio_net_udp_dns_probe() {
         "RX UDP DNS reply from QEMU SLIRP DNS 10.0.2.3"
     );
 }
+
+#[cfg(test)]
+#[test_case]
+fn el0_udp_dns_probe() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev)");
+    assert!(
+        el0_udp_dns(),
+        "quiet ARP+UDP DNS for EL0 net_udp_dns must succeed"
+    );
+}
+
