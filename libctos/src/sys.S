@@ -65,3 +65,9 @@ ctos_net_mac:
 ctos_net_ping:
     svc #25
     ret
+
+    .global ctos_net_udp_dns
+    .type ctos_net_udp_dns, %function
+ctos_net_udp_dns:
+    svc #26
+    ret

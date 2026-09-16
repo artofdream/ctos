@@ -10,7 +10,7 @@
 
 ctos is a **learning** AArch64 kernel for QEMU `virt`. It is not a desktop, not POSIX, and not a “secure OS.” Status words need a probe in the [honesty ledger](honesty-ledger.md). This note does **not** invent latency, size, or “faster than” numbers. Measured markers live in the ledger; they are one environment each.
 
-Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md). Immutability: [immutability.md](immutability.md) (scoped only). Tracks: [A](../04-roadmap/track-a.md) / [B](../04-roadmap/track-b.md) / [N](../04-roadmap/track-n.md) (subordinate; N1 [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md), N2 [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md), N4 [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)).
+Vision: [product-vision.md](../01-vision/product-vision.md). Pillars: [pillars.md](pillars.md). Frozen IDs: [fr-nfr.md](../02-requirements/fr-nfr.md). Samples: [apps-today.md](apps-today.md). Porting: [building-or-porting.md](building-or-porting.md). Immutability: [immutability.md](immutability.md) (scoped only). Tracks: [A](../04-roadmap/track-a.md) / [B](../04-roadmap/track-b.md) / [N](../04-roadmap/track-n.md) (subordinate; N1 [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md), N2 [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md), N3 [ADR-070](../03-adr/ADR-070-n3-udp-transport.md), N3.x [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md), N4 [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)).
 
 Site chapters (source of truth for the published book): [Overview](../overview/measure.md). HTTPS at https://ctos.artof.link is **Verified** (2026-09-11 after #30). See [website.md](../website.md).
 
@@ -46,7 +46,7 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
 - **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`); a loaded `libctos` hello as a standing **task** until `exit` (`el0: task-ok`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
-- **Cannot run:** Linux ELF, shell, Python, network **servers** (Track N is ARP+ICMP + tiny EL0 net SVC sample — not sockets), POSIX disk apps, SMP, isolated userspace. Umbrella isolation stays **Planned / non-claim**; PAN enable is a non-goal on default a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap/leftover-RAM tears are ADR-037/038/049. Filesystem stance: [filesystem.md](filesystem.md) (memfs + FAT16 read/write). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
+- **Cannot run:** Linux ELF, shell, Python, network **servers** (Track N is ARP+ICMP+UDP + tiny EL0 net/UDP SVC samples — not sockets), POSIX disk apps, SMP, isolated userspace. Umbrella isolation stays **Planned / non-claim**; PAN enable is a non-goal on default a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap/leftover-RAM tears are ADR-037/038/049. Filesystem stance: [filesystem.md](filesystem.md) (memfs + FAT16 read/write). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
 
 ## Building or porting
 

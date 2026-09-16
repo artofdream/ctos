@@ -25,20 +25,52 @@ import time
 HELLO = os.environ.get("CTOS_HELLO_STRING", "Hello World!").encode()
 SERROR_ARM = b"el0: serror-arm"
 INJECT = bytes([int(os.environ.get("CTOS_INPUT_BYTE", "0x41"), 0)])
-TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "8"))
+TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "12"))
 # Give the guest a moment after the cue to ERET into the A-clear spin.
 SERROR_INJECT_DELAY = float(os.environ.get("CTOS_SERROR_INJECT_DELAY", "0.05"))
 
 
 def prepare_fat16(root: str) -> str:
-    """Host-visible FAT16 image for A7 + A9 /hello. Not a guest probe by itself."""
+    """Host-visible FAT16 image for A7 + catalog samples. Not a guest probe by itself."""
     img = os.environ.get("CTOS_BLK_IMAGE") or os.path.join(root, "target", "fat16.img")
     app = os.environ.get("CTOS_APP_ELF") or os.path.join(root, "target", "hello-libctos.elf")
+    app2 = os.environ.get("CTOS_APP2_ELF") or os.path.join(root, "target", "fs-libctos.elf")
+    app3 = os.environ.get("CTOS_APP3_ELF") or os.path.join(root, "target", "fat-libctos.elf")
+    app4 = os.environ.get("CTOS_APP4_ELF") or os.path.join(root, "target", "yield-libctos.elf")
+    app5 = os.environ.get("CTOS_APP5_ELF") or os.path.join(root, "target", "net-libctos.elf")
+    app6 = os.environ.get("CTOS_APP6_ELF") or os.path.join(root, "target", "udp-libctos.elf")
     mk = os.path.join(root, "scripts", "mkfat16.py")
-    if not os.path.isfile(app):
-        raise SystemExit(f"qemu-serial-inject: missing app ELF {app} (A9 / ADR-030)")
+    for label, path in (
+        ("app", app),
+        ("app2", app2),
+        ("app3", app3),
+        ("app4", app4),
+        ("app5", app5),
+        ("app6", app6),
+    ):
+        if not os.path.isfile(path):
+            raise SystemExit(
+                f"qemu-serial-inject: missing {label} ELF {path} (catalog / ADR-071)"
+            )
     subprocess.check_call(
-        [sys.executable, mk, "--app", app, img], stdout=subprocess.DEVNULL
+        [
+            sys.executable,
+            mk,
+            "--app",
+            app,
+            "--app2",
+            app2,
+            "--app3",
+            app3,
+            "--app4",
+            app4,
+            "--app5",
+            app5,
+            "--app6",
+            app6,
+            img,
+        ],
+        stdout=subprocess.DEVNULL,
     )
     return img
 
@@ -147,7 +179,7 @@ def main() -> int:
         "-qmp",
         f"unix:{qmp_sock},server,nowait",
         "-drive",
-        f"if=none,file={img},format=raw,id=hd0",
+        f"if=none,file={img},format=raw,cache=writethrough,id=hd0",
         "-device",
         "virtio-blk-device,drive=hd0",
         "-netdev",

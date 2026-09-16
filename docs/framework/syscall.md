@@ -24,10 +24,11 @@ Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#
 | 23 | `fs_close` | `x0` = fd | Drop the handle. The file stays. | `0` on success, `u64::MAX` if rejected. |
 | 24 | `net_mac` | `x0` = buf, `x1` = length (≥6) | Copy guest virtio-net MAC (6 bytes). Kernel owns the NIC ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). | `6`, or `0`. |
 | 25 | `net_ping` | none | Kernel-path ARP + ICMP echo to SLIRP `10.0.2.2`. Not sockets. | `0` on success, `u64::MAX` on fail. |
+| 26 | `net_udp_dns` | none | Kernel-path ARP + UDP DNS probe vs SLIRP `10.0.2.3:53` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). DNS is probe bait only. Not sockets. Not a DNS product. | `0` on success, `u64::MAX` on fail. |
 
 Unknown `SVC` immediates park (fail-closed). Not POSIX. Not Linux VFS.
 
-Track B B2 maps these numbers against Linux AArch64 (`svc #0`, `x8`): [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md). Track B B4 maps ELF / auxv / `PT_INTERP` against the freestanding loader: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md). Inspection only. **Not claiming Linux userspace.** **Not claiming dynamic Linux ELF.** Do not retarget 16–25 to Linux `x8`.
+Track B B2 maps these numbers against Linux AArch64 (`svc #0`, `x8`): [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md). Track B B4 maps ELF / auxv / `PT_INTERP` against the freestanding loader: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md). Inspection only. **Not claiming Linux userspace.** **Not claiming dynamic Linux ELF.** Do not retarget 16–26 to Linux `x8`.
 
 ## Probe
 
@@ -55,7 +56,7 @@ Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md))
 
 ## Sample recipes (A8)
 
-Rebuild recipes for the probed classes: [what-can-run.md](../overview/what-can-run.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. N4 adds 24–25 ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). File presence is not a new runtime.
+Rebuild recipes for the probed classes: [what-can-run.md](../overview/what-can-run.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. N4 adds 24–25 ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). N3.x adds 26 ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). File presence is not a new runtime.
 
 ## OS/app slots (A9)
 

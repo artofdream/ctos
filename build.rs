@@ -6,6 +6,8 @@
 //! ADR-061: also publish `target/fat-libctos.elf` for FAT `/fatdemo`.
 //! ADR-062: also publish `target/yield-libctos.elf` for FAT `/yldemo`.
 //! ADR-068: also publish `target/net-libctos.elf` for FAT `/netdemo`.
+//! ADR-071: also publish `target/udp-libctos.elf` for FAT `/udpdemo`.
+//! ADR-071: also publish `target/udp-libctos.elf` for FAT `/udpdemo`.
 //!
 //! This is **not** a guest ELF loader (A3). The parse is host-side only.
 
@@ -27,6 +29,7 @@ fn main() {
     let fat_dir = manifest_dir.join("user/fat-libctos");
     let yield_dir = manifest_dir.join("user/yield-libctos");
     let net_dir = manifest_dir.join("user/net-libctos");
+    let udp_dir = manifest_dir.join("user/udp-libctos");
     let libctos_dir = manifest_dir.join("libctos");
 
     println!("cargo:rerun-if-changed={}", hello_dir.display());
@@ -34,6 +37,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", fat_dir.display());
     println!("cargo:rerun-if-changed={}", yield_dir.display());
     println!("cargo:rerun-if-changed={}", net_dir.display());
+    println!("cargo:rerun-if-changed={}", udp_dir.display());
     println!("cargo:rerun-if-changed={}", libctos_dir.display());
     println!("cargo:rerun-if-changed=build.rs");
 
@@ -187,6 +191,31 @@ fn main() {
     )
     .unwrap();
     println!("cargo:rustc-env=CTOS_NET_LIBCTOS_ELF_LEN={}", net_elf.len());
+
+    // ADR-071: sixth freestanding sample (EL0 UDP DNS SVC). FAT `/udpdemo` only.
+    let udp_elf = build_user_rust(&manifest_dir, &udp_dir, &out_dir, "udp-libctos")
+        .unwrap_or_else(|e| panic!("libctos udp-libctos payload: {e}"));
+    let (udp_va, udp_image) =
+        elf64_pt_load(&udp_elf).unwrap_or_else(|e| panic!("udp-libctos ELF: {e}"));
+    if udp_va != EL0_PAGE {
+        panic!("udp-libctos load VA {udp_va:#x} != EL0_PAGE {EL0_PAGE:#x}");
+    }
+    if udp_elf.is_empty() || udp_elf.len() > 64 * 1024 {
+        panic!("udp-libctos ELF {} bytes empty or > 64 KiB", udp_elf.len());
+    }
+    assert_udp_payload(&udp_image);
+    fs::write(out_dir.join("udp-libctos.elf"), &udp_elf).unwrap();
+    fs::write(manifest_dir.join("target/udp-libctos.elf"), &udp_elf).unwrap();
+    fs::write(
+        out_dir.join("udp_libctos_meta.rs"),
+        format!(
+            "pub const UDPDEMO_LOAD_VA: u64 = {EL0_PAGE:#x};\n\
+             pub const UDPDEMO_ELF_LEN: usize = {};\n",
+            udp_elf.len()
+        ),
+    )
+    .unwrap();
+    println!("cargo:rustc-env=CTOS_UDP_LIBCTOS_ELF_LEN={}", udp_elf.len());
 }
 
 fn build_user_rust(
@@ -481,5 +510,30 @@ fn assert_net_payload(image: &[u8]) {
     }
     if !image.windows(16).any(|w| w == b"libctos: net-ok\n") {
         panic!("net-libctos missing libctos: net-ok");
+    }
+}
+
+fn assert_udp_payload(image: &[u8]) {
+    let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
+    let words: Vec<u32> = image
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .collect();
+    for reserved in [0u32, 1, 2] {
+        if words.contains(&svc(reserved)) {
+            panic!("udp-libctos encodes reserved SVC #{reserved} (ADR-013)");
+        }
+    }
+    // exit/uart/yield + net_udp_dns
+    for need in [16u32, 17, 18, 26] {
+        if !words.contains(&svc(need)) {
+            panic!("udp-libctos missing SVC #{need}");
+        }
+    }
+    if !image.windows(16).any(|w| w == b"libctos: udp-hi\n") {
+        panic!("udp-libctos missing libctos: udp-hi");
+    }
+    if !image.windows(16).any(|w| w == b"libctos: udp-ok\n") {
+        panic!("udp-libctos missing libctos: udp-ok");
     }
 }

@@ -8,7 +8,7 @@ Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthro
 
 ## Freestanding sample catalog (glance)
 
-Four published EL0 ELFs on one FAT16 volume. Same rebuild path. Not Linux/POSIX.
+Six published EL0 ELFs on one FAT16 volume. Same rebuild path. Not Linux/POSIX.
 
 ```mermaid
 flowchart LR
@@ -17,13 +17,16 @@ flowchart LR
   FAT --> D["/fatdemo<br/>FAT /probe"]
   FAT --> Y["/yldemo<br/>yield rounds"]
   FAT --> N["/netdemo<br/>net SVCs"]
+  FAT --> U["/udpdemo<br/>UDP DNS SVC"]
   H --> EL0["Standing EL0<br/>libctos"]
   F --> EL0
   D --> EL0
   Y --> EL0
+  N --> EL0
+  U --> EL0
 ```
 
-*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), and `/netdemo` (ADR-068) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
+*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), `/netdemo` (ADR-068), and `/udpdemo` (ADR-071) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
 
 ## Privilege — where code runs
 
@@ -44,10 +47,10 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf` + `target/net-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`; ADR-068 loads FAT `/netdemo`).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf` + `target/net-libctos.elf` + `target/udp-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`; ADR-068 loads FAT `/netdemo`; ADR-071 loads FAT `/udpdemo`).
 
 ```bash
-cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos + user/yield-libctos + user/net-libctos
+cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos + user/yield-libctos + user/net-libctos + user/udp-libctos + user/udp-libctos
 ./scripts/qemu-smoke.sh     # fail-closed serial greps + cargo test + force-fail
 ```
 
@@ -118,7 +121,7 @@ A kernel `cargo build` already does that via `build.rs` and publishes the result
 
 This is **not** a process. No libc, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
 
-`libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them** (UART + one yield). A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). A third reads **FAT** via the same wrappers: see Recipe 3c (`fat-libctos`, [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). A fourth exercises **several cooperative yields**: see Recipe 3d (`yield-libctos`, [ADR-062](../03-adr/ADR-062-yield-libctos-sample.md)). A fifth exercises **EL0 net SVCs**: see Recipe 3e (`net-libctos`, [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
+`libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them** (UART + one yield). A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). A third reads **FAT** via the same wrappers: see Recipe 3c (`fat-libctos`, [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). A fourth exercises **several cooperative yields**: see Recipe 3d (`yield-libctos`, [ADR-062](../03-adr/ADR-062-yield-libctos-sample.md)). A fifth exercises **EL0 net SVCs**: see Recipe 3e (`net-libctos`, [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). A sixth exercises **EL0 UDP DNS SVC**: see Recipe 3f (`udp-libctos`, [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
 
 ## Recipe 3b — Standing EL0 / libctos VFS sample (`fs-libctos`)
 
@@ -157,6 +160,31 @@ Fourth freestanding EL0 payload that issues **several cooperative `yield_now()` 
 | Kernel probe | `src/yldemo.rs` |
 
 Rebuild: same one-rebuild commands. Keep `/hello` + `/fsdemo` + `/fatdemo` + `slot: ok` + `fsdemo: ok` + `fatdemo: ok`. Not POSIX. Not preemption. Not a reopen of product app hosting (ADR-048/052).
+
+
+## Recipe 3e — Standing EL0 / libctos net SVCs (`net-libctos`)
+
+Fifth freestanding EL0 payload that exercises **EL0 net SVCs** ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). Same class as `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`. Kernel owns virtio-net.
+
+| Piece | Path |
+| --- | --- |
+| Sample | `user/net-libctos/` |
+| FAT slot | `/netdemo` (`target/net-libctos.elf` via `mkfat16.py --app5`) |
+| Kernel probe | `src/netdemo.rs` |
+
+Rebuild: same one-rebuild commands. Keep prior samples + N1/N2 markers. Not TCP product. Not sockets. Not “has networking.” Not a reopen of product app hosting (ADR-048/052).
+
+## Recipe 3f — Standing EL0 / libctos UDP DNS SVC (`udp-libctos`)
+
+Sixth freestanding EL0 payload that exercises **EL0 `net_udp_dns`** ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). Same class as `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`. DNS is probe bait only.
+
+| Piece | Path |
+| --- | --- |
+| Sample | `user/udp-libctos/` |
+| FAT slot | `/udpdemo` (`target/udp-libctos.elf` via `mkfat16.py --app6`) |
+| Kernel probe | `src/udpdemo.rs` |
+
+Rebuild: same one-rebuild commands. Keep `/hello` + `/fsdemo` + `/fatdemo` + `/yldemo` + `/netdemo` + N1/N2/N3 markers. Not TCP product. Not sockets. Not a DNS product. Not “has networking.” Not a reopen of product app hosting (ADR-048/052).
 
 ## Recipe 4 — memfs named-buffer probe (optional)
 
@@ -206,7 +234,7 @@ flowchart TD
   Q{"Want to run it on ctos today?"}
   Q -->|UART worker / echo / stub / memfs / FAT probe| Y["Yes — extend the kernel in-tree"]
   Q -->|Linux binary, shell, Python| N1["No"]
-  Q -->|Network server or Linux disk apps| N2["No — ARP/ICMP only, no sockets / no POSIX FS"]
+  Q -->|Network server or Linux disk apps| N2["No — ARP/ICMP/UDP probe only, no sockets / no POSIX FS"]
   Q -->|Docker / OCI container| N3["No — not a goal"]
 ```
 
@@ -217,7 +245,7 @@ Do not imply these work:
 - Linux binaries (no Linux ABI, no ELF loader for third-party programs)
 - A shell
 - Python (or any hosted language runtime)
-- Network servers (virtio-net ARP + ICMP + minimal UDP probe only — [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-070](../03-adr/ADR-070-n3-udp-transport.md); no BSD sockets / TCP product)
+- Network servers (virtio-net ARP + ICMP + minimal UDP probe + EL0 UDP DNS SVC sample only — [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-070](../03-adr/ADR-070-n3-udp-transport.md) / [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md); no BSD sockets / TCP product)
 - POSIX / Linux filesystem apps (memfs + FAT16 read/write miles are not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
 - Product freestanding app hosting (**Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md); not Linux/POSIX/containers/OTA — [issue #48](https://github.com/artofdream/ctos/issues/48))

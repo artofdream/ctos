@@ -1,13 +1,13 @@
 //! Freestanding `libctos` — wrappers for the A1 EL0 SVC ABI (ADR-021 / ADR-022)
-//! plus A6 memfs numbers (ADR-027) and Track N net numbers (ADR-068).
+//! plus A6 memfs numbers (ADR-027) and Track N net numbers (ADR-068 / ADR-071).
 //!
 //! Public numbers: `exit` = 16, `uart_write` = 17, `yield` = 18,
 //! `fs_create` = 19, `fs_open` = 20, `fs_read` = 21, `fs_write` = 22,
-//! `fs_close` = 23, `net_mac` = 24, `net_ping` = 25. Reserved 0–2 stay
-//! ADR-013 probes. This crate must not issue them.
+//! `fs_close` = 23, `net_mac` = 24, `net_ping` = 25, `net_udp_dns` = 26.
+//! Reserved 0–2 stay ADR-013 probes. This crate must not issue them.
 //!
 //! Not Linux. Not POSIX. Not glibc. Not a process model. Not FAT.
-//! Not a TCP/UDP stack. Not BSD sockets.
+//! Not a TCP stack. Not BSD sockets. Not a DNS product.
 
 #![no_std]
 
@@ -35,6 +35,8 @@ pub const SYS_FS_CLOSE: u64 = 23;
 pub const SYS_NET_MAC: u64 = 24;
 /// Kernel-path ICMP echo to SLIRP gateway. Returns 0 on success, `u64::MAX` on fail.
 pub const SYS_NET_PING: u64 = 25;
+/// Kernel-path UDP DNS probe to SLIRP 10.0.2.3:53 (ADR-071). Returns 0, or `u64::MAX`.
+pub const SYS_NET_UDP_DNS: u64 = 26;
 
 /// ADR-013 probe immediates. CRT / libctos must not issue these.
 pub const SVC_PROBE_RETURN: u64 = 0;
@@ -49,7 +51,7 @@ const _: () = assert!(
         && SYS_FS_WRITE == 22
         && SYS_FS_CLOSE == 23
 );
-const _: () = assert!(SYS_NET_MAC == 24 && SYS_NET_PING == 25);
+const _: () = assert!(SYS_NET_MAC == 24 && SYS_NET_PING == 25 && SYS_NET_UDP_DNS == 26);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RETURN);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_STANDING);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RESTORE);
@@ -65,6 +67,7 @@ extern "C" {
     pub fn ctos_fs_close(fd: u64) -> u64;
     pub fn ctos_net_mac(ptr: *mut u8, len: usize) -> u64;
     pub fn ctos_net_ping() -> u64;
+    pub fn ctos_net_udp_dns() -> u64;
 }
 
 /// End the EL0 trip. Does not return to the caller.
@@ -125,4 +128,10 @@ pub fn net_mac(buf: &mut [u8]) -> u64 {
 #[inline]
 pub fn net_ping() -> u64 {
     unsafe { ctos_net_ping() }
+}
+
+/// `SYS_NET_UDP_DNS`. Returns 0 on UDP DNS probe success, `u64::MAX` if rejected.
+#[inline]
+pub fn net_udp_dns() -> u64 {
+    unsafe { ctos_net_udp_dns() }
 }

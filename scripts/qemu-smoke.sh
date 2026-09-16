@@ -18,6 +18,7 @@
 # N3 / ADR-070: UDP markers `net: udp-tx` / `net: udp-rx` / `net: udp-ok`
 # (DNS query to SLIRP 10.0.2.3:53 — transport probe, not a DNS product).
 # ADR-069: `perf: net-ping` (EL0 net_ping CNTPCT; prefix only — ticks vary).
+# N3.x / ADR-071: EL0 `net_udp_dns` (26) + FAT `/udpdemo` (`libctos: udp-ok` / `udpdemo: ok`).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -45,7 +46,7 @@ TICK="${CTOS_TICK_STRING:-timer: tick}"
 INPUT="${CTOS_INPUT_STRING:-input: rx 0x41}"
 BRK="${CTOS_BRK_STRING:-exception: sync BRK}"
 FATAL="${CTOS_FATAL_STRING:-exception: fatal nested}"
-TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-8}"
+TIMEOUT_SECS="${CTOS_QEMU_TIMEOUT:-12}"
 
 # NFR-03: Linux coreutils has sha256sum; macOS typically has shasum, not
 # sha256sum. OpenSSL is a third option. The same-app proof is still the
@@ -90,11 +91,13 @@ echo "qemu-smoke: host ELF size present ($elf_bytes bytes)"
 # ADR-061: third freestanding sample ELF for FAT /fatdemo.
 # ADR-062: fourth freestanding sample ELF for FAT /yldemo.
 # ADR-068: fifth freestanding sample ELF for FAT /netdemo.
+# ADR-071: sixth freestanding sample ELF for FAT /udpdemo.
 app="${CTOS_APP_ELF:-$ROOT/target/hello-libctos.elf}"
 app2="${CTOS_APP2_ELF:-$ROOT/target/fs-libctos.elf}"
 app3="${CTOS_APP3_ELF:-$ROOT/target/fat-libctos.elf}"
 app4="${CTOS_APP4_ELF:-$ROOT/target/yield-libctos.elf}"
 app5="${CTOS_APP5_ELF:-$ROOT/target/net-libctos.elf}"
+app6="${CTOS_APP6_ELF:-$ROOT/target/udp-libctos.elf}"
 if [ ! -f "$app" ]; then
     echo "qemu-smoke: missing app payload $app (A9 / ADR-030; cargo build publishes it)" >&2
     exit 1
@@ -115,11 +118,16 @@ if [ ! -f "$app5" ]; then
     echo "qemu-smoke: missing app5 payload $app5 (ADR-068; cargo build publishes it)" >&2
     exit 1
 fi
+if [ ! -f "$app6" ]; then
+    echo "qemu-smoke: missing app6 payload $app6 (ADR-071; cargo build publishes it)" >&2
+    exit 1
+fi
 app_bytes=$(wc -c < "$app" | tr -d ' ')
 app2_bytes=$(wc -c < "$app2" | tr -d ' ')
 app3_bytes=$(wc -c < "$app3" | tr -d ' ')
 app4_bytes=$(wc -c < "$app4" | tr -d ' ')
 app5_bytes=$(wc -c < "$app5" | tr -d ' ')
+app6_bytes=$(wc -c < "$app6" | tr -d ' ')
 if [ -z "$app_bytes" ] || [ "$app_bytes" -lt 64 ]; then
     echo "qemu-smoke: app ELF implausibly small ($app_bytes)" >&2
     exit 1
@@ -138,6 +146,10 @@ if [ -z "$app4_bytes" ] || [ "$app4_bytes" -lt 64 ]; then
 fi
 if [ -z "$app5_bytes" ] || [ "$app5_bytes" -lt 64 ]; then
     echo "qemu-smoke: app5 ELF implausibly small ($app5_bytes)" >&2
+    exit 1
+fi
+if [ -z "$app6_bytes" ] || [ "$app6_bytes" -lt 64 ]; then
+    echo "qemu-smoke: app6 ELF implausibly small ($app6_bytes)" >&2
     exit 1
 fi
 if cmp -s "$elf" "$app"; then
@@ -160,12 +172,17 @@ if cmp -s "$app" "$app5" || cmp -s "$app2" "$app5" || cmp -s "$app3" "$app5" || 
     echo "qemu-smoke: netdemo payload duplicates hello, fsdemo, fatdemo, or yldemo" >&2
     exit 1
 fi
-echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes) + app2 $app2 ($app2_bytes bytes) + app3 $app3 ($app3_bytes bytes) + app4 $app4 ($app4_bytes bytes) + app5 $app5 ($app5_bytes bytes)"
+if cmp -s "$app" "$app6" || cmp -s "$app2" "$app6" || cmp -s "$app3" "$app6" || cmp -s "$app4" "$app6" || cmp -s "$app5" "$app6"; then
+    echo "qemu-smoke: udpdemo payload duplicates hello, fsdemo, fatdemo, yldemo, or netdemo" >&2
+    exit 1
+fi
+echo "qemu-smoke: OS image $elf ($elf_bytes bytes) + app payload $app ($app_bytes bytes) + app2 $app2 ($app2_bytes bytes) + app3 $app3 ($app3_bytes bytes) + app4 $app4 ($app4_bytes bytes) + app5 $app5 ($app5_bytes bytes) + app6 $app6 ($app6_bytes bytes)"
 echo "qemu-smoke: kernel rebuild compiled app payload (build.rs published $app)"
 echo "qemu-smoke: kernel rebuild compiled fsdemo payload (build.rs published $app2)"
 echo "qemu-smoke: kernel rebuild compiled fatdemo payload (build.rs published $app3)"
 echo "qemu-smoke: kernel rebuild compiled yldemo payload (build.rs published $app4)"
 echo "qemu-smoke: kernel rebuild compiled netdemo payload (build.rs published $app5)"
+echo "qemu-smoke: kernel rebuild compiled udpdemo payload (build.rs published $app6)"
 
 # ADR-039: standing/EL0 trampoline path must not TLBI VMALLE1.
 if grep -n 'tlbi vmalle1' src/exception.rs; then
@@ -188,14 +205,15 @@ echo "qemu-smoke: A2/A3 do not include_bytes! hello-libctos (slot.rs probe-only 
 
 # A7 host-visible FAT16 (ADR-028) + A9 /hello app slot.
 img="${CTOS_BLK_IMAGE:-$ROOT/target/fat16.img}"
-python3 "$ROOT/scripts/mkfat16.py" --app "$app" --app2 "$app2" --app3 "$app3" --app4 "$app4" --app5 "$app5" "$img"
-python3 "$ROOT/scripts/mkfat16.py" --check --require-app --require-app2 --require-app3 --require-app4 --require-app5 "$img"
+python3 "$ROOT/scripts/mkfat16.py" --app "$app" --app2 "$app2" --app3 "$app3" --app4 "$app4" --app5 "$app5" --app6 "$app6" "$img"
+python3 "$ROOT/scripts/mkfat16.py" --check --require-app --require-app2 --require-app3 --require-app4 --require-app5 --require-app6 "$img"
 export CTOS_BLK_IMAGE="$img"
 export CTOS_APP_ELF="$app"
 export CTOS_APP2_ELF="$app2"
 export CTOS_APP3_ELF="$app3"
 export CTOS_APP4_ELF="$app4"
 export CTOS_APP5_ELF="$app5"
+export CTOS_APP6_ELF="$app6"
 echo "qemu-smoke: FAT16 image $img (host-visible; not a guest probe)"
 
 log=$(mktemp)
@@ -787,6 +805,35 @@ if ! grep -q "netdemo: ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: ADR-068 net-libctos /netdemo strings present"
+if grep -q "udpdemo: probe missed" "$log"; then
+    echo "qemu-smoke: udpdemo probe missed (FAT /udpdemo load path did not run)" >&2
+    exit 1
+fi
+if ! grep -q "udpdemo: fat" "$log"; then
+    echo "qemu-smoke: missing 'udpdemo: fat' on serial (ADR-071 FAT /udpdemo read, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "udpdemo: mapped" "$log"; then
+    echo "qemu-smoke: missing 'udpdemo: mapped' on serial (ADR-071 PT_LOAD map, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: udp-hi" "$log"; then
+    echo "qemu-smoke: missing 'libctos: udp-hi' on serial (udp-libctos uart_write, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "libctos: udp-ok" "$log"; then
+    echo "qemu-smoke: missing 'libctos: udp-ok' on serial (udp-libctos net_udp_dns SVC, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "libctos: udp-fail" "$log"; then
+    echo "qemu-smoke: saw 'libctos: udp-fail' on serial (udp-libctos net_udp_dns failed, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "udpdemo: ok" "$log"; then
+    echo "qemu-smoke: missing 'udpdemo: ok' on serial (ADR-071 sixth sample, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-071 udp-libctos /udpdemo strings present"
 # ADR-069: EL0 net_ping CNTPCT (prefix only — tick values vary under TCG).
 if grep -q "perf: net-ping missed" "$log"; then
     echo "qemu-smoke: net-ping probe missed (CNTPCT around EL0 net_ping did not advance)" >&2
@@ -1235,6 +1282,7 @@ export CTOS_APP2_ELF="$app2"
 export CTOS_APP3_ELF="$app3"
 export CTOS_APP4_ELF="$app4"
 export CTOS_APP5_ELF="$app5"
+export CTOS_APP6_ELF="$app6"
 export CTOS_BLK_IMAGE="$img"
 
 echo "qemu-smoke: cargo test (semihosting exit)"
@@ -1250,7 +1298,7 @@ if [ "$test_ec" -ne 0 ]; then
 fi
 
 # Force-fail rebuilds ctos with --features force-fail. On ubuntu-24.04-arm GHA
-# that recompile alone can take ~30s, and ADR-059 /fsdemo + ADR-061 /fatdemo + ADR-062 /yldemo + ADR-068 /netdemo also lengthen boot —
+# that recompile alone can take ~30s, and ADR-059 /fsdemo + ADR-061 /fatdemo + ADR-062 /yldemo + ADR-068 /netdemo + ADR-071 /udpdemo also lengthen boot —
 # so the old 30s wall often expired before semihosting exit. Override via env.
 FORCE_FAIL_TIMEOUT_SECS="${CTOS_FORCE_FAIL_TIMEOUT:-120}"
 echo "qemu-smoke: force-fail must be non-zero (timeout ${FORCE_FAIL_TIMEOUT_SECS}s)"
