@@ -14,9 +14,9 @@ QEMU `-kernel` and `_start` stay at `0x4008_0000`. High-address work (kernel pag
 
 **PAN** is a hardware feature that would stop the kernel from casually reading user memory. Default probe CPU is `-cpu cortex-a57` (ARMv8.0). The ID-field probe is Verified (`pan: absent`). **PAN enable is a locked non-goal on that default probe CPU** ([ADR-054](../03-adr/ADR-054-pan-enable-lock.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not claim PAN. Do not silently switch `-cpu`. Reopen gate: sponsor-approved default CPU + FEAT_PAN + enable+fault ADR.
 
-## No network yet; disk is virtio-blk + FAT16 only
+## Network is virtio-net first-frame only; disk is virtio-blk + FAT16
 
-There is no NIC driver and no virtio-net in the guest today. **Track N Planned** — see [ADR-063](../03-adr/ADR-063-network-foundation-scope.md) / [track-n.md](../04-roadmap/track-n.md) (N0 scope only; N1 first-frame probes not run). A7 programs virtio-mmio block and reads a host-built FAT16 image through the thin VFS; ADR-050 adds a guest FAT16 write / small create mile; ADR-051 / ADR-065 add same-boot FAT vs memfs write and read CNTPCT pairs (lab measurements, not benches) ([Filesystem](filesystem.md), [KPIs](measure.md)). That is not a general DMA API, not virtio-pci, not POSIX, and not a Linux rootfs. Input on virt is serial receive. Timer is the virt interrupt controller plus the generic timer. Do not say “has networking.”
+N1 programs virtio-mmio **virtio-net** enough to TX/RX one raw Ethernet frame (ARP vs QEMU SLIRP gateway) — see [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [track-n.md](../04-roadmap/track-n.md). That is **not** TCP/UDP, sockets, DHCP/DNS product, Wi‑Fi, or “has networking.” A7 programs virtio-mmio block and reads a host-built FAT16 image through the thin VFS; ADR-050 adds a guest FAT16 write / small create mile; ADR-051 / ADR-065 add same-boot FAT vs memfs write and read CNTPCT pairs (lab measurements, not benches) ([Filesystem](filesystem.md), [KPIs](measure.md)). That is not a general DMA API, not virtio-pci, not POSIX, and not a Linux rootfs. Input on virt is serial receive. Timer is the virt interrupt controller plus the generic timer.
 
 ## No real userspace apps
 

@@ -150,6 +150,10 @@ def main() -> int:
         f"if=none,file={img},format=raw,id=hd0",
         "-device",
         "virtio-blk-device,drive=hd0",
+        "-netdev",
+        "user,id=net0",
+        "-device",
+        "virtio-net-device,netdev=net0",
         "-kernel",
         elf,
     ]

@@ -1,7 +1,9 @@
-//! virtio-mmio block on QEMU `virt` (Track A / A7 / ADR-028).
+//! virtio-mmio block + net on QEMU `virt`.
 //!
-//! Scan the virt transports, set up one split virtqueue, DMA at identity
-//! PAs. Poll `used.idx`. Not virtio-pci. Not a virtio IRQ. Not FAT.
+//! Block: Track A / A7 / ADR-028 — one split virtqueue, sector R/W.
+//! Net: Track N / N1 / ADR-066 — RX+TX queues, one ARP TX/RX via QEMU
+//! user netdev. Scan transports, DMA at identity PAs, poll `used.idx`.
+//! Not virtio-pci. Not a virtio IRQ. Not TCP/UDP/sockets/DHCP/DNS/Wi-Fi.
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
@@ -496,4 +498,455 @@ fn virtio_blk_boot_sector_is_fat() {
     assert!(read_sector(0, &mut boot));
     assert_eq!(&boot[510..512], &[0x55, 0xAA]);
     assert_eq!(&boot[54..62], b"FAT16   ");
+}
+
+// ---------------------------------------------------------------------------
+// virtio-net (Track N / N1 / ADR-066) — discover + one ARP TX/RX on QEMU user
+// netdev. Not TCP/UDP. Not sockets. Not DHCP/DNS product. Not Wi-Fi.
+// ---------------------------------------------------------------------------
+
+const DEV_NET: u32 = 1;
+const VIRTIO_NET_F_MAC: u32 = 1 << 5;
+const NET_HDR: usize = 10; // no MRG_RXBUF → no num_buffers
+const NET_FRAME: usize = 128; // ARP fits; keep DMA modest
+const NET_Q_RX: u32 = 0;
+const NET_Q_TX: u32 = 1;
+
+/// Legacy page layout + virtio_net_hdr + small Ethernet buffer.
+#[repr(C, align(4096))]
+struct NetDma {
+    desc: [Desc; QSZ],
+    avail: Avail,
+    _pad: [u8; LEGACY_PAD],
+    used: Used,
+    hdr: [u8; NET_HDR],
+    frame: [u8; NET_FRAME],
+}
+
+impl NetDma {
+    const ZERO: Self = Self {
+        desc: [Desc {
+            addr: 0,
+            len: 0,
+            flags: 0,
+            next: 0,
+        }; QSZ],
+        avail: Avail {
+            flags: 0,
+            idx: 0,
+            ring: [0; QSZ],
+        },
+        _pad: [0; LEGACY_PAD],
+        used: Used {
+            flags: 0,
+            idx: 0,
+            ring: [UsedElem { id: 0, len: 0 }; QSZ],
+        },
+        hdr: [0; NET_HDR],
+        frame: [0; NET_FRAME],
+    };
+}
+
+struct NetDev {
+    base: usize,
+    ver: u32,
+    mac: [u8; 6],
+    ready: bool,
+}
+
+impl NetDev {
+    const fn empty() -> Self {
+        Self {
+            base: 0,
+            ver: 0,
+            mac: [0; 6],
+            ready: false,
+        }
+    }
+}
+
+static NET: Mutex<NetDev> = Mutex::new(NetDev::empty());
+static mut NET_RX: NetDma = NetDma::ZERO;
+static mut NET_TX: NetDma = NetDma::ZERO;
+static NET_READY: AtomicBool = AtomicBool::new(false);
+static NET_TX_OK: AtomicBool = AtomicBool::new(false);
+static NET_RX_OK: AtomicBool = AtomicBool::new(false);
+
+fn find_net() -> Option<(usize, u32)> {
+    for i in 0..MMIO_COUNT {
+        let base = MMIO_BASE + i * MMIO_STRIDE;
+        unsafe {
+            if mmio_read(base, REG_MAGIC) != MAGIC {
+                continue;
+            }
+            let ver = mmio_read(base, REG_VERSION);
+            if ver != VERSION_LEGACY && ver != VERSION_MODERN {
+                continue;
+            }
+            if mmio_read(base, REG_DEVICE_ID) == DEV_NET {
+                return Some((base, ver));
+            }
+        }
+    }
+    None
+}
+
+fn setup_net_queue(base: usize, ver: u32, qidx: u32, dma: *mut NetDma) -> bool {
+    unsafe {
+        *dma = NetDma::ZERO;
+        let desc_pa = dma_pa(addr_of!((*dma).desc) as *const u8);
+        mmio_write(base, REG_QUEUE_SEL, qidx);
+        let max = mmio_read(base, REG_QUEUE_NUM_MAX);
+        if max < QSZ as u32 {
+            return false;
+        }
+        mmio_write(base, REG_QUEUE_NUM, QSZ as u32);
+        if ver == VERSION_LEGACY {
+            if desc_pa & (PAGE as u64 - 1) != 0 {
+                return false;
+            }
+            mmio_write(base, REG_GUEST_PAGE, PAGE as u32);
+            mmio_write(base, REG_QUEUE_ALIGN, PAGE as u32);
+            mmio_write(base, REG_QUEUE_PFN, (desc_pa / PAGE as u64) as u32);
+            dsb();
+            true
+        } else {
+            let avail_pa = dma_pa(addr_of!((*dma).avail) as *const u8);
+            let used_pa = dma_pa(addr_of!((*dma).used) as *const u8);
+            mmio_write(base, REG_DESC_LO, desc_pa as u32);
+            mmio_write(base, REG_DESC_HI, (desc_pa >> 32) as u32);
+            mmio_write(base, REG_AVAIL_LO, avail_pa as u32);
+            mmio_write(base, REG_AVAIL_HI, (avail_pa >> 32) as u32);
+            mmio_write(base, REG_USED_LO, used_pa as u32);
+            mmio_write(base, REG_USED_HI, (used_pa >> 32) as u32);
+            dsb();
+            mmio_write(base, REG_QUEUE_READY, 1);
+            mmio_read(base, REG_QUEUE_READY) == 1
+        }
+    }
+}
+
+fn read_mac(base: usize) -> [u8; 6] {
+    let mut mac = [0u8; 6];
+    unsafe {
+        for i in 0..6 {
+            mac[i] = core::ptr::read_volatile((base + REG_CONFIG + i) as *const u8);
+        }
+    }
+    mac
+}
+
+fn setup_net(base: usize, ver: u32) -> Option<[u8; 6]> {
+    unsafe {
+        mmio_write(base, REG_STATUS, 0);
+        dsb();
+        mmio_write(base, REG_STATUS, STATUS_ACK | STATUS_DRIVER);
+
+        if ver == VERSION_MODERN {
+            mmio_write(base, REG_DEV_FEAT_SEL, 1);
+            let hi = mmio_read(base, REG_DEV_FEAT);
+            if hi & VIRTIO_F_VERSION_1 == 0 {
+                mmio_write(base, REG_STATUS, STATUS_FAILED);
+                return None;
+            }
+            mmio_write(base, REG_DEV_FEAT_SEL, 0);
+            let lo = mmio_read(base, REG_DEV_FEAT);
+            let want_lo = lo & VIRTIO_NET_F_MAC;
+            mmio_write(base, REG_DRV_FEAT_SEL, 0);
+            mmio_write(base, REG_DRV_FEAT, want_lo);
+            mmio_write(base, REG_DRV_FEAT_SEL, 1);
+            mmio_write(base, REG_DRV_FEAT, VIRTIO_F_VERSION_1);
+            mmio_write(
+                base,
+                REG_STATUS,
+                STATUS_ACK | STATUS_DRIVER | STATUS_FEATURES_OK,
+            );
+            if mmio_read(base, REG_STATUS) & STATUS_FEATURES_OK == 0 {
+                mmio_write(base, REG_STATUS, STATUS_FAILED);
+                return None;
+            }
+        } else {
+            mmio_write(base, REG_DEV_FEAT_SEL, 0);
+            let host = mmio_read(base, REG_DEV_FEAT);
+            mmio_write(base, REG_DRV_FEAT_SEL, 0);
+            mmio_write(base, REG_DRV_FEAT, host & VIRTIO_NET_F_MAC);
+        }
+
+        if !setup_net_queue(base, ver, NET_Q_RX, addr_of_mut!(NET_RX)) {
+            mmio_write(base, REG_STATUS, STATUS_FAILED);
+            return None;
+        }
+        if !setup_net_queue(base, ver, NET_Q_TX, addr_of_mut!(NET_TX)) {
+            mmio_write(base, REG_STATUS, STATUS_FAILED);
+            return None;
+        }
+
+        let mut st = STATUS_ACK | STATUS_DRIVER | STATUS_OK;
+        if ver == VERSION_MODERN {
+            st |= STATUS_FEATURES_OK;
+        }
+        mmio_write(base, REG_STATUS, st);
+
+        let mac = read_mac(base);
+        // Reject an all-zero MAC (config unread / device not net).
+        if mac.iter().all(|&b| b == 0) {
+            mmio_write(base, REG_STATUS, STATUS_FAILED);
+            return None;
+        }
+        Some(mac)
+    }
+}
+
+fn net_wait_used(dma: *mut NetDma, last: u16, secs_num: u64, secs_den: u64) -> bool {
+    unsafe {
+        let timeout = timer::cntpct().saturating_add(timer_ticks(secs_num) / secs_den.max(1));
+        let used_off = core::mem::offset_of!(NetDma, used);
+        let used_span = core::mem::size_of::<NetDma>() - used_off;
+        loop {
+            cache_sync(addr_of!((*dma).used) as u64, used_span);
+            if (*dma).used.idx != last {
+                return true;
+            }
+            if timer::cntpct() > timeout {
+                return false;
+            }
+        }
+    }
+}
+
+fn net_post_rx(dev: &NetDev) -> Option<u16> {
+    unsafe {
+        let dma = addr_of_mut!(NET_RX);
+        let last = (*dma).used.idx;
+        (*dma).hdr.fill(0);
+        (*dma).frame.fill(0);
+        let hdr_pa = dma_pa(addr_of!((*dma).hdr) as *const u8);
+        // One WRITE buffer covering hdr+frame for the device to fill.
+        (*dma).desc[0] = Desc {
+            addr: hdr_pa,
+            len: (NET_HDR + NET_FRAME) as u32,
+            flags: DESC_WRITE,
+            next: 0,
+        };
+        let aidx = (*dma).avail.idx;
+        (*dma).avail.ring[(aidx as usize) % QSZ] = 0;
+        dsb();
+        (*dma).avail.idx = aidx.wrapping_add(1);
+        cache_sync(addr_of!(*dma) as u64, core::mem::size_of::<NetDma>());
+        mmio_write(dev.base, REG_QUEUE_NOTIFY, NET_Q_RX);
+        Some(last)
+    }
+}
+
+/// Build a broadcast ARP request: who-has 10.0.2.2 tell 10.0.2.15.
+fn fill_arp_request(mac: &[u8; 6], frame: &mut [u8; NET_FRAME]) -> usize {
+    frame.fill(0);
+    // Ethernet header
+    for i in 0..6 {
+        frame[i] = 0xff; // broadcast
+        frame[6 + i] = mac[i];
+    }
+    frame[12] = 0x08;
+    frame[13] = 0x06; // ARP
+    // ARP
+    frame[14] = 0x00;
+    frame[15] = 0x01; // htype Ethernet
+    frame[16] = 0x08;
+    frame[17] = 0x00; // ptype IPv4
+    frame[18] = 6; // hlen
+    frame[19] = 4; // plen
+    frame[20] = 0x00;
+    frame[21] = 0x01; // oper request
+    for i in 0..6 {
+        frame[22 + i] = mac[i]; // sha
+    }
+    // spa 10.0.2.15
+    frame[28] = 10;
+    frame[29] = 0;
+    frame[30] = 2;
+    frame[31] = 15;
+    // tha unknown
+    // tpa 10.0.2.2 (QEMU SLIRP gateway — answers ARP locally; no external net)
+    frame[38] = 10;
+    frame[39] = 0;
+    frame[40] = 2;
+    frame[41] = 2;
+    42
+}
+
+fn net_tx_frame(dev: &NetDev, frame_len: usize) -> bool {
+    if frame_len == 0 || frame_len > NET_FRAME {
+        return false;
+    }
+    unsafe {
+        let dma = addr_of_mut!(NET_TX);
+        let last = (*dma).used.idx;
+        (*dma).hdr.fill(0);
+        let hdr_pa = dma_pa(addr_of!((*dma).hdr) as *const u8);
+        let frame_pa = dma_pa(addr_of!((*dma).frame) as *const u8);
+        (*dma).desc[0] = Desc {
+            addr: hdr_pa,
+            len: NET_HDR as u32,
+            flags: DESC_NEXT,
+            next: 1,
+        };
+        (*dma).desc[1] = Desc {
+            addr: frame_pa,
+            len: frame_len as u32,
+            flags: 0,
+            next: 0,
+        };
+        let aidx = (*dma).avail.idx;
+        (*dma).avail.ring[(aidx as usize) % QSZ] = 0;
+        dsb();
+        (*dma).avail.idx = aidx.wrapping_add(1);
+        cache_sync(addr_of!(*dma) as u64, core::mem::size_of::<NetDma>());
+        mmio_write(dev.base, REG_QUEUE_NOTIFY, NET_Q_TX);
+        // 1s budget — SLIRP TX completion is local.
+        if !net_wait_used(dma, last, 1, 1) {
+            return false;
+        }
+        true
+    }
+}
+
+fn is_arp_reply_from_gateway(frame: &[u8], len: usize) -> bool {
+    if len < 42 {
+        return false;
+    }
+    // ethertype ARP
+    if frame[12] != 0x08 || frame[13] != 0x06 {
+        return false;
+    }
+    // oper reply
+    if frame[20] != 0x00 || frame[21] != 0x02 {
+        return false;
+    }
+    // spa 10.0.2.2
+    frame[28] == 10 && frame[29] == 0 && frame[30] == 2 && frame[31] == 2
+}
+
+fn net_rx_arp_reply(_dev: &NetDev, last: u16) -> bool {
+    unsafe {
+        let dma = addr_of_mut!(NET_RX);
+        // 2s — SLIRP gateway ARP is local and deterministic on GHA.
+        if !net_wait_used(dma, last, 2, 1) {
+            return false;
+        }
+        let used_off = core::mem::offset_of!(NetDma, used);
+        let used_span = core::mem::size_of::<NetDma>() - used_off;
+        cache_sync(addr_of!((*dma).used) as u64, used_span);
+        cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
+        let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
+        let total = (*dma).used.ring[uidx].len as usize;
+        if total <= NET_HDR {
+            return false;
+        }
+        let frame_len = total - NET_HDR;
+        let n = frame_len.min(NET_FRAME);
+        is_arp_reply_from_gateway(&(*dma).frame, n)
+    }
+}
+
+/// Discover + program the first virtio-mmio net device (RX+TX queues).
+pub fn init_net() {
+    NET_READY.store(false, Ordering::SeqCst);
+    NET_TX_OK.store(false, Ordering::SeqCst);
+    NET_RX_OK.store(false, Ordering::SeqCst);
+    let mut net = NET.lock();
+    *net = NetDev::empty();
+    let Some((base, ver)) = find_net() else {
+        return;
+    };
+    let Some(mac) = setup_net(base, ver) else {
+        return;
+    };
+    net.base = base;
+    net.ver = ver;
+    net.mac = mac;
+    net.ready = true;
+    NET_READY.store(true, Ordering::SeqCst);
+}
+
+pub fn net_ready() -> bool {
+    NET_READY.load(Ordering::SeqCst)
+}
+
+/// Serial proof: discover + TX ARP + RX SLIRP gateway reply. Host `-netdev`
+/// without this guest path is not a probe.
+#[allow(dead_code)]
+pub fn observe_net_probe() -> bool {
+    if !paging::mmu_enabled() {
+        return false;
+    }
+    if !net_ready() {
+        return false;
+    }
+    let net = NET.lock();
+    uart::write_str_raw("net: virtio\n");
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(
+            w,
+            "net: mac {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            net.mac[0], net.mac[1], net.mac[2], net.mac[3], net.mac[4], net.mac[5]
+        );
+    }
+
+    let Some(rx_last) = net_post_rx(&net) else {
+        return false;
+    };
+
+    let frame_len = {
+        // SAFETY: NET_TX only touched while NET lock is held (single-core).
+        unsafe {
+            fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame)
+        }
+    };
+
+    let t0 = timer::cntpct();
+    if !net_tx_frame(&net, frame_len) {
+        return false;
+    }
+    let tx_ticks = timer::cntpct().saturating_sub(t0);
+    NET_TX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: tx\n");
+    if tx_ticks > 0 {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "perf: net-tx ticks={}", tx_ticks);
+    }
+
+    let r0 = timer::cntpct();
+    if !net_rx_arp_reply(&net, rx_last) {
+        return false;
+    }
+    let rx_ticks = timer::cntpct().saturating_sub(r0);
+    NET_RX_OK.store(true, Ordering::SeqCst);
+    uart::write_str_raw("net: rx\n");
+    if rx_ticks > 0 {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "perf: net-rx ticks={}", rx_ticks);
+    }
+
+    let mut w = uart::raw();
+    let _ = writeln!(w, "net: ok");
+    true
+}
+
+#[cfg(test)]
+#[test_case]
+fn virtio_net_discover_and_arp() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev)");
+    let net = NET.lock();
+    assert!(net.mac.iter().any(|&b| b != 0), "MAC from config");
+    let Some(rx_last) = net_post_rx(&net) else {
+        panic!("post RX buffer");
+    };
+    let frame_len =
+        unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
+    assert!(net_tx_frame(&net, frame_len), "TX ARP request");
+    assert!(
+        net_rx_arp_reply(&net, rx_last),
+        "RX ARP reply from QEMU SLIRP gateway 10.0.2.2"
+    );
 }

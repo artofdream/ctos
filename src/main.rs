@@ -133,6 +133,7 @@ extern "C" fn kernel_main_high() -> ! {
     }
     vfs::init();
     virtio::init();
+    virtio::init_net();
     fat::init();
     sched::init();
     gic::init();
@@ -210,6 +211,12 @@ extern "C" fn kernel_main_high() -> ! {
         // sector R/W. Host `-drive` without this guest path is not a probe.
         if !virtio::observe_probe() {
             uart::write_str_raw("blk: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (Track N / N1 / ADR-066): virtio-net
+        // discover + ARP TX + SLIRP gateway ARP RX. Host `-netdev` alone is
+        // not a probe. Not TCP/UDP/sockets/DHCP/DNS.
+        if !virtio::observe_net_probe() {
+            uart::write_str_raw("net: probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A7 / ADR-028 + ADR-050 +
         // ADR-056): FAT16 `/probe` read + write/restore + create `/fwr` +
