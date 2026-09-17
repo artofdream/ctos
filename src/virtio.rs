@@ -12,7 +12,7 @@
 
 use core::fmt::Write;
 use core::ptr::{addr_of, addr_of_mut};
-use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use spin::Mutex;
 
 use crate::paging;
@@ -1180,8 +1180,12 @@ fn net_rx_udp_dns_reply(dev: &NetDev, mut last: u16) -> bool {
 // One connection. No socket table. No listen/accept. Not a BSD sockets product.
 
 const TCP_SRC_PORT: u16 = 0x6334; // ephemeral for N5
+const TCP_EL0_SRC_PORT: u16 = 0x6335; // distinct from N5 for EL0 quiet path (ADR-076)
 const TCP_DST_PORT: u16 = 7; // guestfwd echo
 const TCP_ISN: u32 = 0x1000_0000;
+const TCP_EL0_ISN: u32 = 0x2000_0000;
+/// Bump so quiet EL0 opens after tcpdemo / prior probes do not reuse the 4-tuple+ISN.
+static TCP_EL0_SEQ: AtomicU32 = AtomicU32::new(0);
 const TCP_PAYLOAD: &[u8] = b"ctos-tcp\n";
 const TCP_FLAG_SYN: u8 = 0x02;
 const TCP_FLAG_PSH: u8 = 0x08;
@@ -1210,6 +1214,7 @@ fn tcp_checksum(src: [u8; 4], dst: [u8; 4], tcp: &[u8]) -> u16 {
 fn fill_tcp_segment(
     mac: &[u8; 6],
     gw_mac: &[u8; 6],
+    src_port: u16,
     seq: u32,
     ack: u32,
     flags: u8,
@@ -1252,8 +1257,8 @@ fn fill_tcp_segment(
     frame[25] = (ip_csum & 0xff) as u8;
 
     // TCP header
-    frame[tcp_off] = (TCP_SRC_PORT >> 8) as u8;
-    frame[tcp_off + 1] = (TCP_SRC_PORT & 0xff) as u8;
+    frame[tcp_off] = (src_port >> 8) as u8;
+    frame[tcp_off + 1] = (src_port & 0xff) as u8;
     frame[tcp_off + 2] = (TCP_DST_PORT >> 8) as u8;
     frame[tcp_off + 3] = (TCP_DST_PORT & 0xff) as u8;
     frame[tcp_off + 4] = (seq >> 24) as u8;
@@ -1282,7 +1287,11 @@ fn fill_tcp_segment(
 }
 
 /// Parse a TCP segment from 10.0.2.4:7 → us. Returns (seq, ack, flags, payload_off, payload_len).
-fn parse_tcp_from_echo(frame: &[u8], len: usize) -> Option<(u32, u32, u8, usize, usize)> {
+fn parse_tcp_from_echo(
+    frame: &[u8],
+    len: usize,
+    local_port: u16,
+) -> Option<(u32, u32, u8, usize, usize)> {
     if len < 14 + 20 + 20 {
         return None;
     }
@@ -1312,7 +1321,7 @@ fn parse_tcp_from_echo(frame: &[u8], len: usize) -> Option<(u32, u32, u8, usize,
     let tcp = 14 + ihl;
     let sport = u16::from_be_bytes([frame[tcp], frame[tcp + 1]]);
     let dport = u16::from_be_bytes([frame[tcp + 2], frame[tcp + 3]]);
-    if sport != TCP_DST_PORT || dport != TCP_SRC_PORT {
+    if sport != TCP_DST_PORT || dport != local_port {
         return None;
     }
     let seq = u32::from_be_bytes([
@@ -1338,8 +1347,8 @@ fn parse_tcp_from_echo(frame: &[u8], len: usize) -> Option<(u32, u32, u8, usize,
     Some((seq, ack, flags, payload_off, payload_len))
 }
 
-fn is_tcp_syn_ack(frame: &[u8], len: usize, expect_ack: u32) -> Option<u32> {
-    let (seq, ack, flags, _, plen) = parse_tcp_from_echo(frame, len)?;
+fn is_tcp_syn_ack(frame: &[u8], len: usize, local_port: u16, expect_ack: u32) -> Option<u32> {
+    let (seq, ack, flags, _, plen) = parse_tcp_from_echo(frame, len, local_port)?;
     if plen != 0 {
         return None;
     }
@@ -1352,8 +1361,8 @@ fn is_tcp_syn_ack(frame: &[u8], len: usize, expect_ack: u32) -> Option<u32> {
     Some(seq)
 }
 
-fn is_tcp_echo_payload(frame: &[u8], len: usize) -> Option<(u32, u32, usize)> {
-    let (seq, ack, flags, off, plen) = parse_tcp_from_echo(frame, len)?;
+fn is_tcp_echo_payload(frame: &[u8], len: usize, local_port: u16) -> Option<(u32, u32, usize)> {
+    let (seq, ack, flags, off, plen) = parse_tcp_from_echo(frame, len, local_port)?;
     if plen < TCP_PAYLOAD.len() {
         return None;
     }
@@ -1368,7 +1377,7 @@ fn is_tcp_echo_payload(frame: &[u8], len: usize) -> Option<(u32, u32, usize)> {
 }
 
 /// Wait for SYN-ACK from guestfwd peer; return peer ISN.
-fn net_rx_tcp_syn_ack(dev: &NetDev, mut last: u16, expect_ack: u32) -> Option<u32> {
+fn net_rx_tcp_syn_ack(dev: &NetDev, mut last: u16, local_port: u16, expect_ack: u32) -> Option<u32> {
     for _ in 0..8 {
         unsafe {
             let dma = addr_of_mut!(NET_RX);
@@ -1384,7 +1393,7 @@ fn net_rx_tcp_syn_ack(dev: &NetDev, mut last: u16, expect_ack: u32) -> Option<u3
             if total > NET_HDR {
                 let frame_len = total - NET_HDR;
                 let n = frame_len.min(NET_FRAME);
-                if let Some(peer_isn) = is_tcp_syn_ack(&(*dma).frame, n, expect_ack) {
+                if let Some(peer_isn) = is_tcp_syn_ack(&(*dma).frame, n, local_port, expect_ack) {
                     return Some(peer_isn);
                 }
             }
@@ -1398,7 +1407,7 @@ fn net_rx_tcp_syn_ack(dev: &NetDev, mut last: u16, expect_ack: u32) -> Option<u3
 }
 
 /// Wait for echoed payload from guestfwd peer.
-fn net_rx_tcp_echo(dev: &NetDev, mut last: u16) -> Option<(u32, u32, usize)> {
+fn net_rx_tcp_echo(dev: &NetDev, mut last: u16, local_port: u16) -> Option<(u32, u32, usize)> {
     for _ in 0..8 {
         unsafe {
             let dma = addr_of_mut!(NET_RX);
@@ -1414,7 +1423,7 @@ fn net_rx_tcp_echo(dev: &NetDev, mut last: u16) -> Option<(u32, u32, usize)> {
             if total > NET_HDR {
                 let frame_len = total - NET_HDR;
                 let n = frame_len.min(NET_FRAME);
-                if let Some(got) = is_tcp_echo_payload(&(*dma).frame, n) {
+                if let Some(got) = is_tcp_echo_payload(&(*dma).frame, n, local_port) {
                     return Some(got);
                 }
             }
@@ -1605,6 +1614,7 @@ pub fn observe_net_probe() -> bool {
         fill_tcp_segment(
             &net.mac,
             &gw_mac,
+            TCP_SRC_PORT,
             TCP_ISN,
             0,
             TCP_FLAG_SYN,
@@ -1618,7 +1628,7 @@ pub fn observe_net_probe() -> bool {
     NET_TCP_SYN_OK.store(true, Ordering::SeqCst);
     uart::write_str_raw("net: tcp-syn\n");
 
-    let Some(peer_isn) = net_rx_tcp_syn_ack(&net, rx4, TCP_ISN.wrapping_add(1)) else {
+    let Some(peer_isn) = net_rx_tcp_syn_ack(&net, rx4, TCP_SRC_PORT, TCP_ISN.wrapping_add(1)) else {
         return false;
     };
 
@@ -1629,6 +1639,7 @@ pub fn observe_net_probe() -> bool {
         fill_tcp_segment(
             &net.mac,
             &gw_mac,
+            TCP_SRC_PORT,
             TCP_ISN.wrapping_add(1),
             peer_isn.wrapping_add(1),
             TCP_FLAG_ACK,
@@ -1647,6 +1658,7 @@ pub fn observe_net_probe() -> bool {
         fill_tcp_segment(
             &net.mac,
             &gw_mac,
+            TCP_SRC_PORT,
             TCP_ISN.wrapping_add(1),
             peer_isn.wrapping_add(1),
             TCP_FLAG_PSH | TCP_FLAG_ACK,
@@ -1660,7 +1672,7 @@ pub fn observe_net_probe() -> bool {
     NET_TCP_TX_OK.store(true, Ordering::SeqCst);
     uart::write_str_raw("net: tcp-tx\n");
 
-    let Some((_peer_seq, _peer_ack, plen)) = net_rx_tcp_echo(&net, rx5) else {
+    let Some((_peer_seq, _peer_ack, plen)) = net_rx_tcp_echo(&net, rx5, TCP_SRC_PORT) else {
         return false;
     };
     let _ = plen;
@@ -1787,6 +1799,92 @@ pub fn udp_dns_ticks() -> u64 {
     NET_UDP_DNS_TICKS.load(Ordering::SeqCst)
 }
 
+/// Quiet ARP + thin TCP echo vs guestfwd for EL0 `net_tcp_echo` (ADR-076).
+/// Kernel still programs virtio-net; no serial N5 markers here.
+/// Uses a distinct ephemeral port/ISN from the kernel N5 path so a second
+/// open after `observe_net_probe` does not collide. No TCP CNTPCT this mile.
+pub fn el0_tcp_echo() -> bool {
+    if !paging::mmu_enabled() || !net_ready() {
+        return false;
+    }
+    let n = TCP_EL0_SEQ.fetch_add(1, Ordering::SeqCst);
+    let src_port = TCP_EL0_SRC_PORT.wrapping_add((n % 16) as u16);
+    let isn = TCP_EL0_ISN.wrapping_add(n.wrapping_mul(0x10000));
+    let net = NET.lock();
+    let Some(rx_last) = net_post_rx(&net) else {
+        return false;
+    };
+    let arp_len = unsafe { fill_arp_request(&net.mac, &mut (*addr_of_mut!(NET_TX)).frame) };
+    if !net_tx_frame(&net, arp_len) {
+        return false;
+    }
+    let Some(gw) = net_rx_arp_reply(&net, rx_last) else {
+        return false;
+    };
+    let Some(rx2) = net_post_rx(&net) else {
+        return false;
+    };
+    let syn_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw,
+            src_port,
+            isn,
+            0,
+            TCP_FLAG_SYN,
+            &[],
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    if !net_tx_frame(&net, syn_len) {
+        return false;
+    }
+    let Some(peer_isn) =
+        net_rx_tcp_syn_ack(&net, rx2, src_port, isn.wrapping_add(1))
+    else {
+        return false;
+    };
+    let Some(rx3) = net_post_rx(&net) else {
+        return false;
+    };
+    let ack_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw,
+            src_port,
+            isn.wrapping_add(1),
+            peer_isn.wrapping_add(1),
+            TCP_FLAG_ACK,
+            &[],
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    if !net_tx_frame(&net, ack_len) {
+        return false;
+    }
+    let data_len = unsafe {
+        fill_tcp_segment(
+            &net.mac,
+            &gw,
+            src_port,
+            isn.wrapping_add(1),
+            peer_isn.wrapping_add(1),
+            TCP_FLAG_PSH | TCP_FLAG_ACK,
+            TCP_PAYLOAD,
+            &mut (*addr_of_mut!(NET_TX)).frame,
+        )
+    };
+    if !net_tx_frame(&net, data_len) {
+        return false;
+    }
+    let Some((_peer_seq, _peer_ack, plen)) = net_rx_tcp_echo(&net, rx3, src_port) else {
+        return false;
+    };
+    let _ = plen;
+    true
+}
+
+
 #[cfg(test)]
 #[test_case]
 fn virtio_net_discover_and_arp() {
@@ -1909,6 +2007,7 @@ fn virtio_net_tcp_echo_probe() {
         fill_tcp_segment(
             &net.mac,
             &gw,
+            TCP_SRC_PORT,
             TCP_ISN,
             0,
             TCP_FLAG_SYN,
@@ -1917,7 +2016,7 @@ fn virtio_net_tcp_echo_probe() {
         )
     };
     assert!(net_tx_frame(&net, syn_len), "TX TCP SYN to 10.0.2.4:7");
-    let peer_isn = net_rx_tcp_syn_ack(&net, rx2, TCP_ISN.wrapping_add(1))
+    let peer_isn = net_rx_tcp_syn_ack(&net, rx2, TCP_SRC_PORT, TCP_ISN.wrapping_add(1))
         .expect("RX TCP SYN-ACK from guestfwd echo");
     let Some(rx3) = net_post_rx(&net) else {
         panic!("post RX after SYN-ACK");
@@ -1926,6 +2025,7 @@ fn virtio_net_tcp_echo_probe() {
         fill_tcp_segment(
             &net.mac,
             &gw,
+            TCP_SRC_PORT,
             TCP_ISN.wrapping_add(1),
             peer_isn.wrapping_add(1),
             TCP_FLAG_ACK,
@@ -1938,6 +2038,7 @@ fn virtio_net_tcp_echo_probe() {
         fill_tcp_segment(
             &net.mac,
             &gw,
+            TCP_SRC_PORT,
             TCP_ISN.wrapping_add(1),
             peer_isn.wrapping_add(1),
             TCP_FLAG_PSH | TCP_FLAG_ACK,
@@ -1946,6 +2047,16 @@ fn virtio_net_tcp_echo_probe() {
         )
     };
     assert!(net_tx_frame(&net, data_len), "TX TCP payload");
-    let got = net_rx_tcp_echo(&net, rx3).expect("RX TCP echo payload from guestfwd");
+    let got = net_rx_tcp_echo(&net, rx3, TCP_SRC_PORT).expect("RX TCP echo payload from guestfwd");
     assert_eq!(got.2, TCP_PAYLOAD.len(), "echo length");
+}
+
+#[cfg(test)]
+#[test_case]
+fn el0_tcp_echo_probe() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev + guestfwd)");
+    assert!(
+        el0_tcp_echo(),
+        "quiet ARP+TCP echo for EL0 net_tcp_echo must succeed"
+    );
 }

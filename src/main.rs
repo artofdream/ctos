@@ -17,6 +17,7 @@ mod yldemo;
 mod netdemo;
 mod udpdemo;
 mod mkdemo;
+mod tcpdemo;
 mod frame;
 mod gic;
 mod guard;
@@ -264,6 +265,11 @@ extern "C" fn kernel_main_high() -> ! {
         // from FAT `/mkdemo` exercises EL0 fs_mkdir. Keep prior six.
         if !mkdemo::observe_probe() {
             uart::write_str_raw("mkdemo: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (ADR-076): eighth freestanding sample
+        // from FAT `/tcpdemo` exercises EL0 net_tcp_echo. Keep prior seven.
+        if !tcpdemo::observe_probe() {
+            uart::write_str_raw("tcpdemo: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {

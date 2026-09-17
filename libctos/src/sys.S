@@ -77,3 +77,9 @@ ctos_net_udp_dns:
 ctos_fs_mkdir:
     svc #27
     ret
+
+    .global ctos_net_tcp_echo
+    .type ctos_net_tcp_echo, %function
+ctos_net_tcp_echo:
+    svc #28
+    ret

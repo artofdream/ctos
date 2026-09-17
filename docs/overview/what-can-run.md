@@ -19,6 +19,7 @@ flowchart LR
   FAT --> N["/netdemo<br/>net SVCs"]
   FAT --> U["/udpdemo<br/>UDP DNS SVC"]
   FAT --> M["/mkdemo<br/>fs_mkdir SVC"]
+  FAT --> T["/tcpdemo<br/>net_tcp_echo SVC"]
   H --> EL0["Standing EL0<br/>libctos"]
   F --> EL0
   D --> EL0
@@ -27,7 +28,7 @@ flowchart LR
   U --> EL0
 ```
 
-*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), `/netdemo` (ADR-068), `/udpdemo` (ADR-071), and `/mkdemo` (ADR-075) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
+*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), `/netdemo` (ADR-068), `/udpdemo` (ADR-071), `/mkdemo` (ADR-075), and `/tcpdemo` (ADR-076) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
 
 ## Privilege — where code runs
 
@@ -48,7 +49,7 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf` + `target/net-libctos.elf` + `target/udp-libctos.elf` + `target/mkdir-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`; ADR-068 loads FAT `/netdemo`; ADR-071 loads FAT `/udpdemo`; ADR-075 loads FAT `/mkdemo`).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf` + `target/net-libctos.elf` + `target/udp-libctos.elf` + `target/mkdir-libctos.elf` + `target/tcp-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`; ADR-068 loads FAT `/netdemo`; ADR-071 loads FAT `/udpdemo`; ADR-075 loads FAT `/mkdemo`; ADR-076 loads FAT `/tcpdemo`).
 
 ```bash
 cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos + user/yield-libctos + user/net-libctos + user/udp-libctos
@@ -197,6 +198,17 @@ Seventh freestanding EL0 payload that exercises **EL0 `fs_mkdir`** ([ADR-075](..
 | Kernel probe | `src/mkdemo.rs` |
 
 
+## Standing EL0 / `libctos` TCP echo sample
+
+Eighth freestanding EL0 payload that exercises **EL0 `net_tcp_echo`** ([ADR-076](../03-adr/ADR-076-el0-tcp-svc.md)). Same class as `libctos: tcp-hi` / `libctos: tcp-ok` / `tcpdemo: ok`. Quiet thin TCP guestfwd echo — not BSD sockets, not listen/accept.
+
+| Piece | Detail |
+| --- | --- |
+| FAT slot | `/tcpdemo` (`target/tcp-libctos.elf` via `mkfat16.py --app8`) |
+| SVC | `net_tcp_echo` (28) |
+| Markers | `libctos: tcp-hi` / `libctos: tcp-ok` / `tcpdemo: ok` (keep `net: tcp-ok`) |
+
+
 ## Recipe 4 — memfs named-buffer probe (optional)
 
 In-RAM named buffers behind the thin VFS ([ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)). Same class as `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok`.
@@ -256,7 +268,7 @@ Do not imply these work:
 - Linux binaries (no Linux ABI, no ELF loader for third-party programs)
 - A shell
 - Python (or any hosted language runtime)
-- Network servers (virtio-net ARP + ICMP + minimal UDP + thin TCP probe + EL0 UDP DNS SVC sample only — [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-070](../03-adr/ADR-070-n3-udp-transport.md) / [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md) / [ADR-074](../03-adr/ADR-074-n5-thin-tcp.md); no BSD sockets / TCP product)
+- Network servers (virtio-net ARP + ICMP + minimal UDP + thin TCP probe + EL0 UDP DNS SVC + EL0 TCP echo SVC samples only — [ADR-066](../03-adr/ADR-066-virtio-net-first-frame.md) / [ADR-067](../03-adr/ADR-067-virtio-net-icmp-ping.md) / [ADR-070](../03-adr/ADR-070-n3-udp-transport.md) / [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md) / [ADR-074](../03-adr/ADR-074-n5-thin-tcp.md) / [ADR-076](../03-adr/ADR-076-el0-tcp-svc.md); no BSD sockets / TCP product)
 - POSIX / Linux filesystem apps (memfs + FAT16 read/write miles are not that — [Filesystem](filesystem.md))
 - Extra-CPU workloads (one CPU, cooperative yield only)
 - Product freestanding app hosting (**Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md); not Linux/POSIX/containers/OTA — [issue #48](https://github.com/artofdream/ctos/issues/48))

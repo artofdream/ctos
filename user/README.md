@@ -15,6 +15,7 @@ There is no `examples/` crate and no second QEMU `-kernel`. One `cargo build` of
 | Standing EL0 / `libctos` net sample | [`net-libctos/`](net-libctos/README.md), `libctos/`, `build.rs`, `src/netdemo.rs` | same (FAT `/netdemo`) | `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok` |
 | Standing EL0 / `libctos` UDP DNS sample | [`udp-libctos/`](udp-libctos/README.md), `libctos/`, `build.rs`, `src/udpdemo.rs` | same (FAT `/udpdemo`) | `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok` |
 | Standing EL0 / `libctos` `fs_mkdir` sample | [`mkdir-libctos/`](mkdir-libctos/README.md), `libctos/`, `build.rs`, `src/mkdemo.rs` | same (FAT `/mkdemo`) | `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: ok` |
+| Standing EL0 / `libctos` TCP echo sample | [`tcp-libctos/`](tcp-libctos/README.md), `libctos/`, `build.rs`, `src/tcpdemo.rs` | same (FAT `/tcpdemo`) | `libctos: tcp-hi` / `libctos: tcp-ok` / `tcpdemo: ok` |
 | OS/app slot first cut (A9) | `target/hello-libctos.elf` on FAT `/hello` (`scripts/mkfat16.py --app`) | same (`qemu-smoke` publishes + attaches) | `slot: fat` / `slot: mapped` / `slot: ok` |
 | memfs named buffers (optional) | `src/vfs.rs`; EL0 trampoline `/eprobe` in `src/syscall.rs` | same | `fs: create` / `fs: write` / `fs: read` / `fs: el0` / `fs: ok` |
 | FAT16 `/probe` (optional) | `scripts/mkfat16.py`, `src/virtio.rs`, `src/fat.rs` | same (`qemu-smoke` attaches `-drive`) | `blk: ok` / `fat: ok` (`/probe` = `fat-hi`) |
