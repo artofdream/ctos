@@ -1,8 +1,8 @@
-# Security — threat model v1.52 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064 / ADR-065 / ADR-066 / ADR-067 / ADR-068 / ADR-069 / ADR-070 / ADR-071 / ADR-072 / ADR-073 / ADR-074 / ADR-075 / ADR-076 / ADR-077)
+# Security — threat model v1.53 (NFR-10 / ADR-011 / ADR-012 / ADR-013 / ADR-014 / ADR-015 / ADR-016 / ADR-017 / ADR-018 / ADR-019 / ADR-020 / ADR-021 / ADR-022 / ADR-023 / ADR-024 / ADR-025 / ADR-026 / ADR-027 / ADR-028 / ADR-030 / ADR-032 / ADR-037 / ADR-038 / ADR-039 / ADR-040 / ADR-041 / ADR-042 / ADR-043 / ADR-044 / ADR-045 / ADR-047 / ADR-048 / ADR-049 / ADR-050 / ADR-052 / ADR-053 / ADR-054 / ADR-055 / ADR-056 / ADR-057 / ADR-058 / ADR-059 / ADR-060 / ADR-061 / ADR-062 / ADR-063 / ADR-064 / ADR-065 / ADR-066 / ADR-067 / ADR-068 / ADR-069 / ADR-070 / ADR-071 / ADR-072 / ADR-073 / ADR-074 / ADR-075 / ADR-076 / ADR-077 / ADR-078)
 
 This is a **written threat model for a QEMU `virt` learning kernel**. It is not a certification, not an audit, and not a “secure OS” / “hardened” claim. File presence is not W^X. Image W^X is a separate ledger row that needs a QEMU probe.
 
-Version: **v1.52** (2026-09-17). Slice/update of v1.51 (#122 ADR-076). FAT16 one-level nested mkdir + empty rmdir ([ADR-077](../03-adr/ADR-077-fat16-nested-rmdir.md): `fat: nested` / `fat: rmdir`). Keep N1–N5 + N5.x + ADR-069/072/073/075/076 + prior samples. Still **not** BSD sockets / TCP product / listen-accept / TLS/HTTP / DHCP/DNS product / Wi‑Fi / “has networking / sockets OS.” Still not Linux/POSIX/`mount`/`unlink`/`mkdir`/`rmdir`/`getdents`/containers/preemption/exFAT. Not a v2 model and not “secure.”
+Version: **v1.53** (2026-09-17). Slice/update of v1.52 (#123 ADR-077). Thin TCP echo path CNTPCT ([ADR-078](../03-adr/ADR-078-tcp-echo-cntpct.md): `perf: tcp-echo ticks=<n>` on EL0 `net_tcp_echo`). Keep N1–N5 + N5.x + ADR-069/072/073/075/076/077 + prior samples. Still **not** BSD sockets / TCP product / listen-accept / TLS/HTTP / DHCP/DNS product / Wi‑Fi / “has networking / sockets OS.” Still not Linux/POSIX/`mount`/`unlink`/`mkdir`/`rmdir`/`getdents`/containers/preemption/exFAT. Not a v2 model and not “secure.” Not a latency SLA.
 
 ## Scope
 
@@ -230,3 +230,7 @@ Three freestanding EL0 samples on FAT: `/hello`, `/fsdemo` (memfs `/memdemo`), a
 ### FAT16 nested mkdir + empty rmdir (v1.52)
 
 [ADR-077](../03-adr/ADR-077-fat16-nested-rmdir.md): guest creates one nested FAT16 subdirectory (`/fdir/nest`) and removes an empty directory through the thin VFS (`fat: nested` / `fat: rmdir`). Path grammar: flat `/name` or one `/parent/child`; deeper → `BadPath`. Not POSIX `mkdir`/`rmdir`. Not arbitrary-depth trees. Not recursive rm. No new SVC this mile. Keep `fat: mkdir` / write / readdir / delete / grow / `/hello` / `slot: ok` / Track N markers. Still **not** Linux/containers/“EL0 isolated.” TCP CNTPCT untouched.
+
+### Thin TCP echo CNTPCT (v1.53)
+
+[ADR-078](../03-adr/ADR-078-tcp-echo-cntpct.md): CNTPCT around the quiet EL0 `net_tcp_echo` path (`perf: tcp-echo ticks=<n>`). Measure-first lab probe on QEMU TCG — not a latency SLA, not SPEC, not “has networking.” Chosen surface is EL0 SVC (same as ADR-069/072); kernel N5 `net: tcp-ok` stays transport proof only. Keep N1–N5 / N5.x / ADR-069/072 / FAT nested+rmdir / samples. Still **not** BSD sockets / listen-accept / TLS/HTTP. Still **not** “secure.”

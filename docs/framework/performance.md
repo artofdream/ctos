@@ -109,6 +109,17 @@ QEMU TCG jitter is still one lab. Tick values **vary** — do not invent a budge
 
 QEMU TCG jitter is still one lab. Tick values **vary** — do not invent a budget. No `criterion` crate. No TCP / FAT mkdir this mile.
 
+## Thin TCP echo path CNTPCT (ADR-078) — single path (QEMU TCG lab)
+
+[ADR-076](../03-adr/ADR-076-el0-tcp-svc.md) EL0 `net_tcp_echo` (SVC 28) already runs a quiet kernel-owned ARP + thin TCP active-open + one payload vs QEMU `guestfwd` `10.0.2.4:7`. [ADR-078](../03-adr/ADR-078-tcp-echo-cntpct.md) samples `CNTPCT` around that **full quiet path** and prints `perf: tcp-echo ticks=<n>`. That is a **measurement**, not a bench and not a latency SLA. Same pattern as ADR-069 / ADR-072 — **EL0 SVC surface**, not a separate kernel-only N5 timer. Kernel `net: tcp-ok` markers stay as ADR-074 transport proof.
+
+| Class | What we measure | Honesty |
+| --- | --- | --- |
+| **EL0 net_tcp_echo** | Quiet ARP + thin TCP guestfwd RTT as `SYS_NET_TCP_ECHO` / `el0_tcp_echo` | `perf: tcp-echo ticks=<n>` |
+| **Gate** | Smoke greps the **prefix** `perf: tcp-echo` (not an exact tick count). Reject faster/slower/percent. Keep N1–N5 / N5.x / ADR-069/072 / FAT / slot markers. | Verified only when the ledger has serial evidence on a named tip. |
+
+QEMU TCG jitter is still one lab. Tick values **vary** — do not invent a budget. No `criterion` crate. No listen/accept / sockets / TLS this mile.
+
 ## Later probes (Planned)
 
 - A tighter “first instruction of `_start`” sample if someone maps a `.data` slot that BSS-clear will not wipe.
