@@ -8,7 +8,7 @@ FAT 8.3 forces a short slot name: VFS path `/mkdemo` (not `/mkdirdemo`, which is
 
 ## What it prints
 
-`main` writes `libctos: mkdir-hi`, creates FAT root `/edir` via `fs_mkdir` (SVC 27), proves `Exists` on a second create and `BadPath` on `/bad/nest`, then `libctos: mkdir-ok` and returns 0. Smoke also greps kernel `mkdemo: ok` from the FAT `/mkdemo` load path.
+`main` writes `libctos: mkdir-hi`, creates FAT root `/edir` via `fs_mkdir` (SVC 27), proves `Exists` on a second create and `BadPath` on `/a/b/c` (deeper than one nest), then `libctos: mkdir-ok` and returns 0. Smoke also greps kernel `mkdemo: ok` from the FAT `/mkdemo` load path.
 
 ## Rebuild
 
@@ -38,7 +38,7 @@ Do not use `aarch64-unknown-linux-gnu`. A Linux `ET_DYN` will not load.
 ## What this payload does not do
 
 - No POSIX `mkdir` / `mkdirat` / directory trees / recursive create.
-- No nested-path claim (BadPath is fail-closed).
+- No multi-level nest claim (`/a/b/c` → BadPath). One-level nested mkdir is ADR-077 (kernel/VFS).
 - No argv, environ, or libc.
 - Does not replace `/hello`, `/fsdemo`, `/fatdemo`, `/yldemo`, `/netdemo`, or `/udpdemo` — all seven slots stay on the image.
 - Does not add EL0 TCP.

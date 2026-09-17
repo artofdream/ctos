@@ -39,4 +39,4 @@ FAT 8.3 path grammar caps the sample slot at eight characters. `/mkdirdemo` (9) 
 
 - Code: `src/syscall.rs`, `libctos/`, `user/mkdir-libctos/`, `src/mkdemo.rs`, `build.rs`, `scripts/mkfat16.py`, `scripts/qemu-smoke.sh`.
 - Docs: this ADR, syscall.md, honesty ledger, filesystem overview/stance, what-can-run, SUMMARY, roadmap note, threat-model v1.50, light fr-nfr NFR-10 note, `user/README.md`.
-- Follow-ups (not this PR): nested dirs / richer path grammar, empty `rmdir` as a public mile, EL0 TCP SVC (separate ADR).
+- Follow-ups: nested dirs + empty `rmdir` → [ADR-077](ADR-077-fat16-nested-rmdir.md). EL0 TCP SVC → [ADR-076](ADR-076-el0-tcp-svc.md).

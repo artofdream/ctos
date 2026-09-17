@@ -1,9 +1,10 @@
 //! Thin VFS: memfs (A6 / ADR-027) + FAT16 (A7 / ADR-028, write ADR-050,
-//! readdir ADR-056, delete ADR-057, mkdir ADR-073) + prefix mounts (ADR-058).
+//! readdir ADR-056, delete ADR-057, mkdir ADR-073, nested+rmdir ADR-077)
+//! + prefix mounts (ADR-058).
 //!
 //! One `open` story. A small mount table routes path **prefixes** to a
 //! backend (`/mem` + A6 probe names → memfs; `/` → FAT16). Not Linux VFS.
-//! Not POSIX `mount` / `unlink` / `getdents` / `mkdir`. Not app hosting.
+//! Not POSIX `mount` / `unlink` / `getdents` / `mkdir` / `rmdir`. Not app hosting.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -434,13 +435,40 @@ pub fn unlink(path: &str) -> Result<(), FsError> {
     }
 }
 
-/// Create a directory on the mount that owns its prefix. FAT16 root only
-/// this mile (ADR-073). Memfs has
-/// no directory tree — fail closed with `BadPath`. Not POSIX `mkdir`.
+/// First path component as a flat `/name` (for mount resolve). Nested
+/// mkdir/rmdir paths are not `valid_path`; resolve uses the parent only.
+fn dir_op_root(path: &str) -> Result<&str, FsError> {
+    let b = path.as_bytes();
+    if b.len() < 2 || b.len() > PATH_MAX || b[0] != b'/' {
+        return Err(FsError::BadPath);
+    }
+    let rest = &b[1..];
+    let end = rest.iter().position(|&c| c == b'/').unwrap_or(rest.len());
+    if end == 0 {
+        return Err(FsError::BadPath);
+    }
+    // `/parent` or whole flat path.
+    core::str::from_utf8(&b[..=end]).map_err(|_| FsError::BadPath)
+}
+
+/// Create a directory on the mount that owns its prefix. FAT16 supports
+/// flat `/name` and one nested `/parent/child` (ADR-073 / ADR-077). Memfs
+/// has no directory tree — fail closed with `BadPath`. Not POSIX `mkdir`.
 pub fn mkdir(path: &str) -> Result<(), FsError> {
-    match resolve(path)? {
+    let root = dir_op_root(path)?;
+    match resolve(root)? {
         Backend::MemFs => Err(FsError::BadPath),
         Backend::Fat16 => crate::fat::mkdir(path),
+    }
+}
+
+/// Remove an empty directory on the mount that owns its prefix. FAT16
+/// empty rmdir only (ADR-077). Memfs → `BadPath`. Not POSIX `rmdir`.
+pub fn rmdir(path: &str) -> Result<(), FsError> {
+    let root = dir_op_root(path)?;
+    match resolve(root)? {
+        Backend::MemFs => Err(FsError::BadPath),
+        Backend::Fat16 => crate::fat::rmdir(path),
     }
 }
 

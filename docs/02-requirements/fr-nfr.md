@@ -17,6 +17,8 @@ Learning/research **AArch64 (arm64) Rust** bare-metal kernel (not a general-purp
 **FR-11 stage note (2026-09-09):** Stage moved Later → Now when M9 landed cooperative round-robin yield on EL1 ([ADR-010](../03-adr/ADR-010-cooperative-rr-el1.md)). ID unchanged. Preemption / SMP remain later. A documented EL0 SVC ABI is [ADR-021](../03-adr/ADR-021-svc-syscall-abi.md) / Track A A1 — not a new FR and not app hosting.
 
 
+**NFR-10 note (2026-09-17, ADR-077):** FAT16 one-level nested mkdir + empty rmdir behind the thin VFS (`fat: nested` / `fat: rmdir`, [ADR-077](../03-adr/ADR-077-fat16-nested-rmdir.md)). Threat-model **v1.52**. Not POSIX `mkdir`/`rmdir`. Not arbitrary-depth trees. No new SVC. Not TCP CNTPCT. Keep `fat: mkdir`. IDs unchanged.
+
 **NFR-10 note (2026-09-17, ADR-075):** EL0 `fs_mkdir` (SVC 27) + freestanding `/mkdemo` (`libctos: mkdir-ok` / `mkdemo: ok`, [ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Threat-model **v1.50**. Not POSIX `mkdir`. Not a directory tree. Not EL0 TCP. Keep `fat: mkdir`. IDs unchanged.
 
 **NFR-10 note (2026-09-16, ADR-073):** FAT16 root mkdir behind the thin VFS (`fat: mkdir`, [ADR-073](../03-adr/ADR-073-fat16-mkdir.md)). Threat-model **v1.48**. Not POSIX `mkdir`. Not a directory tree. No new SVC this mile. Track N / TCP untouched. IDs unchanged.

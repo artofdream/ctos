@@ -1,21 +1,26 @@
 //! FAT16 on virtio-blk, behind the thin VFS (Track A / A7 / ADR-028 + ADR-050
-//! + ADR-056 + ADR-057 + ADR-064 + ADR-073).
+//! + ADR-056 + ADR-057 + ADR-064 + ADR-073 + ADR-077).
 //!
 //! Read + write of root files. Known `/probe` (8.3 `PROBE`) and A9 `/hello`
 //! (8.3 `HELLO`, app ELF). Guest may create a root file and grow it across
-//! multiple clusters (ADR-064). Guest may create a root **directory**
-//! (`mkdir`): allocate a dirent + empty directory cluster with `.` / `..`
-//! (ADR-073). Root listing (`readdir`) returns thin-VFS **file** paths
-//! (directories skipped). Guest may delete a root file (`unlink`) by marking
-//! the dirent deleted and freeing its cluster chain. Not FAT32. Not xv6. Not
-//! POSIX `mkdir` / `unlink` / `getdents` / `opendir` / full write API. Host
-//! image is `scripts/mkfat16.py`.
+//! multiple clusters (ADR-064). Guest may create a root **directory** or
+//! one-level nested subdirectory (`mkdir`, ADR-073 / ADR-077): allocate a
+//! dirent + empty directory cluster with `.` / `..`. Guest may remove an
+//! **empty** directory (`rmdir`, ADR-077). Root listing (`readdir`) returns
+//! thin-VFS **file** paths (directories skipped). Guest may delete a root
+//! file (`unlink`) by marking the dirent deleted and freeing its cluster
+//! chain. Not FAT32. Not xv6. Not POSIX `mkdir` / `rmdir` / `unlink` /
+//! `getdents` / `opendir` / full write API. Host image is `scripts/mkfat16.py`.
+//!
+//! Path grammar for mkdir/rmdir: flat `/name` or one nested `/parent/child`
+//! (each component 1..=8 of `[a-z0-9_-]`, whole path ≤ `PATH_MAX`). Deeper
+//! trees fail closed (`BadPath`). File create/open/unlink stay flat.
 //!
 //! `vfs::create` stays memfs-first for A6 probe names; FAT paths under `/`
 //! route to the FAT backend ([ADR-058](../docs/03-adr/ADR-058-vfs-prefix-mounts.md)).
 //! Write on an open FAT handle is the same `vfs::write`; delete is
-//! `fat::unlink` / `vfs::unlink`; directory create is `fat::mkdir` /
-//! `vfs::mkdir`. No new SVC this mile (EL0 follow-up).
+//! `fat::unlink` / `vfs::unlink`; directory create/remove is `fat::mkdir` /
+//! `vfs::mkdir` and `fat::rmdir` / `vfs::rmdir`. No new SVC this mile.
 //!
 //! ADR-051: CNTPCT around the FAT VFS write of the small `/probe` payload,
 //! compared on the same boot to a memfs write of the same bytes (raw ticks;
@@ -48,6 +53,8 @@ const GROW_PATH: &str = "/fgrow";
 const GROW_LEN: usize = 600;
 /// Root directory create probe (ADR-073). Flat path grammar — one 8.3 name.
 const MKDIR_PATH: &str = "/fdir";
+/// One-level nested directory under `/fdir` (ADR-077).
+const NEST_PATH: &str = "/fdir/nest";
 /// Cap on names returned by one root `readdir` (ADR-056).
 pub const READDIR_MAX: usize = 16;
 /// Memfs path for the ADR-051 compared write (same payload as WRITE_BYTES).
@@ -247,8 +254,8 @@ impl Fat16 {
     }
 
     /// Write `.` and `..` into a freshly allocated directory cluster.
-    /// Parent is the FAT16 root → `..` cluster = 0.
-    fn write_dot_entries(&self, cluster: u16) -> bool {
+    /// `parent_cluster` is 0 when the parent is the FAT16 root.
+    fn write_dot_entries(&self, cluster: u16, parent_cluster: u16) -> bool {
         if cluster < 2 {
             return false;
         }
@@ -269,14 +276,14 @@ impl Fat16 {
             *b = b' ';
         }
         sec[43] = ATTR_DIR;
-        // parent = root → cluster 0
-        sec[58] = 0;
-        sec[59] = 0;
+        let pcl = parent_cluster.to_le_bytes();
+        sec[58] = pcl[0];
+        sec[59] = pcl[1];
         self.write_sector(self.cluster_lba(cluster), &sec)
     }
 
-    /// Confirm a directory cluster holds `.` (self) and `..` (root/0).
-    fn dir_dots_ok(&self, cluster: u16) -> bool {
+    /// Confirm a directory cluster holds `.` (self) and `..` (`parent_cluster`).
+    fn dir_dots_ok(&self, cluster: u16, parent_cluster: u16) -> bool {
         if cluster < 2 {
             return false;
         }
@@ -293,10 +300,152 @@ impl Fat16 {
         if sec[32] != b'.' || sec[33] != b'.' || sec[43] != ATTR_DIR {
             return false;
         }
-        if u16::from_le_bytes([sec[58], sec[59]]) != 0 {
+        if u16::from_le_bytes([sec[58], sec[59]]) != parent_cluster {
             return false;
         }
         true
+    }
+
+    /// Look up a directory dirent inside a subdirectory cluster (spc=1).
+    fn lookup_dir_in_cluster(&self, dir_cluster: u16, name83: &[u8; 11]) -> Option<u16> {
+        if dir_cluster < 2 {
+            return None;
+        }
+        let mut buf = [0u8; SECTOR];
+        if !self.read_sector(self.cluster_lba(dir_cluster), &mut buf) {
+            return None;
+        }
+        for i in 0..(self.bps as usize / 32) {
+            let e = &buf[i * 32..i * 32 + 32];
+            if e[0] == 0 {
+                return None;
+            }
+            if e[0] == 0xE5 {
+                continue;
+            }
+            let attr = e[11];
+            if attr & 0x08 != 0 || attr & 0x0F == 0x0F || attr & ATTR_DIR == 0 {
+                continue;
+            }
+            if &e[0..11] == name83 {
+                return Some(u16::from_le_bytes([e[26], e[27]]));
+            }
+        }
+        None
+    }
+
+    /// True if a file or directory dirent uses `name83` inside `dir_cluster`.
+    fn name_taken_in_cluster(&self, dir_cluster: u16, name83: &[u8; 11]) -> bool {
+        if dir_cluster < 2 {
+            return false;
+        }
+        let mut buf = [0u8; SECTOR];
+        if !self.read_sector(self.cluster_lba(dir_cluster), &mut buf) {
+            return false;
+        }
+        for i in 0..(self.bps as usize / 32) {
+            let e = &buf[i * 32..i * 32 + 32];
+            if e[0] == 0 {
+                return false;
+            }
+            if e[0] == 0xE5 {
+                continue;
+            }
+            let attr = e[11];
+            if attr & 0x08 != 0 || attr & 0x0F == 0x0F {
+                continue;
+            }
+            if &e[0..11] == name83 {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Find a free dirent slot inside a subdirectory cluster (spc=1).
+    fn find_free_dirent_in_cluster(&self, dir_cluster: u16) -> Option<(u32, usize)> {
+        if dir_cluster < 2 {
+            return None;
+        }
+        let lba = self.cluster_lba(dir_cluster);
+        let mut buf = [0u8; SECTOR];
+        if !self.read_sector(lba, &mut buf) {
+            return None;
+        }
+        for i in 0..(self.bps as usize / 32) {
+            let off = i * 32;
+            let first = buf[off];
+            if first == 0 || first == 0xE5 {
+                return Some((lba, off));
+            }
+        }
+        None
+    }
+
+    /// Mark a directory dirent deleted inside `dir_cluster`. Returns start cluster.
+    fn mark_dir_dirent_deleted_in_cluster(
+        &self,
+        dir_cluster: u16,
+        name83: &[u8; 11],
+    ) -> Option<u16> {
+        if dir_cluster < 2 {
+            return None;
+        }
+        let lba = self.cluster_lba(dir_cluster);
+        let mut buf = [0u8; SECTOR];
+        if !self.read_sector(lba, &mut buf) {
+            return None;
+        }
+        for i in 0..(self.bps as usize / 32) {
+            let off = i * 32;
+            let e = &buf[off..off + 32];
+            if e[0] == 0 {
+                return None;
+            }
+            if e[0] == 0xE5 {
+                continue;
+            }
+            let attr = e[11];
+            if attr & 0x08 != 0 || attr & 0x0F == 0x0F || attr & ATTR_DIR == 0 {
+                continue;
+            }
+            if &e[0..11] == name83 {
+                let cluster = u16::from_le_bytes([e[26], e[27]]);
+                buf[off] = 0xE5;
+                if !self.write_sector(lba, &buf) {
+                    return None;
+                }
+                return Some(cluster);
+            }
+        }
+        None
+    }
+
+    /// Directory cluster has only `.` / `..` (rest zero). Fail-closed otherwise.
+    fn dir_cluster_empty(&self, cluster: u16) -> Result<(), FsError> {
+        if cluster < 2 {
+            return Err(FsError::BadHandle);
+        }
+        let mut sec = [0u8; SECTOR];
+        if !self.read_sector(self.cluster_lba(cluster), &mut sec) {
+            return Err(FsError::BadHandle);
+        }
+        if sec[0] != b'.' || sec[11] != ATTR_DIR {
+            return Err(FsError::BadHandle);
+        }
+        if u16::from_le_bytes([sec[26], sec[27]]) != cluster {
+            return Err(FsError::BadHandle);
+        }
+        if sec[32] != b'.' || sec[33] != b'.' || sec[43] != ATTR_DIR {
+            return Err(FsError::BadHandle);
+        }
+        for b in sec[64..].iter() {
+            if *b != 0 {
+                // Non-empty: fail closed (not recursive rm).
+                return Err(FsError::BadHandle);
+            }
+        }
+        Ok(())
     }
 
     /// Mark a root **directory** dirent deleted (`0xE5`). Returns start cluster.
@@ -333,31 +482,19 @@ impl Fat16 {
         None
     }
 
-    /// Create a root directory: dirent + one cluster with `.` / `..`.
-    /// Not POSIX `mkdir`. Not nested paths (flat thin-VFS grammar).
-    fn mkdir(&mut self, path: &str) -> Result<(), FsError> {
-        if !self.mounted {
-            return Err(FsError::Missing);
-        }
-        let name = path_to_83(path).ok_or(FsError::BadPath)?;
-        if self.name_taken(&name) {
-            return Err(FsError::Exists);
-        }
-        let cluster = self.find_free_cluster().ok_or(FsError::Full)?;
-        let (sec, off) = self.find_free_dirent().ok_or(FsError::Full)?;
-        if !self.set_fat_entry(cluster, EOC) {
-            return Err(FsError::BadHandle);
-        }
-        if !self.write_dot_entries(cluster) {
-            let _ = self.set_fat_entry(cluster, 0);
-            return Err(FsError::BadHandle);
-        }
+    /// Install a directory dirent at `(sec, off)` pointing at `cluster`.
+    fn write_dir_dirent(
+        &self,
+        sec: u32,
+        off: usize,
+        name: &[u8; 11],
+        cluster: u16,
+    ) -> Result<(), FsError> {
         let mut buf = [0u8; SECTOR];
         if !self.read_sector(sec, &mut buf) {
-            let _ = self.set_fat_entry(cluster, 0);
             return Err(FsError::BadHandle);
         }
-        buf[off..off + 11].copy_from_slice(&name);
+        buf[off..off + 11].copy_from_slice(name);
         buf[off + 11] = ATTR_DIR;
         for b in buf[off + 12..off + 26].iter_mut() {
             *b = 0;
@@ -367,42 +504,117 @@ impl Fat16 {
         buf[off + 27] = cl[1];
         buf[off + 28..off + 32].copy_from_slice(&0u32.to_le_bytes());
         if !self.write_sector(sec, &buf) {
-            let _ = self.set_fat_entry(cluster, 0);
             return Err(FsError::BadHandle);
         }
         Ok(())
     }
 
-    /// Remove an empty root directory (probe leftover cleanup). Not recursive rm.
+    /// Allocate a directory cluster with `.` / `..` and a parent dirent.
+    fn mkdir_at(
+        &mut self,
+        name: &[u8; 11],
+        parent_cluster: u16,
+        dirent_sec: u32,
+        dirent_off: usize,
+    ) -> Result<(), FsError> {
+        let cluster = self.find_free_cluster().ok_or(FsError::Full)?;
+        if !self.set_fat_entry(cluster, EOC) {
+            return Err(FsError::BadHandle);
+        }
+        if !self.write_dot_entries(cluster, parent_cluster) {
+            let _ = self.set_fat_entry(cluster, 0);
+            return Err(FsError::BadHandle);
+        }
+        if let Err(e) = self.write_dir_dirent(dirent_sec, dirent_off, name, cluster) {
+            let _ = self.set_fat_entry(cluster, 0);
+            return Err(e);
+        }
+        Ok(())
+    }
+
+    /// Create a root or one-level nested directory. Not POSIX `mkdir`.
+    fn mkdir(&mut self, path: &str) -> Result<(), FsError> {
+        if !self.mounted {
+            return Err(FsError::Missing);
+        }
+        match parse_dir_path(path).ok_or(FsError::BadPath)? {
+            DirPath::Root(name) => {
+                if self.name_taken(&name) {
+                    return Err(FsError::Exists);
+                }
+                let (sec, off) = self.find_free_dirent().ok_or(FsError::Full)?;
+                self.mkdir_at(&name, 0, sec, off)
+            }
+            DirPath::Nested { parent, child } => {
+                let parent_c = if let Some(c) = self.lookup_dir(&parent) {
+                    c
+                } else if self.lookup(&parent).is_some() {
+                    // Parent name is a file, not a directory.
+                    return Err(FsError::BadPath);
+                } else {
+                    return Err(FsError::Missing);
+                };
+                if self.name_taken_in_cluster(parent_c, &child) {
+                    return Err(FsError::Exists);
+                }
+                let (sec, off) = self
+                    .find_free_dirent_in_cluster(parent_c)
+                    .ok_or(FsError::Full)?;
+                self.mkdir_at(&child, parent_c, sec, off)
+            }
+        }
+    }
+
+    /// Remove an empty directory (root or one nested level). Not recursive rm.
     fn rmdir_empty(&mut self, path: &str) -> Result<(), FsError> {
         if !self.mounted {
             return Err(FsError::Missing);
         }
-        let name = path_to_83(path).ok_or(FsError::BadPath)?;
-        let cluster = self.lookup_dir(&name).ok_or(FsError::Missing)?;
-        if !self.dir_dots_ok(cluster) {
-            return Err(FsError::BadHandle);
-        }
-        // Only `.` and `..` may be present (rest of cluster must be empty/zero).
-        let mut sec = [0u8; SECTOR];
-        if !self.read_sector(self.cluster_lba(cluster), &mut sec) {
-            return Err(FsError::BadHandle);
-        }
-        for b in sec[64..].iter() {
-            if *b != 0 {
-                return Err(FsError::BadHandle);
+        match parse_dir_path(path).ok_or(FsError::BadPath)? {
+            DirPath::Root(name) => {
+                let cluster = if let Some(c) = self.lookup_dir(&name) {
+                    c
+                } else if self.lookup(&name).is_some() {
+                    return Err(FsError::BadPath);
+                } else {
+                    return Err(FsError::Missing);
+                };
+                self.dir_cluster_empty(cluster)?;
+                let Some(c) = self.mark_dir_dirent_deleted(&name) else {
+                    return Err(FsError::Missing);
+                };
+                if c != cluster {
+                    return Err(FsError::BadHandle);
+                }
+                if cluster >= 2 && !self.free_chain(cluster) {
+                    return Err(FsError::BadHandle);
+                }
+                Ok(())
+            }
+            DirPath::Nested { parent, child } => {
+                let parent_c = if let Some(c) = self.lookup_dir(&parent) {
+                    c
+                } else if self.lookup(&parent).is_some() {
+                    return Err(FsError::BadPath);
+                } else {
+                    return Err(FsError::Missing);
+                };
+                let Some(cluster) = self.lookup_dir_in_cluster(parent_c, &child) else {
+                    return Err(FsError::Missing);
+                };
+                self.dir_cluster_empty(cluster)?;
+                let Some(c) = self.mark_dir_dirent_deleted_in_cluster(parent_c, &child) else {
+                    return Err(FsError::Missing);
+                };
+                if c != cluster {
+                    return Err(FsError::BadHandle);
+                }
+                if cluster >= 2 && !self.free_chain(cluster) {
+                    return Err(FsError::BadHandle);
+                }
+                Ok(())
             }
         }
-        let Some(c) = self.mark_dir_dirent_deleted(&name) else {
-            return Err(FsError::Missing);
-        };
-        if c != cluster {
-            return Err(FsError::BadHandle);
-        }
-        if cluster >= 2 && !self.free_chain(cluster) {
-            return Err(FsError::BadHandle);
-        }
-        Ok(())
     }
 
     fn update_dirent_size(&self, name83: &[u8; 11], size: u32) -> bool {
@@ -877,11 +1089,69 @@ static READDIR_OK: AtomicBool = AtomicBool::new(false);
 static DELETE_OK: AtomicBool = AtomicBool::new(false);
 static GROW_OK: AtomicBool = AtomicBool::new(false);
 static MKDIR_OK: AtomicBool = AtomicBool::new(false);
+static NESTED_OK: AtomicBool = AtomicBool::new(false);
+static RMDIR_OK: AtomicBool = AtomicBool::new(false);
 static FAT_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 static MEMFS_WRITE_TICKS: AtomicU64 = AtomicU64::new(0);
 static FAT_READ_TICKS: AtomicU64 = AtomicU64::new(0);
 static MEMFS_READ_TICKS: AtomicU64 = AtomicU64::new(0);
 
+/// mkdir/rmdir path: flat root name or one nested `/parent/child`.
+enum DirPath {
+    Root([u8; 11]),
+    Nested { parent: [u8; 11], child: [u8; 11] },
+}
+
+fn component_ok(name: &[u8]) -> bool {
+    !name.is_empty()
+        && name.len() <= 8
+        && name.iter().all(|&c| {
+            c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_' || c == b'-'
+        })
+}
+
+fn component_to_83(name: &[u8]) -> Option<[u8; 11]> {
+    if !component_ok(name) {
+        return None;
+    }
+    let mut out = [b' '; 11];
+    for (i, &c) in name.iter().enumerate() {
+        out[i] = c.to_ascii_uppercase();
+    }
+    Some(out)
+}
+
+/// Parse flat `/name` or one-level `/parent/child` for mkdir/rmdir (ADR-077).
+/// Deeper paths, empty components, or bad chars → `None` (`BadPath`).
+fn parse_dir_path(path: &str) -> Option<DirPath> {
+    let b = path.as_bytes();
+    if b.len() < 2 || b.len() > PATH_MAX || b[0] != b'/' {
+        return None;
+    }
+    let rest = &b[1..];
+    match rest.iter().position(|&c| c == b'/') {
+        None => {
+            let name = component_to_83(rest)?;
+            Some(DirPath::Root(name))
+        }
+        Some(i) => {
+            let parent = &rest[..i];
+            let child = &rest[i + 1..];
+            if parent.is_empty() || child.is_empty() {
+                return None;
+            }
+            if child.iter().any(|&c| c == b'/') {
+                return None;
+            }
+            Some(DirPath::Nested {
+                parent: component_to_83(parent)?,
+                child: component_to_83(child)?,
+            })
+        }
+    }
+}
+
+/// Flat file path → 8.3. Nested paths are not accepted (file ops stay flat).
 fn path_to_83(path: &str) -> Option<[u8; 11]> {
     if !vfs::valid_path(path) {
         return None;
@@ -890,11 +1160,7 @@ fn path_to_83(path: &str) -> Option<[u8; 11]> {
     if name.is_empty() || name.len() > 8 {
         return None;
     }
-    let mut out = [b' '; 11];
-    for (i, &c) in name.iter().enumerate() {
-        out[i] = c.to_ascii_uppercase();
-    }
-    Some(out)
+    component_to_83(name)
 }
 
 /// Map an 8.3 dirent name to a thin-VFS path (`PROBE   ` → `/probe`).
@@ -1049,17 +1315,29 @@ pub fn unlink(path: &str) -> Result<(), FsError> {
     FAT.lock().unlink(path)
 }
 
-/// True if a FAT16 root **directory** dirent exists for `path`.
+/// True if a FAT16 directory dirent exists for `path` (root or one nested).
 pub fn has_dir(path: &str) -> bool {
-    let Some(name) = path_to_83(path) else {
-        return false;
-    };
-    FAT.lock().lookup_dir(&name).is_some()
+    match parse_dir_path(path) {
+        Some(DirPath::Root(name)) => FAT.lock().lookup_dir(&name).is_some(),
+        Some(DirPath::Nested { parent, child }) => {
+            let fat = FAT.lock();
+            let Some(pc) = fat.lookup_dir(&parent) else {
+                return false;
+            };
+            fat.lookup_dir_in_cluster(pc, &child).is_some()
+        }
+        None => false,
+    }
 }
 
-/// Create a FAT16 root directory behind the thin VFS. Not POSIX `mkdir`.
+/// Create a FAT16 root or one-level nested directory. Not POSIX `mkdir`.
 pub fn mkdir(path: &str) -> Result<(), FsError> {
     FAT.lock().mkdir(path)
+}
+
+/// Remove an empty FAT16 directory (root or one nested). Not POSIX `rmdir`.
+pub fn rmdir(path: &str) -> Result<(), FsError> {
+    FAT.lock().rmdir_empty(path)
 }
 
 /// Read a mounted FAT path through the same VFS `open` as A7 `/probe`
@@ -1384,11 +1662,17 @@ fn vfs_probe_grow() -> bool {
 }
 
 /// Create `/fdir` via `vfs::mkdir`. Confirm dirent + `.`/`..` cluster.
-/// Leftover image: `rmdir_empty` then recreate. Not POSIX `mkdir`.
+/// Leftover image: empty-rmdir then recreate. Not POSIX `mkdir`.
 fn vfs_probe_mkdir() -> bool {
     MKDIR_OK.store(false, Ordering::SeqCst);
+    // Nested leftover under `/fdir` would make root rmdir fail closed.
+    if has_dir(NEST_PATH) {
+        if rmdir(NEST_PATH).is_err() {
+            return false;
+        }
+    }
     if has_dir(MKDIR_PATH) {
-        if FAT.lock().rmdir_empty(MKDIR_PATH).is_err() {
+        if rmdir(MKDIR_PATH).is_err() {
             return false;
         }
     } else if has_name(MKDIR_PATH) {
@@ -1413,7 +1697,7 @@ fn vfs_probe_mkdir() -> bool {
         let Some(c) = fat.lookup_dir(&name) else {
             return false;
         };
-        if !fat.dir_dots_ok(c) {
+        if !fat.dir_dots_ok(c, 0) {
             return false;
         }
         c
@@ -1427,6 +1711,98 @@ fn vfs_probe_mkdir() -> bool {
     }
     uart::write_str_raw("fat: mkdir\n");
     MKDIR_OK.store(true, Ordering::SeqCst);
+    true
+}
+
+/// Create `/fdir/nest` under existing `/fdir`, prove Exists / BadPath / Missing,
+/// then empty-rmdir. Markers `fat: nested` / `fat: rmdir`. Not POSIX.
+fn vfs_probe_nested_rmdir() -> bool {
+    NESTED_OK.store(false, Ordering::SeqCst);
+    RMDIR_OK.store(false, Ordering::SeqCst);
+    if !has_dir(MKDIR_PATH) {
+        return false;
+    }
+    if has_dir(NEST_PATH) {
+        if vfs::rmdir(NEST_PATH).is_err() {
+            return false;
+        }
+    }
+    if vfs::mkdir(NEST_PATH).is_err() {
+        return false;
+    }
+    if !has_dir(NEST_PATH) {
+        return false;
+    }
+    // Nested path is outside flat file grammar → BadPath on open/create.
+    if open(NEST_PATH) != Err(FsError::BadPath) {
+        return false;
+    }
+    let Some(parent_name) = path_to_83(MKDIR_PATH) else {
+        return false;
+    };
+    let child_name = match parse_dir_path(NEST_PATH) {
+        Some(DirPath::Nested { child, .. }) => child,
+        _ => return false,
+    };
+    {
+        let fat = FAT.lock();
+        let Some(pc) = fat.lookup_dir(&parent_name) else {
+            return false;
+        };
+        let Some(c) = fat.lookup_dir_in_cluster(pc, &child_name) else {
+            return false;
+        };
+        if !fat.dir_dots_ok(c, pc) {
+            return false;
+        }
+        if c < 2 {
+            return false;
+        }
+    }
+    if vfs::mkdir(NEST_PATH) != Err(FsError::Exists) {
+        return false;
+    }
+    // Deeper than one level → BadPath.
+    if vfs::mkdir("/fdir/nest/x") != Err(FsError::BadPath) {
+        return false;
+    }
+    // Missing parent → Missing.
+    if vfs::mkdir("/nope/x") != Err(FsError::Missing) {
+        return false;
+    }
+    uart::write_str_raw("fat: nested\n");
+    NESTED_OK.store(true, Ordering::SeqCst);
+
+    // Empty rmdir of nest.
+    if vfs::rmdir(NEST_PATH).is_err() {
+        return false;
+    }
+    if has_dir(NEST_PATH) {
+        return false;
+    }
+    if vfs::rmdir(NEST_PATH) != Err(FsError::Missing) {
+        return false;
+    }
+    // Non-empty parent: recreate nest, refuse rmdir `/fdir`.
+    if vfs::mkdir(NEST_PATH).is_err() {
+        return false;
+    }
+    if vfs::rmdir(MKDIR_PATH) != Err(FsError::BadHandle) {
+        return false;
+    }
+    // rmdir a file path → BadPath.
+    if vfs::rmdir(PROBE_PATH) != Err(FsError::BadPath) {
+        return false;
+    }
+    // Cleanup nest; leave `/fdir` for later tests.
+    if vfs::rmdir(NEST_PATH).is_err() {
+        return false;
+    }
+    if has_dir(NEST_PATH) {
+        return false;
+    }
+    uart::write_str_raw("fat: rmdir\n");
+    RMDIR_OK.store(true, Ordering::SeqCst);
     true
 }
 
@@ -1506,8 +1882,9 @@ fn measure_memfs_write() -> Option<u64> {
 
 /// Serial proof: mount, VFS-read `/probe`, VFS-write + restore, create `/fwr`,
 /// root `readdir` (ADR-056), delete `/fdel` (ADR-057), multi-cluster grow
-/// `/fgrow` (ADR-064), mkdir `/fdir` (ADR-073), plus ADR-051 write and
-/// ADR-065 read FAT-vs-memfs CNTPCT pairs (raw ticks).
+/// `/fgrow` (ADR-064), mkdir `/fdir` (ADR-073), nested `/fdir/nest` + empty
+/// rmdir (ADR-077), plus ADR-051 write and ADR-065 read FAT-vs-memfs CNTPCT
+/// pairs (raw ticks).
 #[allow(dead_code)]
 pub fn observe_probe() -> bool {
     if !mounted() {
@@ -1533,6 +1910,9 @@ pub fn observe_probe() -> bool {
         return false;
     }
     if !vfs_probe_mkdir() {
+        return false;
+    }
+    if !vfs_probe_nested_rmdir() {
         return false;
     }
     let mut w = uart::raw();
@@ -1796,7 +2176,42 @@ fn fat16_mkdir_exists_and_bad_path() {
     assert_eq!(mkdir(MKDIR_PATH), Err(FsError::Exists));
     assert_eq!(mkdir("bad"), Err(FsError::BadPath));
     assert_eq!(vfs::mkdir("bad"), Err(FsError::BadPath));
+    // Deeper than one nesting level → BadPath.
+    assert_eq!(mkdir("/fdir/nest/x"), Err(FsError::BadPath));
     // Creating a file on a directory name must fail closed.
     assert_eq!(create(MKDIR_PATH), Err(FsError::Exists));
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_nested_mkdir_and_empty_rmdir() {
+    assert!(mounted(), "FAT16 must mount for nested mkdir/rmdir");
+    assert!(
+        vfs_probe_nested_rmdir(),
+        "FAT nested /fdir/nest + empty rmdir must pass"
+    );
+    assert!(NESTED_OK.load(Ordering::SeqCst));
+    assert!(RMDIR_OK.load(Ordering::SeqCst));
+    assert!(has_dir(MKDIR_PATH));
+    assert!(!has_dir(NEST_PATH));
+    assert_eq!(rmdir(NEST_PATH), Err(FsError::Missing));
+    assert_eq!(rmdir(PROBE_PATH), Err(FsError::BadPath));
+    assert_eq!(mkdir("/nope/x"), Err(FsError::Missing));
+}
+
+#[cfg(test)]
+#[test_case]
+fn fat16_dir_path_grammar() {
+    assert!(matches!(parse_dir_path("/fdir"), Some(DirPath::Root(_))));
+    assert!(matches!(
+        parse_dir_path("/fdir/nest"),
+        Some(DirPath::Nested { .. })
+    ));
+    assert!(parse_dir_path("/a/b/c").is_none());
+    assert!(parse_dir_path("bad").is_none());
+    assert!(parse_dir_path("/").is_none());
+    assert!(parse_dir_path("/toolong12").is_none());
+    // Flat file grammar still rejects nested.
+    assert!(path_to_83("/fdir/nest").is_none());
 }
 
