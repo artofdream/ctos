@@ -28,6 +28,7 @@ flowchart TD
 | Landed | **FAT16 readdir** | Guest `vfs::readdir` lists FAT16 root paths ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Not POSIX `getdents`. |
 | Landed | **FAT16 delete** | Guest `vfs::unlink` deletes a FAT16 root file ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX `unlink`. |
 | Landed | **FAT16 mkdir** | Guest `vfs::mkdir` creates a FAT16 root directory with `.` / `..` ([ADR-073](../03-adr/ADR-073-fat16-mkdir.md)). Not POSIX `mkdir`. |
+| Landed | **EL0 `fs_mkdir`** | SVC 27 + freestanding `/mkdemo` ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Exists/BadPath fail-closed. Not a nested tree. |
 | Landed | ctos-specific **virtual mounts** | Prefix mounts behind the thin VFS ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Not a new magic format. Not `mount(2)`. Tree mounts (extra `/`) stay later. |
 
 ## Avoid early
@@ -81,6 +82,7 @@ flowchart LR
 | FAT16 root readdir | Serial `fat: readdir` / `fat: entries` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Not POSIX. |
 | FAT16 root delete | Serial `fat: delete` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX. |
 | FAT16 root mkdir | Serial `fat: mkdir` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-073](../03-adr/ADR-073-fat16-mkdir.md)). Not POSIX. |
+| EL0 `fs_mkdir` sample | Serial `libctos: mkdir-ok` / `mkdemo: ok` | **Verified** on this tip when the ledger has the probe ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Not POSIX. Not nested trees. |
 | Thin VFS prefix mounts | Serial `vfs: mount` / `vfs: mounts` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Not `mount(2)`. |
 | FAT16 `/hello` app slot (A9) | Serial `slot: ok` + `#[test_case]` | **First cut** when the ledger has the probe |
 

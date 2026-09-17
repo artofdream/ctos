@@ -23,6 +23,7 @@ APP3="${CTOS_APP3_ELF:-$ROOT/target/fat-libctos.elf}"
 APP4="${CTOS_APP4_ELF:-$ROOT/target/yield-libctos.elf}"
 APP5="${CTOS_APP5_ELF:-$ROOT/target/net-libctos.elf}"
 APP6="${CTOS_APP6_ELF:-$ROOT/target/udp-libctos.elf}"
+APP7="${CTOS_APP7_ELF:-$ROOT/target/mkdir-libctos.elf}"
 if [ ! -f "$APP" ]; then
     echo "qemu-aarch64: missing app ELF $APP (A9 / ADR-030; cargo build publishes it)" >&2
     exit 1
@@ -47,7 +48,11 @@ if [ ! -f "$APP6" ]; then
     echo "qemu-aarch64: missing app6 ELF $APP6 (ADR-071; cargo build publishes it)" >&2
     exit 1
 fi
-if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" --app2 "$APP2" --app3 "$APP3" --app4 "$APP4" --app5 "$APP5" --app6 "$APP6" "$IMG" >/dev/null; then
+if [ ! -f "$APP7" ]; then
+    echo "qemu-aarch64: missing app7 ELF $APP7 (ADR-075; cargo build publishes it)" >&2
+    exit 1
+fi
+if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" --app2 "$APP2" --app3 "$APP3" --app4 "$APP4" --app5 "$APP5" --app6 "$APP6" --app7 "$APP7" "$IMG" >/dev/null; then
     echo "qemu-aarch64: failed to write FAT16 image $IMG" >&2
     exit 1
 fi

@@ -5,6 +5,7 @@
 //! A6 adds 19–23 (thin VFS / memfs, ADR-027).
 //! Track N / N4 adds 24–25 (net MAC + ICMP ping, ADR-068).
 //! Track N / N3.x adds 26 (UDP DNS probe, ADR-071).
+//! ADR-075 adds 27 (`fs_mkdir` — FAT16 root directory create via thin VFS).
 //! Not Linux. Not POSIX. Not app hosting. Not a TCP/UDP product stack.
 
 use core::fmt::Write;
@@ -51,6 +52,15 @@ pub const SYS_NET_MAC: u64 = 24;
 pub const SYS_NET_PING: u64 = 25;
 /// Kernel-path UDP DNS probe vs SLIRP DNS (ADR-071).
 pub const SYS_NET_UDP_DNS: u64 = 26;
+/// Create a FAT16 root directory via thin VFS (ADR-075).
+pub const SYS_FS_MKDIR: u64 = 27;
+
+/// `fs_mkdir` success.
+pub const FS_MKDIR_OK: u64 = 0;
+/// `fs_mkdir` name already exists (file or directory).
+pub const FS_MKDIR_EXISTS: u64 = 1;
+/// `fs_mkdir` bad path (grammar / nested / memfs).
+pub const FS_MKDIR_BAD_PATH: u64 = 2;
 
 /// Hard cap on `SYS_UART_WRITE`. Longer lengths return 0.
 pub const UART_WRITE_MAX: u64 = 64;
@@ -80,6 +90,8 @@ const SVC24_A64: u32 = 0xD4000001 | ((SYS_NET_MAC as u32) << 5);
 const SVC25_A64: u32 = 0xD4000001 | ((SYS_NET_PING as u32) << 5);
 #[cfg(test)]
 const SVC26_A64: u32 = 0xD4000001 | ((SYS_NET_UDP_DNS as u32) << 5);
+#[cfg(test)]
+const SVC27_A64: u32 = 0xD4000001 | ((SYS_FS_MKDIR as u32) << 5);
 
 const EL0_FS_PATH: &[u8] = b"/eprobe";
 const EL0_FS_BYTES: &[u8] = b"memfs-el0";
@@ -99,6 +111,7 @@ static FS_CLOSE_OK: AtomicBool = AtomicBool::new(false);
 static NET_MAC_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
 static NET_PING_OK: AtomicBool = AtomicBool::new(false);
 static NET_UDP_DNS_OK: AtomicBool = AtomicBool::new(false);
+static FS_MKDIR_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
 
 /// What the lower-EL handler should do after a public ABI call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -419,6 +432,26 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
             }
             Some(SvcAction::StayEl0)
         }
+        SYS_FS_MKDIR => {
+            el0::note_active_while_standing();
+            let ptr = ctx.x[0];
+            let len = ctx.x[1];
+            let code = match path_from_user(ptr, len) {
+                Some(buf) => match path_str(&buf, len) {
+                    Some(p) => match vfs::mkdir(p) {
+                        Ok(()) => FS_MKDIR_OK,
+                        Err(vfs::FsError::Exists) => FS_MKDIR_EXISTS,
+                        Err(vfs::FsError::BadPath) => FS_MKDIR_BAD_PATH,
+                        Err(_) => FS_ERR,
+                    },
+                    None => FS_MKDIR_BAD_PATH,
+                },
+                None => FS_MKDIR_BAD_PATH,
+            };
+            FS_MKDIR_LAST.store(code, Ordering::SeqCst);
+            ctx.x[0] = code;
+            Some(SvcAction::StayEl0)
+        }
         _ => None,
     }
 }
@@ -442,6 +475,7 @@ pub(crate) fn reset_fs_flags() {
     NET_MAC_LAST.store(u64::MAX, Ordering::SeqCst);
     NET_PING_OK.store(false, Ordering::SeqCst);
     NET_UDP_DNS_OK.store(false, Ordering::SeqCst);
+    FS_MKDIR_LAST.store(u64::MAX, Ordering::SeqCst);
 }
 
 fn write_bytes(base: *mut u8, off: usize, bytes: &[u8]) {
@@ -754,6 +788,7 @@ fn syscall_numbers_are_documented() {
     assert_eq!(svc_a64(SYS_NET_MAC), SVC24_A64);
     assert_eq!(svc_a64(SYS_NET_PING), SVC25_A64);
     assert_eq!(svc_a64(SYS_NET_UDP_DNS), SVC26_A64);
+    assert_eq!(svc_a64(SYS_FS_MKDIR), SVC27_A64);
     assert_ne!(SYS_EXIT, SVC_PROBE_RETURN);
     assert_ne!(SYS_EXIT, SVC_PROBE_STANDING);
     assert_ne!(SYS_EXIT, SVC_PROBE_RESTORE);
