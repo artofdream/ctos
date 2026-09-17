@@ -26,7 +26,7 @@ FAT 8.3 path grammar: `/tcpdemo` fits (7 chars under the 8.3 name).
 1. **`SYS_NET_TCP_ECHO` = 28.** Document in [syscall.md](../framework/syscall.md). No args. Kernel `virtio::el0_tcp_echo` does quiet ARP + SYN/est/tx/rx vs guestfwd (no serial `net: tcp-*` markers on this quiet path). Return `0` on success, `u64::MAX` (`NET_ERR`) on fail. Unknown SVCs still park. Not sockets. Not a process ABI.
 2. **`libctos`.** `ctos_net_tcp_echo` / `net_tcp_echo` + `SYS_NET_TCP_ECHO`. CRT must not issue reserved 0–2.
 3. **Freestanding sample.** `user/tcp-libctos` on FAT `/tcpdemo` (8.3 `TCPDEMO`). Markers: `libctos: tcp-hi` / `libctos: tcp-ok` / `tcpdemo: ok`. Keep prior seven samples + kernel `net: tcp-ok` + all other smoke.
-4. **Fail-closed smoke.** Grep the new markers; keep N1–N5 / N3.x / N4 / FAT / mkdir / samples. `#[test_case]` on the slot module + `el0_tcp_echo_probe`.
+4. **Fail-closed smoke.** Grep the new markers; keep N1–N5 / N3.x / N4 / FAT / mkdir / samples. `#[test_case]` on the slot module + `el0_tcp_echo_probe`. Default `CTOS_FORCE_FAIL_TIMEOUT` is **180s** (was 120): ubuntu-24.04-arm force-fail rebuild+boot with eight FAT samples exceeded 120s; force-fail must still exit non-zero.
 5. **Honesty.** Say “EL0 triggered the thin TCP guestfwd echo through `net_tcp_echo`” only when serial / tests pass. Do **not** say: BSD sockets, listen/accept, TLS, HTTP, “has networking / sockets OS,” EL0 virtio driver, Linux/POSIX, EL0 isolated, PAN, taken SError.
 6. **NFR-10 text** revised in place (ID unchanged). Threat-model **v1.51**. Do not mint NFR-15+.
 

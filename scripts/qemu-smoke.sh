@@ -1438,8 +1438,8 @@ fi
 
 # Force-fail rebuilds ctos with --features force-fail. On ubuntu-24.04-arm GHA
 # that recompile alone can take ~30s, and ADR-059 /fsdemo + ADR-061 /fatdemo + ADR-062 /yldemo + ADR-068 /netdemo + ADR-071 /udpdemo + ADR-075 /mkdemo + ADR-076 /tcpdemo also lengthen boot —
-# so the old 30s wall often expired before semihosting exit. Override via env.
-FORCE_FAIL_TIMEOUT_SECS="${CTOS_FORCE_FAIL_TIMEOUT:-120}"
+# so the old 30s / 120s walls expired before semihosting exit (eighth sample tipped arm past 120s). Override via env.
+FORCE_FAIL_TIMEOUT_SECS="${CTOS_FORCE_FAIL_TIMEOUT:-180}"
 echo "qemu-smoke: force-fail must be non-zero (timeout ${FORCE_FAIL_TIMEOUT_SECS}s)"
 set +e
 timeout "$FORCE_FAIL_TIMEOUT_SECS" cargo +nightly test --features force-fail -- --nocapture
