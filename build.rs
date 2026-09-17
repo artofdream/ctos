@@ -8,6 +8,7 @@
 //! ADR-068: also publish `target/net-libctos.elf` for FAT `/netdemo`.
 //! ADR-071: also publish `target/udp-libctos.elf` for FAT `/udpdemo`.
 //! ADR-075: also publish `target/mkdir-libctos.elf` for FAT `/mkdemo`.
+//! ADR-076: also publish `target/tcp-libctos.elf` for FAT `/tcpdemo`.
 //!
 //! This is **not** a guest ELF loader (A3). The parse is host-side only.
 
@@ -31,6 +32,7 @@ fn main() {
     let net_dir = manifest_dir.join("user/net-libctos");
     let udp_dir = manifest_dir.join("user/udp-libctos");
     let mkdir_dir = manifest_dir.join("user/mkdir-libctos");
+    let tcp_dir = manifest_dir.join("user/tcp-libctos");
     let libctos_dir = manifest_dir.join("libctos");
 
     println!("cargo:rerun-if-changed={}", hello_dir.display());
@@ -40,6 +42,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", net_dir.display());
     println!("cargo:rerun-if-changed={}", udp_dir.display());
     println!("cargo:rerun-if-changed={}", mkdir_dir.display());
+    println!("cargo:rerun-if-changed={}", tcp_dir.display());
     println!("cargo:rerun-if-changed={}", libctos_dir.display());
     println!("cargo:rerun-if-changed=build.rs");
 
@@ -243,6 +246,31 @@ fn main() {
     )
     .unwrap();
     println!("cargo:rustc-env=CTOS_MKDIR_LIBCTOS_ELF_LEN={}", mkdir_elf.len());
+
+    // ADR-076: eighth freestanding sample (EL0 TCP echo SVC). FAT `/tcpdemo` only.
+    let tcp_elf = build_user_rust(&manifest_dir, &tcp_dir, &out_dir, "tcp-libctos")
+        .unwrap_or_else(|e| panic!("libctos tcp-libctos payload: {e}"));
+    let (tcp_va, tcp_image) =
+        elf64_pt_load(&tcp_elf).unwrap_or_else(|e| panic!("tcp-libctos ELF: {e}"));
+    if tcp_va != EL0_PAGE {
+        panic!("tcp-libctos load VA {tcp_va:#x} != EL0_PAGE {EL0_PAGE:#x}");
+    }
+    if tcp_elf.is_empty() || tcp_elf.len() > 64 * 1024 {
+        panic!("tcp-libctos ELF {} bytes empty or > 64 KiB", tcp_elf.len());
+    }
+    assert_tcp_payload(&tcp_image);
+    fs::write(out_dir.join("tcp-libctos.elf"), &tcp_elf).unwrap();
+    fs::write(manifest_dir.join("target/tcp-libctos.elf"), &tcp_elf).unwrap();
+    fs::write(
+        out_dir.join("tcp_libctos_meta.rs"),
+        format!(
+            "pub const TCPDEMO_LOAD_VA: u64 = {EL0_PAGE:#x};\n\
+             pub const TCPDEMO_ELF_LEN: usize = {};\n",
+            tcp_elf.len()
+        ),
+    )
+    .unwrap();
+    println!("cargo:rustc-env=CTOS_TCP_LIBCTOS_ELF_LEN={}", tcp_elf.len());
 }
 
 fn build_user_rust(
@@ -587,5 +615,30 @@ fn assert_mkdir_payload(image: &[u8]) {
     }
     if !image.windows(18).any(|w| w == b"libctos: mkdir-ok\n") {
         panic!("mkdir-libctos missing libctos: mkdir-ok");
+    }
+}
+
+fn assert_tcp_payload(image: &[u8]) {
+    let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
+    let words: Vec<u32> = image
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+        .collect();
+    for reserved in [0u32, 1, 2] {
+        if words.contains(&svc(reserved)) {
+            panic!("tcp-libctos encodes reserved SVC #{reserved} (ADR-013)");
+        }
+    }
+    // exit/uart/yield + net_tcp_echo
+    for need in [16u32, 17, 18, 28] {
+        if !words.contains(&svc(need)) {
+            panic!("tcp-libctos missing SVC #{need}");
+        }
+    }
+    if !image.windows(16).any(|w| w == b"libctos: tcp-hi\n") {
+        panic!("tcp-libctos missing libctos: tcp-hi");
+    }
+    if !image.windows(16).any(|w| w == b"libctos: tcp-ok\n") {
+        panic!("tcp-libctos missing libctos: tcp-ok");
     }
 }

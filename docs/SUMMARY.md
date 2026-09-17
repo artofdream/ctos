@@ -102,6 +102,7 @@
 - [ADR-073 FAT16 mkdir](03-adr/ADR-073-fat16-mkdir.md)
 - [ADR-074 N5 thin TCP](03-adr/ADR-074-n5-thin-tcp.md)
 - [ADR-075 EL0 fs_mkdir + mkdir-libctos sample](03-adr/ADR-075-el0-fs-mkdir.md)
+- [ADR-076 EL0 TCP SVC + tcp-libctos sample](03-adr/ADR-076-el0-tcp-svc.md)
 
 # Roadmap
 

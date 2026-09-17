@@ -1,14 +1,14 @@
 //! Freestanding `libctos` — wrappers for the A1 EL0 SVC ABI (ADR-021 / ADR-022)
-//! plus A6 memfs numbers (ADR-027), Track N net numbers (ADR-068 / ADR-071),
+//! plus A6 memfs numbers (ADR-027), Track N net numbers (ADR-068 / ADR-071 / ADR-076),
 //! and EL0 `fs_mkdir` (ADR-075).
 //!
 //! Public numbers: `exit` = 16, `uart_write` = 17, `yield` = 18,
 //! `fs_create` = 19, `fs_open` = 20, `fs_read` = 21, `fs_write` = 22,
 //! `fs_close` = 23, `net_mac` = 24, `net_ping` = 25, `net_udp_dns` = 26,
-//! `fs_mkdir` = 27.
+//! `fs_mkdir` = 27, `net_tcp_echo` = 28.
 //! Reserved 0–2 stay ADR-013 probes. This crate must not issue them.
 //!
-//! Not Linux. Not POSIX. Not glibc. Not a process model. Not a TCP stack.
+//! Not Linux. Not POSIX. Not glibc. Not a process model. Not a TCP product stack.
 //! Not BSD sockets. Not a DNS product. Not POSIX `mkdir`.
 
 #![no_std]
@@ -41,6 +41,8 @@ pub const SYS_NET_PING: u64 = 25;
 pub const SYS_NET_UDP_DNS: u64 = 26;
 /// Create a FAT16 root directory via thin VFS (ADR-075). See `FS_MKDIR_*` returns.
 pub const SYS_FS_MKDIR: u64 = 27;
+/// Kernel-path thin TCP echo vs guestfwd 10.0.2.4:7 (ADR-076). Returns 0, or `u64::MAX`.
+pub const SYS_NET_TCP_ECHO: u64 = 28;
 
 /// `fs_mkdir` success.
 pub const FS_MKDIR_OK: u64 = 0;
@@ -66,6 +68,7 @@ const _: () = assert!(
 );
 const _: () = assert!(SYS_NET_MAC == 24 && SYS_NET_PING == 25 && SYS_NET_UDP_DNS == 26);
 const _: () = assert!(SYS_FS_MKDIR == 27);
+const _: () = assert!(SYS_NET_TCP_ECHO == 28);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RETURN);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_STANDING);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RESTORE);
@@ -83,6 +86,7 @@ extern "C" {
     pub fn ctos_net_ping() -> u64;
     pub fn ctos_net_udp_dns() -> u64;
     pub fn ctos_fs_mkdir(ptr: *const u8, len: usize) -> u64;
+    pub fn ctos_net_tcp_echo() -> u64;
 }
 
 /// End the EL0 trip. Does not return to the caller.
@@ -156,4 +160,11 @@ pub fn net_udp_dns() -> u64 {
 #[inline]
 pub fn fs_mkdir(path: &[u8]) -> u64 {
     unsafe { ctos_fs_mkdir(path.as_ptr(), path.len()) }
+}
+
+/// `SYS_NET_TCP_ECHO`. Returns 0 on thin TCP echo success, `u64::MAX` if rejected.
+/// Not BSD sockets. Not listen/accept.
+#[inline]
+pub fn net_tcp_echo() -> u64 {
+    unsafe { ctos_net_tcp_echo() }
 }

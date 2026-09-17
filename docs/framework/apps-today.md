@@ -94,7 +94,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). A fifth (`user/net-libctos`, FAT `/netdemo`) exercises EL0 net SVCs ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md); markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). A sixth (`user/udp-libctos`, FAT `/udpdemo`) exercises EL0 `net_udp_dns` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md); markers `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). A seventh (`user/mkdir-libctos`, FAT `/mkdemo`) exercises EL0 `fs_mkdir` ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md); markers `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption. Not sockets.
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). A fifth (`user/net-libctos`, FAT `/netdemo`) exercises EL0 net SVCs ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md); markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). A sixth (`user/udp-libctos`, FAT `/udpdemo`) exercises EL0 `net_udp_dns` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md); markers `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). A seventh (`user/mkdir-libctos`, FAT `/mkdemo`) exercises EL0 `fs_mkdir` ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md); markers `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: ok`). An eighth (`user/tcp-libctos`, FAT `/tcpdemo`) exercises EL0 `net_tcp_echo` ([ADR-076](../03-adr/ADR-076-el0-tcp-svc.md); markers `libctos: tcp-hi` / `libctos: tcp-ok` / `tcpdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption. Not sockets.
 
 ## Sample: freestanding libctos VFS (`fs-libctos`, ADR-059)
 
@@ -149,8 +149,17 @@ That ELF still has to land on FAT `/hello` to run. The hello does **not** call `
 
 **Where.** `user/mkdir-libctos/`, `src/mkdemo.rs`, `scripts/mkfat16.py --app7`. Decision: [ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md).
 
-**Probe.** `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: fat` / `mkdemo: mapped` / `mkdemo: ok`. Keep `fat: mkdir` / prior six samples / net. Not POSIX `mkdir`. Not a nested tree. Not EL0 TCP.
+**Probe.** `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: fat` / `mkdemo: mapped` / `mkdemo: ok`. Keep `fat: mkdir` / prior six samples / net. Not POSIX `mkdir`. Not a nested tree.
 
+
+
+### Freestanding `tcp-libctos` (EL0 `net_tcp_echo`)
+
+**What it is.** Eighth freestanding EL0 ELF linked against `libctos`. Prints `libctos: tcp-hi`, runs quiet thin TCP guestfwd echo via `net_tcp_echo` (SVC 28), then `libctos: tcp-ok`. Loaded from FAT `/tcpdemo`.
+
+**Where.** `user/tcp-libctos/`, `src/tcpdemo.rs`, `scripts/mkfat16.py --app8`. Decision: [ADR-076](../03-adr/ADR-076-el0-tcp-svc.md).
+
+**Probe.** `libctos: tcp-hi` / `libctos: tcp-ok` / `tcpdemo: fat` / `tcpdemo: mapped` / `tcpdemo: ok`. Keep `net: tcp-ok` / prior seven samples. Not BSD sockets. Not listen/accept. Not TLS.
 
 
 ## Sample: memfs named-buffer probe (A6)
