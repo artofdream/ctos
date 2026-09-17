@@ -27,6 +27,7 @@ What we measure **today** on QEMU `virt` (serial markers + tests, fail-closed in
 | FS read delta (`perf: fs-read-delta`) | Raw `fat=<a> memfs=<b>` tick pair on one boot | A percent, “faster/slower,” or SPEC |
 | Net-ping (`perf: net-ping`) | CNTPCT around EL0 `net_ping` quiet ARP+ICMP vs SLIRP (`el0_icmp_ping`) ([ADR-069](../03-adr/ADR-069-net-ping-cntpct.md)) | A ping latency SLA, “has networking,” or SPEC |
 | UDP DNS (`perf: udp-dns`) | CNTPCT around EL0 `net_udp_dns` quiet ARP+UDP DNS vs SLIRP (`el0_udp_dns`) ([ADR-072](../03-adr/ADR-072-udp-dns-cntpct.md)) | A DNS latency SLA, “has networking,” or SPEC |
+| TCP echo (`perf: tcp-echo`) | CNTPCT around EL0 `net_tcp_echo` quiet ARP+thin TCP vs guestfwd (`el0_tcp_echo`) ([ADR-078](../03-adr/ADR-078-tcp-echo-cntpct.md)) | A TCP latency SLA, sockets, “has networking,” or SPEC |
 
 QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not SPEC. Optimize only after a probe shows a cost. Details: [performance.md](../framework/performance.md).
 
@@ -84,6 +85,16 @@ QEMU `virt` is **one guest**. It is not Raspberry Pi, not real silicon, and not 
 | Single-path **sample** | Raw tick count for quiet ARP+UDP DNS as `SYS_NET_UDP_DNS` does it | A percent, SLA, or product KPI |
 | Gate | Prefix `perf: udp-dns` present; reject faster/slower/percent | Exact tick count; criterion / invented benches |
 | Non-claim | — | TCP, sockets, DNS product, “has networking,” Wi‑Fi |
+
+### Thin TCP echo path (performance)
+
+[ADR-078](../03-adr/ADR-078-tcp-echo-cntpct.md) times the EL0 `net_tcp_echo` quiet path: `perf: tcp-echo ticks=<n>`. Smoke checks the **prefix** only — tick values vary under QEMU TCG. Window = quiet ARP + thin TCP guestfwd echo as `SYS_NET_TCP_ECHO` / `el0_tcp_echo` (same pattern as ADR-069/072). Kernel N5 `net: tcp-ok` stays untimed this mile.
+
+| Kind | Honest claim shape | What it is not |
+| --- | --- | --- |
+| Single-path **sample** | Raw tick count for quiet ARP+TCP as `SYS_NET_TCP_ECHO` does it | A percent, SLA, or product KPI |
+| Gate | Prefix `perf: tcp-echo` present; reject faster/slower/percent | Exact tick count; criterion / invented benches |
+| Non-claim | — | BSD sockets, listen/accept, TLS/HTTP, “has networking,” Wi‑Fi |
 
 ## Stability / antifragility
 

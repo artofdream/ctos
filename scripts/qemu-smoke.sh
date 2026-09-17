@@ -22,6 +22,7 @@
 # `net: tcp-rx` / `net: tcp-ok` via guestfwd echo at 10.0.2.4:7 (not a sockets product).
 # ADR-069: `perf: net-ping` (EL0 net_ping CNTPCT; prefix only — ticks vary).
 # ADR-072: `perf: udp-dns` (EL0 net_udp_dns CNTPCT; prefix only — ticks vary).
+# ADR-078: `perf: tcp-echo` (EL0 net_tcp_echo CNTPCT; prefix only — ticks vary).
 # N3.x / ADR-071: EL0 `net_udp_dns` (26) + FAT `/udpdemo` (`libctos: udp-ok` / `udpdemo: ok`).
 # ADR-075: EL0 `fs_mkdir` (27) + FAT `/mkdemo` (`libctos: mkdir-ok` / `mkdemo: ok`).
 # ADR-077: nested FAT mkdir `/fdir/nest` + empty rmdir (`fat: nested` / `fat: rmdir`).
@@ -995,6 +996,20 @@ if grep -E -q 'perf: udp-dns.*(faster|slower|percent|%)' "$log"; then
     exit 1
 fi
 echo "qemu-smoke: ADR-072 udp-dns CNTPCT marker present"
+# ADR-078: EL0 net_tcp_echo CNTPCT (prefix only — tick values vary under TCG).
+if grep -q "perf: tcp-echo missed" "$log"; then
+    echo "qemu-smoke: tcp-echo probe missed (CNTPCT around EL0 net_tcp_echo did not advance)" >&2
+    exit 1
+fi
+if ! grep -q "perf: tcp-echo" "$log"; then
+    echo "qemu-smoke: missing 'perf: tcp-echo' on serial (ADR-078 net_tcp_echo CNTPCT, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -E -q 'perf: tcp-echo.*(faster|slower|percent|%)' "$log"; then
+    echo "qemu-smoke: tcp-echo must not claim faster/slower/percent" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-078 tcp-echo CNTPCT marker present"
 if grep -q "perf: app-load missed" "$log"; then
     echo "qemu-smoke: app-load probe missed (CNTPCT around FAT load did not advance)" >&2
     exit 1

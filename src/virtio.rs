@@ -5,7 +5,8 @@
 //! then ICMP then one UDP datagram vs QEMU user netdev. N4 / ADR-068 and
 //! N3.x / ADR-071 expose tiny EL0 SVCs that call into this module (kernel
 //! still owns the NIC). ADR-069 times the quiet EL0 `net_ping` path with
-//! CNTPCT (`perf: net-ping`); ADR-072 times EL0 `net_udp_dns` (`perf: udp-dns`).
+//! CNTPCT (`perf: net-ping`); ADR-072 times EL0 `net_udp_dns` (`perf: udp-dns`);
+//! ADR-078 times EL0 `net_tcp_echo` (`perf: tcp-echo`).
 //! Scan transports, DMA at identity PAs, poll
 //! `used.idx`. Not virtio-pci. Not a virtio IRQ.
 //! Not BSD sockets / TCP product / DHCP/DNS product / Wi-Fi.
@@ -592,6 +593,8 @@ static NET_TCP_OK: AtomicBool = AtomicBool::new(false);
 static NET_PING_TICKS: AtomicU64 = AtomicU64::new(0);
 /// ADR-072: last EL0 `net_udp_dns` quiet ARP+UDP DNS CNTPCT sample (lab only).
 static NET_UDP_DNS_TICKS: AtomicU64 = AtomicU64::new(0);
+/// ADR-078: last EL0 `net_tcp_echo` quiet ARP+TCP guestfwd CNTPCT sample (lab only).
+static NET_TCP_ECHO_TICKS: AtomicU64 = AtomicU64::new(0);
 
 fn find_net() -> Option<(usize, u32)> {
     for i in 0..MMIO_COUNT {
@@ -1802,8 +1805,11 @@ pub fn udp_dns_ticks() -> u64 {
 /// Quiet ARP + thin TCP echo vs guestfwd for EL0 `net_tcp_echo` (ADR-076).
 /// Kernel still programs virtio-net; no serial N5 markers here.
 /// Uses a distinct ephemeral port/ISN from the kernel N5 path so a second
-/// open after `observe_net_probe` does not collide. No TCP CNTPCT this mile.
+/// open after `observe_net_probe` does not collide.
+/// ADR-078: samples CNTPCT around the full quiet path and prints
+/// `perf: tcp-echo ticks=<n>` (lab measurement — not a latency SLA).
 pub fn el0_tcp_echo() -> bool {
+    NET_TCP_ECHO_TICKS.store(0, Ordering::SeqCst);
     if !paging::mmu_enabled() || !net_ready() {
         return false;
     }
@@ -1811,6 +1817,7 @@ pub fn el0_tcp_echo() -> bool {
     let src_port = TCP_EL0_SRC_PORT.wrapping_add((n % 16) as u16);
     let isn = TCP_EL0_ISN.wrapping_add(n.wrapping_mul(0x10000));
     let net = NET.lock();
+    let t0 = timer::cntpct();
     let Some(rx_last) = net_post_rx(&net) else {
         return false;
     };
@@ -1881,7 +1888,23 @@ pub fn el0_tcp_echo() -> bool {
         return false;
     };
     let _ = plen;
+    let ticks = timer::cntpct().wrapping_sub(t0);
+    if ticks == 0 {
+        uart::write_str_raw("perf: tcp-echo missed\n");
+        return false;
+    }
+    NET_TCP_ECHO_TICKS.store(ticks, Ordering::SeqCst);
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "perf: tcp-echo ticks={}", ticks);
+    }
     true
+}
+
+/// Last ADR-078 `perf: tcp-echo` sample (0 if none).
+#[allow(dead_code)]
+pub fn tcp_echo_ticks() -> u64 {
+    NET_TCP_ECHO_TICKS.load(Ordering::SeqCst)
 }
 
 
@@ -2059,4 +2082,16 @@ fn el0_tcp_echo_probe() {
         el0_tcp_echo(),
         "quiet ARP+TCP echo for EL0 net_tcp_echo must succeed"
     );
+}
+
+#[cfg(test)]
+#[test_case]
+fn el0_tcp_echo_cntpct_advances() {
+    assert!(net_ready(), "virtio-net must be attached (qemu -netdev + guestfwd)");
+    assert!(
+        el0_tcp_echo(),
+        "quiet ARP+TCP echo for EL0 net_tcp_echo must succeed"
+    );
+    let ticks = tcp_echo_ticks();
+    assert!(ticks > 0, "ADR-078 tcp-echo CNTPCT sample must advance");
 }
