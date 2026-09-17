@@ -2,7 +2,7 @@
 
 **Today: thin VFS with two backends and a prefix mount table.** In-RAM **memfs** (A6 / [ADR-027](../03-adr/ADR-027-thin-vfs-memfs.md)) and **FAT16 on virtio-blk** (A7 / [ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Same `open` / `read` / `write` / `close`. Path **prefixes** route to a backend ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)): `/mem` (+ A6 probe names) → memfs; `/` → FAT16 (`/probe`, plus freestanding samples `/hello` / `/fsdemo` / `/fatdemo` / `/yldemo`). FAT16 write is a depth mile ([ADR-050](../03-adr/ADR-050-fat16-write.md)). Multi-cluster grow is a depth mile ([ADR-064](../03-adr/ADR-064-fat16-multi-cluster-grow.md)). FAT16 root listing is a depth mile ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). FAT16 root delete is a depth mile ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX `open` / `mount` / `getdents` / `unlink`, not Linux VFS, not FAT32, not xv6. Track B B5 compares the concepts: [ADR-034](../03-adr/ADR-034-linux-vfs-vs-thin-ctos.md). **Not claiming a Linux filesystem.**
 
-Do not say “supports FAT” as a product. Say the guest read a known FAT16 file when the ledger has `fat: ok`, wrote FAT16 bytes when it has `fat: write` / `fat: create`, grew a file across a cluster boundary when it has `fat: grow`, listed root entries when it has `fat: readdir` / `fat: entries`, deleted a root file when it has `fat: delete`, and created a root directory when it has `fat: mkdir`. Hub: [honesty ledger](../framework/honesty-ledger.md), [What can run today](what-can-run.md). Extra stance: [filesystem.md](../framework/filesystem.md).
+Do not say “supports FAT” as a product. Say the guest read a known FAT16 file when the ledger has `fat: ok`, wrote FAT16 bytes when it has `fat: write` / `fat: create`, grew a file across a cluster boundary when it has `fat: grow`, listed root entries when it has `fat: readdir` / `fat: entries`, deleted a root file when it has `fat: delete`, created a root directory when it has `fat: mkdir`, created a one-level nested directory when it has `fat: nested`, and removed an empty directory when it has `fat: rmdir`. Hub: [honesty ledger](../framework/honesty-ledger.md), [What can run today](what-can-run.md). Extra stance: [filesystem.md](../framework/filesystem.md).
 
 ```mermaid
 flowchart TD
@@ -28,7 +28,8 @@ flowchart TD
 | Landed | **FAT16 readdir** | Guest `vfs::readdir` lists FAT16 root paths ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Not POSIX `getdents`. |
 | Landed | **FAT16 delete** | Guest `vfs::unlink` deletes a FAT16 root file ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX `unlink`. |
 | Landed | **FAT16 mkdir** | Guest `vfs::mkdir` creates a FAT16 root directory with `.` / `..` ([ADR-073](../03-adr/ADR-073-fat16-mkdir.md)). Not POSIX `mkdir`. |
-| Landed | **EL0 `fs_mkdir`** | SVC 27 + freestanding `/mkdemo` ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Exists/BadPath fail-closed. Not a nested tree. |
+| Landed | **EL0 `fs_mkdir`** | SVC 27 + freestanding `/mkdemo` ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Exists/BadPath fail-closed. Root create from EL0. |
+| Landed | **FAT16 nested mkdir + empty rmdir** | One-level `/parent/child` + empty `vfs::rmdir` ([ADR-077](../03-adr/ADR-077-fat16-nested-rmdir.md)). Not POSIX. Not arbitrary depth. |
 | Landed | ctos-specific **virtual mounts** | Prefix mounts behind the thin VFS ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Not a new magic format. Not `mount(2)`. Tree mounts (extra `/`) stay later. |
 
 ## Avoid early
@@ -82,7 +83,8 @@ flowchart LR
 | FAT16 root readdir | Serial `fat: readdir` / `fat: entries` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-056](../03-adr/ADR-056-fat16-readdir.md)). Not POSIX. |
 | FAT16 root delete | Serial `fat: delete` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-057](../03-adr/ADR-057-fat16-delete.md)). Not POSIX. |
 | FAT16 root mkdir | Serial `fat: mkdir` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-073](../03-adr/ADR-073-fat16-mkdir.md)). Not POSIX. |
-| EL0 `fs_mkdir` sample | Serial `libctos: mkdir-ok` / `mkdemo: ok` | **Verified** on this tip when the ledger has the probe ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Not POSIX. Not nested trees. |
+| EL0 `fs_mkdir` sample | Serial `libctos: mkdir-ok` / `mkdemo: ok` | **Verified** on this tip when the ledger has the probe ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Not POSIX. |
+| FAT16 nested mkdir + empty rmdir | Serial `fat: nested` / `fat: rmdir` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-077](../03-adr/ADR-077-fat16-nested-rmdir.md)). Not POSIX. One nest level only. |
 | Thin VFS prefix mounts | Serial `vfs: mount` / `vfs: mounts` + `#[test_case]` | **Verified** on this tip when the ledger has the probe ([ADR-058](../03-adr/ADR-058-vfs-prefix-mounts.md)). Not `mount(2)`. |
 | FAT16 `/hello` app slot (A9) | Serial `slot: ok` + `#[test_case]` | **First cut** when the ledger has the probe |
 

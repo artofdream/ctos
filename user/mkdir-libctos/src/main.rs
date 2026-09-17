@@ -1,8 +1,9 @@
 //! Freestanding EL0 sample that exercises `fs_mkdir` (ADR-075).
 //!
 //! Creates FAT16 root directory `/edir` via SVC 27, proves Exists on a
-//! second create, and proves BadPath on a nested name. Flat path grammar
-//! only — not POSIX `mkdir`, not a nested tree claim.
+//! second create, and proves BadPath on a path deeper than one nest level
+//! (`/a/b/c`). One-level nested mkdir is a kernel/VFS mile (ADR-077), not
+//! this sample. Not POSIX `mkdir`.
 //! CRT `_start` lives in `libctos/src/crt0.S`.
 //!
 //! Important: EL0 exec pages are fetch-only. Path bytes are passed to SVCs
@@ -21,8 +22,8 @@ global_asm!(include_str!("../../../libctos/src/crt0.S"));
 /// EL0 mkdir target (separate from kernel `/fdir`).
 const DIR_PATH: &[u8] = b"/edir";
 
-/// Nested path — thin VFS flat grammar rejects this as BadPath.
-const BAD_PATH: &[u8] = b"/bad/nest";
+/// Three-level path — mkdir/rmdir grammar allows at most one nest (ADR-077).
+const BAD_PATH: &[u8] = b"/a/b/c";
 
 #[no_mangle]
 pub extern "C" fn main() -> u64 {
@@ -42,7 +43,7 @@ pub extern "C" fn main() -> u64 {
         return 1;
     }
 
-    // Nested path must be BadPath.
+    // Deeper than one nest level must be BadPath.
     if fs_mkdir(BAD_PATH) != FS_MKDIR_BAD_PATH {
         let _ = uart_write(b"libctos: mkdir-fail\n");
         return 1;

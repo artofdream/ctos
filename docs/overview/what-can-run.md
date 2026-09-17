@@ -190,7 +190,7 @@ Rebuild: same one-rebuild commands. Keep `/hello` + `/fsdemo` + `/fatdemo` + `/y
 
 ## Standing EL0 / `libctos` `fs_mkdir` sample
 
-Seventh freestanding EL0 payload that exercises **EL0 `fs_mkdir`** ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Same class as `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: ok`. Creates FAT root `/edir` only — not POSIX `mkdir`, not a nested tree.
+Seventh freestanding EL0 payload that exercises **EL0 `fs_mkdir`** ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Same class as `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: ok`. Creates FAT root `/edir` only — not POSIX `mkdir`. One-level nested mkdir is a kernel/VFS mile ([ADR-077](../03-adr/ADR-077-fat16-nested-rmdir.md)), not this sample.
 
 | Piece | Where |
 | --- | --- |

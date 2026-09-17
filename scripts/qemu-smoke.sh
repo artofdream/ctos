@@ -24,6 +24,7 @@
 # ADR-072: `perf: udp-dns` (EL0 net_udp_dns CNTPCT; prefix only — ticks vary).
 # N3.x / ADR-071: EL0 `net_udp_dns` (26) + FAT `/udpdemo` (`libctos: udp-ok` / `udpdemo: ok`).
 # ADR-075: EL0 `fs_mkdir` (27) + FAT `/mkdemo` (`libctos: mkdir-ok` / `mkdemo: ok`).
+# ADR-077: nested FAT mkdir `/fdir/nest` + empty rmdir (`fat: nested` / `fat: rmdir`).
 # ADR-076: EL0 `net_tcp_echo` (28) + FAT `/tcpdemo` (`libctos: tcp-ok` / `tcpdemo: ok`).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
@@ -659,6 +660,14 @@ if ! grep -q "fat: mkdir" "$log"; then
     echo "qemu-smoke: missing 'fat: mkdir' on serial (FAT16 mkdir /fdir, qemu exit $qemu_ec)" >&2
     exit 1
 fi
+if ! grep -q "fat: nested" "$log"; then
+    echo "qemu-smoke: missing 'fat: nested' on serial (FAT16 nested /fdir/nest, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "fat: rmdir" "$log"; then
+    echo "qemu-smoke: missing 'fat: rmdir' on serial (FAT16 empty rmdir, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
 if ! grep -q "fat: ok" "$log"; then
     echo "qemu-smoke: missing 'fat: ok' on serial (A7 FAT16 mile, qemu exit $qemu_ec)" >&2
     exit 1
@@ -668,6 +677,7 @@ echo "qemu-smoke: FAT16 readdir (ADR-056) strings present"
 echo "qemu-smoke: FAT16 delete (ADR-057) strings present"
 echo "qemu-smoke: FAT16 multi-cluster grow (ADR-064) strings present"
 echo "qemu-smoke: FAT16 mkdir (ADR-073) strings present"
+echo "qemu-smoke: FAT16 nested+rmdir (ADR-077) strings present"
 # ADR-065: FAT-vs-memfs read CNTPCT pair (raw ticks; not a bench / percent).
 if grep -q "perf: fat-read missed" "$log"; then
     echo "qemu-smoke: fat-read probe missed (CNTPCT around FAT VFS read did not advance)" >&2
