@@ -94,7 +94,7 @@ cargo build --release \
   --target user/hello-libctos/aarch64-ctos-user.json
 ```
 
-That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). A fifth (`user/net-libctos`, FAT `/netdemo`) exercises EL0 net SVCs ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md); markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). A sixth (`user/udp-libctos`, FAT `/udpdemo`) exercises EL0 `net_udp_dns` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md); markers `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption. Not sockets.
+That ELF still has to land on FAT `/hello` to run. The hello does **not** call `fs_open`. A second freestanding sample (`user/fs-libctos`, FAT `/fsdemo`) does exercise create/open/read/write/close on `/memdemo` ([ADR-059](../03-adr/ADR-059-fs-libctos-sample.md); markers `libctos: fs-hi` / `libctos: fs-ok` / `fsdemo: ok`). A third (`user/fat-libctos`, FAT `/fatdemo`) opens/reads FAT `/probe` (`fat-hi`) via thin VFS ([ADR-061](../03-adr/ADR-061-fat-libctos-sample.md); markers `libctos: fat-hi` / `libctos: fat-ok` / `fatdemo: ok`). A fourth (`user/yield-libctos`, FAT `/yldemo`) exercises several cooperative `yield_now()` rounds ([ADR-062](../03-adr/ADR-062-yield-libctos-sample.md); markers `libctos: yld-hi` / `libctos: beat` / `libctos: yld-ok` / `yldemo: ok`). A fifth (`user/net-libctos`, FAT `/netdemo`) exercises EL0 net SVCs ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md); markers `libctos: net-hi` / `libctos: net-mac` / `libctos: net-ok` / `netdemo: ok`). A sixth (`user/udp-libctos`, FAT `/udpdemo`) exercises EL0 `net_udp_dns` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md); markers `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: ok`). A seventh (`user/mkdir-libctos`, FAT `/mkdemo`) exercises EL0 `fs_mkdir` ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md); markers `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: ok`). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified trip. Not POSIX. Not `getdents`. Not preemption. Not sockets.
 
 ## Sample: freestanding libctos VFS (`fs-libctos`, ADR-059)
 
@@ -142,6 +142,15 @@ That ELF still has to land on FAT `/hello` to run. The hello does **not** call `
 **Where.** `user/udp-libctos/`, `src/udpdemo.rs`, `scripts/mkfat16.py --app6`. Decision: [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md).
 
 **Probe.** `libctos: udp-hi` / `libctos: udp-ok` / `udpdemo: fat` / `udpdemo: mapped` / `udpdemo: ok`. Keep `slot: ok` / `fsdemo: ok` / `fatdemo: ok` / `yldemo: ok` / `netdemo: ok` / N1 `net: ok` / N2 `net: ping-ok` / N3 `net: udp-ok`. Not TCP product. Not sockets. Not a DNS product. Not “has networking.”
+
+### Freestanding `mkdir-libctos` (EL0 `fs_mkdir`)
+
+**What it is.** Seventh freestanding EL0 ELF linked against `libctos`. Prints `libctos: mkdir-hi`, creates FAT root `/edir` via `fs_mkdir` (SVC 27), proves Exists/BadPath mapping, then `libctos: mkdir-ok`. Loaded from FAT `/mkdemo` (8.3 — not `/mkdirdemo`).
+
+**Where.** `user/mkdir-libctos/`, `src/mkdemo.rs`, `scripts/mkfat16.py --app7`. Decision: [ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md).
+
+**Probe.** `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: fat` / `mkdemo: mapped` / `mkdemo: ok`. Keep `fat: mkdir` / prior six samples / net. Not POSIX `mkdir`. Not a nested tree. Not EL0 TCP.
+
 
 
 ## Sample: memfs named-buffer probe (A6)

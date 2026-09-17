@@ -71,3 +71,9 @@ ctos_net_ping:
 ctos_net_udp_dns:
     svc #26
     ret
+
+    .global ctos_fs_mkdir
+    .type ctos_fs_mkdir, %function
+ctos_fs_mkdir:
+    svc #27
+    ret

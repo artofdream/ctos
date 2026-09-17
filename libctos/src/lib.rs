@@ -1,13 +1,15 @@
 //! Freestanding `libctos` — wrappers for the A1 EL0 SVC ABI (ADR-021 / ADR-022)
-//! plus A6 memfs numbers (ADR-027) and Track N net numbers (ADR-068 / ADR-071).
+//! plus A6 memfs numbers (ADR-027), Track N net numbers (ADR-068 / ADR-071),
+//! and EL0 `fs_mkdir` (ADR-075).
 //!
 //! Public numbers: `exit` = 16, `uart_write` = 17, `yield` = 18,
 //! `fs_create` = 19, `fs_open` = 20, `fs_read` = 21, `fs_write` = 22,
-//! `fs_close` = 23, `net_mac` = 24, `net_ping` = 25, `net_udp_dns` = 26.
+//! `fs_close` = 23, `net_mac` = 24, `net_ping` = 25, `net_udp_dns` = 26,
+//! `fs_mkdir` = 27.
 //! Reserved 0–2 stay ADR-013 probes. This crate must not issue them.
 //!
-//! Not Linux. Not POSIX. Not glibc. Not a process model. Not FAT.
-//! Not a TCP stack. Not BSD sockets. Not a DNS product.
+//! Not Linux. Not POSIX. Not glibc. Not a process model. Not a TCP stack.
+//! Not BSD sockets. Not a DNS product. Not POSIX `mkdir`.
 
 #![no_std]
 
@@ -37,6 +39,17 @@ pub const SYS_NET_MAC: u64 = 24;
 pub const SYS_NET_PING: u64 = 25;
 /// Kernel-path UDP DNS probe to SLIRP 10.0.2.3:53 (ADR-071). Returns 0, or `u64::MAX`.
 pub const SYS_NET_UDP_DNS: u64 = 26;
+/// Create a FAT16 root directory via thin VFS (ADR-075). See `FS_MKDIR_*` returns.
+pub const SYS_FS_MKDIR: u64 = 27;
+
+/// `fs_mkdir` success.
+pub const FS_MKDIR_OK: u64 = 0;
+/// `fs_mkdir` name already exists (file or directory).
+pub const FS_MKDIR_EXISTS: u64 = 1;
+/// `fs_mkdir` path rejected (grammar / nested / memfs).
+pub const FS_MKDIR_BAD_PATH: u64 = 2;
+/// `fs_mkdir` other fail-closed reject (Missing mount, Full, …).
+pub const FS_MKDIR_ERR: u64 = u64::MAX;
 
 /// ADR-013 probe immediates. CRT / libctos must not issue these.
 pub const SVC_PROBE_RETURN: u64 = 0;
@@ -52,6 +65,7 @@ const _: () = assert!(
         && SYS_FS_CLOSE == 23
 );
 const _: () = assert!(SYS_NET_MAC == 24 && SYS_NET_PING == 25 && SYS_NET_UDP_DNS == 26);
+const _: () = assert!(SYS_FS_MKDIR == 27);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RETURN);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_STANDING);
 const _: () = assert!(SYS_EXIT != SVC_PROBE_RESTORE);
@@ -68,6 +82,7 @@ extern "C" {
     pub fn ctos_net_mac(ptr: *mut u8, len: usize) -> u64;
     pub fn ctos_net_ping() -> u64;
     pub fn ctos_net_udp_dns() -> u64;
+    pub fn ctos_fs_mkdir(ptr: *const u8, len: usize) -> u64;
 }
 
 /// End the EL0 trip. Does not return to the caller.
@@ -134,4 +149,11 @@ pub fn net_ping() -> u64 {
 #[inline]
 pub fn net_udp_dns() -> u64 {
     unsafe { ctos_net_udp_dns() }
+}
+
+/// `SYS_FS_MKDIR`. Returns `FS_MKDIR_OK` / `FS_MKDIR_EXISTS` / `FS_MKDIR_BAD_PATH` /
+/// `FS_MKDIR_ERR`. Not POSIX `mkdir`.
+#[inline]
+pub fn fs_mkdir(path: &[u8]) -> u64 {
+    unsafe { ctos_fs_mkdir(path.as_ptr(), path.len()) }
 }

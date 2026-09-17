@@ -25,10 +25,11 @@ Reserved **0–2** are ADR-013 probes (`#0` first-mile return, `#1` standing, `#
 | 24 | `net_mac` | `x0` = buf, `x1` = length (≥6) | Copy guest virtio-net MAC (6 bytes). Kernel owns the NIC ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). | `6`, or `0`. |
 | 25 | `net_ping` | none | Kernel-path ARP + ICMP echo to SLIRP `10.0.2.2`. Not sockets. | `0` on success, `u64::MAX` on fail. |
 | 26 | `net_udp_dns` | none | Kernel-path ARP + UDP DNS probe vs SLIRP `10.0.2.3:53` ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). DNS is probe bait only. Not sockets. Not a DNS product. | `0` on success, `u64::MAX` on fail. |
+| 27 | `fs_mkdir` | `x0` = path, `x1` = length | Create a FAT16 root directory via thin VFS ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Memfs / nested paths fail closed. Not POSIX `mkdir`. | `0` Ok, `1` Exists, `2` BadPath, `u64::MAX` other. |
 
 Unknown `SVC` immediates park (fail-closed). Not POSIX. Not Linux VFS.
 
-Track B B2 maps these numbers against Linux AArch64 (`svc #0`, `x8`): [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md). Track B B4 maps ELF / auxv / `PT_INTERP` against the freestanding loader: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md). Inspection only. **Not claiming Linux userspace.** **Not claiming dynamic Linux ELF.** Do not retarget 16–26 to Linux `x8`.
+Track B B2 maps these numbers against Linux AArch64 (`svc #0`, `x8`): [linux-aarch64-syscall-gap.md](../research/linux-aarch64-syscall-gap.md). Track B B4 maps ELF / auxv / `PT_INTERP` against the freestanding loader: [ADR-033](../03-adr/ADR-033-linux-elf-auxv-pt-interp.md). Inspection only. **Not claiming Linux userspace.** **Not claiming dynamic Linux ELF.** Do not retarget 16–27 to Linux `x8`.
 
 ## Probe
 
@@ -52,11 +53,11 @@ In-RAM named buffers behind a thin VFS ([ADR-027](../03-adr/ADR-027-thin-vfs-mem
 
 ## FAT16 (A7)
 
-Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `blk: ok` / `fat: ok`. `/probe` is the known FAT16 file. Write depth: [ADR-050](../03-adr/ADR-050-fat16-write.md) (`fat: write` / `fat: create`). Root listing: [ADR-056](../03-adr/ADR-056-fat16-readdir.md) (`fat: readdir` / `fat: entries`) — kernel/VFS probe, no new SVC. Root delete: [ADR-057](../03-adr/ADR-057-fat16-delete.md) (`fat: delete`) — kernel/VFS probe, no new SVC. Not POSIX `getdents` / `unlink`. File presence is not that probe.
+Same VFS `open` on virtio-blk ([ADR-028](../03-adr/ADR-028-virtio-blk-fat16.md)). Serial `blk: ok` / `fat: ok`. `/probe` is the known FAT16 file. Write depth: [ADR-050](../03-adr/ADR-050-fat16-write.md) (`fat: write` / `fat: create`). Root listing: [ADR-056](../03-adr/ADR-056-fat16-readdir.md) (`fat: readdir` / `fat: entries`) — kernel/VFS probe, no new SVC. Root delete: [ADR-057](../03-adr/ADR-057-fat16-delete.md) (`fat: delete`) — kernel/VFS probe, no new SVC. Root mkdir kernel probe: [ADR-073](../03-adr/ADR-073-fat16-mkdir.md) (`fat: mkdir`). EL0 `fs_mkdir` (27): [ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md). Not POSIX `getdents` / `unlink` / `mkdir`. File presence is not that probe.
 
 ## Sample recipes (A8)
 
-Rebuild recipes for the probed classes: [what-can-run.md](../overview/what-can-run.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. N4 adds 24–25 ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). N3.x adds 26 ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). File presence is not a new runtime.
+Rebuild recipes for the probed classes: [what-can-run.md](../overview/what-can-run.md), in-tree `user/README.md`. Coop UART, RX echo, standing EL0 / `libctos` hello; optional memfs + FAT16. N4 adds 24–25 ([ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). N3.x adds 26 ([ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). ADR-075 adds 27 (`fs_mkdir`). File presence is not a new runtime.
 
 ## OS/app slots (A9)
 

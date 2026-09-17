@@ -14,6 +14,8 @@ With --app5 (or CTOS_APP5_ELF / target/net-libctos.elf) also writes
 8.3 NETDEMO = the fifth sample ELF (VFS /netdemo, ADR-068).
 With --app6 (or CTOS_APP6_ELF / target/udp-libctos.elf) also writes
 8.3 UDPDEMO = the sixth sample ELF (VFS /udpdemo, ADR-071).
+With --app7 (or CTOS_APP7_ELF / target/mkdir-libctos.elf) also writes
+8.3 MKDEMO = the seventh sample ELF (VFS /mkdemo, ADR-075).
 
 After a guest FAT write mile (ADR-050), --check-write looks for 8.3 FWR
 = b'fat-nw' left by the guest create+/write probe.
@@ -45,6 +47,7 @@ FATDEMO_NAME = b"FATDEMO " + b"   "
 YLDEMO_NAME = b"YLDEMO  " + b"   "
 NETDEMO_NAME = b"NETDEMO " + b"   "
 UDPDEMO_NAME = b"UDPDEMO " + b"   "
+MKDEMO_NAME = b"MKDEMO  " + b"   "
 FWR_NAME = b"FWR     " + b"   "
 FWR_BYTES = b"fat-nw"
 APP_MAX = 64 * 1024
@@ -146,6 +149,17 @@ def default_app6_path() -> str | None:
     return None
 
 
+def default_app7_path() -> str | None:
+    env = os.environ.get("CTOS_APP7_ELF")
+    if env:
+        return env
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cand = os.path.join(root, "target", "mkdir-libctos.elf")
+    if os.path.isfile(cand):
+        return cand
+    return None
+
+
 def _write_fat_entry(fat: bytearray, cluster: int, value: int) -> None:
     off = cluster * 2
     fat[off : off + 2] = _u16(value)
@@ -173,7 +187,7 @@ def _put_data(img: bytearray, start_cluster: int, data: bytes) -> None:
     img[data_off : data_off + len(data)] = data
 
 
-def build(app: bytes | None, app2: bytes | None = None, app3: bytes | None = None, app4: bytes | None = None, app5: bytes | None = None, app6: bytes | None = None) -> bytearray:
+def build(app: bytes | None, app2: bytes | None = None, app3: bytes | None = None, app4: bytes | None = None, app5: bytes | None = None, app6: bytes | None = None, app7: bytes | None = None) -> bytearray:
     clusters = cluster_count()
     if clusters < 4085 or clusters >= 65525:
         raise SystemExit(f"mkfat16: cluster count {clusters} is not FAT16")
@@ -311,6 +325,23 @@ def build(app: bytes | None, app2: bytes | None = None, app3: bytes | None = Non
         _write_chain(fat, next_cluster, nclus)
         _put_dirent(img, root, dir_index, UDPDEMO_NAME, next_cluster, len(app6))
         _put_data(img, next_cluster, app6)
+        next_cluster = last + 1
+        dir_index += 1
+
+    if app7 is not None:
+        if not app7:
+            raise SystemExit("mkfat16: --app7 is empty")
+        if len(app7) > APP_MAX:
+            raise SystemExit(f"mkfat16: app7 {len(app7)} bytes is > {APP_MAX}")
+        if app7[0:4] != b"ELF":
+            raise SystemExit("mkfat16: --app7 is not an ELF")
+        nclus = clusters_for(len(app7))
+        last = next_cluster + nclus - 1
+        if last >= cluster_count() + 2:
+            raise SystemExit(f"mkfat16: app7 needs {nclus} clusters; volume too small")
+        _write_chain(fat, next_cluster, nclus)
+        _put_dirent(img, root, dir_index, MKDEMO_NAME, next_cluster, len(app7))
+        _put_data(img, next_cluster, app7)
 
     for i in range(NUM_FATS):
         off = (RESERVED + i * FAT_SZ) * BYTES_PER_SEC
@@ -375,7 +406,7 @@ def check_write(path: str) -> None:
     )
 
 
-def check(path: str, require_app: bool, require_app2: bool = False, require_app3: bool = False, require_app4: bool = False, require_app5: bool = False, require_app6: bool = False) -> None:
+def check(path: str, require_app: bool, require_app2: bool = False, require_app3: bool = False, require_app4: bool = False, require_app5: bool = False, require_app6: bool = False, require_app7: bool = False) -> None:
     with open(path, "rb") as f:
         img = f.read()
     if len(img) != TOTAL_SEC * BYTES_PER_SEC:
@@ -469,6 +500,19 @@ def check(path: str, require_app: bool, require_app2: bool = False, require_app3
         if data[0:4] != b"\x7fELF":
             raise SystemExit("mkfat16: UDPDEMO is not an ELF")
         extra += f" file=/udpdemo bytes={size}"
+    mkdemo = _find_dirent(img, root, MKDEMO_NAME)
+    has_mkdemo = mkdemo is not None
+    if require_app7 and not has_mkdemo:
+        raise SystemExit("mkfat16: MKDEMO dirent missing (--require-app7)")
+    if has_mkdemo:
+        size = int.from_bytes(mkdemo[28:32], "little")
+        cluster = int.from_bytes(mkdemo[26:28], "little")
+        if size < 64 or size > APP_MAX:
+            raise SystemExit(f"mkfat16: MKDEMO size {size} is implausible")
+        data = _cluster_data(img, cluster, size)
+        if data[0:4] != b"ELF":
+            raise SystemExit("mkfat16: MKDEMO is not an ELF")
+        extra += f" file=/mkdemo bytes={size}"
     print(
         f"mkfat16: check ok file=/probe bytes={PROBE_BYTES.decode()}{extra} "
         f"sectors={TOTAL_SEC} clusters={cluster_count()}"
@@ -507,6 +551,11 @@ def main() -> int:
         "--app6",
         metavar="ELF",
         help="sixth sample ELF as FAT /udpdemo (ADR-071). Default: CTOS_APP6_ELF or target/udp-libctos.elf",
+    )
+    p.add_argument(
+        "--app7",
+        metavar="ELF",
+        help="seventh sample ELF as FAT /mkdemo (ADR-075). Default: CTOS_APP7_ELF or target/mkdir-libctos.elf",
     )
     p.add_argument(
         "--no-app",
@@ -549,6 +598,11 @@ def main() -> int:
         help="with --check, require FAT /udpdemo ELF",
     )
     p.add_argument(
+        "--require-app7",
+        action="store_true",
+        help="with --check, require FAT /mkdemo ELF",
+    )
+    p.add_argument(
         "--check-write",
         action="store_true",
         help="verify guest FAT write mile left /fwr=fat-nw and restored /probe (ADR-050)",
@@ -566,6 +620,7 @@ def main() -> int:
             require_app4=args.require_app4,
             require_app5=args.require_app5,
             require_app6=args.require_app6,
+            require_app7=args.require_app7,
         )
         return 0
 
@@ -575,6 +630,7 @@ def main() -> int:
     app4_bytes = None
     app5_bytes = None
     app6_bytes = None
+    app7_bytes = None
     if not args.no_app:
         app_path = args.app or default_app_path()
         if app_path is None:
@@ -630,9 +686,18 @@ def main() -> int:
                 raise SystemExit(f"mkfat16: app6 ELF not found: {app6_path}")
             with open(app6_path, "rb") as f:
                 app6_bytes = f.read()
+        app7_path = args.app7 or default_app7_path()
+        if app7_path is None:
+            if args.app7:
+                raise SystemExit("mkfat16: --app7 path missing")
+        else:
+            if not os.path.isfile(app7_path):
+                raise SystemExit(f"mkfat16: app7 ELF not found: {app7_path}")
+            with open(app7_path, "rb") as f:
+                app7_bytes = f.read()
 
     os.makedirs(os.path.dirname(os.path.abspath(args.image)) or ".", exist_ok=True)
-    img = build(app_bytes, app2_bytes, app3_bytes, app4_bytes, app5_bytes, app6_bytes)
+    img = build(app_bytes, app2_bytes, app3_bytes, app4_bytes, app5_bytes, app6_bytes, app7_bytes)
     with open(args.image, "wb") as f:
         f.write(img)
     extra = ""
@@ -648,6 +713,8 @@ def main() -> int:
         extra += f" file=/netdemo bytes={len(app5_bytes)}"
     if app6_bytes is not None:
         extra += f" file=/udpdemo bytes={len(app6_bytes)}"
+    if app7_bytes is not None:
+        extra += f" file=/mkdemo bytes={len(app7_bytes)}"
     print(
         f"mkfat16: wrote {args.image} bytes={len(img)} "
         f"file=/probe payload={PROBE_BYTES.decode()}{extra} "

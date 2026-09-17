@@ -34,4 +34,4 @@ Not POSIX `mkdir` / `mkdirat`. Not a nested path tree (thin-VFS path grammar sta
 
 - Code: `src/fat.rs` (mkdir / dot entries / probe), `src/vfs.rs` (`vfs::mkdir`), `scripts/qemu-smoke.sh` greps.
 - Docs: this ADR, filesystem overview/stance, honesty ledger, roadmap note, threat-model v1.48, SUMMARY, light fr-nfr NFR-10 note.
-- Follow-ups (not this PR): EL0 `fs_mkdir` SVC + sample, nested dirs / richer path grammar, empty `rmdir` as a public mile, recursive rm (non-goal unless sponsored), thin TCP (sponsor mile 3).
+- Follow-ups: EL0 `fs_mkdir` SVC + sample → [ADR-075](ADR-075-el0-fs-mkdir.md). Nested dirs / richer path grammar, empty `rmdir` as a public mile, recursive rm (non-goal unless sponsored) remain open. Thin TCP closed in [ADR-074](ADR-074-n5-thin-tcp.md).

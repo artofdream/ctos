@@ -18,6 +18,7 @@ flowchart LR
   FAT --> Y["/yldemo<br/>yield rounds"]
   FAT --> N["/netdemo<br/>net SVCs"]
   FAT --> U["/udpdemo<br/>UDP DNS SVC"]
+  FAT --> M["/mkdemo<br/>fs_mkdir SVC"]
   H --> EL0["Standing EL0<br/>libctos"]
   F --> EL0
   D --> EL0
@@ -26,7 +27,7 @@ flowchart LR
   U --> EL0
 ```
 
-*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), `/netdemo` (ADR-068), and `/udpdemo` (ADR-071) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
+*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), `/netdemo` (ADR-068), `/udpdemo` (ADR-071), and `/mkdemo` (ADR-075) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
 
 ## Privilege — where code runs
 
@@ -47,7 +48,7 @@ A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel f
 
 ## One rebuild for every recipe
 
-Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf` + `target/net-libctos.elf` + `target/udp-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`; ADR-068 loads FAT `/netdemo`; ADR-071 loads FAT `/udpdemo`).
+Every sample below rides the **same hello path**. There is no separate “run this app” command. You rebuild the kernel (and, for freestanding EL0 samples, `build.rs` publishes `target/hello-libctos.elf` + `target/fs-libctos.elf` + `target/fat-libctos.elf` + `target/yield-libctos.elf` + `target/net-libctos.elf` + `target/udp-libctos.elf` + `target/mkdir-libctos.elf`; A2–A4 and A9 read FAT `/hello`; ADR-059 loads FAT `/fsdemo`; ADR-061 loads FAT `/fatdemo`; ADR-062 loads FAT `/yldemo`; ADR-068 loads FAT `/netdemo`; ADR-071 loads FAT `/udpdemo`; ADR-075 loads FAT `/mkdemo`).
 
 ```bash
 cargo build                 # aarch64-ctos.json; also builds user/hello-libctos + user/fs-libctos + user/fat-libctos + user/yield-libctos + user/net-libctos + user/udp-libctos
@@ -185,6 +186,16 @@ Sixth freestanding EL0 payload that exercises **EL0 `net_udp_dns`** ([ADR-071](.
 | Kernel probe | `src/udpdemo.rs` |
 
 Rebuild: same one-rebuild commands. Keep `/hello` + `/fsdemo` + `/fatdemo` + `/yldemo` + `/netdemo` + N1/N2/N3 markers. Not TCP product. Not sockets. Not a DNS product. Not “has networking.” Not a reopen of product app hosting (ADR-048/052).
+
+## Standing EL0 / `libctos` `fs_mkdir` sample
+
+Seventh freestanding EL0 payload that exercises **EL0 `fs_mkdir`** ([ADR-075](../03-adr/ADR-075-el0-fs-mkdir.md)). Same class as `libctos: mkdir-hi` / `libctos: mkdir-ok` / `mkdemo: ok`. Creates FAT root `/edir` only — not POSIX `mkdir`, not a nested tree.
+
+| Piece | Where |
+| --- | --- |
+| FAT slot | `/mkdemo` (`target/mkdir-libctos.elf` via `mkfat16.py --app7`) |
+| Kernel probe | `src/mkdemo.rs` |
+
 
 ## Recipe 4 — memfs named-buffer probe (optional)
 
