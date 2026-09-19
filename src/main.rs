@@ -112,7 +112,8 @@ extern "C" fn kernel_main_high() -> ! {
         uart::write_str_raw("ident: data missed\n");
     }
     // ADR-026: read ID_AA64MMFR1_EL1.PAN. Does not MSR PAN.
-    // Prints `pan: id=` / `pan: absent` on `-cpu cortex-a57`.
+    // Prints `pan: id=` / `pan: present` on `-cpu cortex-a76` (ADR-079).
+    // Historical a57 printed `pan: absent` (ADR-026).
     if !pan::observe_probe() {
         uart::write_str_raw("pan: probe missed\n");
     }
@@ -289,8 +290,8 @@ extern "C" fn kernel_main_high() -> ! {
             uart::write_str_raw("ident: probe missed\n");
         }
         // PAN ID was printed in kernel_main_high (ADR-026). Fail-closed
-        // if that cut did not publish `pan: absent`.
-        if !pan::pan_absent_ready() {
+        // if that cut did not publish the ID field (`absent` or `present`).
+        if !pan::pan_probe_ready() {
             uart::write_str_raw("pan: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-07 / ADR-011): CNTPCT advances.

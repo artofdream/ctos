@@ -36,14 +36,14 @@ CloudAgent HELD; docs-only.
 | Lower-EL IRQ while standing + default I clear | `el0: irq` / `el0: irq-default` | ADR-040 / ADR-041 |
 | Lower-EL FIQ while standing | `el0: fiq` | ADR-043 |
 | SError **park** honesty | `el0: serror-park` | ADR-043 / ADR-045 |
-| PAN **ID-field** on cortex-a57 | `pan: id=0` / `pan: absent` | ADR-026 |
+| PAN **ID-field** on default probe CPU | `pan: present` on cortex-a76 (ADR-079); historical a57 `pan: absent` | ADR-026 / ADR-079 |
 | `_start` stay honesty | `ident: start-stay` | ADR-042 / ADR-047 |
 
 ### B. Umbrella requirements still **Unmet** (block Verified)
 
 | Requirement | Current status | Why unmet | Reopen / lock ADR |
 | --- | --- | --- | --- |
-| PAN **enable** + EL1-vs-EL0 fault | **Non-goal** on default `-cpu cortex-a57` | `pan: absent`; enable locked | [ADR-054](ADR-054-pan-enable-lock.md) |
+| PAN **enable** + EL1-vs-EL0 fault | **Locked** pending ADR-080 | CPU reopen met (`pan: present`, ADR-079); enable not done | [ADR-054](ADR-054-pan-enable-lock.md) / [ADR-079](ADR-079-pan-cpu-reopen.md) |
 | Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt+a57 (`machine does not provide NMIs`) | [ADR-053](ADR-053-taken-serror-hard-stop.md) |
 | Full identity teardown including yank `_start` | **Decided: never** while `-kernel` needs `0x4008_0000` | Boot stub stays (`ident: start-stay`) | ADR-042 / ADR-047 |
 | Written sponsor accept that the umbrella sentence is in scope | **Absent** | No ADR-048-style accept for “EL0 isolated” | Would need a future accept ADR — **not** this file |

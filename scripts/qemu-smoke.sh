@@ -77,7 +77,7 @@ if ! command -v qemu-system-aarch64 >/dev/null 2>&1; then
 fi
 
 echo "qemu-smoke: cargo build"
-cargo +nightly build
+cargo build
 
 elf="target/aarch64-ctos/debug/ctos"
 if [ ! -x "$elf" ]; then
@@ -396,7 +396,7 @@ if ! grep -q "el0: serror-park" "$log"; then
     exit 1
 fi
 # ADR-045: QMP inject-nmi is attempted by qemu-serial-inject.py. On QEMU 10
-# virt+cortex-a57 it fails ("machine does not provide NMIs"). Do NOT require
+# virt it fails — still after ADR-079 CPU switch (see ADR-053/081): "machine does not provide NMIs". Do NOT require
 # `el0: serror` here — that would fake Verified. Soft-note if the taken
 # marker appears without the park suffix.
 if grep -E -q 'el0: serror$' "$log"; then
@@ -1267,16 +1267,22 @@ if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
     exit 1
 fi
+# ADR-079: default -cpu cortex-a76 → pan: present. Still reject pan: enabled
+# (enable is ADR-080). Historical a57 pan: absent remains in the ledger only.
 if grep -q "pan: enabled" "$log"; then
-    echo "qemu-smoke: pan enabled (PSTATE.PAN must stay off on -cpu cortex-a57)" >&2
+    echo "qemu-smoke: pan enabled (PSTATE.PAN must stay off until ADR-080; default -cpu cortex-a76)" >&2
     exit 1
 fi
 if ! grep -q "pan: id=" "$log"; then
     echo "qemu-smoke: missing 'pan: id=' on serial (PAN capability ID field, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-if ! grep -q "pan: absent" "$log"; then
-    echo "qemu-smoke: missing 'pan: absent' on serial (PAN unimplemented on -cpu cortex-a57, qemu exit $qemu_ec)" >&2
+if ! grep -q "pan: present" "$log"; then
+    echo "qemu-smoke: missing 'pan: present' on serial (FEAT_PAN on -cpu cortex-a76 / ADR-079, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if grep -q "pan: absent" "$log"; then
+    echo "qemu-smoke: unexpected 'pan: absent' on default -cpu cortex-a76 (ADR-079 expects present)" >&2
     exit 1
 fi
 echo "qemu-smoke: PAN capability strings present"
@@ -1398,7 +1404,7 @@ if [ "$(git -C "$prior_wt" rev-parse HEAD)" != "$PRIOR_OS_SHA" ]; then
     exit 1
 fi
 echo "qemu-smoke: cargo build prior OS $PRIOR_OS_SHA"
-(cd "$prior_wt" && cargo +nightly build)
+(cd "$prior_wt" && cargo build)
 prior_elf="$prior_wt/target/aarch64-ctos/debug/ctos"
 if [ ! -x "$prior_elf" ]; then
     echo "qemu-smoke: missing prior kernel $prior_elf" >&2
@@ -1453,7 +1459,7 @@ echo "qemu-smoke: cargo test (semihosting exit)"
 # The cargo runner is scripts/qemu-aarch64.sh. Tests must exit themselves.
 # Belt: do not let a missed SYS_EXIT hang CI.
 set +e
-timeout 30 cargo +nightly test -- --nocapture
+timeout 30 cargo test -- --nocapture
 test_ec=$?
 set -e
 if [ "$test_ec" -ne 0 ]; then
@@ -1467,7 +1473,7 @@ fi
 FORCE_FAIL_TIMEOUT_SECS="${CTOS_FORCE_FAIL_TIMEOUT:-180}"
 echo "qemu-smoke: force-fail must be non-zero (timeout ${FORCE_FAIL_TIMEOUT_SECS}s)"
 set +e
-timeout "$FORCE_FAIL_TIMEOUT_SECS" cargo +nightly test --features force-fail -- --nocapture
+timeout "$FORCE_FAIL_TIMEOUT_SECS" cargo test --features force-fail -- --nocapture
 fail_ec=$?
 set -e
 if [ "$fail_ec" -eq 0 ]; then

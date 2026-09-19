@@ -61,9 +61,11 @@ if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" --app2 "$APP2" --app3 "$APP
     echo "qemu-aarch64: failed to write FAT16 image $IMG" >&2
     exit 1
 fi
+# ADR-079: default probe CPU is cortex-a76 (FEAT_PAN; pan: present).
+# Historical cortex-a57 stays pan: absent (ADR-026/054). Do not silent -cpu.
 exec qemu-system-aarch64 \
     -machine virt \
-    -cpu cortex-a57 \
+    -cpu cortex-a76 \
     -m 128M \
     -display none \
     -serial stdio \

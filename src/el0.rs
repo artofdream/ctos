@@ -615,8 +615,8 @@ fn el0_cannot_read_kernel_data() {
 
 #[cfg(test)]
 #[test_case]
-fn pan_unclaimed_on_cortex_a57() {
-    // Isolation stays Planned. cortex-a57 is ARMv8.0; PAN is usually absent.
+fn pan_feature_id_readable() {
+    // Isolation stays Planned. Historical a57 lacked PAN; default is cortex-a76 (ADR-079).
     // Do not treat a missing PAN feature as a Failed probe.
     let _ = paging::pan_implemented();
 }
