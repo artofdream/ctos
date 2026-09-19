@@ -40,7 +40,7 @@ Host: agent-box. `qemu-system-aarch64` **10.0.13** (Debian `1:10.0.13+ds-0+deb13
 
 ### `inject-nmi` note (SError mile later)
 
-QMP `inject-nmi` on the same host still returns `machine does not provide NMIs` for `cortex-a57`, `cortex-a76`, `neoverse-n1`, and `max` (re-probed 2026-09-19). CPU switch alone does **not** unlock taken SError — that remains ADR-053 / future **ADR-081**.
+QMP `inject-nmi` on the same host still returns `machine does not provide NMIs` for `cortex-a57`, `cortex-a76`, `neoverse-n1`, and `max` (re-probed 2026-09-19). CPU switch alone does **not** unlock taken SError — [ADR-081](ADR-081-taken-serror-reopen.md) documents the blocker.
 
 ## Hypotheses
 
@@ -61,7 +61,7 @@ QMP `inject-nmi` on the same host still returns `machine does not provide NMIs` 
 5. **Still non-claim.** Taken SError until ADR-081. Umbrella “EL0 isolated” ([ADR-055](ADR-055-el0-isolated-checklist.md) / [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md)). Never yank `_start`. No Guest Linux / containers marketing.
 
 6. **Toolchain pin.** `rust-toolchain.toml` pins `nightly-2026-09-12` (`0fc141305`) — same tip as ADR-078 ledger evidence. Floating `nightly` @ 2026-09-18 failed freestanding `cargo test` with E0463 (`can't find crate for test`). Smoke uses `cargo` (pin) not `cargo +nightly`.
-7. **Follow-ups.** **ADR-080** (Accepted): enable + EL1-vs-EL0 fault. **ADR-081**: honest SError inject or machine/CPU/GIC ADR (note: `inject-nmi` still fails on virt after this CPU switch).
+7. **Follow-ups.** **ADR-080** (Accepted): enable + EL1-vs-EL0 fault. **ADR-081** (Accepted): taken SError reopen re-probe — still blocked; sponsor unlock B1/B2/B3.
 
 ## Honesty
 

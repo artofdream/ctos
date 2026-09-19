@@ -392,13 +392,13 @@ if ! grep -q "el0: fiq" "$log"; then
     exit 1
 fi
 if ! grep -q "el0: serror-park" "$log"; then
-    echo "qemu-smoke: missing 'el0: serror-park' on serial (ADR-053 taken SError hard-stopped; park honesty, qemu exit $qemu_ec)" >&2
+    echo "qemu-smoke: missing 'el0: serror-park' on serial (ADR-053/081 taken SError hard-stopped; park honesty, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-# ADR-045: QMP inject-nmi is attempted by qemu-serial-inject.py. On QEMU 10
-# virt it fails — still after ADR-079 CPU switch (see ADR-053/081): "machine does not provide NMIs". Do NOT require
-# `el0: serror` here — that would fake Verified. Soft-note if the taken
-# marker appears without the park suffix.
+# ADR-045/081: QMP inject-nmi is attempted by qemu-serial-inject.py. On QEMU 10
+# virt TCG it fails — re-probed ADR-081 on cortex-a76 (+ GICv3/virt-on/max):
+# "machine does not provide NMIs". Do NOT require `el0: serror` here — that
+# would fake Verified. Soft-note if the taken marker appears without park.
 if grep -E -q 'el0: serror$' "$log"; then
     echo "qemu-smoke: note: taken 'el0: serror' present (would be Verified only with a working inject)"
 fi
@@ -409,7 +409,7 @@ if ! grep -q "el0: no-vmalle1" "$log"; then
     echo "qemu-smoke: missing 'el0: no-vmalle1' on serial (ADR-039 EL0 entry without VMALLE1, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + fiq + serror-park + no-vmalle1 strings present (taken SError deferred/hard-stopped (ADR-053))"
+echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + fiq + serror-park + no-vmalle1 strings present (taken SError deferred/hard-stopped (ADR-053/081))"
 if grep -q "svc: probe missed" "$log"; then
     echo "qemu-smoke: svc probe missed (EL0 ABI trip did not run)" >&2
     exit 1

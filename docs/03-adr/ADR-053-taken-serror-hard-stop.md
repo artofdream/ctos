@@ -1,6 +1,6 @@
 # ADR-053 — Taken lower-EL SError hard-stop (no honest inject on smoke machine)
 
-- Status: Accepted (docs / evidence lock). Taken lower-EL SError while standing stays **deferred / non-goal** and is **locked** (not a fuzzy Planned mile). `el0: serror-park` remains **Verified**. Guest A-clear plumbing remains **dormant prep**. Do **not** mark taken SError Verified.
+- Status: Accepted (docs / evidence lock). Taken lower-EL SError while standing stays **deferred / non-goal** and is **locked**. Reopen re-probe on default `-cpu cortex-a76`: [ADR-081](ADR-081-taken-serror-reopen.md) (2026-09-19) — still blocked. (not a fuzzy Planned mile). `el0: serror-park` remains **Verified**. Guest A-clear plumbing remains **dormant prep**. Do **not** mark taken SError Verified.
 - Date: 2026-09-14
 - Supersedes fuzzy Planned wording for this row; does **not** reopen [ADR-047](ADR-047-isolation-leftovers-decisions.md) decision #1 — it hard-stops it with dated re-probe evidence.
 
@@ -42,7 +42,7 @@ Modern virt “NMI” / FEAT_NMI (GICv3 + `aa64_nmi`) is a **different** CPU/GIC
 1. **Hard-stop.** Taken lower-EL SError while standing on QEMU 10 `virt` + `-cpu cortex-a57` is **deferred / non-goal** and **locked**. It is **not** a Planned implementation mile awaiting a “try harder” cut on this machine.
 2. **Park stays Verified.** Smoke must keep requiring `el0: serror-park`. Do **not** require `el0: serror`.
 3. **A-clear plumbing stays dormant prep.** Keep `el0: serror-arm` / `eret_to_el0_serror` / EXPECT from ADR-045. Do not delete; do not claim taken.
-4. **Reopen gate (only).** A later cut may reopen taken SError **only** with: (a) an honest host inject that actually delivers SError on the **accepted** smoke machine, **or** a sponsor-approved machine/CPU/GIC change with its own ADR; (b) serial `el0: serror` under EXPECT; (c) a new ADR that cites working evidence. Until then, do not mint Verified.
+4. **Reopen gate (only).** A later cut may reopen taken SError **only** with: (a) an honest host inject that actually delivers SError on the **accepted** smoke machine, **or** a sponsor-approved machine/CPU/GIC change with its own ADR; (b) serial `el0: serror` under EXPECT; (c) a new ADR that cites working evidence. Until then, do not mint Verified. **2026-09-19 re-probe:** [ADR-081](ADR-081-taken-serror-reopen.md) — gate unmet on virt+cortex-a76 (and GICv3 / virtualization / max variants); explicit unlock = ADR-081 Decision §4 B1/B2/B3.
 5. **Still non-claims:** PAN enable on default a57 ([ADR-054](ADR-054-pan-enable-lock.md)); umbrella “EL0 isolated” ([ADR-055](ADR-055-el0-isolated-checklist.md)); never yank `_start`.
 
 ## Honesty
@@ -61,4 +61,5 @@ Say “taken lower-EL SError is hard-stopped / deferred on this smoke machine; Q
 - [ADR-045](ADR-045-taken-serror-qmp.md) remains the implementation attempt; this ADR is the dated impossibility lock.
 - [ADR-047](ADR-047-isolation-leftovers-decisions.md) decision #1 stands; wording tightens from “until an honest inject exists” (open-ended) to “locked until reopen gate in Decision §4.”
 - Threat-model patch version bump ([security.md](../framework/security.md)). No `src/` change. No new FR/NFR IDs.
+- Reopen attempt: [ADR-081](ADR-081-taken-serror-reopen.md) (2026-09-19) — still blocked; park Verified.
 - FAT readdir and other product cuts stay out of this PR.
