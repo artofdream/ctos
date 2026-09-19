@@ -81,5 +81,5 @@ Say: “sponsor chose B1; ADR-082 research finds no upstream/packaged QEMU pin t
 
 - Docs: this ADR; cross-links on ADR-053/081/045/055/060; honesty ledger; roadmap P-SEC-3r; threat-model **v1.57**; SUMMARY; el0 / limits / security light touch; research brief + probe script + draft patch under `research/qemu-nmi/`.
 - Smoke: unchanged fail-closed park requirement. No `src/` change.
-- Next actionable B1 mile (separate PR): sponsor-reviewed QEMU pin (commit SHA + Dockerfile/GHA cache) + green `el0: serror` under EXPECT → then fail-closed require taken marker.
+- **Follow-on:** [ADR-083](ADR-083-b1-qemu-nmi-pin.md) ships the pinned build + opt-in `el0: serror` Verified (2026-09-19).
 - CloudAgent HELD. Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).

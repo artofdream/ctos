@@ -55,6 +55,10 @@ Say “taken lower-EL SError is hard-stopped / deferred on this smoke machine; Q
 - guest-only RAS inject is Verified
 - the taken path is still a near-term Planned mile on virt+a57
 
+## Follow-on
+
+[ADR-083](ADR-083-b1-qemu-nmi-pin.md) (2026-09-19): pinned QEMU opt-in Verifies taken `el0: serror`; stock park path unchanged.
+
 ## Consequences
 
 - Ledger / roadmap P-SEC-3r: cite this ADR as the **hard-stop lock** (park Verified; taken locked deferred/non-goal).

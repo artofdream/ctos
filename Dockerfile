@@ -43,4 +43,14 @@ COPY . .
 RUN find scripts \( -name '*.sh' -o -name '*.py' \) -exec sed -i 's/\r$//' {} + \
     && chmod +x scripts/*.sh scripts/*.py
 
+
+# ADR-083 opt-in pinned QEMU (TYPE_NMI→SError). Default image keeps distro
+# qemu-system-arm for park path. To build the pin inside the image:
+#   docker build --build-arg CTOS_BUILD_QEMU_NMI=1 ...
+# then run with:
+#   -e CTOS_QEMU=/src/tools/qemu-nmi/bin/qemu-system-aarch64
+#   -e CTOS_REQUIRE_TAKEN_SERROR=1
+ARG CTOS_BUILD_QEMU_NMI=0
+RUN if [ "$CTOS_BUILD_QEMU_NMI" = "1" ]; then       apt-get update && apt-get install -y --no-install-recommends         ninja-build meson pkg-config python3-venv flex bison         libglib2.0-dev libpixman-1-dev libfdt-dev libslirp-dev git       && rm -rf /var/lib/apt/lists/*       && ./scripts/build-qemu-nmi.sh ;     fi
+
 CMD ["bash", "./scripts/qemu-smoke.sh"]

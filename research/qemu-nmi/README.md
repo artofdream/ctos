@@ -1,39 +1,34 @@
-# Research: local QEMU patch sketch for ADR-082 B1
+# Research / pin: QEMU `TYPE_NMI` → async SError (ADR-083)
 
-**Status:** research only (2026-09-19). **Not** wired into Dockerfile, GHA, or `qemu-smoke.sh`.
-**Not** proof of taken SError. Do not claim Verified from this directory alone.
+**Status (2026-09-19):** shippable **opt-in pin**. Proven on agent-box with
+`CTOS_QEMU=tools/qemu-nmi/bin/qemu-system-aarch64` +
+`CTOS_REQUIRE_TAKEN_SERROR=1` → serial `el0: serror` under EXPECT.
+Stock distro QEMU still parks (`el0: serror-park`).
 
-## Why this exists
+## Pin
 
-Sponsor chose ADR-081 **B1** (upstream / pinned QEMU). Upstream `virt` through
-QEMU **master** (inspected 2026-09-19) still does **not** implement `TYPE_NMI`,
-so QMP `inject-nmi` returns `machine does not provide NMIs`.
+| Field | Value |
+| --- | --- |
+| Upstream | QEMU **v10.0.0** (`7c949c53e936aa3a658d84ab53bae5cadaa5d59c`) |
+| Patch | `0001-hw-arm-virt-TYPE_NMI-raise-SError.patch` |
+| Prefix | `tools/qemu-nmi/` (bin + share; gitignored build output) |
+| Build | `./scripts/build-qemu-nmi.sh` |
 
-The 2020 qemu-devel series that would have raised `ARM_CPU_SERROR` from
-`TYPE_NMI` never merged. FEAT_NMI in tree is an architectural **interrupt** NMI
-(`ARM_CPU_NMI`), not async SError.
-
-## What a future pin must prove
-
-1. Build a pinned QEMU (commit SHA recorded) with a reviewed patch.
-2. On agent-box + GHA: `inject-nmi` returns success **and** ctos serial shows
-   `el0: serror` under EXPECT (not merely park).
-3. Smoke then fail-closed requires `el0: serror`; park remains honesty for the
-   failure path only if inject is optional (prefer fail-closed taken).
-4. Separate ADR (or ADR-082 amendment) cites the pin SHA + green smoke.
-
-## Draft patch
-
-See `0001-hw-arm-virt-TYPE_NMI-raise-SError.patch`. It is a **sketch** against
-QEMU 10.x-era APIs and may need retargeting to whatever `target/arm` interrupt
-line exists for async SError on the chosen base commit (current trees expose
-`CPU_INTERRUPT_VSERR` / FEAT_NMI paths; a correct patch must raise the guest
-**async SError** taken by ctos `handle_serror_lower_el`, not FIQ/BRK/FEAT_NMI).
-
-Do **not** apply this in CI until sponsor review + guest proof.
-
-## Reproduce the blocker without a patch
+## Prove
 
 ```sh
-./scripts/qemu-nmi-probe.py
+./scripts/build-qemu-nmi.sh
+export CTOS_QEMU="$PWD/tools/qemu-nmi/bin/qemu-system-aarch64"
+export CTOS_REQUIRE_TAKEN_SERROR=1
+./scripts/qemu-nmi-probe.py          # inject-nmi => ok
+./scripts/qemu-smoke.sh              # requires el0: serror
 ```
+
+Without the pin / without `CTOS_REQUIRE_TAKEN_SERROR=1`, smoke keeps requiring
+`el0: serror-park` (ADR-053/081/082 stock path).
+
+## Honesty
+
+- Do **not** claim FEAT_NMI / FIQ / BRK is SError.
+- Do **not** claim umbrella “EL0 isolated.”
+- Default GHA/Docker stay on distro QEMU unless opt-in build is enabled.

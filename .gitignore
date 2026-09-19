@@ -9,3 +9,9 @@
 # Gitignored for portability — not a security ban. Do not ignore research/ or docs/.
 .obsidian/
 .trash/
+
+# ADR-083 pinned QEMU build output (rebuild via scripts/build-qemu-nmi.sh)
+/tools/qemu-nmi/bin/
+/tools/qemu-nmi/share/
+/tools/qemu-nmi/libexec/
+/tools/qemu-nmi/include/

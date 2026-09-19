@@ -30,8 +30,9 @@ ROWS: list[tuple[str, str, str]] = [
 def qmp_inject(machine: str, cpu: str) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="ctos-nmi-") as d:
         sock_path = os.path.join(d, "qmp.sock")
+        qemu = os.environ.get("CTOS_QEMU", "qemu-system-aarch64")
         cmd = [
-            "qemu-system-aarch64",
+            qemu,
             "-machine",
             machine,
             "-cpu",
@@ -102,7 +103,7 @@ def main() -> int:
     print(f"qemu-nmi-probe: host={socket.gethostname()}")
     try:
         ver = subprocess.check_output(
-            ["qemu-system-aarch64", "--version"], text=True
+            [os.environ.get("CTOS_QEMU", "qemu-system-aarch64"), "--version"], text=True
         ).splitlines()[0]
     except (FileNotFoundError, subprocess.CalledProcessError) as e:
         print(f"qemu-nmi-probe: missing qemu-system-aarch64: {e}", file=sys.stderr)
