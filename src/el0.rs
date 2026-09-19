@@ -19,8 +19,8 @@
 //! Lower-EL FIQ while standing is taken when GICC FIQEn is armed (ADR-043).
 //! ADR-045 wires `eret_to_el0_serror` (A clear) + EXPECT for a standing
 //! SError probe; QEMU 10 virt+`-cpu cortex-a57` has no working host inject
-//! (`inject-nmi` → machine does not provide NMIs), so hello keeps
-//! `el0: serror-park` when the taken path does not fire.
+//! (`inject-nmi` → machine does not provide NMIs on virt TCG; ADR-081),
+//! so hello keeps `el0: serror-park` when the taken path does not fire.
 //! Default `ERET` to EL0 clears IRQ mask (ADR-041) and still masks A;
 //! short non-standing trampoline probes stay masked.
 //! PAN is typically unimplemented on `-cpu cortex-a57`. After

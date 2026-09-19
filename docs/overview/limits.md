@@ -32,7 +32,7 @@ Read-only code / not-executable data, and torn identity ranges (including leftov
 
 ## Other honest gaps
 
-- Umbrella user-mode isolation: **Planned / non-claim until checklist** ([ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md); sponsor closure [ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md); PAN enable locked ([ADR-054](../03-adr/ADR-054-pan-enable-lock.md)); `_start` stays; taken SError hard-stopped ([ADR-053](../03-adr/ADR-053-taken-serror-hard-stop.md)); leftover RAM torn via ADR-049 — still not “EL0 isolated”).
+- Umbrella user-mode isolation: **Planned / non-claim until checklist** ([ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md) / [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md); sponsor closure [ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md); PAN enable Verified on a76 ([ADR-080](../03-adr/ADR-080-pan-enable-fault.md); historical a57 lock [ADR-054](../03-adr/ADR-054-pan-enable-lock.md)); `_start` stays; taken SError hard-stopped ([ADR-053](../03-adr/ADR-053-taken-serror-hard-stop.md) / [ADR-081](../03-adr/ADR-081-taken-serror-reopen.md)); leftover RAM torn via ADR-049 — still not “EL0 isolated”).
 - x86_64 is not a primary path.
 - Raspberry Pi / other boards: unprobed.
 - CI on GitHub is a separate ledger row from a cloud-VM `qemu-smoke`.

@@ -1,0 +1,49 @@
+# ADR-081 SError inject probe
+# host=grok-bot-vm-401670533 qemu=QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+# date=2026-09-19 03:40:32 CEST
+## default-a76: -machine virt -cpu cortex-a76 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## default-a57: -machine virt -cpu cortex-a57 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## gicv3-a76: -machine virt,gic-version=3 -cpu cortex-a76 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## gicv3-max: -machine virt,gic-version=3 -cpu max 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## virt-on-a76: -machine virt,virtualization=on -cpu cortex-a76 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## virt-on-gicv3-a76: -machine virt,gic-version=3,virtualization=on -cpu cortex-a76 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## gicv3-a76-secure: -machine virt,gic-version=3,secure=on -cpu cortex-a76 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## max-gicv3: -machine virt,gic-version=3 -cpu max 
+  has_inject_nmi_cmd=True
+  cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+## a76-feat-nmi-cpu: -machine virt,gic-version=3 -cpu max,nmi=on 
+  has_inject_nmi_cmd=False
+  stderr: "qemu-system-aarch64: can't apply global max-arm-cpu.nmi=on: Property 'max-arm-cpu.nmi' not found\n"
+## SUMMARY
+default-a76 | virt | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+default-a76 | virt | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+default-a57 | virt | cortex-a57 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+default-a57 | virt | cortex-a57 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+gicv3-a76 | virt,gic-version=3 | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+gicv3-a76 | virt,gic-version=3 | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+gicv3-max | virt,gic-version=3 | max | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+gicv3-max | virt,gic-version=3 | max | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+virt-on-a76 | virt,virtualization=on | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+virt-on-a76 | virt,virtualization=on | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+virt-on-gicv3-a76 | virt,gic-version=3,virtualization=on | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+virt-on-gicv3-a76 | virt,gic-version=3,virtualization=on | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+gicv3-a76-secure | virt,gic-version=3,secure=on | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+gicv3-a76-secure | virt,gic-version=3,secure=on | cortex-a76 | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+max-gicv3 | virt,gic-version=3 | max | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+max-gicv3 | virt,gic-version=3 | max | cmd={'execute': 'inject-nmi'} => {'error': {'class': 'GenericError', 'desc': 'machine does not provide NMIs'}}
+a76-feat-nmi-cpu | virt,gic-version=3 | max,nmi=on | 
+a76-feat-nmi-cpu | virt,gic-version=3 | max,nmi=on | 

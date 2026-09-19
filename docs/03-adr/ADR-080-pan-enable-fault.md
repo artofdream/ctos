@@ -1,6 +1,6 @@
 # ADR-080 — PAN enable + EL1-vs-EL0 access fault (ADR-054 reopen gate 3–4)
 
-- Status: Accepted (enable + fault Verified on default `-cpu cortex-a76`). Meets [ADR-054](ADR-054-pan-enable-lock.md) reopen gate items **3–4**: enable PSTATE.PAN / `MSR PAN` and prove an EL1 load of an EL0-accessible page faults (fail-closed); honesty ledger + smoke updated. Does **not** claim “EL0 isolated.” Taken SError reopen remains **ADR-081**.
+- Status: Accepted (enable + fault Verified on default `-cpu cortex-a76`). Meets [ADR-054](ADR-054-pan-enable-lock.md) reopen gate items **3–4**: enable PSTATE.PAN / `MSR PAN` and prove an EL1 load of an EL0-accessible page faults (fail-closed); honesty ledger + smoke updated. Does **not** claim “EL0 isolated.” Taken SError reopen is **[ADR-081](ADR-081-taken-serror-reopen.md)** (Accepted — still blocked).
 - Date: 2026-09-19
 - Tracks [#125](https://github.com/artofdream/ctos/issues/125) mile (2). Builds on [ADR-079](ADR-079-pan-cpu-reopen.md) (gate items 1–2). CloudAgent **HELD** — agent-box / EVO-X2 / GHA only.
 
@@ -26,7 +26,7 @@
 3. **Leave PAN set.** After a successful probe, PSTATE.PAN stays 1. `pan::with_user_access` clears/restores around syscall `copy_user` / `copy_to_user` so intentional EL0-accessible copies keep working.
 4. **Serial + smoke.** Keep `pan: id=` / `pan: present` (ADR-079). Require `pan: enabled` / `pan: el1-fault`. Reject `pan: enable missed` / unexpected `pan: absent`. Historical a57 `pan: absent` rows remain historical.
 5. **Target feature.** `aarch64-ctos.json` adds `+pan` so the assembler accepts the `pan` PSTATE name (still `-cpu cortex-a76` in scripts).
-6. **Still non-claim.** Umbrella “EL0 isolated” unchanged. Taken SError → ADR-081. Never yank `_start`. No Guest Linux / containers marketing.
+6. **Still non-claim.** Umbrella “EL0 isolated” unchanged. Taken SError → [ADR-081](ADR-081-taken-serror-reopen.md) (blocked). Never yank `_start`. No Guest Linux / containers marketing.
 
 ## Honesty
 
