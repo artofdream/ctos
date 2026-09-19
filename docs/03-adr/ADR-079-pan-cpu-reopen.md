@@ -1,6 +1,6 @@
 # ADR-079 — PAN CPU reopen foundation (sponsor unlock; default `-cpu cortex-a76`)
 
-- Status: Accepted (CPU reopen foundation). Meets [ADR-054](ADR-054-pan-enable-lock.md) reopen gate items **1–2** only: sponsor-approved FEAT_PAN default probe CPU + serial `pan: present`. Does **not** enable PSTATE.PAN / `MSR PAN`. Does **not** claim PAN enabled or “EL0 isolated.” Enable+fault is **ADR-080** (follow-up). Taken SError reopen is **ADR-081** (follow-up).
+- Status: Accepted (CPU reopen foundation). Meets [ADR-054](ADR-054-pan-enable-lock.md) reopen gate items **1–2**: sponsor-approved FEAT_PAN default probe CPU + serial `pan: present`. Enable+fault is **[ADR-080](ADR-080-pan-enable-fault.md)** (Accepted). Taken SError reopen is **ADR-081** (follow-up). Does **not** claim “EL0 isolated.”
 - Date: 2026-09-19
 - Tracks [#125](https://github.com/artofdream/ctos/issues/125). Sponsor unlock Sat 19 Sep 2026 via DSO. CloudAgent **HELD** — agent-box / EVO-X2 / GHA only.
 
@@ -54,14 +54,14 @@ QMP `inject-nmi` on the same host still returns `machine does not provide NMIs` 
 
 ## Decision
 
-1. **Sponsor unlock recorded.** Isolation leftovers reopen mile (1) is authorized ([#125](https://github.com/artofdream/ctos/issues/125)). ADR-054 gate items **1–2** are met by this ADR + evidence below. Items **3–4** (enable+fault ADR; ledger/smoke for enable) wait for ADR-080.
+1. **Sponsor unlock recorded.** Isolation leftovers reopen mile (1) is authorized ([#125](https://github.com/artofdream/ctos/issues/125)). ADR-054 gate items **1–2** are met by this ADR + evidence below. Items **3–4** landed in [ADR-080](ADR-080-pan-enable-fault.md).
 2. **Default probe CPU.** `scripts/qemu-aarch64.sh` and `scripts/qemu-serial-inject.py` use `-cpu cortex-a76` with this ADR cite. Do not silent-edit without an ADR.
-3. **Serial contract.** Guest still only **reads** `ID_AA64MMFR1_EL1.PAN` ([ADR-026](ADR-026-pan-capability.md) probe). On the new default: `pan: id=<n>` with `n != 0` and `pan: present`. Smoke greps `pan: present`; still **rejects** `pan: enabled`. Historical a57 `pan: absent` rows remain truth for a57.
+3. **Serial contract (this mile).** Guest **reads** `ID_AA64MMFR1_EL1.PAN` ([ADR-026](ADR-026-pan-capability.md) probe). On the new default: `pan: id=<n>` with `n != 0` and `pan: present`. [ADR-080](ADR-080-pan-enable-fault.md) adds `pan: enabled` / `pan: el1-fault`. Historical a57 `pan: absent` rows remain truth for a57.
 4. **Probe success semantics.** `pan::observe_probe` returns success for both `absent` and `present` (ID field printed). Fail-closed only if the probe did not publish. No `MSR PAN` in this mile.
-5. **Still locked / non-claim.** PAN **enable** until ADR-080. Taken SError until ADR-081. Umbrella “EL0 isolated” ([ADR-055](ADR-055-el0-isolated-checklist.md) / [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md)). Never yank `_start`. No Guest Linux / containers marketing.
+5. **Still non-claim.** Taken SError until ADR-081. Umbrella “EL0 isolated” ([ADR-055](ADR-055-el0-isolated-checklist.md) / [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md)). Never yank `_start`. No Guest Linux / containers marketing.
 
 6. **Toolchain pin.** `rust-toolchain.toml` pins `nightly-2026-09-12` (`0fc141305`) — same tip as ADR-078 ledger evidence. Floating `nightly` @ 2026-09-18 failed freestanding `cargo test` with E0463 (`can't find crate for test`). Smoke uses `cargo` (pin) not `cargo +nightly`.
-7. **Follow-ups.** **ADR-080**: enable PSTATE.PAN + EL1-vs-EL0 fault Verified. **ADR-081**: honest SError inject or machine/CPU/GIC ADR (note: `inject-nmi` still fails on virt after this CPU switch).
+7. **Follow-ups.** **ADR-080** (Accepted): enable + EL1-vs-EL0 fault. **ADR-081**: honest SError inject or machine/CPU/GIC ADR (note: `inject-nmi` still fails on virt after this CPU switch).
 
 ## Honesty
 

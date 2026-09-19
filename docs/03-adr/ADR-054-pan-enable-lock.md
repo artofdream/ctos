@@ -1,6 +1,6 @@
 # ADR-054 — PAN enable lock on default `-cpu cortex-a57` (reopen gate)
 
-- Status: Accepted (docs / evidence lock). PAN **enable** remains **locked** until ADR-080 (follow-up; not yet written). Reopen gate items **1–2** are **met** by [ADR-079](ADR-079-pan-cpu-reopen.md) (sponsor unlock + default `-cpu cortex-a76` + `pan: present`). Historical a57 ID-field stays **Verified** (`pan: absent`, [ADR-026](ADR-026-pan-capability.md)). Do **not** claim PAN enabled.
+- Status: Accepted (docs / evidence lock). Reopen gate items **1–4** are **met**: [ADR-079](ADR-079-pan-cpu-reopen.md) (CPU + `pan: present`) and [ADR-080](ADR-080-pan-enable-fault.md) (enable + EL1-vs-EL0 fault). Historical a57 ID-field stays **Verified** (`pan: absent`, [ADR-026](ADR-026-pan-capability.md)). Do **not** claim “EL0 isolated.”
 - Date: 2026-09-14
 - Locks [ADR-047](ADR-047-isolation-leftovers-decisions.md) decision #2 with an explicit reopen gate. Does not change guest code or default `-cpu`.
 
@@ -33,7 +33,7 @@ Do **not** silent `-cpu` switch. Do **not** execute `MSR PAN` while the ID field
 
 ## Reopen progress (2026-09-19)
 
-[ADR-079](ADR-079-pan-cpu-reopen.md) / [#125](https://github.com/artofdream/ctos/issues/125): sponsor unlock + default probe CPU `-cpu cortex-a76` + serial `pan: present` (gate items 1–2). **Enable** (gate item 3) still locked — planned as ADR-080. a57 `pan: absent` remains historical truth for that CPU.
+[ADR-079](ADR-079-pan-cpu-reopen.md) / [#125](https://github.com/artofdream/ctos/issues/125): sponsor unlock + default probe CPU `-cpu cortex-a76` + serial `pan: present` (gate items 1–2). [ADR-080](ADR-080-pan-enable-fault.md): enable + EL1-vs-EL0 fault (gate items 3–4). a57 `pan: absent` remains historical truth for that CPU. Umbrella “EL0 isolated” still non-claim ([ADR-055](ADR-055-el0-isolated-checklist.md)).
 
 ## Honesty
 

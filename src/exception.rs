@@ -119,6 +119,9 @@ static EXPECT_IDENT_RAM: AtomicBool = AtomicBool::new(false);
 static IDENT_RAM_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_EL0: AtomicBool = AtomicBool::new(false);
 static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_PAN_EL1: AtomicBool = AtomicBool::new(false);
+static PAN_EL1_CAUGHT: AtomicBool = AtomicBool::new(false);
+static PAN_EL1_SPSR_PAN: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
 static EL0_KSP: AtomicU64 = AtomicU64::new(0);
 
@@ -938,6 +941,23 @@ pub fn ident_heap_caught() -> bool {
     IDENT_HEAP_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm ADR-080: EL1 permission DABORT on an EL0-accessible page (PSTATE.PAN).
+pub fn arm_pan_el1_fault() {
+    PAN_EL1_CAUGHT.store(false, Ordering::SeqCst);
+    PAN_EL1_SPSR_PAN.store(false, Ordering::SeqCst);
+    EXPECT_PAN_EL1.store(true, Ordering::SeqCst);
+}
+
+pub fn pan_el1_fault_caught() -> bool {
+    EXPECT_PAN_EL1.store(false, Ordering::SeqCst);
+    PAN_EL1_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// True when the caught ADR-080 fault saved SPSR.PAN (bit 22).
+pub fn pan_el1_fault_spsr_pan() -> bool {
+    PAN_EL1_SPSR_PAN.load(Ordering::SeqCst)
+}
+
 /// Arm EL1 load of a torn leftover identity RAM VA (ADR-049).
 pub fn arm_ident_ram() {
     IDENT_RAM_CAUGHT.store(false, Ordering::SeqCst);
@@ -1232,6 +1252,15 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
     if is_perm_dabort(ctx.esr) && EXPECT_RO_WRITE.swap(false, Ordering::SeqCst) {
         RO_WRITE_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("ro: write fault\n");
+        ctx.elr = ctx.elr.wrapping_add(4);
+        return;
+    }
+    if is_perm_dabort(ctx.esr) && EXPECT_PAN_EL1.swap(false, Ordering::SeqCst) {
+        // SPSR.PAN is bit 22 — proves PSTATE.PAN was set at the fault
+        // (MRS PAN may read 0 under some QEMU TCG builds; SPSR is the probe).
+        PAN_EL1_SPSR_PAN.store(ctx.spsr & (1 << 22) != 0, Ordering::SeqCst);
+        PAN_EL1_CAUGHT.store(true, Ordering::SeqCst);
+        uart::write_str_raw("pan: el1-fault\n");
         ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }

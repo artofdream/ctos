@@ -10,9 +10,9 @@ ctos is a research / teaching AArch64 kernel. It is not production-ready, not a 
 
 QEMU `-kernel` and `_start` stay at `0x4008_0000`. High-address work (kernel page-table alias, live code / `.rodata` / `.data` / heap / leftover frame-RAM tears) does **not** mean the kernel moved. Leftover identity RAM after the heap is unmapped (`ident: ram*`, [ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); smoke **rejects** `ident: ram-stay`. `_start` stays mapped by decision (`ident: start-stay`, [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not claim full identity teardown. See [el0.md](../framework/el0.md).
 
-## Privileged Access Never — enable still locked; CPU reopen (ADR-079)
+## Privileged Access Never — enable Verified on cortex-a76 (ADR-080)
 
-**PAN** is a hardware feature that would stop the kernel from casually reading user memory. Default smoke CPU is `-cpu cortex-a76` ([ADR-079](../03-adr/ADR-079-pan-cpu-reopen.md) / [#125](https://github.com/artofdream/ctos/issues/125)): ID-field Verified (`pan: present`). Historical `-cpu cortex-a57` remains `pan: absent` ([ADR-026](../03-adr/ADR-026-pan-capability.md)). **PAN enable** (PSTATE.PAN + EL1-vs-EL0 fault) is still locked pending ADR-080 ([ADR-054](../03-adr/ADR-054-pan-enable-lock.md)). Do not claim PAN enabled. Do not silent `-cpu`.
+**PAN** stops the kernel from casually reading user-accessible pages when PSTATE.PAN is set. Default smoke CPU is `-cpu cortex-a76` ([ADR-079](../03-adr/ADR-079-pan-cpu-reopen.md) / [#125](https://github.com/artofdream/ctos/issues/125)): ID-field Verified (`pan: present`) and enable + EL1-vs-EL0 fault Verified (`pan: enabled` / `pan: el1-fault`, [ADR-080](../03-adr/ADR-080-pan-enable-fault.md)). Historical `-cpu cortex-a57` remains `pan: absent` ([ADR-026](../03-adr/ADR-026-pan-capability.md)). Do **not** claim “EL0 isolated.” Do not silent `-cpu`.
 
 ## Network is virtio-net ARP + ICMP + minimal UDP + thin TCP (+ tiny EL0 net/UDP SVCs); disk is virtio-blk + FAT16
 

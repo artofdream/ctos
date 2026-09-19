@@ -13,8 +13,7 @@
   "panic-strategy": "abort",
   "disable-redzone": true,
   "relocation-model": "static",
-  "features": "+v8a,+strict-align,-neon",
+  "features": "+v8a,+pan,+strict-align,-neon",
   "max-atomic-width": 128,
   "rustc-abi": "softfloat"
 }
-

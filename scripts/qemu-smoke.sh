@@ -1267,12 +1267,12 @@ if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
     exit 1
 fi
-# ADR-079: default -cpu cortex-a76 → pan: present. Still reject pan: enabled
-# (enable is ADR-080). Historical a57 pan: absent remains in the ledger only.
-if grep -q "pan: enabled" "$log"; then
-    echo "qemu-smoke: pan enabled (PSTATE.PAN must stay off until ADR-080; default -cpu cortex-a76)" >&2
+if grep -q "pan: enable missed" "$log"; then
+    echo "qemu-smoke: pan enable missed (PSTATE.PAN / EL1-vs-EL0 fault did not land, ADR-080)" >&2
     exit 1
 fi
+# ADR-079/080: default -cpu cortex-a76 → pan: present + enable + el1-fault.
+# Historical a57 pan: absent remains in the ledger only.
 if ! grep -q "pan: id=" "$log"; then
     echo "qemu-smoke: missing 'pan: id=' on serial (PAN capability ID field, qemu exit $qemu_ec)" >&2
     exit 1
@@ -1285,7 +1285,15 @@ if grep -q "pan: absent" "$log"; then
     echo "qemu-smoke: unexpected 'pan: absent' on default -cpu cortex-a76 (ADR-079 expects present)" >&2
     exit 1
 fi
-echo "qemu-smoke: PAN capability strings present"
+if ! grep -q "pan: enabled" "$log"; then
+    echo "qemu-smoke: missing 'pan: enabled' on serial (PSTATE.PAN / ADR-080, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "pan: el1-fault" "$log"; then
+    echo "qemu-smoke: missing 'pan: el1-fault' on serial (EL1-vs-EL0 permission fault / ADR-080, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: PAN capability + enable + el1-fault strings present"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1

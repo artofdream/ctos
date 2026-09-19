@@ -217,10 +217,13 @@ fn copy_user_max(ptr: u64, len: usize, dst: &mut [u8], max: u64) -> Option<usize
     if len > dst.len() || !user_range_ok_max(ptr, len as u64, max) {
         return None;
     }
-    for i in 0..len {
-        dst[i] = unsafe { core::ptr::read_volatile((ptr as *const u8).add(i)) };
-    }
-    Some(len)
+    // ADR-080: PSTATE.PAN blocks privileged loads of EL0-accessible pages.
+    crate::pan::with_user_access(|| {
+        for i in 0..len {
+            dst[i] = unsafe { core::ptr::read_volatile((ptr as *const u8).add(i)) };
+        }
+        Some(len)
+    })
 }
 
 fn copy_to_user(ptr: u64, src: &[u8]) -> Option<usize> {
@@ -230,12 +233,14 @@ fn copy_to_user(ptr: u64, src: &[u8]) -> Option<usize> {
     if !user_range_ok_max(ptr, src.len() as u64, FS_IO_MAX) {
         return None;
     }
-    for (i, &b) in src.iter().enumerate() {
-        unsafe {
-            core::ptr::write_volatile((ptr as *mut u8).add(i), b);
+    crate::pan::with_user_access(|| {
+        for (i, &b) in src.iter().enumerate() {
+            unsafe {
+                core::ptr::write_volatile((ptr as *mut u8).add(i), b);
+            }
         }
-    }
-    Some(src.len())
+        Some(src.len())
+    })
 }
 
 fn path_from_user(ptr: u64, len: u64) -> Option<[u8; vfs::PATH_MAX]> {

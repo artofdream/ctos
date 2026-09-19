@@ -111,9 +111,9 @@ extern "C" fn kernel_main_high() -> ! {
     if !paging::tear_identity_data() {
         uart::write_str_raw("ident: data missed\n");
     }
-    // ADR-026: read ID_AA64MMFR1_EL1.PAN. Does not MSR PAN.
-    // Prints `pan: id=` / `pan: present` on `-cpu cortex-a76` (ADR-079).
-    // Historical a57 printed `pan: absent` (ADR-026).
+    // ADR-026 / ADR-079: read ID_AA64MMFR1_EL1.PAN. Prints `pan: id=` /
+    // `pan: present` on `-cpu cortex-a76`. Historical a57: `pan: absent`.
+    // Enable + EL1-vs-EL0 fault is ADR-080 (`observe_enable` after frames).
     if !pan::observe_probe() {
         uart::write_str_raw("pan: probe missed\n");
     }
@@ -122,6 +122,11 @@ extern "C" fn kernel_main_high() -> ! {
     // hello lost `frame::ALLOC` / `USER_MAP_OK` the same way).
     perf::mark_early();
     frame::init();
+    // ADR-080: MSR PAN + EL1 load of EL0-accessible page must fault.
+    // Leave PSTATE.PAN set; syscall uaccess clears it around copies.
+    if !pan::observe_enable() {
+        uart::write_str_raw("pan: enable missed\n");
+    }
     heap::init();
     // ADR-038: high GlobalAlloc VAs, then unmap identity heap.
     // Must run after heap::init and after the `.data` tear.
