@@ -1,6 +1,6 @@
 # ADR-026 — PAN capability: probe the ID field, do not invent the CPU
 
-- Status: Accepted (capability probe). **PAN enable is non-goal (locked)** on the default probe CPU ([ADR-054](ADR-054-pan-enable-lock.md)).
+- Status: Accepted (capability probe). Historical a57: `pan: absent`. Default smoke CPU since [ADR-079](ADR-079-pan-cpu-reopen.md): `-cpu cortex-a76` → `pan: present`. **PAN enable** still locked pending ADR-080 ([ADR-054](ADR-054-pan-enable-lock.md) gate item 3).
 - Date: 2026-09-12
 
 ## Context
@@ -20,9 +20,9 @@ Track A / A5 ([issue #36](https://github.com/artofdream/ctos/issues/36)) may tak
 ## Decision
 
 1. **Probe the ID field.** `src/pan.rs` reads `ID_AA64MMFR1_EL1` bits [23:20] and prints `pan: id=<n>`. It does **not** execute `MSR PAN`. An unimplemented `MSR PAN` is UNDEF on ARMv8.0.
-2. **Default CPU stays `cortex-a57`.** `scripts/qemu-serial-inject.py` and `scripts/qemu-aarch64.sh` keep `-cpu cortex-a57`. Do not change them in this mile.
+2. **Default CPU at accept time was `cortex-a57`.** Superseded for the default probe by [ADR-079](ADR-079-pan-cpu-reopen.md) (`-cpu cortex-a76`). Do not silent-edit without an ADR.
 3. **When `n == 0` (expected).** Serial `pan: absent`. Ledger: “PAN enable on virt cortex-a57” stays **Planned**, with this ID-field print as the CPU evidence. `scripts/qemu-smoke.sh` greps `pan: id=` / `pan: absent` and rejects `pan: enabled` / `pan: probe missed`.
-4. **When `n != 0`.** Serial `pan: present`. This tree still does **not** enable PSTATE.PAN. A later ADR may `MSR PAN` and prove an EL1 load of an EL0-accessible page faults. Smoke on this repo expects `pan: absent` because the probe CPU is `cortex-a57`.
+4. **When `n != 0`.** Serial `pan: present`. This tree still does **not** enable PSTATE.PAN. ADR-080 may `MSR PAN` and prove an EL1-vs-EL0 fault. Smoke since ADR-079 expects `pan: present` on `-cpu cortex-a76`.
 5. **Still Planned.** PAN enable + EL1-vs-EL0 access fault; lower-EL IRQ while standing; EL0 entry without `TLBI VMALLE1`; umbrella EL0 isolation. [ADR-032](ADR-032-track-a-leftovers.md) re-states that leftover: do not `MSR PAN` while the ID field is 0. [ADR-025](ADR-025-identity-rodata-tear.md) is the identity `.rodata` cut, not this.
 6. **NFR-10 text** is revised in place (ID unchanged). Do not mint NFR-15+.
 

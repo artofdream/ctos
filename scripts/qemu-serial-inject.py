@@ -7,7 +7,7 @@ chardev byte on `-serial stdio`. Exit 124 if we kill the wfe loop
 
 ADR-045: also open a QMP unix socket and, after the guest prints
 `el0: serror-arm`, attempt `inject-nmi` (research H1 from ADR-044).
-On QEMU 10 virt + `-cpu cortex-a57` this typically errors with
+On QEMU 10 virt this typically errors with
 "machine does not provide NMIs" — log that honestly; do not fake a
 taken SError. Guest keeps `el0: serror-park` when inject does not land.
 """
@@ -168,8 +168,9 @@ def main() -> int:
         "qemu-system-aarch64",
         "-machine",
         "virt",
+        # ADR-079: FEAT_PAN default; historical a57 was pan: absent.
         "-cpu",
-        "cortex-a57",
+        "cortex-a76",
         "-m",
         "128M",
         "-display",

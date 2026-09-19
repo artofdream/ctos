@@ -1,4 +1,7 @@
 # Freestanding AArch64 via aarch64-ctos.json + build-std (not rustup target add).
+# Pin: floating `nightly` @ 2026-09-18 (330d31712) fails `cargo test` with
+# E0463 can't find crate for `test` on this custom none target. Ledger tip
+# ADR-078 used 0fc141305 — channel date nightly-2026-09-12.
 [toolchain]
-channel = "nightly"
+channel = "nightly-2026-09-12"
 components = ["rust-src", "llvm-tools-preview"]
