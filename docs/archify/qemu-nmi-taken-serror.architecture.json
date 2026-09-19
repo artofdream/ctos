@@ -1,0 +1,267 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ctos \u2014 QEMU NMI pin \u2192 taken SError",
+    "output": "qemu-nmi-taken-serror.architecture.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "opt-in-taken",
+        "label": "Opt-in taken path",
+        "focus": [
+          "smoke",
+          "pin",
+          "qmp",
+          "guest",
+          "taken"
+        ],
+        "note": "CTOS_QEMU + CTOS_REQUIRE_TAKEN_SERROR=1 until serial shows el0: serror."
+      },
+      {
+        "id": "stock-park",
+        "label": "Stock park path",
+        "focus": [
+          "smoke",
+          "stock",
+          "guest",
+          "park"
+        ],
+        "note": "Distro QEMU still lacks TYPE_NMI; el0: serror-park stays Verified."
+      },
+      {
+        "id": "honesty",
+        "label": "Honesty boundary",
+        "focus": [
+          "patch",
+          "pin",
+          "taken",
+          "park"
+        ],
+        "note": "Patch raises async SError via TYPE_NMI. Not FEAT_NMI. Not EL0 isolated."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "smoke",
+      "type": "external",
+      "label": "qemu-smoke",
+      "sublabel": "EXPECT gate",
+      "pos": [
+        40,
+        220
+      ],
+      "size": [
+        120,
+        52
+      ]
+    },
+    {
+      "id": "patch",
+      "type": "security",
+      "label": "TYPE_NMI patch",
+      "sublabel": "ARM_CPU_SERROR",
+      "pos": [
+        40,
+        40
+      ],
+      "size": [
+        140,
+        52
+      ],
+      "tag": "ADR-083"
+    },
+    {
+      "id": "pin",
+      "type": "cloud",
+      "label": "Pinned QEMU",
+      "sublabel": "v10.0.0 + patch",
+      "pos": [
+        250,
+        140
+      ],
+      "size": [
+        140,
+        52
+      ],
+      "tag": "tools/qemu-nmi"
+    },
+    {
+      "id": "stock",
+      "type": "cloud",
+      "label": "Stock QEMU",
+      "sublabel": "10.0.13 distro",
+      "pos": [
+        250,
+        320
+      ],
+      "size": [
+        140,
+        52
+      ],
+      "tag": "default CI"
+    },
+    {
+      "id": "qmp",
+      "type": "backend",
+      "label": "QMP inject",
+      "sublabel": "stop\u2192nmi\u2192cont",
+      "pos": [
+        460,
+        140
+      ],
+      "size": [
+        130,
+        52
+      ]
+    },
+    {
+      "id": "guest",
+      "type": "backend",
+      "label": "Standing EL0",
+      "sublabel": "A-clear window",
+      "pos": [
+        660,
+        220
+      ],
+      "size": [
+        130,
+        52
+      ]
+    },
+    {
+      "id": "taken",
+      "type": "messagebus",
+      "label": "el0: serror",
+      "sublabel": "taken opt-in",
+      "pos": [
+        860,
+        140
+      ],
+      "size": [
+        130,
+        52
+      ],
+      "tag": "Verified*"
+    },
+    {
+      "id": "park",
+      "type": "messagebus",
+      "label": "el0: serror-park",
+      "sublabel": "stock Verified",
+      "pos": [
+        860,
+        320
+      ],
+      "size": [
+        140,
+        52
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Opt-in pin (ADR-083)",
+      "wraps": [
+        "pin",
+        "qmp",
+        "taken"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Default stock smoke",
+      "wraps": [
+        "stock",
+        "park"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "patch-pin",
+      "from": "patch",
+      "to": "pin",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "smoke-pin",
+      "from": "smoke",
+      "to": "pin",
+      "label": "CTOS_QEMU",
+      "variant": "emphasis"
+    },
+    {
+      "id": "smoke-stock",
+      "from": "smoke",
+      "to": "stock",
+      "label": "default",
+      "variant": "dashed"
+    },
+    {
+      "id": "pin-qmp",
+      "from": "pin",
+      "to": "qmp",
+      "label": "inject-nmi"
+    },
+    {
+      "id": "qmp-guest",
+      "from": "qmp",
+      "to": "guest",
+      "label": "async SError",
+      "variant": "emphasis"
+    },
+    {
+      "id": "guest-taken",
+      "from": "guest",
+      "to": "taken",
+      "label": "serial"
+    },
+    {
+      "id": "stock-guest",
+      "from": "stock",
+      "to": "guest",
+      "label": "no NMI",
+      "variant": "dashed"
+    },
+    {
+      "id": "guest-park",
+      "from": "guest",
+      "to": "park",
+      "label": "park"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "ADR-083 opt-in",
+      "items": [
+        "Pin QEMU v10.0.0 (7c949c53) + TYPE_NMI\u2192SError patch",
+        "CTOS_REQUIRE_TAKEN_SERROR=1 requires bare el0: serror",
+        "Tip ~6ec1f4e \u2014 documentation aid, not Live status"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Stock path unchanged",
+      "items": [
+        "Distro QEMU: inject-nmi \u2192 machine does not provide NMIs",
+        "el0: serror-park stays Verified on default CI/Docker",
+        "Do not force multi-minute QEMU compile on every PR"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Explicit non-claims",
+      "items": [
+        "FEAT_NMI / FIQ / BRK are not async SError",
+        "Umbrella EL0 isolated remains non-claim (ADR-055)",
+        "CloudAgent HELD \u2014 agent-box proof; EVO-X2 intent only"
+      ]
+    }
+  ]
+}
