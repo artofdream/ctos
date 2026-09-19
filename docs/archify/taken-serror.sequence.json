@@ -1,0 +1,231 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "ctos \u2014 taken SError opt-in sequence",
+    "output": "taken-serror.sequence.html",
+    "viewBox": [
+      980,
+      680
+    ],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "arm-window",
+        "label": "Arm A-clear window",
+        "focus": [
+          "smoke",
+          "guest",
+          "serial"
+        ],
+        "note": "Guest arms standing EL0 with PSTATE.A clear and prints el0: serror-arm."
+      },
+      {
+        "id": "qmp-inject",
+        "label": "QMP stop / inject / cont",
+        "focus": [
+          "host",
+          "qemu",
+          "guest"
+        ],
+        "note": "Host pauses TCG, inject-nmi raises ARM_CPU_SERROR on the pin, then continues."
+      },
+      {
+        "id": "expect-gate",
+        "label": "EXPECT gate",
+        "focus": [
+          "guest",
+          "serial",
+          "smoke"
+        ],
+        "note": "Opt-in smoke requires bare el0: serror; stock path would park instead."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "smoke",
+      "type": "external",
+      "label": "qemu-smoke",
+      "sublabel": "gate"
+    },
+    {
+      "id": "host",
+      "type": "backend",
+      "label": "serial-inject",
+      "sublabel": "QMP"
+    },
+    {
+      "id": "qemu",
+      "type": "cloud",
+      "label": "Pinned QEMU",
+      "sublabel": "virt/a76"
+    },
+    {
+      "id": "guest",
+      "type": "backend",
+      "label": "ctos guest",
+      "sublabel": "EL0"
+    },
+    {
+      "id": "serial",
+      "type": "messagebus",
+      "label": "Serial",
+      "sublabel": "UART"
+    }
+  ],
+  "segments": [
+    {
+      "from": 160,
+      "to": 280,
+      "label": "Arm"
+    },
+    {
+      "from": 300,
+      "to": 460,
+      "label": "Inject"
+    },
+    {
+      "from": 480,
+      "to": 620,
+      "label": "Taken"
+    }
+  ],
+  "messages": [
+    {
+      "id": "start-smoke",
+      "from": "smoke",
+      "to": "qemu",
+      "y": 180,
+      "label": "CTOS_QEMU + TAKEN",
+      "variant": "emphasis"
+    },
+    {
+      "id": "boot-guest",
+      "from": "qemu",
+      "to": "guest",
+      "y": 215,
+      "label": "-kernel ctos"
+    },
+    {
+      "id": "arm-cue",
+      "from": "guest",
+      "to": "serial",
+      "y": 250,
+      "label": "el0: serror-arm",
+      "variant": "emphasis"
+    },
+    {
+      "id": "host-sees",
+      "from": "serial",
+      "to": "host",
+      "y": 330,
+      "label": "cue match",
+      "variant": "return"
+    },
+    {
+      "id": "qmp-stop",
+      "from": "host",
+      "to": "qemu",
+      "y": 365,
+      "label": "QMP stop",
+      "variant": "security"
+    },
+    {
+      "id": "qmp-nmi",
+      "from": "host",
+      "to": "qemu",
+      "y": 400,
+      "label": "inject-nmi",
+      "variant": "emphasis"
+    },
+    {
+      "id": "qmp-cont",
+      "from": "host",
+      "to": "qemu",
+      "y": 435,
+      "label": "QMP cont"
+    },
+    {
+      "id": "deliver",
+      "from": "qemu",
+      "to": "guest",
+      "y": 510,
+      "label": "SError @ EL0",
+      "variant": "emphasis"
+    },
+    {
+      "id": "taken-cue",
+      "from": "guest",
+      "to": "serial",
+      "y": 545,
+      "label": "el0: serror",
+      "variant": "emphasis"
+    },
+    {
+      "id": "expect-ok",
+      "from": "serial",
+      "to": "smoke",
+      "y": 580,
+      "label": "EXPECT ok",
+      "variant": "return"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "qemu",
+      "from": 175,
+      "to": 520,
+      "type": "cloud"
+    },
+    {
+      "participant": "guest",
+      "from": 210,
+      "to": 555,
+      "type": "backend"
+    },
+    {
+      "participant": "host",
+      "from": 325,
+      "to": 445,
+      "type": "backend"
+    },
+    {
+      "participant": "serial",
+      "from": 245,
+      "to": 590,
+      "type": "messagebus"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Taken path (opt-in)",
+      "items": [
+        "Pinned virt implements TYPE_NMI \u2192 ARM_CPU_SERROR",
+        "stop/inject/cont avoids racing past the A-clear window",
+        "Serial bare el0: serror satisfies CTOS_REQUIRE_TAKEN_SERROR=1"
+      ]
+    },
+    {
+      "dot": "orange",
+      "title": "Stock contrast",
+      "items": [
+        "Without the pin, inject-nmi errors: machine does not provide NMIs",
+        "Default smoke still requires el0: serror-park",
+        "Diagram is a doc aid \u2014 not production Live status"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Honesty",
+      "items": [
+        "Not FEAT_NMI; not FIQ/BRK as SError",
+        "Not umbrella EL0 isolated",
+        "ADR-083 tip ~6ec1f4e; CloudAgent HELD for EVO-X2"
+      ]
+    }
+  ]
+}
