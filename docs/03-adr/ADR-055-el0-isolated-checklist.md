@@ -8,7 +8,7 @@
 
 Many Track A / A5 miles are **Verified** (standing EL0, IRQ/FIQ while standing, identity tears, PAN **ID-field**, SError **park**, start-stay, leftover RAM tear, …). Rounding those miles up to “EL0 isolated” is forbidden. Sponsor / DSO asked to **secure** the umbrella gap before Guest Linux / containers / immutable-OS marketing: publish a checklist of Verified miles vs umbrella requirements still unmet, given:
 
-- PAN enable locked non-goal on default a57 ([ADR-054](ADR-054-pan-enable-lock.md))
+- PAN enable was locked on default a57 ([ADR-054](ADR-054-pan-enable-lock.md)); reopen + enable on cortex-a76 ([ADR-079](ADR-079-pan-cpu-reopen.md) / [ADR-080](ADR-080-pan-enable-fault.md)) — still not the umbrella
 - `_start` stays / never yank ([ADR-042](ADR-042-isolation-leftover-wrap.md) / [ADR-047](ADR-047-isolation-leftovers-decisions.md))
 - Taken lower-EL SError hard-stopped / deferred ([ADR-053](ADR-053-taken-serror-hard-stop.md))
 
@@ -37,13 +37,13 @@ CloudAgent HELD; docs-only.
 | Lower-EL FIQ while standing | `el0: fiq` | ADR-043 |
 | SError **park** honesty | `el0: serror-park` | ADR-043 / ADR-045 |
 | PAN **ID-field** on default probe CPU | `pan: present` on cortex-a76 (ADR-079); historical a57 `pan: absent` | ADR-026 / ADR-079 |
+| PAN **enable** + EL1-vs-EL0 fault | `pan: enabled` / `pan: el1-fault` | ADR-080 |
 | `_start` stay honesty | `ident: start-stay` | ADR-042 / ADR-047 |
 
 ### B. Umbrella requirements still **Unmet** (block Verified)
 
 | Requirement | Current status | Why unmet | Reopen / lock ADR |
 | --- | --- | --- | --- |
-| PAN **enable** + EL1-vs-EL0 fault | **Locked** pending ADR-080 | CPU reopen met (`pan: present`, ADR-079); enable not done | [ADR-054](ADR-054-pan-enable-lock.md) / [ADR-079](ADR-079-pan-cpu-reopen.md) |
 | Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt+a57 (`machine does not provide NMIs`) | [ADR-053](ADR-053-taken-serror-hard-stop.md) |
 | Full identity teardown including yank `_start` | **Decided: never** while `-kernel` needs `0x4008_0000` | Boot stub stays (`ident: start-stay`) | ADR-042 / ADR-047 |
 | Written sponsor accept that the umbrella sentence is in scope | **Absent** | No ADR-048-style accept for “EL0 isolated” | Would need a future accept ADR — **not** this file |
@@ -55,7 +55,7 @@ Until §B is cleared under honest probes (and `_start` policy is redesigned with
 Say “umbrella EL0 isolation is Planned / non-claim until the ADR-055 checklist; many isolation miles are Verified but that is not ‘EL0 isolated.’” Do **not** say:
 
 - “EL0 isolated” / “secure OS” / “hardened isolation complete”
-- PAN enabled / taken SError Verified / `_start` yanked
+- “EL0 isolated” from PAN alone / taken SError Verified / `_start` yanked
 - Guest Linux / containers / immutable-OS marketing as if isolation were closed
 
 ## Consequences

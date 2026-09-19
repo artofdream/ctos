@@ -106,6 +106,7 @@
 - [ADR-077 FAT16 nested mkdir + empty rmdir](03-adr/ADR-077-fat16-nested-rmdir.md)
 - [ADR-078 thin TCP echo CNTPCT](03-adr/ADR-078-tcp-echo-cntpct.md)
 - [ADR-079 PAN CPU reopen foundation](03-adr/ADR-079-pan-cpu-reopen.md)
+- [ADR-080 PAN enable + EL1-vs-EL0 fault](03-adr/ADR-080-pan-enable-fault.md)
 
 # Roadmap
 
