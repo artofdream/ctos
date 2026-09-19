@@ -1,0 +1,46 @@
+From: ctos research <noreply@ctos.local>
+Subject: [PATCH] RESEARCH ONLY: hw/arm/virt: TYPE_NMI -> async SError sketch
+
+WARNING: Research sketch for ADR-082 B1. NOT reviewed. NOT CI-wired.
+NOT proven against a specific QEMU commit. May not compile on master
+without retargeting GPIO / interrupt constants.
+
+Intent: implement TYPE_NMI on virt so QMP inject-nmi raises async SError
+on CPU0 (TCG), matching the 2020 "Simulate NMI Injection" direction
+without claiming FEAT_NMI is SError.
+
+Apply only under sponsor-approved pinned build + guest el0: serror proof.
+
+---
+This patch is intentionally incomplete as a reminder it is not production:
+
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index 0000000..deadbeef
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -0,0 +1,40 @@
++/* RESEARCH SKETCH — do not land without:
++ *  1) correct ARM async SError line for the base QEMU commit
++ *  2) TYPE_NMI interface registration on VirtMachineState
++ *  3) agent-box + GHA proof: inject-nmi => guest serial "el0: serror"
++ *
++ * Pseudocode only:
++ *
++ * #include "hw/nmi.h"
++ *
++ * static void virt_nmi_monitor_handler(NMIState *n, int cpu_index, Error **errp)
++ * {
++ *     CPUState *cs = qemu_get_cpu(cpu_index < 0 ? 0 : cpu_index);
++ *     if (!cs) {
++ *         error_setg(errp, "invalid CPU index for NMI");
++ *         return;
++ *     }
++ *     // MUST raise async SError taken by guest (not FIQ, not FEAT_NMI IRQ).
++ *     // Historical series used ARM_CPU_SERROR GPIO; current trees may differ.
++ *     // cpu_interrupt(cs, CPU_INTERRUPT_???_SERROR);
++ * }
++ *
++ * // In machine class init:
++ * //   NMI_GET_CLASS(nc)->nmi_monitor_handler = virt_nmi_monitor_handler;
++ * // In TypeInfo interfaces[]: { TYPE_NMI },
++ */

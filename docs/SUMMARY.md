@@ -108,6 +108,7 @@
 - [ADR-079 PAN CPU reopen foundation](03-adr/ADR-079-pan-cpu-reopen.md)
 - [ADR-080 PAN enable + EL1-vs-EL0 fault](03-adr/ADR-080-pan-enable-fault.md)
 - [ADR-081 Taken SError reopen (still blocked)](03-adr/ADR-081-taken-serror-reopen.md)
+- [ADR-082 B1 QEMU TYPE_NMI research (blocker)](03-adr/ADR-082-b1-qemu-type-nmi.md)
 
 # Roadmap
 

@@ -1,0 +1,15 @@
+qemu-nmi-probe: host=grok-bot-vm-401670533
+qemu-nmi-probe: QEMU emulator version 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1)
+qemu-nmi-probe: ADR-082 B1 research — TYPE_NMI availability (not SError Verified)
+
+| label | machine | cpu | inject-nmi |
+| --- | --- | --- | --- |
+| default-smoke | `virt` | `cortex-a76` | error: machine does not provide NMIs |
+| historical-a57 | `virt` | `cortex-a57` | error: machine does not provide NMIs |
+| gicv3-a76 | `virt,gic-version=3` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-max | `virt,gic-version=3` | `max` | error: machine does not provide NMIs |
+| virt-on | `virt,virtualization=on` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-virt-on | `virt,gic-version=3,virtualization=on` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-secure | `virt,gic-version=3,secure=on` | `cortex-a76` | error: machine does not provide NMIs |
+
+qemu-nmi-probe: done. FEAT_NMI / GICv3 NMI ≠ async SError. Do not claim taken Verified from this script alone.

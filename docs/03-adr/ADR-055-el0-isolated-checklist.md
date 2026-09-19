@@ -10,7 +10,7 @@ Many Track A / A5 miles are **Verified** (standing EL0, IRQ/FIQ while standing, 
 
 - PAN enable was locked on default a57 ([ADR-054](ADR-054-pan-enable-lock.md)); reopen + enable on cortex-a76 ([ADR-079](ADR-079-pan-cpu-reopen.md) / [ADR-080](ADR-080-pan-enable-fault.md)) — still not the umbrella
 - `_start` stays / never yank ([ADR-042](ADR-042-isolation-leftover-wrap.md) / [ADR-047](ADR-047-isolation-leftovers-decisions.md))
-- Taken lower-EL SError hard-stopped / deferred ([ADR-053](ADR-053-taken-serror-hard-stop.md); reopen re-probe [ADR-081](ADR-081-taken-serror-reopen.md))
+- Taken lower-EL SError hard-stopped / deferred ([ADR-053](ADR-053-taken-serror-hard-stop.md); reopen re-probe [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md))
 
 CloudAgent HELD; docs-only.
 
@@ -44,7 +44,7 @@ CloudAgent HELD; docs-only.
 
 | Requirement | Current status | Why unmet | Reopen / lock ADR |
 | --- | --- | --- | --- |
-| Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt TCG (`machine does not provide NMIs`) — re-probed a76 + GICv3/virt-on/max 2026-09-19 | [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) |
+| Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt TCG (`machine does not provide NMIs`) — re-probed a76 + GICv3/virt-on/max 2026-09-19 | [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) |
 | Full identity teardown including yank `_start` | **Decided: never** while `-kernel` needs `0x4008_0000` | Boot stub stays (`ident: start-stay`) | ADR-042 / ADR-047 |
 | Written sponsor accept that the umbrella sentence is in scope | **Absent** | No ADR-048-style accept for “EL0 isolated” | Would need a future accept ADR — **not** this file |
 
