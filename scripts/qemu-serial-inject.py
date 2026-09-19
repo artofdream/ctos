@@ -29,7 +29,7 @@ SERROR_ARM = b"el0: serror-arm"
 INJECT = bytes([int(os.environ.get("CTOS_INPUT_BYTE", "0x41"), 0)])
 TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "20"))
 # Give the guest a moment after the cue to ERET into the A-clear spin.
-SERROR_INJECT_DELAY = float(os.environ.get("CTOS_SERROR_INJECT_DELAY", "0.05"))
+SERROR_INJECT_DELAY = float(os.environ.get("CTOS_SERROR_INJECT_DELAY", "0.0"))
 
 
 def prepare_fat16(root: str) -> str:
@@ -128,6 +128,32 @@ class QmpClient:
         reply = self._read_json(deadline)
         return bool(reply) and "return" in reply
 
+    def _exec(self, cmd: str, deadline: float) -> dict:
+        assert self.sock is not None
+        self.sock.sendall(f'{{"execute":"{cmd}"}}\n'.encode())
+        while True:
+            reply = self._read_json(deadline)
+            if reply is None:
+                raise TimeoutError(f"qmp {cmd} timeout")
+            # Skip async events (STOP/RESUME/…) until the command reply.
+            if "event" in reply and "return" not in reply and "error" not in reply:
+                continue
+            return reply
+
+    def stop(self, deadline: float) -> str:
+        try:
+            r = self._exec("stop", deadline)
+            return "ok" if "return" in r else str(r)
+        except (OSError, json.JSONDecodeError, TimeoutError, ConnectionError) as e:
+            return f"stop-error:{e}"
+
+    def cont(self, deadline: float) -> str:
+        try:
+            r = self._exec("cont", deadline)
+            return "ok" if "return" in r else str(r)
+        except (OSError, json.JSONDecodeError, TimeoutError, ConnectionError) as e:
+            return f"cont-error:{e}"
+
     def inject_nmi(self, deadline: float) -> str:
         if self.sock is None:
             return "no-socket"
@@ -165,8 +191,9 @@ def main() -> int:
     qmp_sock = os.path.join(qmp_dir, "qmp.sock")
     qmp = QmpClient(qmp_sock)
 
+    qemu = os.environ.get("CTOS_QEMU", "qemu-system-aarch64")
     cmd = [
-        "qemu-system-aarch64",
+        qemu,
         "-machine",
         "virt",
         # ADR-079: FEAT_PAN default; historical a57 was pan: absent.
@@ -241,24 +268,28 @@ def main() -> int:
                 if not serror_armed and SERROR_ARM in buf:
                     serror_armed = True
                     standing_count_at_arm = buf.count(b"el0: standing")
-                # Inject only after the SError probe's SVC #1 (`el0: standing`)
-                # so PSTATE.A is already clear in the spin window.
+                    # ADR-083: inject as soon as the arm cue is seen so SError
+                    # is pending before/while ERET to EL0 with A clear. Waiting
+                    # only for `el0: standing` was too late on a short TCG spin.
+                    if qmp_ready and not serror_injected:
+                        time.sleep(SERROR_INJECT_DELAY)
+                        # Pause guest so TCG cannot race past the A-clear window.
+                        stop_r = qmp.stop(deadline)
+                        qmp_result = qmp.inject_nmi(deadline)
+                        cont_r = qmp.cont(deadline)
+                        serror_injected = True
+                        msg = (
+                            f"qemu-serial-inject: qmp stop=>{stop_r} "
+                            f"inject-nmi=>{qmp_result} cont=>{cont_r}"
+                            f" (ADR-083 pin / ADR-045 EXPECT; park if not taken)\n"
+                        )
+                        sys.stdout.buffer.write(msg.encode())
+                        sys.stdout.buffer.flush()
                 if (
                     serror_armed
-                    and not serror_injected
-                    and qmp_ready
                     and buf.count(b"el0: standing") > standing_count_at_arm
                 ):
                     serror_standing_seen = True
-                    time.sleep(SERROR_INJECT_DELAY)
-                    qmp_result = qmp.inject_nmi(deadline)
-                    serror_injected = True
-                    msg = (
-                        f"qemu-serial-inject: qmp inject-nmi => {qmp_result}"
-                        f" (ADR-045/081/082 dormant; park if not taken)\n"
-                    )
-                    sys.stdout.buffer.write(msg.encode())
-                    sys.stdout.buffer.flush()
             elif proc.poll() is not None:
                 break
         if proc.poll() is not None:

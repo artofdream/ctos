@@ -63,7 +63,8 @@ if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" --app2 "$APP2" --app3 "$APP
 fi
 # ADR-079: default probe CPU is cortex-a76 (FEAT_PAN; pan: present).
 # Historical cortex-a57 stays pan: absent (ADR-026/054). Do not silent -cpu.
-exec qemu-system-aarch64 \
+QEMU_BIN="${CTOS_QEMU:-qemu-system-aarch64}"
+exec "$QEMU_BIN" \
     -machine virt \
     -cpu cortex-a76 \
     -m 128M \

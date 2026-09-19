@@ -33,6 +33,10 @@ Say “guest A-clear standing SError path is wired; QMP `inject-nmi` does not ta
 - ADR-044 H1 landed as a working inject on QEMU 10
 - guest-only RAS inject works on cortex-a57 TCG
 
+## Follow-on
+
+[ADR-083](ADR-083-b1-qemu-nmi-pin.md) (2026-09-19): pinned QEMU opt-in Verifies taken `el0: serror`; stock park path unchanged.
+
 ## Consequences
 
 - `src/exception.rs` / `src/el0.rs` own the A-clear probe + EXPECT. `scripts/qemu-serial-inject.py` owns the QMP attempt. `el0: serror-park` stays the fail-closed serial when inject does not land.

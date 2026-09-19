@@ -1,0 +1,7 @@
+QEMU_UPSTREAM_TAG=v10.0.0
+QEMU_UPSTREAM_COMMIT=7c949c53e936aa3a658d84ab53bae5cadaa5d59c
+PATCH=research/qemu-nmi/0001-hw-arm-virt-TYPE_NMI-raise-SError.patch
+PREFIX=tools/qemu-nmi
+BINARY=tools/qemu-nmi/bin/qemu-system-aarch64
+BUILD_HOST=agent-box (grok-bot-vm-401670533); EVO-X2 preferred but CloudAgent HELD / cts-ai offline (2026-09-19)
+PROOF=CTOS_QEMU=$PREFIX/bin/qemu-system-aarch64 CTOS_REQUIRE_TAKEN_SERROR=1 ./scripts/qemu-smoke.sh → el0: serror

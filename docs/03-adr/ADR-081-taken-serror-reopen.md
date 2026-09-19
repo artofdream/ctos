@@ -63,6 +63,10 @@ Say: “taken lower-EL SError stays hard-stopped on virt TCG after ADR-081 re-pr
 
 Sponsor chose **B1** (2026-09-19 ~08:58 CEST). Follow-on research: [ADR-082](ADR-082-b1-qemu-type-nmi.md) — **no shippable upstream/apt pin this session**; virt through QEMU master still lacks `TYPE_NMI`→async SError. Park stays Verified; taken stays blocked. Not B2/B3.
 
+## Follow-on
+
+[ADR-083](ADR-083-b1-qemu-nmi-pin.md) (2026-09-19): pinned QEMU opt-in Verifies taken `el0: serror`; stock park path unchanged.
+
 ## Consequences
 
 - Docs: this ADR; [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-045](ADR-045-taken-serror-qmp.md) / [ADR-055](ADR-055-el0-isolated-checklist.md) / [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md) / [ADR-079](ADR-079-pan-cpu-reopen.md) cross-links; honesty ledger; roadmap P-SEC-3r; threat-model **v1.56**; SUMMARY; el0 / limits / security light touch; research brief under `research/daily-briefs/`.

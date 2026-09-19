@@ -321,8 +321,12 @@ fn fiq_while_standing() -> bool {
     })
 }
 
-/// AArch64 `MOVZ X2, #0x4000` — short A-clear window for host inject (TCG).
-const MOVZ_X2_4000: u32 = 0xD2880002;
+/// AArch64 `MOVZ X2, #0xffff` — A-clear spin window for host inject (TCG).
+/// Was `#0x4000` (ADR-045); lengthened under ADR-083 so QMP inject can land.
+const MOVZ_X2_FFFF: u32 = 0xD28FFFE2;
+const MOVZ_X3_0010: u32 = 0xD2800203; /* MOVZ X3, #0x10 — enough with QMP stop */
+const SUBS_X3_1: u32 = 0xF1000463; /* SUBS X3, X3, #1 */
+const B_NE_BACK4: u32 = 0x54FFFF81; /* B.NE -4 → inner MOVZ X2 */
 /// AArch64 `SUBS X2, X2, #1`.
 const SUBS_X2_1: u32 = 0xF1000442;
 /// AArch64 `B.NE` to previous insn (spin back to SUBS).
@@ -332,15 +336,19 @@ const B_NE_BACK1: u32 = 0x54FFFFE1;
 /// can land while A is clear. WFI would hang forever if inject fails because
 /// SPSR masks I/F (ADR-045). Keep the spin short on TCG.
 fn write_serror_standing(ptr: *mut u32) {
+    // Nested spin ≈ 0x10 * 0xffff iters so QMP stop/inject/cont can land (ADR-083).
     unsafe {
         core::ptr::write_volatile(ptr, SVC1_A64);
-        core::ptr::write_volatile(ptr.add(1), MOVZ_X2_4000);
-        core::ptr::write_volatile(ptr.add(2), SUBS_X2_1);
-        core::ptr::write_volatile(ptr.add(3), B_NE_BACK1);
-        core::ptr::write_volatile(ptr.add(4), MOVZ_X1_MAGIC);
-        core::ptr::write_volatile(ptr.add(5), SVC2_A64);
+        core::ptr::write_volatile(ptr.add(1), MOVZ_X3_0010);
+        core::ptr::write_volatile(ptr.add(2), MOVZ_X2_FFFF);
+        core::ptr::write_volatile(ptr.add(3), SUBS_X2_1);
+        core::ptr::write_volatile(ptr.add(4), B_NE_BACK1);
+        core::ptr::write_volatile(ptr.add(5), SUBS_X3_1);
+        core::ptr::write_volatile(ptr.add(6), B_NE_BACK4);
+        core::ptr::write_volatile(ptr.add(7), MOVZ_X1_MAGIC);
+        core::ptr::write_volatile(ptr.add(8), SVC2_A64);
     }
-    for i in 0..6 {
+    for i in 0..9 {
         sync_icache(unsafe { ptr.add(i) });
     }
 }

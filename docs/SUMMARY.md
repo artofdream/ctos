@@ -109,6 +109,8 @@
 - [ADR-080 PAN enable + EL1-vs-EL0 fault](03-adr/ADR-080-pan-enable-fault.md)
 - [ADR-081 Taken SError reopen (still blocked)](03-adr/ADR-081-taken-serror-reopen.md)
 - [ADR-082 B1 QEMU TYPE_NMI research (blocker)](03-adr/ADR-082-b1-qemu-type-nmi.md)
+- [ADR-083 B1 pinned QEMU TYPE_NMI → el0: serror](03-adr/ADR-083-b1-qemu-nmi-pin.md)
+- [Opt-in CI: QEMU NMI pin](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
 

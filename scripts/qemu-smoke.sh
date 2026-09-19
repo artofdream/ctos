@@ -71,10 +71,18 @@ sha256_file() {
     fi
 }
 
-if ! command -v qemu-system-aarch64 >/dev/null 2>&1; then
-    echo "qemu-smoke: qemu-system-aarch64 not on PATH" >&2
+QEMU_BIN="${CTOS_QEMU:-qemu-system-aarch64}"
+if [ -n "${CTOS_QEMU:-}" ]; then
+    if [ ! -x "$QEMU_BIN" ]; then
+        echo "qemu-smoke: CTOS_QEMU=$QEMU_BIN not executable" >&2
+        exit 1
+    fi
+elif ! command -v qemu-system-aarch64 >/dev/null 2>&1; then
+    echo "qemu-smoke: qemu-system-aarch64 not on PATH (or set CTOS_QEMU)" >&2
     exit 1
 fi
+echo "qemu-smoke: using $($QEMU_BIN --version | head -1)"
+
 
 echo "qemu-smoke: cargo build"
 cargo build
@@ -391,25 +399,37 @@ if ! grep -q "el0: fiq" "$log"; then
     echo "qemu-smoke: missing 'el0: fiq' on serial (ADR-043 lower-EL FIQ while standing, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-if ! grep -q "el0: serror-park" "$log"; then
-    echo "qemu-smoke: missing 'el0: serror-park' on serial (ADR-053/081/082 taken SError hard-stopped; park honesty, qemu exit $qemu_ec)" >&2
-    exit 1
+# ADR-083: opt-in pinned QEMU (CTOS_QEMU + CTOS_REQUIRE_TAKEN_SERROR=1) fail-closed
+# requires taken `el0: serror`. Stock distro QEMU keeps park honesty (ADR-053/081/082).
+if [ "${CTOS_REQUIRE_TAKEN_SERROR:-0}" = "1" ]; then
+    # Bare taken marker only (not serror-arm / serror-park). Allow optional CR.
+    if ! grep -E -q '^el0: serror[[:space:]]*$' "$log"; then
+        echo "qemu-smoke: missing taken 'el0: serror' on serial (ADR-083 pinned QEMU EXPECT path, qemu exit $qemu_ec)" >&2
+        exit 1
+    fi
+    echo "qemu-smoke: taken 'el0: serror' present (ADR-083 pinned QEMU)"
+else
+    if ! grep -q "el0: serror-park" "$log"; then
+        echo "qemu-smoke: missing 'el0: serror-park' on serial (ADR-053/081/082 taken SError hard-stopped; park honesty, qemu exit $qemu_ec)" >&2
+        exit 1
+    fi
+    # Soft-note if taken appears without requiring it (stock QEMU should not).
+    if grep -E -q '^el0: serror[[:space:]]*$' "$log"; then
+        echo "qemu-smoke: note: taken 'el0: serror' present (set CTOS_REQUIRE_TAKEN_SERROR=1 to fail-closed require)"
+    fi
 fi
-# ADR-045/081/082: QMP inject-nmi is attempted by qemu-serial-inject.py. On QEMU 10
-# virt TCG it fails — re-probed ADR-081 on cortex-a76 (+ GICv3/virt-on/max):
-# "machine does not provide NMIs". Do NOT require `el0: serror` here — that
-# would fake Verified. Soft-note if the taken marker appears without park.
-if grep -E -q 'el0: serror$' "$log"; then
-    echo "qemu-smoke: note: taken 'el0: serror' present (would be Verified only with a working inject)"
-fi
-if grep -q "qemu-serial-inject: qmp inject-nmi" "$log"; then
-    echo "qemu-smoke: QMP inject-nmi attempt logged (ADR-045)"
+if grep -q "qemu-serial-inject: qmp" "$log" && grep -q "inject-nmi" "$log"; then
+    echo "qemu-smoke: QMP inject-nmi attempt logged (ADR-045/083)"
 fi
 if ! grep -q "el0: no-vmalle1" "$log"; then
     echo "qemu-smoke: missing 'el0: no-vmalle1' on serial (ADR-039 EL0 entry without VMALLE1, qemu exit $qemu_ec)" >&2
     exit 1
 fi
-echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + fiq + serror-park + no-vmalle1 strings present (taken SError deferred/hard-stopped (ADR-053/081/082))"
+if [ "${CTOS_REQUIRE_TAKEN_SERROR:-0}" = "1" ]; then
+    echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + fiq + serror-taken + no-vmalle1 strings present (ADR-083)"
+else
+    echo "qemu-smoke: EL0 first-mile + read-mile + standing + irq + irq-default + fiq + serror-park + no-vmalle1 strings present (taken SError deferred/hard-stopped on stock QEMU (ADR-053/081/082); pin via ADR-083)"
+fi
 if grep -q "svc: probe missed" "$log"; then
     echo "qemu-smoke: svc probe missed (EL0 ABI trip did not run)" >&2
     exit 1
