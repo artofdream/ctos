@@ -49,6 +49,15 @@ jobs:
       - name: Build book
         run: mdbook build
 
+      - name: Publish Archify HTML (same-origin)
+        run: |
+          set -euo pipefail
+          mkdir -p book/archify
+          cp -a docs/archify/*.html docs/archify/*.json book/archify/
+          test -f book/archify/qemu-nmi-taken-serror.architecture.html
+          test -f book/archify/taken-serror.sequence.html
+          test -f book/archify/qemu-nmi-taken-serror.architecture.json
+          test -f book/archify/taken-serror.sequence.json
       - name: Confirm CNAME and disable Jekyll
         run: |
           set -euo pipefail
@@ -65,6 +74,8 @@ jobs:
           test -f book/overview/prerequisites.html
           test -f book/overview/advantages.html
           test -f book/overview/limits.html
+          test -f book/archify/qemu-nmi-taken-serror.architecture.html
+          test -f book/archify/taken-serror.sequence.html
           test -n "$(find book \( -name '*mermaid-init*' -o -name '*mermaid.css' \) | head -n 1)"
           test -n "$(find book -name '*theme.css' | head -n 1)"
           grep -q 'class="mermaid"' book/index.html book/overview/*.html

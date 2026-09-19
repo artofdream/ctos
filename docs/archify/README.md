@@ -1,6 +1,14 @@
 # Archify diagrams (ctos)
 
-Documentation aids generated with [artofdream/archify](https://github.com/artofdream/archify). **Not** live production status. Tip reference: `~6ec1f4e` / [ADR-083](../03-adr/ADR-083-b1-qemu-nmi-pin.md).
+Documentation aids generated with [artofdream/archify](https://github.com/artofdream/archify). **Not** live production / umbrella status. Tip reference: post-[ADR-083](../03-adr/ADR-083-b1-qemu-nmi-pin.md).
+
+## Same-origin on the docs site
+
+After Pages deploy from `main`:
+
+- https://ctos.artof.link/archify/qemu-nmi-taken-serror.architecture.html
+- https://ctos.artof.link/archify/taken-serror.sequence.html
+- Index: https://ctos.artof.link/archify/index.html
 
 ## Artifacts
 
@@ -20,15 +28,4 @@ Documentation aids generated with [artofdream/archify](https://github.com/artofd
 ```bash
 xdg-open docs/archify/qemu-nmi-taken-serror.architecture.html
 xdg-open docs/archify/taken-serror.sequence.html
-```
-
-### Regenerate
-
-```bash
-node /path/to/archify/bin/archify.mjs deliver architecture \
-  docs/archify/qemu-nmi-taken-serror.architecture.json \
-  docs/archify/qemu-nmi-taken-serror.architecture.html --quality showcase
-node /path/to/archify/bin/archify.mjs deliver sequence \
-  docs/archify/taken-serror.sequence.json \
-  docs/archify/taken-serror.sequence.html --quality showcase
 ```

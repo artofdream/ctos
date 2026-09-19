@@ -12,6 +12,7 @@
 - [KPIs / how we measure](overview/measure.md)
 - [Advantages](overview/advantages.md)
 - [Drawbacks / limits](overview/limits.md)
+- [Archify diagrams (QEMU NMI / SError)](archify/index.md)
 
 # Vision
 

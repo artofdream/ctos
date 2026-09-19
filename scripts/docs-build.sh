@@ -76,6 +76,10 @@ fi
 
 echo "docs-build: $(mdbook --version); mdbook-mermaid $(mdbook-mermaid --version 2>/dev/null || echo present)"
 mdbook build
+mkdir -p book/archify
+cp -a docs/archify/*.html docs/archify/*.json book/archify/
+test -f book/archify/qemu-nmi-taken-serror.architecture.html
+test -f book/archify/taken-serror.sequence.html
 test -f book/CNAME
 test "$(tr -d '[:space:]' < book/CNAME)" = "ctos.artof.link"
 # mdBook 0.5 hashes extra CSS/JS; presence of mermaid assets in the book tree is enough.
