@@ -5,7 +5,7 @@ QEMU 8.2's PL011 does not implement UARTCR.LBE. The M6 probe is a real
 chardev byte on `-serial stdio`. Exit 124 if we kill the wfe loop
 (same as timeout(1)).
 
-ADR-045 / ADR-081: also open a QMP unix socket and, after the guest prints
+ADR-045 / ADR-081 / ADR-082: also open a QMP unix socket and, after the guest prints
 `el0: serror-arm`, attempt `inject-nmi` (research H1 from ADR-044).
 On QEMU 10 virt (a57 and default a76; GICv3 / virtualization=on / max
 also probed in ADR-081) this errors with
@@ -255,7 +255,7 @@ def main() -> int:
                     serror_injected = True
                     msg = (
                         f"qemu-serial-inject: qmp inject-nmi => {qmp_result}"
-                        f" (ADR-045/081 dormant; park if not taken)\n"
+                        f" (ADR-045/081/082 dormant; park if not taken)\n"
                     )
                     sys.stdout.buffer.write(msg.encode())
                     sys.stdout.buffer.flush()
