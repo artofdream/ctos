@@ -2,8 +2,33 @@
 
 Default `.github/workflows/smoke.yml` stays on distro QEMU (park path).
 
-To enable taken-SError CI, add a job (requires a token with `workflow` scope
-to edit the workflow file) or run locally / on EVO-X2:
+## Enable (sponsor / maintainer) — after `qemu-nmi-pin` is in smoke.yml
+
+GitHub → **Settings** → **Secrets and variables** → **Actions** → **Variables** →
+New repository variable:
+
+- Name: `CTOS_BUILD_QEMU_NMI`
+- Value: `1`
+
+Unset or any other value skips the job. After enable, the next push/PR runs
+build of the pinned QEMU and smoke with `CTOS_REQUIRE_TAKEN_SERROR=1`.
+
+## Land the GHA job (blocked without `workflow` scope)
+
+Editing `.github/workflows/smoke.yml` requires a credential with the OAuth
+`workflow` scope. Box / Cursor GitHub OAuth currently has
+`gist, read:org, repo` only. Exact push rejection:
+
+```
+refusing to allow an OAuth App to create or update workflow
+`.github/workflows/smoke.yml` without `workflow` scope
+```
+
+**Unblock:** re-authorize the GitHub OAuth App (or use a PAT / EVO-X2 `gh`
+login) with **`workflow`** + **`repo`**, then push the job below onto tip
+`main` (~`8d05692` / ADR-083).
+
+## Local / EVO-X2 (no GHA variable needed)
 
 ```sh
 ./scripts/build-qemu-nmi.sh
@@ -12,7 +37,9 @@ export CTOS_REQUIRE_TAKEN_SERROR=1
 ./scripts/qemu-smoke.sh
 ```
 
-Suggested workflow job (paste when a `workflow`-scoped push is available):
+Dockerfile already supports `--build-arg CTOS_BUILD_QEMU_NMI=1`.
+
+## Job to paste into smoke.yml
 
 ```yaml
   qemu-nmi-pin:
@@ -35,5 +62,3 @@ Suggested workflow job (paste when a `workflow`-scoped push is available):
           CTOS_REQUIRE_TAKEN_SERROR: "1"
         run: ./scripts/qemu-smoke.sh
 ```
-
-Dockerfile already supports `--build-arg CTOS_BUILD_QEMU_NMI=1`.

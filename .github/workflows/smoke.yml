@@ -40,3 +40,32 @@ jobs:
 
       - name: Build, serial hello, cargo test
         run: ./scripts/qemu-smoke.sh
+  qemu-nmi-pin:
+    name: QEMU NMI pin smoke (opt-in)
+    if: ${{ vars.CTOS_BUILD_QEMU_NMI == '1' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install nightly + rust-src
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src, llvm-tools-preview
+
+      - name: Install QEMU build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build meson pkg-config python3-venv flex bison \
+            libglib2.0-dev libpixman-1-dev libfdt-dev libslirp-dev
+
+      - name: Build pinned QEMU (TYPE_NMI patch)
+        run: ./scripts/build-qemu-nmi.sh
+
+      - name: Smoke with taken SError required
+        env:
+          CTOS_QEMU: ${{ github.workspace }}/tools/qemu-nmi/bin/qemu-system-aarch64
+          CTOS_REQUIRE_TAKEN_SERROR: "1"
+        run: ./scripts/qemu-smoke.sh
