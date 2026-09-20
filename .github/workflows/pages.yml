@@ -1,4 +1,4 @@
-# Build the mdBook docs site. Deploy to GitHub Pages on main only.
+﻿# Build the mdBook docs site. Deploy to GitHub Pages on main only.
 # PRs prove `mdbook build` + CNAME. A green PR build is not a new
 # live-site probe; https://ctos.artof.link is Verified on main after #30
 # (deploy 34653046584 + HTTPS 200).
@@ -54,6 +54,11 @@ jobs:
           set -euo pipefail
           mkdir -p book/archify
           cp -a docs/archify/*.html docs/archify/*.json book/archify/
+          mkdir -p book/chronify
+          cp -a docs/chronify/*.html docs/chronify/*.svg docs/chronify/*.json book/chronify/ || true
+          # mdBook also emits chronify/index.html from docs/chronify/index.md when in SUMMARY
+          test -f book/chronify/ctos-evolution-rail.svg
+          test -f book/chronify/ctos-evolution.timeline.html
           test -f book/archify/qemu-nmi-taken-serror.architecture.html
           test -f book/archify/taken-serror.sequence.html
           test -f book/archify/qemu-nmi-taken-serror.architecture.json
@@ -65,7 +70,7 @@ jobs:
           test "$(tr -d '[:space:]' < book/CNAME)" = "ctos.artof.link"
           # Repo-root CNAME must stay in lockstep with book.toml.
           test "$(tr -d '[:space:]' < CNAME)" = "ctos.artof.link"
-          # Same files as docs/overview — site and repo stay aligned.
+          # Same files as docs/overview â€” site and repo stay aligned.
           test -f book/overview/what-can-run.html
           test -f book/overview/porting.html
           test -f book/overview/filesystem.html
@@ -103,3 +108,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+

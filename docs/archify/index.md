@@ -1,11 +1,11 @@
-# Archify diagrams
+﻿# Archify diagrams
 
-Same-origin views on this site (Documented aid — **not** Live product status; umbrella "EL0 isolated" stays non-claim).
+Same-origin views on this site (Documented aid â€” **not** Live product status; umbrella "EL0 isolated" stays non-claim).
 
 | Diagram | Open |
 | --- | --- |
-| QEMU NMI pin vs stock park (architecture) | [HTML](/archify/qemu-nmi-taken-serror.architecture.html) · [JSON](/archify/qemu-nmi-taken-serror.architecture.json) |
-| Taken SError inject sequence | [HTML](/archify/taken-serror.sequence.html) · [JSON](/archify/taken-serror.sequence.json) |
+| QEMU NMI pin vs stock park (architecture) | [HTML](/archify/qemu-nmi-taken-serror.architecture.html) Â· [JSON](/archify/qemu-nmi-taken-serror.architecture.json) |
+| Taken SError inject sequence | [HTML](/archify/taken-serror.sequence.html) Â· [JSON](/archify/taken-serror.sequence.json) |
 
 ## Honesty
 
@@ -14,3 +14,8 @@ Same-origin views on this site (Documented aid — **not** Live product status; 
 - Not FEAT_NMI / FIQ / BRK as SError; not "EL0 isolated."
 
 Source folder: `docs/archify/` (copied into the published `book/archify/` on Pages).
+
+## Related
+
+- [Chronify evolution rail](../chronify/index.md) — dated milestones (Documented until Pages probe).
+

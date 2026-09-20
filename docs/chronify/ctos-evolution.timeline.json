@@ -1,0 +1,101 @@
+﻿{
+  "schema_version": 1,
+  "diagram_type": "timeline",
+  "meta": {
+    "title": "ctos — evolution rail",
+    "output": "ctos-evolution.timeline.html",
+    "quality_profile": "showcase",
+    "orientation": "horizontal",
+    "honesty": "Documented aid until ctos.artof.link probe; not Live product status"
+  },
+  "eras": [
+    { "id": "foundations", "label": "Foundations", "from": "2026-08", "to": "2026-09-10" },
+    { "id": "isolation", "label": "EL0 isolation", "from": "2026-09-12", "to": "2026-09-19" },
+    { "id": "docs", "label": "Docs honesty", "from": "2026-09-19", "to": "2026-09-21" }
+  ],
+  "milestones": [
+    {
+      "id": "m-vision",
+      "date": "2026-08",
+      "era": "foundations",
+      "title": "AArch64 ctsOS",
+      "summary": "Primary ISA + honesty harness",
+      "href": "../01-vision/product-vision.html",
+      "tag": "origin"
+    },
+    {
+      "id": "m-el0",
+      "date": "2026-09-12",
+      "era": "isolation",
+      "title": "Standing EL0",
+      "summary": "SVC ABI · loader · VFS",
+      "href": "../03-adr/ADR-024-standing-el0-normal.html",
+      "tag": "isolation"
+    },
+    {
+      "id": "m-pan",
+      "date": "2026-09-19",
+      "era": "isolation",
+      "title": "PAN reopen",
+      "summary": "ADR-079/080 enable + fault",
+      "href": "../03-adr/ADR-080-pan-enable-fault.html",
+      "tag": "isolation"
+    },
+    {
+      "id": "m-serror",
+      "date": "2026-09-19",
+      "era": "isolation",
+      "title": "Taken SError pin",
+      "summary": "ADR-083 QEMU TYPE_NMI",
+      "href": "../03-adr/ADR-083-b1-qemu-nmi-pin.html",
+      "tag": "qemu"
+    },
+    {
+      "id": "m-net",
+      "date": "2026-09-19",
+      "era": "isolation",
+      "title": "Thin TCP / UDP",
+      "summary": "EL0 net demos",
+      "href": "../framework/syscall.html",
+      "tag": "net"
+    },
+    {
+      "id": "m-archify",
+      "date": "2026-09-20",
+      "era": "docs",
+      "title": "Archify on Pages",
+      "summary": "Same-origin /archify/",
+      "href": "../archify/index.html",
+      "tag": "docs"
+    },
+    {
+      "id": "m-chronify",
+      "date": "2026-09-21",
+      "era": "docs",
+      "title": "Chronify rail",
+      "summary": "Dated evolution IR",
+      "href": "./index.html",
+      "tag": "docs"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "How to read",
+      "items": [
+        "Curated milestones — not every ADR",
+        "Nodes jump into the book",
+        "Documented ≠ Live / not EL0-isolated claim"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Honesty",
+      "items": [
+        "Taken el0:serror is Verified opt-in only",
+        "Stock QEMU still parks",
+        "Probe ctos.artof.link after Pages deploy"
+      ]
+    }
+  ]
+}
