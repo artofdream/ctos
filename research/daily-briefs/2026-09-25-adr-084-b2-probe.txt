@@ -1,0 +1,105 @@
+# ADR-084 B2 probe — raw key log lines (GitHub Actions, 2026-09-25, timestamps UTC = CEST-2)
+# Run 1 https://github.com/artofdream/ctos/actions/runs/36193423604 (c198bf1)
+# Run 2 https://github.com/artofdream/ctos/actions/runs/36193613972 (749cd32)
+
+## ubuntu-24.04-arm — job 108264281869
+Image: ubuntu-24.04-arm
+Version: 20260920.129.1
+Linux runnervmoyp6c 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:12:01 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+Model name:                              Neoverse-N2
+[    0.053690] Hyper-V: Host Build 10.0.26102.3668-3-0
+[    0.499091] kvm [1]: HYP mode not available
++ echo 'b2-probe: /dev/kvm=absent'
+b2-probe: /dev/kvm=absent
+##[group]Run if [ ! -e /dev/kvm ]; then echo "b2-probe: kvm-caps=skipped (/dev/kvm absent)"; exit 0; fi
+b2-probe: kvm-caps=skipped (/dev/kvm absent)
+QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+Could not access KVM kernel module: No such file or directory
+qemu-system-aarch64: -accel kvm: failed to initialize kvm: No such file or directory
+b2-probe: kvm-boot exit=1
+qemu-nmi-probe: QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+| label | machine | cpu | inject-nmi |
+| --- | --- | --- | --- |
+| default-smoke | `virt` | `cortex-a76` | error: machine does not provide NMIs |
+| historical-a57 | `virt` | `cortex-a57` | error: machine does not provide NMIs |
+| gicv3-a76 | `virt,gic-version=3` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-max | `virt,gic-version=3` | `max` | error: machine does not provide NMIs |
+| virt-on | `virt,virtualization=on` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-virt-on | `virt,gic-version=3,virtualization=on` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-secure | `virt,gic-version=3,secure=on` | `cortex-a76` | error: machine does not provide NMIs |
+b2-probe: machines-probed=118 inject-nmi-ok=0
+
+## ubuntu-22.04-arm — job 108264281751
+Image: ubuntu-22.04-arm
+Version: 20260920.137.1
+Linux runnervmgxr10 6.8.0-1064-azure #72~22.04.1-Ubuntu SMP Wed Jul 22 22:38:59 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+[    0.078497] Hyper-V: Host Build 10.0.26102.1437-1-0
+[    0.767587] kvm [1]: HYP mode not available
++ echo 'b2-probe: /dev/kvm=absent'
+b2-probe: /dev/kvm=absent
+##[group]Run if [ ! -e /dev/kvm ]; then echo "b2-probe: kvm-caps=skipped (/dev/kvm absent)"; exit 0; fi
+b2-probe: kvm-caps=skipped (/dev/kvm absent)
+QEMU emulator version 6.2.0 (Debian 1:6.2+dfsg-2ubuntu6.31)
+Could not access KVM kernel module: No such file or directory
+qemu-system-aarch64: -accel kvm: failed to initialize kvm: No such file or directory
+b2-probe: kvm-boot exit=1
+qemu-nmi-probe: QEMU emulator version 6.2.0 (Debian 1:6.2+dfsg-2ubuntu6.31)
+| label | machine | cpu | inject-nmi |
+| --- | --- | --- | --- |
+b2-probe: machines-probed=101 inject-nmi-ok=0
+
+## macos-15 — job 108264281730
+Image: macos-15-arm64
+Version: 20260907.0337.1
+Darwin sjc22-bm204-7d530c65-7b2c-4581-a906-782a3bfb4da1-5AA548F86505.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:51:34 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_ARM64_VMAPPLE arm64
+Apple M1 (Virtual)
+sysctl: unknown oid 'kern.hv_support'
++ sysctl kern.hv_vmm_present
+kern.hv_vmm_present: 1
++ echo 'b2-probe: hv_support=unknown'
+b2-probe: hv_support=unknown
+QEMU emulator version 11.1.1
+qemu-system-aarch64: -accel hvf: Error: ret = HV_UNSUPPORTED (0xfae9400f, at ../target/arm/hvf/hvf.c:1269)
+b2-probe: hvf-boot exit=134
+
+## windows-11-arm — job 108264281535
+Image: windows-11-vs2026-arm64
+Version: 20260920.164.1
+Name                          : Cobalt 100
+VirtualizationFirmwareEnabled : False
+VMMonitorModeExtensions       : False
+Hyper-V Requirements:          A hypervisor has been detected. Features required for Hyper-V will not be displayed.
+b2-probe: Microsoft-Hyper-V feature state = Enabled
+b2-probe: HypervisorPlatform (WHPX) state = Disabled
+
+## ubuntu-24.04 (x86_64 control) — job 108264281758
+Image: ubuntu-24.04
+Version: 20260920.314.1
+Linux runnervmtr4k5 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Model name:                              AMD EPYC 9V74 80-Core Processor
+[    0.384877] Hyper-V: Host Build 10.0.26102.3669-3-0
++ echo 'b2-probe: /dev/kvm=present'
+b2-probe: /dev/kvm=present
+##[group]Run if [ ! -e /dev/kvm ]; then echo "b2-probe: kvm-caps=skipped (/dev/kvm absent)"; exit 0; fi
+b2-probe: KVM_GET_API_VERSION 12
+b2-probe: KVM_CAP_VCPU_EVENTS=1
+b2-probe: KVM_CAP_ARM_INJECT_SERROR_ESR=0
+b2-probe: KVM_CAP_ARM_INJECT_EXT_DABT=0
+b2-probe: KVM_CAP_ARM_EL1_32BIT=0
+QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+qemu-system-aarch64: -accel kvm: invalid accelerator kvm
+b2-probe: kvm-boot exit=1
+qemu-nmi-probe: QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)
+| label | machine | cpu | inject-nmi |
+| --- | --- | --- | --- |
+| default-smoke | `virt` | `cortex-a76` | error: machine does not provide NMIs |
+| historical-a57 | `virt` | `cortex-a57` | error: machine does not provide NMIs |
+| gicv3-a76 | `virt,gic-version=3` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-max | `virt,gic-version=3` | `max` | error: machine does not provide NMIs |
+| virt-on | `virt,virtualization=on` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-virt-on | `virt,gic-version=3,virtualization=on` | `cortex-a76` | error: machine does not provide NMIs |
+| gicv3-secure | `virt,gic-version=3,secure=on` | `cortex-a76` | error: machine does not provide NMIs |
+b2-probe: machines-probed=117 inject-nmi-ok=0
+
+# Note: on the x86_64 control, KVM_CAP_ARM_* values are meaningless (ARM-only caps; x86 KVM cannot run an AArch64 guest).
+# Note: 22.04-arm ADR-082 matrix printed no rows (script races QEMU 6.2 which lacks cortex-a76; step is continue-on-error). The all-machine sweep still ran.
