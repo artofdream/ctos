@@ -29,15 +29,15 @@ const PPI_PRIORITY: u8 = 0xa0;
 const SPURIOUS_ID: u32 = 1023;
 
 unsafe fn write32(base: usize, offset: usize, value: u32) {
-    core::ptr::write_volatile((base + offset) as *mut u32, value);
+    core::ptr::write_volatile((crate::paging::mmio_va(base) + offset) as *mut u32, value);
 }
 
 unsafe fn read32(base: usize, offset: usize) -> u32 {
-    core::ptr::read_volatile((base + offset) as *const u32)
+    core::ptr::read_volatile((crate::paging::mmio_va(base) + offset) as *const u32)
 }
 
 unsafe fn write8(base: usize, offset: usize, value: u8) {
-    core::ptr::write_volatile((base + offset) as *mut u8, value);
+    core::ptr::write_volatile((crate::paging::mmio_va(base) + offset) as *mut u8, value);
 }
 
 fn dsb_ish() {

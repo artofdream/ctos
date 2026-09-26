@@ -94,6 +94,11 @@ pub extern "C" fn kernel_main() -> ! {
 #[no_mangle]
 extern "C" fn kernel_main_high() -> ! {
     uart::write_str_raw("ident: jump\n");
+    // ADR-088: drivers switch to the TTBR1 Device alias before any
+    // identity MMIO is torn (identity L1 block stays until then).
+    if !paging::enable_mmio_high() {
+        uart::write_str_raw("ident: mmio-high missed\n");
+    }
     if !paging::rewrite_identity_fn_ptrs() {
         uart::write_str_raw("ident: reloc missed\n");
     }
@@ -155,6 +160,11 @@ extern "C" fn kernel_main_high() -> ! {
     // user TTBR0. `_start` / boot stub stays; MMIO stays (M2).
     if !paging::tear_identity_leftovers() {
         uart::write_str_raw("ident: left missed\n");
+    }
+    // ADR-088: clear the identity MMIO L1 block (I1). Only the `_start`
+    // stub page stays identity-mapped (sponsor D2 exception).
+    if !paging::tear_identity_mmio() {
+        uart::write_str_raw("ident: mmio missed\n");
     }
     // ADR-085 B2-P: KVM on real arm64. Skip GIC/timer/virtio/FAT/samples
     // (a KVM host may not offer GICv2). Run only the standing-EL0 SError

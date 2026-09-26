@@ -359,7 +359,7 @@ fn run_inventory() -> bool {
     let _ = writeln!(w, "ident: inv-neg k caught va={:#x}", plant);
     let _ = writeln!(w, "ident: inv-neg u caught va={:#x}", plant);
     let _ = writeln!(w, "ident: inv-neg clean");
-    let _ = writeln!(w, "ident: inv-ok allow=mmio,stub");
+    let _ = writeln!(w, "ident: inv-ok allow=stub");
     true
 }
 
@@ -603,6 +603,16 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss kend-fault\n");
         return false;
     }
+    if !paging::identity_mmio_ready() || !paging::mmio_high_ready() {
+        uart::write_str_raw("ident: miss mmio-ready\n");
+        return false;
+    }
+    // PL011 UARTFR (+0x18) through the torn identity VA: translation fault
+    // before any device access. The high alias is what printed this line.
+    if !run_left_fault(0x0900_0018, "mmio") {
+        uart::write_str_raw("ident: miss mmio-fault\n");
+        return false;
+    }
     if !run_inventory() {
         uart::write_str_raw("ident: inv missed\n");
         return false;
@@ -734,9 +744,23 @@ fn identity_leftovers_torn_stub_stays() {
 fn identity_inventory_allowlist_only_catches_plant() {
     let inv = paging::identity_inventory(false);
     assert_eq!(inv.leaks, 0, "identity leaf outside the allowlist (MMIO block, stub page)");
-    assert!(inv.ranges[0] >= 2);
+    assert_eq!(inv.ranges[0], 1, "kernel TTBR0: only the _start stub page (ADR-088)");
     let (k, u, clean) = paging::inventory_negative_probe();
     assert!(k, "kernel TTBR0 plant not caught");
     assert!(u, "user TTBR0 plant not caught");
     assert!(clean, "plant not removed");
+}
+
+/// ADR-088: identity MMIO block torn; drivers use the TTBR1 Device alias.
+#[cfg(test)]
+#[test_case]
+fn identity_mmio_torn_high_alias_xn() {
+    assert!(paging::mmio_high_ready());
+    assert!(paging::identity_mmio_ready());
+    for pa in [0x0800_0000u64, 0x0900_0000, 0x0a00_0000] {
+        assert!(!paging::is_mapped(pa), "identity MMIO still mapped");
+        assert!(paging::high_mapped(paging::to_high_va(pa)), "MMIO high alias missing");
+        assert!(paging::mmio_xn(pa));
+    }
+    assert_eq!(paging::mmio_va(0x0900_0000), paging::to_high_va(0x0900_0000) as usize);
 }
