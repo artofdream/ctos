@@ -2,6 +2,7 @@
 
 - Status: Accepted (serial / tests prove `_start` stays while live image + heap are torn; umbrella isolation stays Planned)
 - Date: 2026-09-13
+- **Follow-on (2026-09-26):** `ident: ram-stay` was superseded by ADR-049. The remaining identity (low RAM, padding tail, pre-heap frame, MMIO) was torn by [ADR-087](ADR-087-identity-inventory-ratchet.md) / [ADR-088](ADR-088-mmio-high-alias.md). `ident: start-stay` remains, and the stub page is the one documented identity exception ([ADR-089](ADR-089-start-stub-identity-exception.md), sponsor D2).
 
 ## Context
 
