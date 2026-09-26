@@ -51,6 +51,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - ADR-088 M2 MMIO high alias: [daily-briefs/2026-09-26-adr-088-mmio-high-alias.md](daily-briefs/2026-09-26-adr-088-mmio-high-alias.md)
 - ADR-089 M3 `_start` stub identity exception (docs, sponsor D2)
 - ADR-090 M4 taken-SError evidence class (sponsor D1; pin job unconditional): [daily-briefs/2026-09-26-adr-090-serror-evidence-class.md](daily-briefs/2026-09-26-adr-090-serror-evidence-class.md)
+- ADR-091 M5 umbrella accept **draft** (pending sponsor; B3 not Met): [daily-briefs/2026-09-26-adr-091-accept-draft.md](daily-briefs/2026-09-26-adr-091-accept-draft.md) / scratch [random-thoughts/2026-09-26-session-memory-m1-m5.md](random-thoughts/2026-09-26-session-memory-m1-m5.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)
