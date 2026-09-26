@@ -49,6 +49,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - ADR-086 EL0-isolated checklist audit (docs; umbrella non-claim): [daily-briefs/2026-09-26-adr-086-el0-isolated-audit.md](daily-briefs/2026-09-26-adr-086-el0-isolated-audit.md) / TTBR0 inventory [daily-briefs/2026-09-26-adr-086-ttbr0-inventory.txt](daily-briefs/2026-09-26-adr-086-ttbr0-inventory.txt) / scratch [random-thoughts/2026-09-26-session-memory-adr-086-audit.md](random-thoughts/2026-09-26-session-memory-adr-086-audit.md)
 - ADR-087 M1 identity inventory ratchet: [daily-briefs/2026-09-26-adr-087-identity-inventory.md](daily-briefs/2026-09-26-adr-087-identity-inventory.md) / scratch [random-thoughts/2026-09-26-session-memory-adr-087-m1.md](random-thoughts/2026-09-26-session-memory-adr-087-m1.md)
 - ADR-088 M2 MMIO high alias: [daily-briefs/2026-09-26-adr-088-mmio-high-alias.md](daily-briefs/2026-09-26-adr-088-mmio-high-alias.md)
+- ADR-089 M3 `_start` stub identity exception (docs, sponsor D2)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)
