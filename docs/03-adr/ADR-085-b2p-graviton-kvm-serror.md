@@ -3,6 +3,7 @@
 - Status: Accepted. Sponsor **GO for B2-P** (paid Graviton bare metal), DSO relay 2026-09-26 11:28 CEST. Follow-on to [ADR-084](ADR-084-b2-free-runner-serror.md) §4 (B2-P). **Result: taken lower-EL SError Verified under KVM on real Graviton3 hardware** in a one-off, opt-in `b2-serror` profile (run 4, 2026-09-26 13:26–13:33 CEST). Not a CI gate: no ctos CI job runs KVM. Stock-QEMU TCG smoke still parks; the B1 opt-in pin ([ADR-083](ADR-083-b1-qemu-nmi-pin.md)) is unchanged and is **not** B2.
 - Date: 2026-09-26
 - Tracks P-SEC-3r (taken lower-EL SError). Builds on [ADR-081](ADR-081-taken-serror-reopen.md) §4 B2, ADR-084 K1, [ADR-045](ADR-045-taken-serror-qmp.md) standing-EL0 A-clear window, [ADR-053](ADR-053-taken-serror-hard-stop.md). CloudAgent **not used**. No self-hosted runner. Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)). Item 2 (umbrella "EL0 isolated") **not started**. It stays gated.
+- **Follow-on (2026-09-26):** run 4 is the B2-P leg of the umbrella's taken-SError evidence class ([ADR-090](ADR-090-serror-evidence-class.md), sponsor D1). It is historical (at `159b178`, before the M1/M2 boot-path changes). A KVM re-verify is ≈ $0.2 and is a sponsor option, not required.
 
 ## Context
 

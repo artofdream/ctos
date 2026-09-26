@@ -1,32 +1,10 @@
-# Opt-in CI for ADR-083 pinned QEMU
+# CI for ADR-083 pinned QEMU (unconditional since ADR-090)
 
-Default `.github/workflows/smoke.yml` stays on distro QEMU (park path).
+The default `qemu-smoke` jobs in `.github/workflows/smoke.yml` stay on distro QEMU (park path).
 
-## Enable (sponsor / maintainer) — after `qemu-nmi-pin` is in smoke.yml
+Job `qemu-nmi-pin` (“QEMU NMI pin smoke (taken SError)”) builds the pinned QEMU and runs the smoke with `CTOS_REQUIRE_TAKEN_SERROR=1` on **every push and pull request** ([ADR-090](../03-adr/ADR-090-serror-evidence-class.md), sponsor D1/D5). Until ADR-090 it was gated by repo variable `CTOS_BUILD_QEMU_NMI == '1'`. That gate was removed because GitHub treats a job skipped by `if:` as passing a required check. The variable is now unused; the Dockerfile build-arg of the same name is unrelated and stays opt-in.
 
-GitHub → **Settings** → **Secrets and variables** → **Actions** → **Variables** →
-New repository variable:
-
-- Name: `CTOS_BUILD_QEMU_NMI`
-- Value: `1`
-
-Unset or any other value skips the job. After enable, the next push/PR runs
-build of the pinned QEMU and smoke with `CTOS_REQUIRE_TAKEN_SERROR=1`.
-
-## Land the GHA job (blocked without `workflow` scope)
-
-Editing `.github/workflows/smoke.yml` requires a credential with the OAuth
-`workflow` scope. Box / Cursor GitHub OAuth currently has
-`gist, read:org, repo` only. Exact push rejection:
-
-```
-refusing to allow an OAuth App to create or update workflow
-`.github/workflows/smoke.yml` without `workflow` scope
-```
-
-**Unblock:** re-authorize the GitHub OAuth App (or use a PAT / EVO-X2 `gh`
-login) with **`workflow`** + **`repo`**, then push the job below onto tip
-`main` (~`8d05692` / ADR-083).
+Workflow edits need a credential with the OAuth `workflow` scope (EVO-X2 `gh` login). The box OAuth app has `gist, read:org, repo` only.
 
 ## Local / EVO-X2 (no GHA variable needed)
 
@@ -39,12 +17,11 @@ export CTOS_REQUIRE_TAKEN_SERROR=1
 
 Dockerfile already supports `--build-arg CTOS_BUILD_QEMU_NMI=1`.
 
-## Job to paste into smoke.yml
+## Job as landed (reference; see smoke.yml for the source of truth)
 
 ```yaml
   qemu-nmi-pin:
-    name: QEMU NMI pin smoke (opt-in)
-    if: ${{ vars.CTOS_BUILD_QEMU_NMI == '1' }}
+    name: QEMU NMI pin smoke (taken SError)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
