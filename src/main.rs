@@ -141,6 +141,21 @@ extern "C" fn kernel_main_high() -> ! {
     if !paging::tear_identity_ram() {
         uart::write_str_raw("ident: ram missed\n");
     }
+    // ADR-085 B2-P: KVM on real arm64. Skip GIC/timer/virtio/FAT/samples
+    // (a KVM host may not offer GICv2). Run only the standing-EL0 SError
+    // probe, then park. Default build never takes this branch.
+    #[cfg(feature = "b2-serror")]
+    {
+        uart::write_str_raw("b2: boot (ADR-085 KVM SError profile)\n");
+        let _ = el0::observe_b2_serror();
+        uart::write_str_raw("b2: done\n");
+        loop {
+            unsafe {
+                core::arch::asm!("wfe", options(nomem, nostack));
+            }
+        }
+    }
+    #[allow(unreachable_code)]
     vfs::init();
     virtio::init();
     virtio::init_net();

@@ -324,7 +324,13 @@ fn fiq_while_standing() -> bool {
 /// AArch64 `MOVZ X2, #0xffff` — A-clear spin window for host inject (TCG).
 /// Was `#0x4000` (ADR-045); lengthened under ADR-083 so QMP inject can land.
 const MOVZ_X2_FFFF: u32 = 0xD28FFFE2;
+#[cfg(not(feature = "b2-serror"))]
 const MOVZ_X3_0010: u32 = 0xD2800203; /* MOVZ X3, #0x10 — enough with QMP stop */
+/// ADR-085 B2-P: `MOVZ X3, #0xffff` — outer spin long enough for a host
+/// QMP stop/inject/cont to land while EL0 runs at native KVM speed
+/// (≈0xffff*0xffff iterations, a few seconds on Graviton). Opt-in only.
+#[cfg(feature = "b2-serror")]
+const MOVZ_X3_B2: u32 = 0xD29FFFE3;
 const SUBS_X3_1: u32 = 0xF1000463; /* SUBS X3, X3, #1 */
 const B_NE_BACK4: u32 = 0x54FFFF81; /* B.NE -4 → inner MOVZ X2 */
 /// AArch64 `SUBS X2, X2, #1`.
@@ -339,7 +345,10 @@ fn write_serror_standing(ptr: *mut u32) {
     // Nested spin ≈ 0x10 * 0xffff iters so QMP stop/inject/cont can land (ADR-083).
     unsafe {
         core::ptr::write_volatile(ptr, SVC1_A64);
+        #[cfg(not(feature = "b2-serror"))]
         core::ptr::write_volatile(ptr.add(1), MOVZ_X3_0010);
+        #[cfg(feature = "b2-serror")]
+        core::ptr::write_volatile(ptr.add(1), MOVZ_X3_B2);
         core::ptr::write_volatile(ptr.add(2), MOVZ_X2_FFFF);
         core::ptr::write_volatile(ptr.add(3), SUBS_X2_1);
         core::ptr::write_volatile(ptr.add(4), B_NE_BACK1);
@@ -384,6 +393,26 @@ fn serror_while_standing() -> bool {
             && exception::el0_standing_caught()
             && exception::el0_restored_caught()
     })
+}
+
+/// ADR-085 B2-P: standalone standing-EL0 SError probe (KVM host inject).
+/// Prints `el0: serror-arm`; the lower-EL SError handler prints bare
+/// `el0: serror` only if the SError is actually taken. Otherwise prints
+/// `el0: serror-park`. No GIC/timer dependency.
+#[cfg(feature = "b2-serror")]
+pub fn observe_b2_serror() -> bool {
+    if !paging::mmu_enabled() || !paging::user_map_ready() {
+        uart::write_str_raw("b2: probe missed (mmu/user map)\n");
+        return false;
+    }
+    let taken = serror_while_standing();
+    if taken {
+        uart::write_str_raw("b2: taken\n");
+    } else {
+        uart::write_str_raw("el0: serror-park\n");
+        uart::write_str_raw("b2: not taken\n");
+    }
+    taken
 }
 
 fn svc_roundtrip() -> bool {

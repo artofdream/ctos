@@ -11,3 +11,7 @@ default = []
 # Panic after UART hello so sensors can prove a non-zero QEMU exit.
 # Not enabled in the default build or default `cargo test`.
 force-fail = []
+# ADR-085 B2-P: boot straight to the standing-EL0 SError probe under
+# QEMU -accel kvm on real arm64 (Graviton). Skips GIC/timer/virtio/FAT/
+# samples (KVM hosts may lack GICv2). Opt-in only; default build unchanged.
+b2-serror = []

@@ -1,0 +1,49 @@
+From: ctos research <noreply@ctos.local>
+Subject: [PATCH] hw/arm/virt: under KVM, TYPE_NMI sets KVM serror_pending (ctos B2)
+
+ctos ADR-085 / B2-P. Apply ON TOP of 0001 (ADR-083 B1), QEMU v10.0.0
+(7c949c53e936aa3a658d84ab53bae5cadaa5d59c).
+
+B1 (0001) raises a TCG-emulated physical SError; that path does not run
+under -accel kvm. When kvm_enabled(), this sets env->serror.pending after
+cpu_synchronize_state(); QEMU's resume path (kvm_arch_put_registers ->
+kvm_put_vcpu_events) issues KVM_SET_VCPU_EVENTS{serror_pending=1}. KVM sets
+HCR_EL2.VSE and the hardware delivers an architected virtual SError when
+PSTATE.A is clear (Documentation/virt/kvm/api.rst). Under TCG, 0001 is
+unchanged. Not FEAT_NMI / FIQ / BRK / synchronous external abort.
+
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index 0826864..df9c1c8 100644
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -67,6 +67,7 @@
+ #include "hw/intc/arm_gicv3_its_common.h"
+ #include "hw/irq.h"
+ #include "hw/nmi.h"
++#include "system/hw_accel.h"
+ #include "hw/core/cpu.h"
+ #include "kvm_arm.h"
+ #include "hvf_arm.h"
+@@ -3138,6 +3139,22 @@ static void virt_nmi(NMIState *n, int cpu_index, Error **errp)
+         error_setg(errp, "invalid CPU index %d for NMI", cpu_index);
+         return;
+     }
++    if (kvm_enabled()) {
++        /* ctos B2 (ADR-085): real KVM virtual SError via serror_pending.
++         * cpu_synchronize_state() pulls vCPU state from KVM and marks it
++         * dirty; the next KVM_RUN puts it back and kvm_put_vcpu_events()
++         * issues KVM_SET_VCPU_EVENTS { exception.serror_pending = 1 }.
++         * KVM sets HCR_EL2.VSE; hardware delivers a virtual SError when
++         * PSTATE.A is clear. Not TCG emulation, not FEAT_NMI/FIQ/BRK.
++         */
++        ARMCPU *cpu = ARM_CPU(cs);
++
++        cpu_synchronize_state(cs);
++        cpu->env.serror.pending = 1;
++        cpu->env.serror.has_esr = 0;
++        cpu->env.serror.esr = 0;
++        return;
++    }
+     cpu_interrupt(cs, CPU_INTERRUPT_SERROR);
+ }
+ 
