@@ -2,6 +2,7 @@
 
 - Status: Accepted (docs). Umbrella “EL0 isolated” stays **Planned / non-claim** and **cannot become Verified** under current constraints. This ADR tightens the non-claim with an evidence checklist; it does **not** invent Verified.
 - Date: 2026-09-14
+- **Audit (2026-09-26):** [ADR-086](ADR-086-el0-isolated-checklist-audit.md) re-probed every row this session. All §A miles are Verified. All §B rows are still **not** Met: taken SError is Verified only on opt-in paths (B1 pin / B2-P one-off). The identity inventory still leaves five identity ranges (`_start` is one of them, by decision). No umbrella accept exists. §A marker `el0: no data` is stale wording: the code uses `el0: no kernel read`.
 - Locks [ADR-047](ADR-047-isolation-leftovers-decisions.md) decision #4. Optional ledger clarity: “non-claim until checklist.”
 
 ## Context

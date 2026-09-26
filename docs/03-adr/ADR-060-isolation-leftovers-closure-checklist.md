@@ -2,6 +2,7 @@
 
 - Status: Accepted (docs). Updated 2026-09-19 for [ADR-079](ADR-079-pan-cpu-reopen.md) / [ADR-080](ADR-080-pan-enable-fault.md) PAN CPU reopen + enable, and [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) taken-SError re-probe (still blocked); 2026-09-25 [ADR-084](ADR-084-b2-free-runner-serror.md) B2 free-runner spike (blocked). **Sponsor-facing closure checklist** for isolation leftovers locked by [ADR-047](ADR-047-isolation-leftovers-decisions.md), [ADR-053](ADR-053-taken-serror-hard-stop.md), [ADR-054](ADR-054-pan-enable-lock.md), [ADR-055](ADR-055-el0-isolated-checklist.md), and [#98](https://github.com/artofdream/ctos/issues/98). Does **not** invent Verified for taken SError or “EL0 isolated.” Does **not** reopen Guest Linux / containers / immutable-OS marketing.
 - Date: 2026-09-15
+- **Follow-on (2026-09-26):** B2-P taken SError Verified opt-in on Graviton3 KVM ([ADR-085](ADR-085-b2p-graviton-kvm-serror.md)). Checklist audit + gap list + milestone plan + sponsor decisions D1–D5: [ADR-086](ADR-086-el0-isolated-checklist-audit.md). The umbrella stays non-claim, and the locks below are unchanged.
 - Numbering note: next free after ADR-059 on `main` @ `404d74c`. FAT/fs-libctos sample already took **ADR-059**; this ADR is **060** (no collision with a parallel FAT-sample ADR-060).
 
 ## Context

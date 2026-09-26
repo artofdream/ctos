@@ -1,0 +1,63 @@
+diff --git a/src/main.rs b/src/main.rs
+index 20c38a0..b6e0441 100644
+--- a/src/main.rs
++++ b/src/main.rs
+@@ -172,6 +172,7 @@ extern "C" fn kernel_main_high() -> ! {
+     sched::init();
+     gic::init();
+     timer::init();
++    paging::scratch_inventory();
+     println!("Hello World!");
+     let _ = perf::mark_ready();
+
+diff --git a/src/paging.rs b/src/paging.rs
+index a0aabc7..f3f6c8c 100644
+--- a/src/paging.rs
++++ b/src/paging.rs
+@@ -3068,3 +3068,46 @@ fn identity_ram_unmapped_high_stays() {
+     assert!(is_executable(KERNEL_TEXT));
+     assert!(is_torn_identity_va(lo));
+ }
++
++/// SCRATCH (not committed): dump every TTBR0 leaf mapping, coalesced.
++pub fn scratch_inventory() {
++    let _g = TABLES.lock();
++    for (tag, root) in [("k", l1_pa()), ("u", l1_user_pa())] {
++        let mut run: Option<(u64, u64, u64, u64)> = None; // (va_lo, va_hi, pa_lo, attrs)
++        let mut emit = |r: (u64, u64, u64, u64)| {
++            let a = r.3;
++            crate::println!("inv: {} va={:#x}-{:#x} pa={:#x} ident={} el0={} ro={} pxn={} uxn={} attr={}",
++                tag, r.0, r.1, r.2, r.0 == r.2,
++                (a & DESC_AP_EL0) != 0, (a & DESC_AP_RO) != 0, (a & DESC_PXN) != 0, (a & DESC_UXN) != 0, (a >> 2) & 7);
++        };
++        for l1i in 0..512usize {
++            let l1e = unsafe { desc_at(root, l1i) };
++            let va1 = (l1i as u64) << 30;
++            let mut leaves: [(u64, u64, u64); 0] = [];
++            let _ = &mut leaves;
++            let mut visit = |va: u64, size: u64, d: u64, run: &mut Option<(u64,u64,u64,u64)>| {
++                let pa = d & 0x0000_ffff_ffff_f000 & !(size - 1);
++                let attrs = d & (DESC_AP_EL0 | DESC_AP_RO | DESC_PXN | DESC_UXN | (7 << 2));
++                if let Some(r) = run {
++                    if r.1 == va && r.2 + (r.1 - r.0) == pa && r.3 == attrs { r.1 = va + size; return; }
++                    emit(*r);
++                }
++                *run = Some((va, va + size, pa, attrs));
++            };
++            if l1e & DESC_VALID == 0 { continue; }
++            if l1e & DESC_TABLE == 0 { visit(va1, 1 << 30, l1e, &mut run); continue; }
++            for l2i in 0..512usize {
++                let l2e = unsafe { desc_at(l1e & 0x0000_ffff_ffff_f000, l2i) };
++                let va2 = va1 + ((l2i as u64) << 21);
++                if l2e & DESC_VALID == 0 { continue; }
++                if l2e & DESC_TABLE == 0 { visit(va2, 1 << 21, l2e, &mut run); continue; }
++                for l3i in 0..512usize {
++                    let l3e = unsafe { desc_at(l2e & 0x0000_ffff_ffff_f000, l3i) };
++                    if l3e & DESC_VALID == 0 { continue; }
++                    visit(va2 + ((l3i as u64) << 12), 4096, l3e, &mut run);
++                }
++            }
++        }
++        if let Some(r) = run { emit(r); }
++    }
++}

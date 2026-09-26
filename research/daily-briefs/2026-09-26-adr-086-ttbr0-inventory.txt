@@ -1,0 +1,26 @@
+# ADR-086 scratch TTBR0 inventory (box, 2026-09-26 ~14:10 CEST)
+# Tree: 915796f + research/daily-briefs/2026-09-26-adr-086-ttbr0-inventory-scratch.patch (NOT committed to src/).
+# QEMU 10.0.13 (Debian 1:10.0.13+ds-0+deb13u1) virt -cpu cortex-a76 TCG via scripts/qemu-smoke.sh (rc=0, qemu-smoke: ok).
+# rustc 1.100.0-nightly (5ceaf6608 2026-09-25). One block per guest boot that links scratch_inventory (3 boots in the smoke).
+# Printed just before 'Hello World!' (after ADR-018..049 tears). attr = MAIR index: 0 = Device-nGnRnE (0x00), 1 = Normal WB (0xFF). k = kernel TTBR0, u = user TTBR0. ident=true means VA == PA.
+inv: k va=0x0-0x40000000 pa=0x0 ident=true el0=false ro=false pxn=true uxn=true attr=0
+inv: k va=0x40000000-0x40080000 pa=0x40000000 ident=true el0=false ro=false pxn=true uxn=true attr=1
+inv: k va=0x40080000-0x40081000 pa=0x40080000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x400f1000-0x40201000 pa=0x400f1000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x4025d000-0x4025e000 pa=0x4025d000 ident=true el0=false ro=false pxn=true uxn=true attr=1
+inv: u va=0x40080000-0x40081000 pa=0x40080000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: u va=0x400f1000-0x40201000 pa=0x400f1000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x0-0x40000000 pa=0x0 ident=true el0=false ro=false pxn=true uxn=true attr=0
+inv: k va=0x40000000-0x40080000 pa=0x40000000 ident=true el0=false ro=false pxn=true uxn=true attr=1
+inv: k va=0x40080000-0x40081000 pa=0x40080000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x4011f000-0x40201000 pa=0x4011f000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x4025d000-0x4025e000 pa=0x4025d000 ident=true el0=false ro=false pxn=true uxn=true attr=1
+inv: u va=0x40080000-0x40081000 pa=0x40080000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: u va=0x4011f000-0x40201000 pa=0x4011f000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x0-0x40000000 pa=0x0 ident=true el0=false ro=false pxn=true uxn=true attr=0
+inv: k va=0x40000000-0x40080000 pa=0x40000000 ident=true el0=false ro=false pxn=true uxn=true attr=1
+inv: k va=0x40080000-0x40081000 pa=0x40080000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x400cc000-0x40201000 pa=0x400cc000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: k va=0x4025a000-0x4025b000 pa=0x4025a000 ident=true el0=false ro=false pxn=true uxn=true attr=1
+inv: u va=0x40080000-0x40081000 pa=0x40080000 ident=true el0=false ro=true pxn=false uxn=true attr=1
+inv: u va=0x400cc000-0x40201000 pa=0x400cc000 ident=true el0=false ro=true pxn=false uxn=true attr=1
