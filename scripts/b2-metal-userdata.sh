@@ -6,6 +6,10 @@
 shutdown -h +80 "ctos b2 hard timer" || true
 exec > >(tee /dev/console /var/log/ctos-b2.log) 2>&1
 set -x
+# cloud-init runs user-data with HOME unset (run 1, 2026-09-26: `. /.cargo/env`
+# not found, rustc missing). Pin HOME and the cargo bin dir explicitly.
+export HOME=/root
+export PATH=/root/.cargo/bin:$PATH
 echo "CTOSB2: start $(date -u +%FT%TZ)"
 echo "CTOSB2: uname $(uname -a)"
 echo "CTOSB2: cpu $(lscpu | grep -E 'Model name|Vendor' | tr -s ' ' | tr '\n' ';')"
@@ -19,12 +23,13 @@ echo "CTOSB2: deps rc=$?"
 # Rust nightly for the b2-serror guest (native aarch64 build).
 curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain nightly \
   -c rust-src,llvm-tools-preview >/dev/null 2>&1
-. "$HOME/.cargo/env"
-echo "CTOSB2: rustc $(rustc --version)"
+. /root/.cargo/env || true
+echo "CTOSB2: rustup $(rustup --version 2>&1 | head -1)"
 cd /root
 git clone --depth 1 --branch "__BRANCH__" https://github.com/artofdream/ctos.git ctos
 cd ctos
 echo "CTOSB2: head $(git rev-parse HEAD)"
+echo "CTOSB2: rustc $(rustc --version 2>&1)"
 CTOS_QEMU_JOBS=$(nproc) ./scripts/build-qemu-b2.sh > /var/log/ctos-qemu.log 2>&1
 echo "CTOSB2: qemu-build rc=$?"
 tail -3 /var/log/ctos-qemu.log | sed 's/^/CTOSB2: qemu /'
