@@ -6,7 +6,7 @@
 
 ## Probes this session
 
-- Agent box 13:59–14:04 CEST: `scripts/qemu-smoke.sh` on `915796f`, QEMU 10.0.13 (Debian), rustc 1.100.0-nightly `5ceaf6608`: `qemu-smoke: ok`, force-fail exit 1, park `inject-nmi=>error:machine does not provide NMIs` → `el0: serror-park`, `ident: start-stay lo=0x40080000 hi=0x40081000`, `pan: enabled` / `pan: el1-fault`.
+- Agent box 13:59–14:04 CEST: `scripts/qemu-smoke.sh` on `915796f`, QEMU 10.0.13 (Debian), rustc 1.100.0-nightly `0fc141305` (repo pin; corrected 2026-09-26): `qemu-smoke: ok`, force-fail exit 1, park `inject-nmi=>error:machine does not provide NMIs` → `el0: serror-park`, `ident: start-stay lo=0x40080000 hi=0x40081000`, `pan: enabled` / `pan: el1-fault`.
 - GHA PR run 36239619910 (13:41–13:53 CEST): default jobs success. `qemu-nmi-pin` job 108397549350 took bare `el0: serror`.
 - Scratch TTBR0 walker (box ~14:10 CEST, not committed to `src/`): [inventory](2026-09-26-adr-086-ttbr0-inventory.txt), [patch](2026-09-26-adr-086-ttbr0-inventory-scratch.patch).
 

@@ -15,3 +15,8 @@ force-fail = []
 # QEMU -accel kvm on real arm64 (Graviton). Skips GIC/timer/virtio/FAT/
 # samples (KVM hosts may lack GICv2). Opt-in only; default build unchanged.
 b2-serror = []
+# ADR-087 negative probe: leave one planted identity page (VIRT_RAM_BASE)
+# in kernel TTBR0 before the identity inventory. The walk must print
+# `ident: inv-leak` and withhold `ident: inv-ok` / `ident: ok`.
+# `scripts/qemu-smoke.sh` builds this and requires the leak to be caught.
+inv-leak-probe = []
