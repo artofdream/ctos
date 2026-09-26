@@ -117,6 +117,8 @@ static EXPECT_IDENT_HEAP: AtomicBool = AtomicBool::new(false);
 static IDENT_HEAP_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_RAM: AtomicBool = AtomicBool::new(false);
 static IDENT_RAM_CAUGHT: AtomicBool = AtomicBool::new(false);
+static EXPECT_IDENT_LEFT: AtomicBool = AtomicBool::new(false);
+static IDENT_LEFT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_IDENT_EL0: AtomicBool = AtomicBool::new(false);
 static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_PAN_EL1: AtomicBool = AtomicBool::new(false);
@@ -969,6 +971,18 @@ pub fn ident_ram_caught() -> bool {
     IDENT_RAM_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// Arm EL1 load of a torn ADR-087 leftover identity VA (low / tail / kend).
+/// The caller prints the per-range marker after a catch.
+pub fn arm_ident_left() {
+    IDENT_LEFT_CAUGHT.store(false, Ordering::SeqCst);
+    EXPECT_IDENT_LEFT.store(true, Ordering::SeqCst);
+}
+
+pub fn ident_left_caught() -> bool {
+    EXPECT_IDENT_LEFT.store(false, Ordering::SeqCst);
+    IDENT_LEFT_CAUGHT.load(Ordering::SeqCst)
+}
+
 /// Arm EL0 load of a torn identity text VA (ADR-018 / ADR-019).
 pub fn arm_ident_el0() {
     IDENT_EL0_CAUGHT.store(false, Ordering::SeqCst);
@@ -1322,6 +1336,14 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
     {
         IDENT_RAM_CAUGHT.store(true, Ordering::SeqCst);
         uart::write_str_raw("ident: ram-fault\n");
+        ctx.elr = ctx.elr.wrapping_add(4);
+        return;
+    }
+    if is_trans_dabort(ctx.esr)
+        && EXPECT_IDENT_LEFT.swap(false, Ordering::SeqCst)
+        && crate::paging::is_torn_identity_va(far_el1())
+    {
+        IDENT_LEFT_CAUGHT.store(true, Ordering::SeqCst);
         ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }
