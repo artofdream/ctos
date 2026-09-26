@@ -1290,13 +1290,15 @@ for m in "ident: low lo=" "ident: tail lo=" "ident: kend lo=" \
          "ident: low-fault" "ident: tail-fault" "ident: kend-fault" \
          "ident: inv k=" "ident: inv-range k lo=0x40080000 hi=0x40081000" \
          "ident: inv-neg k caught" "ident: inv-neg u caught" "ident: inv-neg clean" \
-         "ident: inv-ok"; do
+         "ident: inv-ok allow=stub" "ident: mmio-high gic=0xffffff8008000000 uart=0xffffff8009000000 virtio=0xffffff800a000000" \
+         "ident: mmio lo=0x0 hi=0x40000000" "ident: mmio-fault va=0x9000018"; do
     if ! grep -q "$m" "$log"; then
         echo "qemu-smoke: missing '$m' on serial (ADR-087 identity inventory, qemu exit $qemu_ec)" >&2
         exit 1
     fi
 done
-for m in "ident: left missed" "ident: inv missed" "ident: inv-leak" "ident: inv-neg missed" \
+for m in "ident: mmio missed" "ident: mmio-high missed" "ident: miss mmio-ready" "ident: miss mmio-fault" \
+         "ident: inv-range k lo=0x0 " "ident: inv-range a lo=0x0 " "ident: left missed" "ident: inv missed" "ident: inv-leak" "ident: inv-neg missed" \
          "ident: miss left-ready" "ident: miss low-fault" "ident: miss tail-fault" "ident: miss kend-fault"; do
     if grep -q "$m" "$log"; then
         echo "qemu-smoke: '$m' on serial (ADR-087 identity leftover / leak, qemu exit $qemu_ec)" >&2
@@ -1304,11 +1306,11 @@ for m in "ident: left missed" "ident: inv missed" "ident: inv-leak" "ident: inv-
         exit 1
     fi
 done
-if ! grep -E -q '^ident: inv k=[0-9]+ u=[0-9]+ a=[0-9]+ leaks=0' "$log"; then
-    echo "qemu-smoke: 'ident: inv' did not report leaks=0 (ADR-087)" >&2
+if ! grep -E -q '^ident: inv k=1 u=1 a=1 leaks=0' "$log"; then
+    echo "qemu-smoke: 'ident: inv' did not report k=1 u=1 a=1 leaks=0 (ADR-087/088: only the _start stub page)" >&2
     exit 1
 fi
-echo "qemu-smoke: ADR-087 identity inventory allowlist-only (mmio,stub) + plant caught"
+echo "qemu-smoke: ADR-087/088 identity inventory allowlist-only (stub) + MMIO high alias + plant caught"
 if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
     exit 1

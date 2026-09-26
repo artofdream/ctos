@@ -177,11 +177,11 @@ static CAP: AtomicU64 = AtomicU64::new(0);
 static RW_OK: AtomicBool = AtomicBool::new(false);
 
 unsafe fn mmio_write(base: usize, off: usize, val: u32) {
-    core::ptr::write_volatile((base + off) as *mut u32, val);
+    core::ptr::write_volatile((crate::paging::mmio_va(base) + off) as *mut u32, val);
 }
 
 unsafe fn mmio_read(base: usize, off: usize) -> u32 {
-    core::ptr::read_volatile((base + off) as *const u32)
+    core::ptr::read_volatile((crate::paging::mmio_va(base) + off) as *const u32)
 }
 
 fn dsb() {
@@ -654,7 +654,7 @@ fn read_mac(base: usize) -> [u8; 6] {
     let mut mac = [0u8; 6];
     unsafe {
         for i in 0..6 {
-            mac[i] = core::ptr::read_volatile((base + REG_CONFIG + i) as *const u8);
+            mac[i] = core::ptr::read_volatile((crate::paging::mmio_va(base) + REG_CONFIG + i) as *const u8);
         }
     }
     mac

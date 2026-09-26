@@ -26,8 +26,8 @@ fn flags_ok() -> bool {
     if paging::image_pxn_for(heap::heap_end() - 1) != Some(true) {
         return false;
     }
-    // Device MMIO L1 stays XN.
-    paging::pxn_for(0x0900_0000) == Some(true)
+    // Device MMIO stays XN on the live alias (ADR-088: TTBR1 Device block).
+    paging::mmio_xn(0x0900_0000)
 }
 
 fn sync_icache(ptr: *const u32) {
