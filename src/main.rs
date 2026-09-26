@@ -68,8 +68,17 @@ global_asm!(
 
 #[no_mangle]
 pub extern "C" fn kernel_main() -> ! {
+    // ADR-085 B2-P (opt-in): raw, lock-free early markers. On real arm64
+    // under KVM the image printed nothing (run 2, 2026-09-26); these located
+    // the hang after MMU-on (run 3: TTBR1 TG1 reserved encoding).
+    #[cfg(feature = "b2-serror")]
+    uart::write_str_raw("b2: e0 entry\n");
     uart::UART.lock().init();
+    #[cfg(feature = "b2-serror")]
+    uart::write_str_raw("b2: e1 uart\n");
     exception::init();
+    #[cfg(feature = "b2-serror")]
+    uart::write_str_raw("b2: e2 exc\n");
     paging::init();
     // After MMU + high VBAR: fetch the rest from the TTBR1 alias
     // (ADR-019). ADR-020 rewrites rustc vtables then unmaps live
@@ -141,6 +150,21 @@ extern "C" fn kernel_main_high() -> ! {
     if !paging::tear_identity_ram() {
         uart::write_str_raw("ident: ram missed\n");
     }
+    // ADR-085 B2-P: KVM on real arm64. Skip GIC/timer/virtio/FAT/samples
+    // (a KVM host may not offer GICv2). Run only the standing-EL0 SError
+    // probe, then park. Default build never takes this branch.
+    #[cfg(feature = "b2-serror")]
+    {
+        uart::write_str_raw("b2: boot (ADR-085 KVM SError profile)\n");
+        let _ = el0::observe_b2_serror();
+        uart::write_str_raw("b2: done\n");
+        loop {
+            unsafe {
+                core::arch::asm!("wfe", options(nomem, nostack));
+            }
+        }
+    }
+    #[allow(unreachable_code)]
     vfs::init();
     virtio::init();
     virtio::init_net();

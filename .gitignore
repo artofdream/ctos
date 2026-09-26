@@ -15,3 +15,6 @@
 /tools/qemu-nmi/share/
 /tools/qemu-nmi/libexec/
 /tools/qemu-nmi/include/
+
+# ADR-085 B2-P QEMU build output (rebuild via scripts/build-qemu-b2.sh)
+/tools/qemu-b2/

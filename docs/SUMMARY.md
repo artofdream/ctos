@@ -113,6 +113,7 @@
 - [ADR-082 B1 QEMU TYPE_NMI research (blocker)](03-adr/ADR-082-b1-qemu-type-nmi.md)
 - [ADR-083 B1 pinned QEMU TYPE_NMI → el0: serror](03-adr/ADR-083-b1-qemu-nmi-pin.md)
 - [ADR-084 B2 free-runner SError spike (blocked)](03-adr/ADR-084-b2-free-runner-serror.md)
+- [ADR-085 B2-P Graviton KVM taken SError (Verified, opt-in)](03-adr/ADR-085-b2p-graviton-kvm-serror.md)
 - [Opt-in CI: QEMU NMI pin](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap

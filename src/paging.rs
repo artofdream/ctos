@@ -109,6 +109,12 @@ const TCR_T1SZ: u64 = 25 << 16;
 const TCR_IRGN1_WBWA: u64 = 0b01 << 24;
 const TCR_ORGN1_WBWA: u64 = 0b01 << 26;
 const TCR_SH1_INNER: u64 = 0b11 << 28;
+/// TG1 = 4 KiB (`0b10`). TG1 `0b00` is a *reserved* encoding (TG1 differs
+/// from TG0: 01=16K, 10=4K, 11=64K). QEMU TCG sanitises reserved TG1 to 4K,
+/// so the TTBR1 alias worked there; real Graviton3 under KVM picked another
+/// granule and every high-VA fetch faulted (ADR-085 run 3, 2026-09-26:
+/// recursive abort at high VBAR+0x200). Explicit 4K is identical on TCG.
+const TCR_TG1_4K: u64 = 0b10 << 30;
 /// Set = TTBR1 walks disabled. We leave this clear (ADR-016).
 const TCR_EPD1: u64 = 1 << 23;
 const TCR_IPS_40: u64 = 0b010 << 32;
@@ -1336,6 +1342,8 @@ fn window_index(va: u64) -> Option<usize> {
 pub fn init() {
     let user_ok;
     let split_ok;
+    #[cfg(feature = "b2-serror")]
+    crate::uart::write_str_raw("b2: p0 tables (pre-MMU)\n");
     {
         let _g = TABLES.lock();
         unsafe {
@@ -1384,6 +1392,7 @@ pub fn init() {
             | TCR_IRGN1_WBWA
             | TCR_ORGN1_WBWA
             | TCR_SH1_INNER
+            | TCR_TG1_4K
             | TCR_IPS_40;
         let ttbr = l1_pa();
         let ttbr1 = l1_high_pa();
@@ -1414,6 +1423,8 @@ pub fn init() {
                 v = in(reg) sctlr,
             );
         }
+        #[cfg(feature = "b2-serror")]
+        crate::uart::write_str_raw("b2: p1 mmu-on\n");
         // Same class as the boot-delta mark: a pre-MMU `.bss` store can be
         // invisible to a later cached read (PR #20 test image; cts-ai Docker
         // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.

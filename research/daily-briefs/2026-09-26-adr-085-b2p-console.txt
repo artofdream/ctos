@@ -1,0 +1,144 @@
+# ADR-085 B2-P — raw serial-console excerpts (CTOSB2: lines), AWS eu-north-1, 2026-09-26
+# Source: aws ec2 get-console-output --latest (via user-Aws-mcp aws___run_script), captured by the executor agent this session.
+# Times in file are UTC (Z); CEST = UTC+2.
+
+## run0-m6g-i-09177cb42dac41e0b
+# m6g.metal i-09177cb42dac41e0b eu-north-1b Spot sir-zdqzmm7j, launched 2026-09-26T10:22:26Z (12:22:26 CEST)
+# (launched by a batch RunInstances call whose MCP response timed out; not noticed until the sponsor flagged it)
+# user-data v1 (HOME unset bug) -> cargo not found; instance self-powered-off (Client.InstanceInitiatedShutdown)
+CTOSB2: start 2026-09-26T10:22:54Z
+CTOSB2: cpu Vendor ID: ARM;BIOS Vendor ID: Amazon EC2;Model name: Neoverse-N1;BIOS Model name: AWS Graviton2 N/A CPU @ 2.5GHz;
+CTOSB2: dmesg [    0.029736] CPU: All CPU(s) started at EL2
+CTOSB2: dmesg [    0.189594] kvm [1]: disabling GICv2 emulation
+CTOSB2: dmesg [    0.189670] kvm [1]: VHE mode initialized successfully
+CTOSB2: /dev/kvm=present
+CTOSB2: rustc 
+CTOSB2: head 702d63d70c6c7751b36f878c2d4948abc86213c7
+CTOSB2: qemu-build rc=0
+CTOSB2: qemu QEMU emulator version 10.0.0 (v10.0.0-dirty)
+CTOSB2: qemu build-qemu-b2: accelerators: Accelerators supported in QEMU binary: kvm tcg 
+CTOSB2: cargo rc=127
+CTOSB2: cargo /var/lib/cloud/instance/scripts/part-001: line 31: cargo: command not found
+CTOSB2: b2-kvm-smoke: cmd: .../qemu-system-aarch64 -accel kvm -machine virt,gic-version=3 -cpu host -m 128M ... -kernel target-b2/aarch64-ctos/debug/ctos
+CTOSB2: qemu-system-aarch64: could not load kernel 'target-b2/aarch64-ctos/debug/ctos'
+CTOSB2: b2-kvm-smoke: summary armed=False injected=False taken_marker=False b2_taken=False park=False kvm_err=False
+CTOSB2: b2-kvm-smoke: FAIL taken 'el0: serror' NOT observed (fail-closed; never pass on absence)
+CTOSB2: smoke attempt 3 rc=1
+CTOSB2: end 2026-09-26T10:28:29Z
+
+## run1-c7g-i-0bd798b890b40fdc4
+# c7g.metal i-0bd798b890b40fdc4 eu-north-1b Spot sir-2zsfqkfh, launched 2026-09-26T10:23:50Z (12:23:50 CEST)
+# user-data v1 (HOME unset bug); terminated by me at 2026-09-26 10:29:29 GMT (12:29:29 CEST) before result
+CTOSB2: start 2026-09-26T10:24:11Z
+CTOSB2: cpu Vendor ID: ARM;BIOS Vendor ID: Amazon EC2;Model name: Neoverse-V1;BIOS Model name: AWS Graviton3 N/A CPU @ 2.6GHz;
+CTOSB2: dmesg [    0.026575] CPU: All CPU(s) started at EL2
+CTOSB2: dmesg [    0.228887] kvm [1]: disabling GICv2 emulation
+CTOSB2: dmesg [    0.228958] kvm [1]: VHE mode initialized successfully
+CTOSB2: /dev/kvm=present
+CTOSB2: rustc 
+/var/lib/cloud/instance/scripts/part-001: line 22: /.cargo/env: No such file or directory
+CTOSB2: head 702d63d70c6c7751b36f878c2d4948abc86213c7
+
+## run2-c7g-i-0f66c64d769c630dc
+# c7g.metal i-0f66c64d769c630dc eu-north-1b Spot sir-41y7nrxg, launched 2026-09-26T10:42:59Z (12:42:59 CEST)
+# user-data v2 (HOME fix), branch head 7accb97; self-terminated after `CTOSB2: end 2026-09-26T10:54:53Z` (Client.InstanceInitiatedShutdown)
+CTOSB2: start 2026-09-26T10:43:20Z
+CTOSB2: cpu Vendor ID: ARM;BIOS Vendor ID: Amazon EC2;Model name: Neoverse-V1;BIOS Model name: AWS Graviton3 N/A CPU @ 2.6GHz;
+CTOSB2: /dev/kvm=present
+CTOSB2: rustup rustup 1.29.1 (d95a37b6a 2026-08-13)
+CTOSB2: head 7accb972e5d3f7243c9af1fe096e55c9bedad86a
+CTOSB2: qemu-build rc=0
+CTOSB2: qemu build-qemu-b2: accelerators: Accelerators supported in QEMU binary: kvm tcg 
+CTOSB2: cargo rc=0
+CTOSB2: cargo     Finished `dev` profile [unoptimized + debuginfo] target(s) in 2m 03s
+CTOSB2: ===== smoke attempt 1 =====
+CTOSB2: b2-kvm-smoke: cmd: /root/ctos/tools/qemu-b2/bin/qemu-system-aarch64 -accel kvm -machine virt,gic-version=3 -cpu host -m 128M -display none -serial stdio -monitor none -qmp unix:/tmp/ctos-b2-ly12uwtm/qmp.sock,server,nowait -kernel target-b2/aarch64-ctos/debug/ctos
+CTOSB2: b2-kvm-smoke: qmp ready=True
+CTOSB2: b2-kvm-smoke: summary armed=False injected=False taken_marker=False b2_taken=False park=False kvm_err=False
+CTOSB2: b2-kvm-smoke: FAIL taken 'el0: serror' NOT observed (fail-closed; never pass on absence)
+CTOSB2: smoke attempt 1 rc=1
+(attempts 2 and 3 identical: zero guest UART bytes in 90 s each)
+CTOSB2: end 2026-09-26T10:54:53Z
+
+## run3-c7g-i-09ae5b56eb1f5c23b
+# c7g.metal i-09ae5b56eb1f5c23b eu-north-1b Spot sir-dhifn92k, launched 2026-09-26T11:06:27Z (13:06:27 CEST)
+# head 0864ed8 (raw early markers, prelock control, stall dump); self-terminated after `CTOSB2: end 2026-09-26T11:17:11Z`
+CTOSB2: ctl: b2: e0 entry / e1 uart / e2 exc / p0 tables (pre-MMU) / p1 mmu-on      <- control WITH pre-MMU spin locks also reaches MMU-on (lock hypothesis refuted)
+CTOSB2: ctl: b2-kvm-smoke: stall: no guest output for 15s (bytes so far=79); dumping vCPU state (diagnostics, not a pass signal)
+CTOSB2: ctl: b2-kvm-smoke: regs[0] PC=ffffff8040080a00 X00=0000000000000001 X01=0000000000000008
+CTOSB2: ctl: b2-kvm-smoke: regs[0] X29=0000000000000000 X30=000000004008a200  SP=0000000040257000
+CTOSB2: ctl: b2-kvm-smoke: regs[0] PSTATE=a00003c5 N-C- EL1h    FPU disabled
+CTOSB2: b2: e0 entry
+CTOSB2: b2: e1 uart
+CTOSB2: b2: e2 exc
+CTOSB2: b2: p0 tables (pre-MMU)
+CTOSB2: b2: p1 mmu-on
+CTOSB2: b2-kvm-smoke: stall: no guest output for 15s (bytes so far=79); dumping vCPU state (diagnostics, not a pass signal)
+CTOSB2: b2-kvm-smoke: regs[0] PC=ffffff8040080a00 X00=0000000000000001 X01=0000000000000008
+CTOSB2: b2-kvm-smoke: regs[0] X29=0000000000000000 X30=0000000040095888  SP=0000000040256000
+CTOSB2: b2-kvm-smoke: regs[0] PSTATE=a00003c5 N-C- EL1h    FPU disabled
+CTOSB2: b2-kvm-smoke: summary armed=False injected=False taken_marker=False b2_taken=False park=False kvm_err=False
+CTOSB2: b2-kvm-smoke: FAIL taken 'el0: serror' NOT observed (fail-closed; never pass on absence)
+(attempts 2, 3 identical)
+# exception_vectors = 0x40080800 (llvm-nm); high alias VBAR = 0xffffff8040080800; PC = VBAR+0x200 (current EL, SP_ELx, sync) -> recursive abort on vector fetch through TTBR1.
+# Root cause: TCR_EL1.TG1 left 0b00 (reserved for TG1; 0b10 = 4K). TCG sanitises to 4K; Graviton3 does not.
+CTOSB2: end 2026-09-26T11:17:11Z
+
+## run4-c7g-i-058d643c72be165d4
+# ADR-085 B2-P run 4 — PASS. Serial console via `ec2 get-console-output --latest` (CTOSB2: lines, verbatim).
+# c7g.metal i-058d643c72be165d4 eu-north-1b Spot sir-ej5zmv4g, launched 2026-09-26T11:26:02Z (13:26:02 CEST)
+# branch isolation/adr-085-b2p-graviton-kvm-serror head 159b178 (TG1=4K fix); self-terminated after `CTOSB2: end 2026-09-26T11:33:13Z`
+CTOSB2: start 2026-09-26T11:26:23Z
+CTOSB2: uname Linux ip-172-31-42-173 7.0.0-1013-aws #13~24.04.1-Ubuntu SMP PREEMPT Fri Sep  4 21:20:04 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+CTOSB2: cpu Vendor ID: ARM;BIOS Vendor ID: Amazon EC2;Model name: Neoverse-V1;BIOS Model name: AWS Graviton3 N/A CPU @ 2.6GHz;
+CTOSB2: dmesg [    0.026567] CPU: All CPU(s) started at EL2
+CTOSB2: dmesg [    0.228011] kvm [1]: IPA Size Limit: 48 bits
+CTOSB2: dmesg [    0.228030] kvm [1]: GICv4 support disabled
+CTOSB2: dmesg [    0.228032] kvm [1]: GICv3: no GICV resource entry
+CTOSB2: dmesg [    0.228035] kvm [1]: disabling GICv2 emulation
+CTOSB2: dmesg [    0.228060] kvm [1]: GIC system register CPU interface enabled
+CTOSB2: dmesg [    0.228100] kvm [1]: VHE mode initialized successfully
+CTOSB2: /dev/kvm=present
+CTOSB2: deps rc=0
+CTOSB2: rustup rustup 1.29.1 (d95a37b6a 2026-08-13)
+CTOSB2: head 159b17818fb6d22497de0544c0693844876571cc
+CTOSB2: qemu-build rc=0
+CTOSB2: qemu QEMU emulator version 10.0.0 (v10.0.0-dirty)
+CTOSB2: qemu build-qemu-b2: accelerators: Accelerators supported in QEMU binary: kvm tcg 
+CTOSB2: qemu build-qemu-b2: ok -> /root/ctos/tools/qemu-b2/bin/qemu-system-aarch64
+CTOSB2: cargo rc=0
+CTOSB2: ===== smoke attempt 1 =====
+CTOSB2: b2-kvm-smoke: cmd: /root/ctos/tools/qemu-b2/bin/qemu-system-aarch64 -accel kvm -machine virt,gic-version=3 -cpu host -m 128M -display none -serial stdio -monitor none -qmp unix:/tmp/ctos-b2-t4czomyl/qmp.sock,server,nowait -kernel target-b2/aarch64-ctos/debug/ctos
+CTOSB2: b2-kvm-smoke: qmp ready=True
+CTOSB2: b2: e0 entry
+CTOSB2: b2: e1 uart
+CTOSB2: b2: e2 exc
+CTOSB2: b2: p0 tables (pre-MMU)
+CTOSB2: b2: p1 mmu-on
+CTOSB2: ident: jump
+CTOSB2: ident: reloc n=12
+CTOSB2: ident: range lo=0x400c1000 hi=0x400c5000 pages=4
+CTOSB2: ident: live lo=0x40081000 hi=0x400b6000 pages=53
+CTOSB2: ident: data-reloc n=241
+CTOSB2: ident: ro-reloc n=960
+CTOSB2: ident: rodata lo=0x400b6000 hi=0x400c1000 pages=11
+CTOSB2: ident: data lo=0x40201000 hi=0x40259000 pages=88
+CTOSB2: pan: id=2
+CTOSB2: pan: present
+CTOSB2: pan: enabled
+CTOSB2: pan: el1-fault
+CTOSB2: ident: heap-reloc n=0
+CTOSB2: ident: heap lo=0x4025a000 hi=0x4026a000 pages=16
+CTOSB2: ident: ram lo=0x4026a000 hi=0x48000000 pages=32150
+CTOSB2: b2: boot (ADR-085 KVM SError profile)
+CTOSB2: el0: serror-armb2-kvm-smoke: qmp stop=>ok inject-nmi=>ok cont=>ok (ADR-085: KVM_SET_VCPU_EVENTS serror_pending)
+CTOSB2: 
+CTOSB2: el0: standing
+CTOSB2: el0: serror
+CTOSB2: el0: restored
+CTOSB2: b2: taken
+CTOSB2: b2: doneb2-kvm-smoke: summary armed=True injected=True taken_marker=True b2_taken=True park=False kvm_err=False
+CTOSB2: b2-kvm-smoke: PASS taken lower-EL SError observed under accel=kvm ('el0: serror' + 'b2: taken')
+CTOSB2: smoke attempt 1 rc=0
+CTOSB2: end 2026-09-26T11:33:13Z
+# Note: `el0: serror-arm` and the smoke's QMP log line share one console line (guest serial + host log interleave on the same tee'd stdout).

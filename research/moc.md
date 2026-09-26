@@ -45,6 +45,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Latest samples/porting handoff: [daily-briefs/2026-09-11-apps-today-porting.md](daily-briefs/2026-09-11-apps-today-porting.md)
 - Prior idle-tip handoff: [daily-briefs/2026-09-11-docs-refresh-idle-tip.md](daily-briefs/2026-09-11-docs-refresh-idle-tip.md)
 - ADR-084 B2 free-runner SError spike (blocked): [daily-briefs/2026-09-25-adr-084-b2-free-runner-probe.md](daily-briefs/2026-09-25-adr-084-b2-free-runner-probe.md) / scratch [random-thoughts/2026-09-25-session-memory-adr-084-b2.md](random-thoughts/2026-09-25-session-memory-adr-084-b2.md)
+- ADR-085 B2-P Graviton KVM taken SError (Verified, opt-in): [daily-briefs/2026-09-26-adr-085-b2p-graviton-kvm.md](daily-briefs/2026-09-26-adr-085-b2p-graviton-kvm.md) / console [daily-briefs/2026-09-26-adr-085-b2p-console.txt](daily-briefs/2026-09-26-adr-085-b2p-console.txt) / scratch [random-thoughts/2026-09-26-session-memory-adr-085-b2p.md](random-thoughts/2026-09-26-session-memory-adr-085-b2p.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)

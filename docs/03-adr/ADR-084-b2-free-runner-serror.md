@@ -2,6 +2,7 @@
 
 - Status: Accepted (docs / evidence). Sponsor chose **B2** ("Go with B2 to unlock 1 and 2", DSO relay 2026-09-25 23:44 CEST). ADR-081 **B2** spike on free GitHub-hosted runners: **impossible this session**. No free hosted runner exposes a hardware accelerator that can run an AArch64 guest (`/dev/kvm` absent on arm64 Linux, HVF `HV_UNSUPPORTED` on macOS arm64, no VT/WHPX on Windows arm64). Stock QEMU TCG on those runners still returns `machine does not provide NMIs`. The B2 (non-B1) path for P-SEC-3r stays **Planned / blocked** pending a sponsor decision. **No** new Verified. B1 opt-in pin ([ADR-083](ADR-083-b1-qemu-nmi-pin.md)) is unchanged and is **not** B2.
 - Date: 2026-09-25
+- **Follow-on (2026-09-26):** sponsor chose **B2-P**. [ADR-085](ADR-085-b2p-graviton-kvm-serror.md) ran ctos on an AWS Graviton3 `c7g.metal` under KVM and **Verified** a taken lower-EL SError (opt-in `b2-serror` profile, one-off paid run, not CI). This ADR's free-runner finding stands.
 - Tracks P-SEC-3r (taken lower-EL SError). Builds on [ADR-081](ADR-081-taken-serror-reopen.md) §4 B2, [ADR-053](ADR-053-taken-serror-hard-stop.md) reopen gate, [ADR-083](ADR-083-b1-qemu-nmi-pin.md). CloudAgent **not used** (over cap until 2026-10-04). No self-hosted runner registered. No paid / larger runner used. Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Context
