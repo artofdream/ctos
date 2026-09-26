@@ -1310,6 +1310,41 @@ if ! grep -E -q '^ident: inv k=1 u=1 a=1 leaks=0' "$log"; then
     echo "qemu-smoke: 'ident: inv' did not report k=1 u=1 a=1 leaks=0 (ADR-087/088: only the _start stub page)" >&2
     exit 1
 fi
+# ADR-092 (G1): fail-closed EL0-reachability walk over kernel / user /
+# ASID-B TTBR0 + TTBR1. Live (hello-libctos standing at EL0) must see user
+# pages and no leak; steady state must be empty; four planted leaves must be
+# caught under their rule. (G2): EL0 stores to kernel data (TTBR1) and to an
+# EL0-RO page must permission-fault with WnR=1 and FAR = target.
+for re in '^el0-reach: live k=[1-9][0-9]* u=[1-9][0-9]* a=[0-9]+ h=0 pages=[1-9][0-9]* leaks=0[[:space:]]*$' \
+          '^el0-reach: steady k=0 u=0 a=0 h=0 pages=0 leaks=0[[:space:]]*$' \
+          '^el0-reach: neg kernel-pa caught va=0x80007000 roots=k,u why=kernel-pa[[:space:]]*$' \
+          '^el0-reach: neg va caught va=0x80190000 roots=k,u why=va[[:space:]]*$' \
+          '^el0-reach: neg ttbr1 caught va=0xffffff8000100000 roots=h why=ttbr1[[:space:]]*$' \
+          '^el0-reach: neg el0-wx caught va=0x80002000 roots=k,u why=el0-wx[[:space:]]*$' \
+          '^el0-reach: neg clean[[:space:]]*$' \
+          '^el0-reach: ok allow=app-hdr\[0x80000000,0x80001000\),app-text\[0x80002000,0x80003000\),crt-stack-pan\[0x80003000,0x80004000\),user-stack\[0x80007000,0x80008000\),store-ro\[0x80009000,0x8000a000\)[[:space:]]*$' \
+          '^el0: write-fault kernel va=(0xffffff80[0-9a-f]+) esr=0x9200004[def] far=\1 ec=0x24 wnr=1 dfsc=perm-l[123][[:space:]]*$' \
+          '^el0: write-fault user-ro va=0x80009000 esr=0x9200004[def] far=0x80009000 ec=0x24 wnr=1 dfsc=perm-l[123][[:space:]]*$' \
+          '^el0: write-ok kernel,user-ro[[:space:]]*$'; do
+    if ! grep -E -q "$re" "$log"; then
+        echo "qemu-smoke: missing /$re/ on serial (ADR-092 EL0 reach walk / EL0 write fault, qemu exit $qemu_ec)" >&2
+        grep -E "el0-reach:|el0: write" "$log" >&2 || true
+        exit 1
+    fi
+done
+for m in "el0-reach: leak" "el0-reach: probe missed" "el0-reach: live missed" "el0-reach: live bad" \
+         "missed slot-busy" "el0-reach: neg unclean" "el0: write-succeeded" "el0: write-bad"; do
+    if grep -q "$m" "$log"; then
+        echo "qemu-smoke: '$m' on serial (ADR-092 fail-closed, qemu exit $qemu_ec)" >&2
+        grep -E "el0-reach:|el0: write" "$log" >&2 || true
+        exit 1
+    fi
+done
+if grep -E -q '^el0-reach: neg [a-z0-9-]+ missed' "$log"; then
+    echo "qemu-smoke: an ADR-092 planted EL0-reachable leaf was not caught" >&2
+    exit 1
+fi
+echo "qemu-smoke: EL0 reach walk + EL0 write-fault strings present (ADR-092)"
 echo "qemu-smoke: ADR-087/088 identity inventory allowlist-only (stub) + MMIO high alias + plant caught"
 if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
@@ -1568,5 +1603,35 @@ if grep -q "ident: inv-ok" "$leak_log" || grep -q "^ident: ok" "$leak_log"; then
 fi
 rm -f "$leak_log"
 echo "qemu-smoke: inv-leak-probe caught (fail-closed ok)"
+
+# ADR-092 negative build: one persistent EL0-readable mapping of kernel
+# `.data` (G1) and an EL0 store target that is really EL0-RW (G2). The walk
+# must report the leak and withhold `el0-reach: ok`; the store probe must
+# report the completed store and withhold `el0: write-ok`.
+echo "qemu-smoke: el0-leak-probe (reach + write) must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
+cargo build --features reach-leak-probe,write-leak-probe --target-dir target/el0-leak-probe
+el0leak_elf="target/el0-leak-probe/aarch64-ctos/debug/ctos"
+el0leak_log=$(mktemp)
+set +e
+CTOS_QEMU_TIMEOUT="$INV_LEAK_TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
+    "$el0leak_elf" >"$el0leak_log" 2>&1
+set -e
+grep -E "el0-reach:|el0: write" "$el0leak_log" || true
+for re in '^el0: write-succeeded user-ro va=0x80009000 ' \
+          '^el0-reach: leak-probe planted va=0x80007000[[:space:]]*$' \
+          '^el0-reach: leak k lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
+          '^el0-reach: leak u lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
+          '^el0-reach: steady k=1 u=1 a=0 h=0 pages=2 leaks=2[[:space:]]*$'; do
+    if ! grep -E -q "$re" "$el0leak_log"; then
+        echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-092)" >&2
+        rm -f "$el0leak_log"; exit 1
+    fi
+done
+if grep -q "el0: write-ok" "$el0leak_log" || grep -q "el0-reach: ok" "$el0leak_log"; then
+    echo "qemu-smoke: ADR-092 walk / store probe passed despite a planted leak" >&2
+    rm -f "$el0leak_log"; exit 1
+fi
+rm -f "$el0leak_log"
+echo "qemu-smoke: el0-leak-probe caught (fail-closed ok)"
 
 echo "qemu-smoke: ok"

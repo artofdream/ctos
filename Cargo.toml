@@ -20,3 +20,11 @@ b2-serror = []
 # `ident: inv-leak` and withhold `ident: inv-ok` / `ident: ok`.
 # `scripts/qemu-smoke.sh` builds this and requires the leak to be caught.
 inv-leak-probe = []
+# ADR-092 (G1) negative probe: leave one EL0-readable mapping of a kernel
+# `.data` page in the shared map window before the EL0-reachability walk.
+# The walk must print `el0-reach: leak` and withhold `el0-reach: ok`.
+reach-leak-probe = []
+# ADR-092 (G2) negative probe: map the "read-only" store target EL0-RW, so
+# the EL0 store completes; the probe must print `el0: write-succeeded` and
+# withhold `el0: write-ok`. Smoke builds both negatives in one kernel.
+write-leak-probe = []

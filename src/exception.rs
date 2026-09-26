@@ -93,6 +93,14 @@ static RO_NX_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_RO_WRITE: AtomicBool = AtomicBool::new(false);
 static RO_WRITE_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_EL0_DABORT: AtomicBool = AtomicBool::new(false);
+/// ADR-092 (G2): EL0 store probe armed. The handler records what EL0 hit.
+static EXPECT_EL0_WRITE: AtomicBool = AtomicBool::new(false);
+/// 0 = nothing taken, 1 = lower-EL data abort, 2 = BRK after the store
+/// (the store completed: fail), 3 = any other lower-EL sync exception.
+static EL0_WRITE_KIND: AtomicU64 = AtomicU64::new(0);
+static EL0_WRITE_ESR: AtomicU64 = AtomicU64::new(0);
+static EL0_WRITE_FAR: AtomicU64 = AtomicU64::new(0);
+static EL0_WRITE_ELR: AtomicU64 = AtomicU64::new(0);
 static EL0_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_ASID_CONFLICT: AtomicBool = AtomicBool::new(false);
 static ASID_CONFLICT_CAUGHT: AtomicBool = AtomicBool::new(false);
@@ -804,6 +812,44 @@ pub fn ro_write_probe_caught() -> bool {
     RO_WRITE_CAUGHT.load(Ordering::SeqCst)
 }
 
+/// ADR-092 (G2): arm the EL0 store probe. Exactly one lower-EL sync
+/// exception is captured (ESR / FAR / ELR) and EL1 resumes after the ERET.
+pub fn arm_el0_write() {
+    EL0_WRITE_KIND.store(0, Ordering::SeqCst);
+    EL0_WRITE_ESR.store(0, Ordering::SeqCst);
+    EL0_WRITE_FAR.store(0, Ordering::SeqCst);
+    EL0_WRITE_ELR.store(0, Ordering::SeqCst);
+    EXPECT_EL0_WRITE.store(true, Ordering::SeqCst);
+}
+
+/// `(kind, esr, far, elr)` of the captured exception; disarms.
+pub fn el0_write_result() -> (u64, u64, u64, u64) {
+    EXPECT_EL0_WRITE.store(false, Ordering::SeqCst);
+    (
+        EL0_WRITE_KIND.load(Ordering::SeqCst),
+        EL0_WRITE_ESR.load(Ordering::SeqCst),
+        EL0_WRITE_FAR.load(Ordering::SeqCst),
+        EL0_WRITE_ELR.load(Ordering::SeqCst),
+    )
+}
+
+/// ESR fields for a lower-EL permission-fault *store*: EC = 0x24, WnR = 1,
+/// DFSC = permission fault at level 1/2/3. Returns the level or 0.
+pub fn el0_store_perm_level(esr: u64) -> u64 {
+    let ec = (esr >> 26) & 0x3f;
+    let wnr = (esr >> 6) & 1;
+    let dfsc = esr & 0x3f;
+    if ec != ESR_EC_DABORT_LOWER || wnr != 1 {
+        return 0;
+    }
+    match dfsc {
+        ESR_DFSC_PERM_L1 => 1,
+        ESR_DFSC_PERM_L2 => 2,
+        ESR_DFSC_PERM_L3 => 3,
+        _ => 0,
+    }
+}
+
 /// Arm the EL0 read-of-kernel-data probe (user TTBR0 / AP).
 pub fn arm_el0_dabort() {
     EL0_DABORT_CAUGHT.store(false, Ordering::SeqCst);
@@ -1372,6 +1418,22 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
 #[no_mangle]
 pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
     let ec = (ctx.esr >> 26) & 0x3f;
+    // ADR-092 (G2): the store probe captures whatever EL0 raised first.
+    if EXPECT_EL0_WRITE.swap(false, Ordering::SeqCst) {
+        let kind = if ec == ESR_EC_DABORT_LOWER {
+            1
+        } else if ec == ESR_EC_BRK_A64 {
+            2
+        } else {
+            3
+        };
+        EL0_WRITE_ESR.store(ctx.esr, Ordering::SeqCst);
+        EL0_WRITE_FAR.store(far_el1(), Ordering::SeqCst);
+        EL0_WRITE_ELR.store(ctx.elr, Ordering::SeqCst);
+        EL0_WRITE_KIND.store(kind, Ordering::SeqCst);
+        return_from_el0(ctx);
+        return;
+    }
     if ec == ESR_EC_SVC_A64
         && svc_imm(ctx.esr) == crate::syscall::SVC_PROBE_RETURN
         && EXPECT_EL0_SVC.swap(false, Ordering::SeqCst)
