@@ -44,6 +44,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - Rebase scratch: [random-thoughts/2026-09-11-session-memory-rebase-30.md](random-thoughts/2026-09-11-session-memory-rebase-30.md)
 - Latest samples/porting handoff: [daily-briefs/2026-09-11-apps-today-porting.md](daily-briefs/2026-09-11-apps-today-porting.md)
 - Prior idle-tip handoff: [daily-briefs/2026-09-11-docs-refresh-idle-tip.md](daily-briefs/2026-09-11-docs-refresh-idle-tip.md)
+- ADR-084 B2 free-runner SError spike (blocked): [daily-briefs/2026-09-25-adr-084-b2-free-runner-probe.md](daily-briefs/2026-09-25-adr-084-b2-free-runner-probe.md) / scratch [random-thoughts/2026-09-25-session-memory-adr-084-b2.md](random-thoughts/2026-09-25-session-memory-adr-084-b2.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)

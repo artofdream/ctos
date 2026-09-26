@@ -66,4 +66,5 @@ Say “taken lower-EL SError is hard-stopped / deferred on this smoke machine; Q
 - [ADR-047](ADR-047-isolation-leftovers-decisions.md) decision #1 stands; wording tightens from “until an honest inject exists” (open-ended) to “locked until reopen gate in Decision §4.”
 - Threat-model patch version bump ([security.md](../framework/security.md)). No `src/` change. No new FR/NFR IDs.
 - Reopen attempt: [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) (2026-09-19) — still blocked; park Verified.
+- B2 spike: [ADR-084](ADR-084-b2-free-runner-serror.md) (2026-09-25) — free hosted runners have no arm64 KVM/HVF/WHPX; B2 Planned / blocked.
 - FAT readdir and other product cuts stay out of this PR.

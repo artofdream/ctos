@@ -44,7 +44,7 @@ CloudAgent HELD; docs-only.
 
 | Requirement | Current status | Why unmet | Reopen / lock ADR |
 | --- | --- | --- | --- |
-| Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt TCG (`machine does not provide NMIs`) — re-probed a76 + GICv3/virt-on/max 2026-09-19 | [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) |
+| Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt TCG (`machine does not provide NMIs`) — re-probed a76 + GICv3/virt-on/max 2026-09-19. B1 opt-in pin Verified ([ADR-083](ADR-083-b1-qemu-nmi-pin.md)); B2 free-runner spike blocked 2026-09-25 ([ADR-084](ADR-084-b2-free-runner-serror.md)) | [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) / [ADR-083](ADR-083-b1-qemu-nmi-pin.md) / [ADR-084](ADR-084-b2-free-runner-serror.md) |
 | Full identity teardown including yank `_start` | **Decided: never** while `-kernel` needs `0x4008_0000` | Boot stub stays (`ident: start-stay`) | ADR-042 / ADR-047 |
 | Written sponsor accept that the umbrella sentence is in scope | **Absent** | No ADR-048-style accept for “EL0 isolated” | Would need a future accept ADR — **not** this file |
 

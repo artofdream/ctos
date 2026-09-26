@@ -1,0 +1,130 @@
+# Research copy of the temporary ADR-084 probe workflow (ran from branch probe/adr-084-b2-kvm).
+# NOT installed under .github/workflows on main. To re-probe (B2-W), copy to
+# .github/workflows/ on a probe/adr-084-* branch (needs a workflow-scoped push).
+# ADR-084 B2 research probe (NOT a gate): can a free GitHub-hosted runner give
+# ctos a genuinely different path to a taken async SError (KVM / HVF / Hyper-V
+# accel instead of stock virt TCG)? Prints facts; never claims SError Verified.
+# Distinct from the ADR-083 B1 pinned-QEMU job (qemu-nmi-pin).
+name: b2-serror-probe
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'probe/adr-084-*'
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: B2 probe (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04-arm
+          - ubuntu-22.04-arm
+          - ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Host facts
+        run: |
+          set -x
+          uname -a
+          cat /etc/os-release | head -3
+          lscpu || true
+          grep -m1 -iE '^(Features|flags)' /proc/cpuinfo || true
+          sudo dmesg | grep -iE 'kvm|hyp|EL2|virtuali|hyper-v|hv_' | head -40 || true
+          ls /sys/module | grep -iE '^kvm' || echo "b2-probe: no kvm* module loaded"
+          if [ -e /dev/kvm ]; then ls -l /dev/kvm; echo "b2-probe: /dev/kvm=present"; else echo "b2-probe: /dev/kvm=absent"; fi
+
+      - name: KVM capability ioctls (only if /dev/kvm)
+        run: |
+          if [ ! -e /dev/kvm ]; then echo "b2-probe: kvm-caps=skipped (/dev/kvm absent)"; exit 0; fi
+          sudo chmod 666 /dev/kvm || true
+          python3 - <<'PY'
+          import fcntl, os
+          fd = os.open("/dev/kvm", os.O_RDWR)
+          print("b2-probe: KVM_GET_API_VERSION", fcntl.ioctl(fd, 0xAE00, 0))
+          for name, cap in [("VCPU_EVENTS", 41), ("ARM_INJECT_SERROR_ESR", 158), ("ARM_INJECT_EXT_DABT", 178), ("ARM_EL1_32BIT", 43)]:
+              print(f"b2-probe: KVM_CAP_{name}={fcntl.ioctl(fd, 0xAE03, cap)}")
+          PY
+
+      - name: Install distro QEMU
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qemu-system-arm >/dev/null
+          qemu-system-aarch64 --version | head -1
+          qemu-system-aarch64 -accel help
+
+      - name: QEMU -accel kvm -machine virt (boot attempt)
+        run: |
+          set +e
+          timeout 20 qemu-system-aarch64 -accel kvm -machine virt -cpu host -m 64M \
+            -display none -serial none -monitor none -S -qmp stdio <<'QMP' 2>&1 | head -20
+          {"execute":"qmp_capabilities"}
+          {"execute":"query-kvm"}
+          {"execute":"inject-nmi"}
+          {"execute":"quit"}
+          QMP
+          echo "b2-probe: kvm-boot exit=${PIPESTATUS[0]}"
+
+      - name: Stock TCG inject-nmi matrix on this runner (ADR-082 script)
+        # QEMU 6.2 on 22.04 lacks cortex-a76 (script races a dead QEMU); informational only.
+        continue-on-error: true
+        run: python3 scripts/qemu-nmi-probe.py
+
+      - name: Every aarch64 QEMU machine model -- does any provide TYPE_NMI?
+        run: |
+          n=0; ok=0
+          for m in $(qemu-system-aarch64 -machine help | awk 'NR>1{print $1}' | grep -vE '^(none)$'); do
+            r=$(printf '%s\n' '{"execute":"qmp_capabilities"}' '{"execute":"inject-nmi"}' '{"execute":"quit"}' | \
+              timeout 15 qemu-system-aarch64 -machine "$m" -display none -serial none -monitor none -nodefaults -S -qmp stdio 2>&1 | \
+              grep -oE '"desc": "[^"]*"|"return": \{\}' | sed -n '2p')
+            n=$((n+1))
+            case "$r" in *'"return"'*) ok=$((ok+1)); echo "b2-probe: machine=$m inject-nmi=ok";; *'does not provide NMIs'*) : ;; *) echo "b2-probe: machine=$m inject-nmi=other:${r:-start-fail}";; esac
+          done
+          echo "b2-probe: machines-probed=$n inject-nmi-ok=$ok"
+
+  macos:
+    name: B2 probe (macos-15 arm64 / HVF)
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Host facts
+        run: |
+          set -x
+          uname -a
+          sysctl -n machdep.cpu.brand_string || true
+          sysctl kern.hv_support || true
+          sysctl kern.hv_vmm_present || true
+          echo "b2-probe: hv_support=$(sysctl -n kern.hv_support 2>/dev/null || echo unknown)"
+      - name: QEMU -accel hvf (attempt regardless of sysctl)
+        run: |
+          brew install qemu >/dev/null 2>&1 || brew install qemu
+          qemu-system-aarch64 --version | head -1
+          qemu-system-aarch64 -accel help
+          set +e
+          printf '%s\n' '{"execute":"qmp_capabilities"}' '{"execute":"inject-nmi"}' '{"execute":"quit"}' | \
+            qemu-system-aarch64 -accel hvf -machine virt -cpu host -m 64M -display none -serial none -monitor none -S -qmp stdio 2>&1 | head -20
+          echo "b2-probe: hvf-boot exit=${PIPESTATUS[1]}"
+
+  windows:
+    name: B2 probe (windows-11-arm / Hyper-V)
+    runs-on: windows-11-arm
+    timeout-minutes: 15
+    steps:
+      - name: Host facts
+        shell: pwsh
+        run: |
+          $PSVersionTable.OS
+          (Get-CimInstance Win32_Processor | Select-Object Name, VirtualizationFirmwareEnabled, VMMonitorModeExtensions | Format-List | Out-String)
+          (systeminfo | Select-String -Pattern 'Hyper-V|hypervisor|Virtualization' | Out-String)
+          $f = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue
+          "b2-probe: Microsoft-Hyper-V feature state = $($f.State)"
+          $w = Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform -ErrorAction SilentlyContinue
+          "b2-probe: HypervisorPlatform (WHPX) state = $($w.State)"

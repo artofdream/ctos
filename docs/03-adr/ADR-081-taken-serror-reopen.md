@@ -67,6 +67,10 @@ Sponsor chose **B1** (2026-09-19 ~08:58 CEST). Follow-on research: [ADR-082](ADR
 
 [ADR-083](ADR-083-b1-qemu-nmi-pin.md) (2026-09-19): pinned QEMU opt-in Verifies taken `el0: serror`; stock park path unchanged.
 
+## Follow-on (sponsor B2)
+
+Sponsor chose **B2** (2026-09-25 23:44 CEST). [ADR-084](ADR-084-b2-free-runner-serror.md): free GitHub-hosted runners expose no arm64 KVM/HVF/WHPX; stock TCG there still says `machine does not provide NMIs`. B2 stays **Planned / blocked** on a sponsor choice (self-hosted arm64 KVM, paid bare metal, or wait). B1 opt-in pin unchanged; B1 ≠ B2.
+
 ## Consequences
 
 - Docs: this ADR; [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-045](ADR-045-taken-serror-qmp.md) / [ADR-055](ADR-055-el0-isolated-checklist.md) / [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md) / [ADR-079](ADR-079-pan-cpu-reopen.md) cross-links; honesty ledger; roadmap P-SEC-3r; threat-model **v1.56**; SUMMARY; el0 / limits / security light touch; research brief under `research/daily-briefs/`.
