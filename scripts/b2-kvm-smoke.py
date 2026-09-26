@@ -18,6 +18,12 @@ import json, os, re, select, socket, subprocess, sys, tempfile, time
 
 QEMU = os.environ.get("CTOS_QEMU", "qemu-system-aarch64")
 TIMEOUT = float(os.environ.get("CTOS_B2_TIMEOUT", "90"))
+# Diagnostics only (never a pass condition): if the guest is silent this
+# long, dump vCPU registers via QMP human-monitor-command and resolve PC.
+STALL = float(os.environ.get("CTOS_B2_STALL", "15"))
+# Box self-test only: CTOS_B2_ACCEL=tcg runs the same flow under TCG
+# (-cpu max). The B2 claim is only ever made from a kvm run.
+ACCEL = os.environ.get("CTOS_B2_ACCEL", "kvm")
 ARM = b"el0: serror-arm"
 # Bare taken marker: a line that is exactly `el0: serror` (not -arm/-park).
 TAKEN_RE = re.compile(rb"(?m)^el0: serror\r?$")
@@ -77,6 +83,23 @@ class Qmp:
                 return "ok"
             return "error:" + ((r.get("error") or {}).get("desc") or str(r))
 
+    def hmp(self, line: str, deadline: float) -> str:
+        """QMP human-monitor-command; returns the HMP text (diagnostics)."""
+        try:
+            self.sock.sendall(json.dumps({"execute": "human-monitor-command",
+                                          "arguments": {"command-line": line}}).encode() + b"\n")
+        except OSError as e:
+            return f"send-error:{e}"
+        while True:
+            r = self._read(deadline)
+            if r is None:
+                return "timeout"
+            if "event" in r and "return" not in r and "error" not in r:
+                continue
+            if "return" in r:
+                return str(r["return"])
+            return "error:" + str(r.get("error"))
+
     def handshake(self, deadline: float) -> bool:
         g = self._read(deadline)
         if not g or "QMP" not in g:
@@ -84,17 +107,38 @@ class Qmp:
         return self.cmd("qmp_capabilities", deadline) == "ok"
 
 
+def dump_stall(q: "Qmp", elf: str, why: str) -> None:
+    """Print PC/SP/PSTATE (+ addr2line) twice, 1 s apart. Diagnostics only."""
+    log(f"stall: {why}; dumping vCPU state (diagnostics, not a pass signal)")
+    for n in range(2):
+        txt = q.hmp("info registers", time.monotonic() + 5)
+        keep = [l for l in txt.splitlines() if re.search(r"\b(PC|SP|PSTATE|X0[0-3]|X30)\b|PC=|PSTATE=", l)]
+        for l in keep[:8]:
+            log(f"regs[{n}] {l.strip()}")
+        m = re.search(r"PC=([0-9a-fA-F]+)", txt)
+        if m:
+            pc = m.group(1)
+            try:
+                a2l = subprocess.run(["addr2line", "-f", "-C", "-e", elf, "0x" + pc],
+                                     capture_output=True, text=True, timeout=10).stdout
+                log(f"regs[{n}] addr2line 0x{pc}: " + " | ".join(a2l.split("\n")[:2]))
+            except Exception as e:  # noqa: BLE001
+                log(f"regs[{n}] addr2line unavailable: {e}")
+        time.sleep(1)
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         log("FAIL missing b2-serror kernel ELF")
         return 2
     elf = sys.argv[1]
-    if not os.path.exists("/dev/kvm"):
+    if ACCEL == "kvm" and not os.path.exists("/dev/kvm"):
         log("FAIL /dev/kvm absent (need a KVM-capable arm64 host, e.g. Graviton .metal)")
         return 3
     d = tempfile.mkdtemp(prefix="ctos-b2-")
     qs = os.path.join(d, "qmp.sock")
-    cmd = [QEMU, "-accel", "kvm", "-machine", "virt,gic-version=3", "-cpu", "host",
+    cmd = [QEMU, "-accel", ACCEL, "-machine", "virt,gic-version=3",
+           "-cpu", "host" if ACCEL == "kvm" else "max",
            "-m", "128M", "-display", "none", "-serial", "stdio", "-monitor", "none",
            "-qmp", f"unix:{qs},server,nowait", "-kernel", elf]
     log("cmd: " + " ".join(cmd))
@@ -109,11 +153,18 @@ def main() -> int:
     log(f"qmp ready={qmp_ok}")
     buf = bytearray()
     injected = False
+    last_out = time.monotonic()
+    dumped = False
     while time.monotonic() < deadline:
+        if qmp_ok and not dumped and time.monotonic() - last_out > STALL:
+            dump_stall(q, elf, f"no guest output for {STALL:.0f}s (bytes so far={len(buf)})")
+            dumped = True
+            break
         r, _, _ = select.select([fd], [], [], 0.05)
         if r:
             c = os.read(fd, 4096)
             if c:
+                last_out = time.monotonic()
                 sys.stdout.buffer.write(c)
                 sys.stdout.buffer.flush()
                 buf += c
@@ -144,7 +195,7 @@ def main() -> int:
         f"taken_marker={bool(TAKEN_RE.search(text))} b2_taken={b'b2: taken' in text} "
         f"park={park} kvm_err={kvm_err}")
     if taken and not park:
-        log("PASS taken lower-EL SError observed under KVM ('el0: serror' + 'b2: taken')")
+        log(f"PASS taken lower-EL SError observed under accel={ACCEL} ('el0: serror' + 'b2: taken')")
         return 0
     log("FAIL taken 'el0: serror' NOT observed (fail-closed; never pass on absence)")
     return 1

@@ -1336,7 +1336,12 @@ fn window_index(va: u64) -> Option<usize> {
 pub fn init() {
     let user_ok;
     let split_ok;
+    #[cfg(feature = "b2-serror")]
+    crate::uart::write_str_raw("b2: p0 tables (pre-MMU)\n");
     {
+        // ADR-085: no exclusive-based lock pre-MMU in the B2 KVM profile
+        // (single CPU, nothing else runs yet). Default keeps the lock.
+        #[cfg(any(not(feature = "b2-serror"), feature = "b2-prelock-probe"))]
         let _g = TABLES.lock();
         unsafe {
             addr_of_mut!(L1.entries).write([0; 512]);
@@ -1414,6 +1419,8 @@ pub fn init() {
                 v = in(reg) sctlr,
             );
         }
+        #[cfg(feature = "b2-serror")]
+        crate::uart::write_str_raw("b2: p1 mmu-on\n");
         // Same class as the boot-delta mark: a pre-MMU `.bss` store can be
         // invisible to a later cached read (PR #20 test image; cts-ai Docker
         // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.

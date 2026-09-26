@@ -35,11 +35,20 @@ echo "CTOSB2: qemu-build rc=$?"
 tail -3 /var/log/ctos-qemu.log | sed 's/^/CTOSB2: qemu /'
 cargo build --features b2-serror --target-dir target-b2 > /var/log/ctos-cargo.log 2>&1
 echo "CTOSB2: cargo rc=$?"
-tail -3 /var/log/ctos-cargo.log | sed 's/^/CTOSB2: cargo /'
+tail -2 /var/log/ctos-cargo.log | sed 's/^/CTOSB2: cargo /'
+# Causal control (diagnostic only, never a pass): same profile but keeps the
+# default pre-MMU spin locks (feature b2-prelock-probe).
+cargo build --features b2-prelock-probe --target-dir target-b2p > /var/log/ctos-cargo-p.log 2>&1
+echo "CTOSB2: cargo-prelock rc=$?"
+QEMU_B2=$PWD/tools/qemu-b2/bin/qemu-system-aarch64
+echo "CTOSB2: ===== control: b2-prelock-probe (expect silence if pre-MMU exclusives hang) ====="
+CTOS_QEMU=$QEMU_B2 CTOS_B2_TIMEOUT=40 CTOS_B2_STALL=15 \
+  python3 scripts/b2-kvm-smoke.py target-b2p/aarch64-ctos/debug/ctos 2>&1 | tr -d '\r' | sed 's/^/CTOSB2: ctl: /'
+echo "CTOSB2: control rc=${PIPESTATUS[0]} (diagnostic only)"
 ELF=target-b2/aarch64-ctos/debug/ctos
 for i in 1 2 3; do
   echo "CTOSB2: ===== smoke attempt $i ====="
-  CTOS_QEMU=$PWD/tools/qemu-b2/bin/qemu-system-aarch64 CTOS_B2_TIMEOUT=90 \
+  CTOS_QEMU=$QEMU_B2 CTOS_B2_TIMEOUT=90 CTOS_B2_STALL=15 \
     python3 scripts/b2-kvm-smoke.py "$ELF" 2>&1 | tr -d '\r' | sed 's/^/CTOSB2: /'
   rc=${PIPESTATUS[0]}
   echo "CTOSB2: smoke attempt $i rc=$rc"

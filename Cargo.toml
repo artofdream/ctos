@@ -15,3 +15,5 @@ force-fail = []
 # QEMU -accel kvm on real arm64 (Graviton). Skips GIC/timer/virtio/FAT/
 # samples (KVM hosts may lack GICv2). Opt-in only; default build unchanged.
 b2-serror = []
+# ADR-085 causal control: keep the default pre-MMU spin locks under b2-serror.
+b2-prelock-probe = ["b2-serror"]
