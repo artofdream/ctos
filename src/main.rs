@@ -69,17 +69,11 @@ global_asm!(
 #[no_mangle]
 pub extern "C" fn kernel_main() -> ! {
     // ADR-085 B2-P (opt-in): raw, lock-free early markers. On real arm64
-    // under KVM the default path printed nothing (run 2, 2026-09-26).
+    // under KVM the image printed nothing (run 2, 2026-09-26); these located
+    // the hang after MMU-on (run 3: TTBR1 TG1 reserved encoding).
     #[cfg(feature = "b2-serror")]
     uart::write_str_raw("b2: e0 entry\n");
-    // Default: UART mutex. The B2 KVM profile avoids LDAXR/STLXR spin locks
-    // while SCTLR_EL1.M/C are off (statics are Device-nGnRnE then; exclusive
-    // behaviour there is IMPLEMENTATION DEFINED on real cores; TCG ignores
-    // it). `b2-prelock-probe` keeps the default lock as the causal control.
-    #[cfg(any(not(feature = "b2-serror"), feature = "b2-prelock-probe"))]
     uart::UART.lock().init();
-    #[cfg(all(feature = "b2-serror", not(feature = "b2-prelock-probe")))]
-    uart::raw().init();
     #[cfg(feature = "b2-serror")]
     uart::write_str_raw("b2: e1 uart\n");
     exception::init();

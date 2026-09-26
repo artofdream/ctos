@@ -109,6 +109,12 @@ const TCR_T1SZ: u64 = 25 << 16;
 const TCR_IRGN1_WBWA: u64 = 0b01 << 24;
 const TCR_ORGN1_WBWA: u64 = 0b01 << 26;
 const TCR_SH1_INNER: u64 = 0b11 << 28;
+/// TG1 = 4 KiB (`0b10`). TG1 `0b00` is a *reserved* encoding (TG1 differs
+/// from TG0: 01=16K, 10=4K, 11=64K). QEMU TCG sanitises reserved TG1 to 4K,
+/// so the TTBR1 alias worked there; real Graviton3 under KVM picked another
+/// granule and every high-VA fetch faulted (ADR-085 run 3, 2026-09-26:
+/// recursive abort at high VBAR+0x200). Explicit 4K is identical on TCG.
+const TCR_TG1_4K: u64 = 0b10 << 30;
 /// Set = TTBR1 walks disabled. We leave this clear (ADR-016).
 const TCR_EPD1: u64 = 1 << 23;
 const TCR_IPS_40: u64 = 0b010 << 32;
@@ -1339,9 +1345,6 @@ pub fn init() {
     #[cfg(feature = "b2-serror")]
     crate::uart::write_str_raw("b2: p0 tables (pre-MMU)\n");
     {
-        // ADR-085: no exclusive-based lock pre-MMU in the B2 KVM profile
-        // (single CPU, nothing else runs yet). Default keeps the lock.
-        #[cfg(any(not(feature = "b2-serror"), feature = "b2-prelock-probe"))]
         let _g = TABLES.lock();
         unsafe {
             addr_of_mut!(L1.entries).write([0; 512]);
@@ -1389,6 +1392,7 @@ pub fn init() {
             | TCR_IRGN1_WBWA
             | TCR_ORGN1_WBWA
             | TCR_SH1_INNER
+            | TCR_TG1_4K
             | TCR_IPS_40;
         let ttbr = l1_pa();
         let ttbr1 = l1_high_pa();
