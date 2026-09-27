@@ -714,6 +714,20 @@ pub fn user_mapped(va: u64) -> bool {
     walk_leaf(l1_user_pa(), va).is_some()
 }
 
+/// ADR-094 (G4): EL0 load/store permission for `va` in the **user** TTBR0.
+/// `Some((readable, writable))` from the leaf AP bits (AP[1] = EL0 access,
+/// AP[2] = read-only); `None` if `va` is unmapped in the user TTBR0. An
+/// execute-only leaf (AP[1]=0) is neither EL0-readable nor EL0-writable.
+#[allow(dead_code)]
+pub fn user_el0_access(va: u64) -> Option<(bool, bool)> {
+    let _g = TABLES.lock();
+    walk_leaf(l1_user_pa(), va).map(|d| {
+        let el0 = d & DESC_AP_EL0 != 0;
+        let ro = d & DESC_AP_RO != 0;
+        (el0, el0 && !ro)
+    })
+}
+
 /// Walk TTBR1. The private page is present only after `map_ttbr1_priv`.
 /// After ADR-017, RAM identity VAs are also present at `to_high_va(va)`.
 #[allow(dead_code)]
@@ -1074,6 +1088,23 @@ fn l3_page_el0_ro(pa: u64) -> u64 {
         | DESC_AF
         | DESC_PXN
         | DESC_UXN
+        | DESC_AP_RO
+        | DESC_AP_EL0
+}
+
+/// ADR-094 (G4): EL0 read-only **and** EL0-executable page (AP[2:1] = 11,
+/// UXN clear, PXN set). App text pages also carry `.rodata`, so EL0 must be
+/// able to read the page (its own strings) as well as fetch it, never write.
+/// WXN leaves it executable because it is not writable. EL1 access is RO, so
+/// callers must write the bytes through the frame's TTBR1 alias, not this VA.
+fn l3_page_el0_text(pa: u64) -> u64 {
+    (pa & !0xfff)
+        | DESC_VALID
+        | DESC_TABLE
+        | (ATTR_NORMAL << 2)
+        | DESC_SH_INNER
+        | DESC_AF
+        | DESC_PXN
         | DESC_AP_RO
         | DESC_AP_EL0
 }
@@ -3198,6 +3229,28 @@ pub fn map_el0_exec(va: u64, pa: u64) -> bool {
             return false;
         }
         l3_slot(i).write(l3_page_el0_exec(pa));
+    }
+    dsb_ish();
+    tlbi_va(va);
+    true
+}
+
+/// Map a 4 KiB frame at `va` in the dedicated window as EL0 read-only +
+/// executable (ADR-094 G4). App text/rodata pages: EL0 may fetch and read,
+/// never write. Bytes must be written through the frame alias (EL1 sees RO).
+pub fn map_el0_text(va: u64, pa: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_slot(i).write(l3_page_el0_text(pa));
     }
     dsb_ish();
     tlbi_va(va);
