@@ -6,5 +6,5 @@
   - `.rodata` identity-pointer rewrite relocates constant tables that hold 0x4008_0000-like words. Compare `identity_pa()` bounds, never raw words.
   - A GitHub job skipped via `if:` passes a required check, so the pin job had to become unconditional before D5.
   - EL0 exec permission is governed by UXN, not AP[1]. The stub page is safe because every kernel builder sets UXN.
-- Commit path: box patch → CopyFromBox (lands at C:\Users\cts\) → EVO-X2 `git apply --index` + write-tree compare → push; open PRs from box `gh api`.
+- Commit path: box patch → CopyFromBox (lands at C:\Users\<user>\) → EVO-X2 `git apply --index` + write-tree compare → push; open PRs from box `gh api`.
 - Open for the sponsor: accept ADR-091 (a/b/c), G1/G2 probes, optional B2-P re-verify ≈ $0.2, D5 branch protection at M6.
