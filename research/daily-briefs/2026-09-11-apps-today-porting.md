@@ -14,7 +14,7 @@ Linked from README, vision, pillars, el0, architecture, [moc.md](../moc.md).
 
 ADR-020 is **Verified** on `e80dc93` (`ident: reloc` / `ident: live`). Sponsor Docker **Verified** on that SHA: 50 tests, `ident: reloc n=12`, live pages=37, force-fail. GHA merge [34651404108](https://github.com/artofdream/ctos/actions/runs/34651404108) grepped. Keep `24d94e6` Docker Verified and `b2bbb99` Failed.
 
-Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists in zone `Z1178AFMV41RWP` (account `737290977112`). Custom-domain reachability stays **Planned**. Do not claim https://ctos.artof.link works. `.obsidian/` not committed.
+Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists in zone `<route53-zone-id>` (account `<aws-account-id>`). Custom-domain reachability stays **Planned**. Do not claim https://ctos.artof.link works. `.obsidian/` not committed.
 
 ## Do next
 

@@ -16,7 +16,7 @@ Arc on `main`:
 
 Sponsor cts-ai Docker **Verified** on `e80dc93`: 50 tests, `ident: reloc n=12`, live pages=37, force-fail ok. GHA merge-commit [34651404108](https://github.com/artofdream/ctos/actions/runs/34651404108) grepped the same class of markers. Keep the `24d94e6` Docker row.
 
-Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists in zone `Z1178AFMV41RWP` (account `737290977112`). Custom-domain reachability stays **Planned** until a separate Pages PR. Do not claim https://ctos.artof.link works.
+Route 53 CNAME `ctos.artof.link` → `artofdream.github.io.` exists in zone `<route53-zone-id>` (account `<aws-account-id>`). Custom-domain reachability stays **Planned** until a separate Pages PR. Do not claim https://ctos.artof.link works.
 
 Optional Obsidian: structure only. `.obsidian/` / `.trash/` stay gitignored.
 
