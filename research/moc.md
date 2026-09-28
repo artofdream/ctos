@@ -57,6 +57,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - ADR-094 G4 syscall pointers need EL0 permission (standing order; ADR-091 revision 3, G3 optional only): [daily-briefs/2026-09-27-adr-094-sys-ptr-perm.md](daily-briefs/2026-09-27-adr-094-sys-ptr-perm.md) / scratch [random-thoughts/2026-09-27-session-memory-adr-094.md](random-thoughts/2026-09-27-session-memory-adr-094.md)
 - ADR-095 G3 B2-P KVM taken-SError re-run on `main` `8107578` (PASS; ADR-091 still Draft): console [daily-briefs/2026-09-28-adr-095-g3-console.txt](daily-briefs/2026-09-28-adr-095-g3-console.txt)
 - M6 “EL0 isolated” flip (ADR-091 Accepted; B3 met 2026-09-28 16:41 CEST; docs only): [daily-briefs/2026-09-28-m6-el0-isolated-flip.md](daily-briefs/2026-09-28-m6-el0-isolated-flip.md)
+- ADR-096 task-to-task EL0 isolation probe (task A on ASID 1 cannot read/write task B's page on ASID 2; evidence next to ADR-091, not part of it): [daily-briefs/2026-09-28-adr-096-t2t-probe.md](daily-briefs/2026-09-28-adr-096-t2t-probe.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)
