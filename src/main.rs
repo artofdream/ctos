@@ -236,6 +236,13 @@ extern "C" fn kernel_main_high() -> ! {
         if !syscall::observe_probe() {
             uart::write_str_raw("svc: probe missed\n");
         }
+        // ADR-094 (G4): syscall user pointers need EL0 permission on every
+        // page. EL0 asks the kernel to read the `_start` stub and a
+        // kernel-only window page, and to write its own execute-only text and
+        // an EL0-RO page; each must be refused (`el0: sys-ptr ok`).
+        if !syscall::observe_sys_ptr_probe() {
+            uart::write_str_raw("el0: sys-ptr probe missed\n");
+        }
         // Serial proof for qemu-smoke (Track A / A2 / ADR-022): libctos CRT.
         // Bytes from FAT `/hello` (ADR-032). Not an ELF loader. Not app hosting.
         if !libctos::observe_probe() {

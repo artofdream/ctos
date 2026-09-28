@@ -118,6 +118,8 @@ static NET_PING_OK: AtomicBool = AtomicBool::new(false);
 static NET_UDP_DNS_OK: AtomicBool = AtomicBool::new(false);
 static FS_MKDIR_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
 static NET_TCP_ECHO_OK: AtomicBool = AtomicBool::new(false);
+/// ADR-094: `x0` returned by the last public syscall other than `SYS_EXIT`.
+static LAST_SVC_RET: AtomicU64 = AtomicU64::new(u64::MAX);
 
 /// What the lower-EL handler should do after a public ABI call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,7 +180,21 @@ fn write_imm64(mut ptr: *mut u32, rd: u32, val: u64) -> usize {
     n
 }
 
-fn user_range_ok_max(ptr: u64, len: u64, max: u64) -> bool {
+/// ADR-094 (G4): a syscall pointer is either read (the kernel copies *from*
+/// EL0) or write (the kernel copies *to* EL0). The confused-deputy fix is to
+/// require the matching **EL0** permission on every page, not just that the
+/// page is mapped in the user TTBR0: a read needs EL0-readable (AP[1]=1), a
+/// write needs EL0-writable (AP[1]=1, AP[2]=0). Execute-only (AP[1]=0) and
+/// kernel-only pages fail, so EL0 can no longer make `copy_user` /
+/// `copy_to_user` touch the `_start` stub, kernel text/data, a kernel-only
+/// map-window page, or EL0's own execute-only text.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UAccess {
+    Read,
+    Write,
+}
+
+fn user_range_ok_max(ptr: u64, len: u64, max: u64, access: UAccess) -> bool {
     if len == 0 || len > max {
         return false;
     }
@@ -198,6 +214,9 @@ fn user_range_ok_max(ptr: u64, len: u64, max: u64) -> bool {
         if !paging::user_mapped(page) || !paging::is_mapped(page) {
             return false;
         }
+        if !page_el0_access_ok(page, access) {
+            return false;
+        }
         if page == end {
             break;
         }
@@ -209,12 +228,43 @@ fn user_range_ok_max(ptr: u64, len: u64, max: u64) -> bool {
     true
 }
 
+/// ADR-094 (G4): does EL0 itself have the access it is asking the kernel to
+/// perform on `page`? The `sysptr-leak-probe` build skips this check (keeping
+/// only the mapping/identity guards) so smoke can prove the check is what
+/// fails EL0 closed.
+#[cfg(not(feature = "sysptr-leak-probe"))]
+fn page_el0_access_ok(page: u64, access: UAccess) -> bool {
+    let ok = match paging::user_el0_access(page) {
+        Some((readable, writable)) => match access {
+            UAccess::Read => readable,
+            UAccess::Write => writable,
+        },
+        None => false,
+    };
+    if !ok {
+        SYSPTR_DENIED.fetch_add(1, Ordering::SeqCst);
+    }
+    ok
+}
+
+/// ADR-094: refusals made by the EL0-permission check itself (not by the
+/// mapping / length / identity guards). Probes require an exact delta of 1
+/// so each refusal is attributable to this check. Stays 0 in the
+/// `sysptr-leak-probe` build.
+static SYSPTR_DENIED: AtomicU64 = AtomicU64::new(0);
+
+/// Negative build: pretend EL0 always has permission (confused deputy).
+#[cfg(feature = "sysptr-leak-probe")]
+fn page_el0_access_ok(_page: u64, _access: UAccess) -> bool {
+    true
+}
+
 fn copy_user(ptr: u64, len: usize, dst: &mut [u8]) -> Option<usize> {
     copy_user_max(ptr, len, dst, UART_WRITE_MAX)
 }
 
 fn copy_user_max(ptr: u64, len: usize, dst: &mut [u8], max: u64) -> Option<usize> {
-    if len > dst.len() || !user_range_ok_max(ptr, len as u64, max) {
+    if len > dst.len() || !user_range_ok_max(ptr, len as u64, max, UAccess::Read) {
         return None;
     }
     // ADR-080: PSTATE.PAN blocks privileged loads of EL0-accessible pages.
@@ -230,7 +280,7 @@ fn copy_to_user(ptr: u64, src: &[u8]) -> Option<usize> {
     if src.is_empty() {
         return Some(0);
     }
-    if !user_range_ok_max(ptr, src.len() as u64, FS_IO_MAX) {
+    if !user_range_ok_max(ptr, src.len() as u64, FS_IO_MAX, UAccess::Write) {
         return None;
     }
     crate::pan::with_user_access(|| {
@@ -273,6 +323,14 @@ fn mov_reg(rd: u32, rn: u32) -> u32 {
 /// Dispatch a public ABI `SVC`. Probe immediates 0–2 stay in `exception`.
 pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
     let nr = ctx.esr & 0xffff;
+    let r = dispatch_inner(ctx, nr);
+    if r.is_some() && nr != SYS_EXIT {
+        LAST_SVC_RET.store(ctx.x[0], Ordering::SeqCst);
+    }
+    r
+}
+
+fn dispatch_inner(ctx: &mut ExceptionContext, nr: u64) -> Option<SvcAction> {
     match nr {
         SYS_YIELD => {
             el0::note_active_while_standing();
@@ -340,7 +398,7 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
             let fd = ctx.x[0] as u32;
             let ptr = ctx.x[1];
             let len = ctx.x[2];
-            if len == 0 || len > FS_IO_MAX || !user_range_ok_max(ptr, len, FS_IO_MAX) {
+            if len == 0 || len > FS_IO_MAX || !user_range_ok_max(ptr, len, FS_IO_MAX, UAccess::Write) {
                 FS_READ.store(FS_ERR, Ordering::SeqCst);
                 ctx.x[0] = FS_ERR;
                 return Some(SvcAction::StayEl0);
@@ -400,7 +458,7 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
             el0::note_active_while_standing();
             let ptr = ctx.x[0];
             let len = ctx.x[1];
-            if len < NET_MAC_LEN || !user_range_ok_max(ptr, NET_MAC_LEN, NET_MAC_LEN) {
+            if len < NET_MAC_LEN || !user_range_ok_max(ptr, NET_MAC_LEN, NET_MAC_LEN, UAccess::Write) {
                 NET_MAC_LAST.store(0, Ordering::SeqCst);
                 ctx.x[0] = 0;
                 return Some(SvcAction::StayEl0);
@@ -512,12 +570,14 @@ fn write_bytes(base: *mut u8, off: usize, bytes: &[u8]) {
 }
 
 /// EL0: create `/eprobe`, write `memfs-el0`, close, open, read, close, exit.
-fn write_fs_success_payload(ptr: *mut u32, va: u64) {
-    let path_off = 256usize;
-    let data_off = 272usize;
-    let buf_off = 288usize;
-    write_bytes(ptr as *mut u8, path_off, EL0_FS_PATH);
-    write_bytes(ptr as *mut u8, data_off, EL0_FS_BYTES);
+/// ADR-094: path, bytes and the read buffer live on the EL0-RW data page.
+fn write_fs_success_payload(ptr: *mut u32, data: *mut u8) {
+    let va = EL0_DATA_VA;
+    let path_off = 0usize;
+    let data_off = 16usize;
+    let buf_off = 32usize;
+    write_bytes(data, path_off, EL0_FS_PATH);
+    write_bytes(data, data_off, EL0_FS_BYTES);
     let mut p = ptr;
     let n = write_imm64(p, 0, va + path_off as u64);
     p = unsafe { p.add(n) };
@@ -565,9 +625,10 @@ fn write_fs_success_payload(ptr: *mut u32, va: u64) {
 }
 
 /// EL0: create `/kreject`, `SYS_FS_WRITE` from kernel `.data`, then exit.
-fn write_fs_reject_payload(ptr: *mut u32, va: u64, bait: u64) {
-    let path_off = 256usize;
-    write_bytes(ptr as *mut u8, path_off, EL0_FS_REJECT_PATH);
+fn write_fs_reject_payload(ptr: *mut u32, data: *mut u8, bait: u64) {
+    let va = EL0_DATA_VA;
+    let path_off = 0usize;
+    write_bytes(data, path_off, EL0_FS_REJECT_PATH);
     let mut p = ptr;
     let n = write_imm64(p, 0, va + path_off as u64);
     p = unsafe { p.add(n) };
@@ -591,8 +652,8 @@ pub(crate) fn run_fs_el0_payload() -> bool {
         return false;
     }
     reset_probe_flags();
-    with_el0_page(|ptr, va| {
-        write_fs_success_payload(ptr, va);
+    with_el0_data(|data| with_el0_page(|ptr, va| {
+        write_fs_success_payload(ptr, data);
         let user_sp = va + 4096;
         el0::install_standing(va, user_sp, paging::user_ttbr0());
         unsafe {
@@ -603,7 +664,7 @@ pub(crate) fn run_fs_el0_payload() -> bool {
             return false;
         }
         EXIT_OK.load(Ordering::SeqCst)
-    })
+    }))
 }
 
 #[allow(dead_code)] // `#[test_case]` only.
@@ -614,7 +675,7 @@ pub(crate) fn fs_el0_reject_kernel_data() -> bool {
     }
     vfs::reset();
     reset_probe_flags();
-    if !run_payload(|ptr, va| write_fs_reject_payload(ptr, va, bait)) {
+    if !run_payload_data(|ptr, data| write_fs_reject_payload(ptr, data, bait)) {
         return false;
     }
     last_fs_create() >= 1 && last_fs_write() == 0
@@ -635,10 +696,35 @@ fn with_el0_page<F: FnOnce(*mut u32, u64) -> bool>(f: F) -> bool {
     ok
 }
 
+/// ADR-094 (G4): EL0 data page for kernel-built syscall payloads. The code
+/// page is execute-only (EL0 cannot read or write it), so strings the payload
+/// hands to a syscall, and buffers the kernel copies into, must live on a
+/// page EL0 itself may read/write. EL0-RW, NX, at `EL0_DATA_VA` (the
+/// allowlisted `crt-stack-pan` slot). EL1 fills/reads it via the frame alias
+/// (PAN blocks the EL0-accessible VA).
+pub(crate) const EL0_DATA_VA: u64 = paging::EL0_PAGE + 4096;
+
+fn with_el0_data<F: FnOnce(*mut u8) -> bool>(f: F) -> bool {
+    let Some(pa) = frame::alloc() else {
+        return false;
+    };
+    let alias = paging::frame_cpu_va(pa) as *mut u8;
+    unsafe { core::ptr::write_bytes(alias, 0, 4096) };
+    if !paging::map_el0_rw(EL0_DATA_VA, pa) {
+        frame::free(pa);
+        return false;
+    }
+    let ok = f(alias);
+    let _ = paging::unmap_page(EL0_DATA_VA);
+    frame::free(pa);
+    ok
+}
+
 /// `SVC #18` / load user ptr+len / `SVC #17` / `SVC #16` with status 0.
-fn write_success_payload(ptr: *mut u32, va: u64) {
-    let msg_off = 64u64;
-    let msg_va = va + msg_off;
+/// ADR-094: the message sits on the EL0-RW data page (EL0 must be able to
+/// read what it asks the kernel to print).
+fn write_success_payload(ptr: *mut u32, data: *mut u8) {
+    let msg_va = EL0_DATA_VA;
     let mut p = ptr;
     write_word(p, SVC18_A64);
     p = unsafe { p.add(1) };
@@ -651,12 +737,7 @@ fn write_success_payload(ptr: *mut u32, va: u64) {
     write_word(p, movz(0, 0, 0));
     p = unsafe { p.add(1) };
     write_word(p, SVC16_A64);
-    let dst = unsafe { (ptr as *mut u8).add(msg_off as usize) };
-    for (i, &b) in USER_UART_MSG.iter().enumerate() {
-        unsafe {
-            core::ptr::write_volatile(dst.add(i), b);
-        }
-    }
+    write_bytes(data, 0, USER_UART_MSG);
 }
 
 /// `SYS_UART_WRITE` from kernel `.data`, then `SYS_EXIT`.
@@ -672,6 +753,11 @@ fn write_reject_payload(ptr: *mut u32, bait: u64) {
     write_word(p, movz(0, 0, 0));
     p = unsafe { p.add(1) };
     write_word(p, SVC16_A64);
+}
+
+/// `run_payload` with the ADR-094 EL0-RW data page mapped alongside.
+fn run_payload_data<F: FnOnce(*mut u32, *mut u8)>(write: F) -> bool {
+    with_el0_data(|data| run_payload(|ptr, _va| write(ptr, data)))
 }
 
 fn run_payload<F: FnOnce(*mut u32, u64)>(write: F) -> bool {
@@ -695,7 +781,7 @@ fn run_payload<F: FnOnce(*mut u32, u64)>(write: F) -> bool {
 }
 
 fn abi_success_trip() -> bool {
-    if !run_payload(|ptr, va| write_success_payload(ptr, va)) {
+    if !run_payload_data(|ptr, data| write_success_payload(ptr, data)) {
         return false;
     }
     YIELD_OK.load(Ordering::SeqCst)
@@ -733,6 +819,307 @@ fn abi_reject_high_alias() -> bool {
         return false;
     }
     UART_LAST.load(Ordering::SeqCst) == 0 && !UART_OK.load(Ordering::SeqCst)
+}
+
+/// ADR-094 (G4) targets outside the payload code page.
+/// Kernel-only map-window page (`map_page`: EL1-RW, EL0-none, shared window
+/// so it is present in the user TTBR0).
+const SYSPTR_KWIN_VA: u64 = paging::MAP_WINDOW + 11 * 4096;
+/// EL0 read-only window page (EL0 may read, not write; EL1 read-only too).
+/// Reuses the allowlisted ADR-092 `store-ro` slot, so G1's allowlist does
+/// not grow (the kernel-window page above is EL0-none: not EL0-reachable).
+const SYSPTR_RO_VA: u64 = paging::EL0_STORE_RO_VA;
+/// Sentinel written into the RO page frame (via its alias) to prove no write.
+const SYSPTR_SENTINEL: u64 = 0x5153_5054_5254_5241; // "AR TP SQ" tag
+
+const SVC_UART_A64: u32 = 0xD4000001 | ((SYS_UART_WRITE as u32) << 5);
+const SVC_NETMAC_A64: u32 = 0xD4000001 | ((SYS_NET_MAC as u32) << 5);
+
+/// EL0 payload: `uart_write(target, len)` then `exit(0)`. The kernel read of
+/// `target` must be refused (ADR-094 G4), so nothing is printed.
+fn write_uart_read_payload(ptr: *mut u32, target: u64, len: u16) {
+    let mut p = ptr;
+    let n = write_imm64(p, 0, target);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(1, len, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC_UART_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, movz(0, 0, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC16_A64);
+}
+
+/// EL0 payload: `net_mac(target)` then `exit(0)`. The kernel write to
+/// `target` must be refused (ADR-094 G4), so `target` is unchanged.
+fn write_netmac_payload(ptr: *mut u32, target: u64) {
+    let mut p = ptr;
+    let n = write_imm64(p, 0, target);
+    p = unsafe { p.add(n) };
+    write_word(p, movz(1, NET_MAC_LEN as u16, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC_NETMAC_A64);
+    p = unsafe { p.add(1) };
+    write_word(p, movz(0, 0, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC16_A64);
+}
+
+/// ADR-094 (G4): EL0 asks `SYS_UART_WRITE` to read `target` (a kernel-only
+/// page). The read must be refused and nothing printed. Returns `true` when
+/// denied; prints `el0: sys-ptr denied {name}` or `el0: sys-ptr leaked {name}`.
+fn sys_ptr_read_denied(name: &str, target: u64) -> bool {
+    let before = SYSPTR_DENIED.load(Ordering::SeqCst);
+    if !run_payload(|ptr, _va| write_uart_read_payload(ptr, target, 8)) {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "el0: sys-ptr bad {} setup", name);
+        return false;
+    }
+    let n = UART_LAST.load(Ordering::SeqCst);
+    let printed = UART_OK.load(Ordering::SeqCst);
+    let checks = SYSPTR_DENIED.load(Ordering::SeqCst) - before;
+    let mut w = uart::raw();
+    if n == 0 && !printed && checks == 1 {
+        let _ = writeln!(w, "el0: sys-ptr denied {}", name);
+        true
+    } else {
+        let _ = writeln!(w, "el0: sys-ptr leaked {} n={}", name, n);
+        false
+    }
+}
+
+/// ADR-094 (G4): verdict for a refused `SYS_NET_MAC` (copy_to_user) write:
+/// the syscall returned 0 and the caller saw the target unchanged.
+fn sys_ptr_write_verdict(name: &str, intact: bool, checks: u64) -> bool {
+    let n = NET_MAC_LAST.load(Ordering::SeqCst);
+    let mut w = uart::raw();
+    if n == 0 && intact && checks == 1 {
+        let _ = writeln!(w, "el0: sys-ptr denied {}", name);
+        true
+    } else {
+        let _ = writeln!(w, "el0: sys-ptr leaked {} n={} intact={} checks={}", name, n, intact, checks);
+        false
+    }
+}
+
+/// EL0 payload: `x0..x2 = a0..a2; SVC #nr; exit(0)`.
+fn write_svc3_payload(ptr: *mut u32, nr: u64, a0: u64, a1: u64, a2: u64) {
+    let mut p = ptr;
+    for (rd, v) in [(0u32, a0), (1, a1), (2, a2)] {
+        let n = write_imm64(p, rd, v);
+        p = unsafe { p.add(n) };
+    }
+    write_word(p, 0xD4000001 | ((nr as u32) << 5));
+    p = unsafe { p.add(1) };
+    write_word(p, movz(0, 0, 0));
+    p = unsafe { p.add(1) };
+    write_word(p, SVC16_A64);
+}
+
+/// Placeholder argument: "EL0's own execute-only text" (code page + 0x800).
+const XO_ARG: u64 = u64::MAX - 1;
+
+/// ADR-094 (G4): every syscall that takes a user pointer, pointed at a page
+/// EL0 may not access that way. Reads target the `_start` stub page; writes
+/// target the payload's own execute-only text. Each call must be refused by
+/// the EL0-permission check (exactly one `SYSPTR_DENIED` increment) and
+/// return that syscall's error value. One line per syscall, then a summary.
+fn sys_ptr_sweep() -> bool {
+    let stub = paging::KERNEL_TEXT;
+    let cases: [(&str, u64, u64, u64, u64, &str, &str, u64); 7] = [
+        ("uart_write", SYS_UART_WRITE, stub, 8, 0, "read", "kernel-stub", 0),
+        ("fs_create", SYS_FS_CREATE, stub, 8, 0, "read", "kernel-stub", 0),
+        ("fs_open", SYS_FS_OPEN, stub, 8, 0, "read", "kernel-stub", 0),
+        ("fs_mkdir", SYS_FS_MKDIR, stub, 8, 0, "read", "kernel-stub", FS_MKDIR_BAD_PATH),
+        ("fs_write", SYS_FS_WRITE, 1, stub, 8, "read", "kernel-stub", 0),
+        ("fs_read", SYS_FS_READ, 1, XO_ARG, 8, "write", "xo-text", FS_ERR),
+        ("net_mac", SYS_NET_MAC, XO_ARG, NET_MAC_LEN, 0, "write", "xo-text", 0),
+    ];
+    let mut denied = 0usize;
+    for &(name, nr, a0, a1, a2, kind, target, err) in cases.iter() {
+        let before = SYSPTR_DENIED.load(Ordering::SeqCst);
+        LAST_SVC_RET.store(u64::MAX - 7, Ordering::SeqCst);
+        let ran = with_el0_page(|ptr, va| {
+            let fix = |v: u64| if v == XO_ARG { va + 0x800 } else { v };
+            write_svc3_payload(ptr, nr, fix(a0), fix(a1), fix(a2));
+            reset_probe_flags();
+            let user_sp = va + 4096;
+            el0::install_standing(va, user_sp, paging::user_ttbr0());
+            unsafe {
+                exception::eret_to_el0(black_box(va), 0, user_sp);
+            }
+            if el0::is_active() {
+                el0::clear_active();
+                return false;
+            }
+            EXIT_OK.load(Ordering::SeqCst)
+        });
+        let checks = SYSPTR_DENIED.load(Ordering::SeqCst) - before;
+        let r = LAST_SVC_RET.load(Ordering::SeqCst);
+        let mut w = uart::raw();
+        if ran && checks == 1 && r == err {
+            denied += 1;
+            let _ = writeln!(w, "el0: sys-ptr denied sys={} nr={} {} {}", name, nr, kind, target);
+        } else {
+            let _ = writeln!(w, "el0: sys-ptr leaked sys={} nr={} {} {} checks={} ret={:#x}", name, nr, kind, target, checks, r);
+        }
+    }
+    let mut w = uart::raw();
+    let _ = writeln!(w, "el0: sys-ptr sweep syscalls={} denied={}", cases.len(), denied);
+    denied == cases.len()
+}
+
+/// Kernel-only page right after the EL0 data page (unused window slot 4).
+const SYSPTR_NEXT_VA: u64 = EL0_DATA_VA + 4096;
+
+/// ADR-094 (G4): a range that starts EL0-readable and ends kernel-only must
+/// be refused: the permission check runs on **every** page in the range.
+fn sys_ptr_straddle_denied() -> bool {
+    let Some(kpa) = frame::alloc() else {
+        return false;
+    };
+    if !paging::map_page(SYSPTR_NEXT_VA, kpa) {
+        frame::free(kpa);
+        return false;
+    }
+    let before = SYSPTR_DENIED.load(Ordering::SeqCst);
+    let ran = with_el0_data(|_data| {
+        run_payload(|ptr, _va| write_uart_read_payload(ptr, SYSPTR_NEXT_VA - 4, 8))
+    });
+    let checks = SYSPTR_DENIED.load(Ordering::SeqCst) - before;
+    let n = UART_LAST.load(Ordering::SeqCst);
+    let printed = UART_OK.load(Ordering::SeqCst);
+    let _ = paging::unmap_page(SYSPTR_NEXT_VA);
+    frame::free(kpa);
+    let mut w = uart::raw();
+    if ran && n == 0 && !printed && checks == 1 {
+        let _ = writeln!(w, "el0: sys-ptr denied straddle");
+        true
+    } else {
+        let _ = writeln!(w, "el0: sys-ptr leaked straddle n={} checks={}", n, checks);
+        false
+    }
+}
+
+/// ADR-094 (G4): the confused-deputy closure. EL0 cannot make a syscall touch
+/// a page EL0 itself may not touch. Four refusals, then `el0: sys-ptr ok`:
+///   - `SYS_UART_WRITE` read of the `_start` stub page (EL1-only);
+///   - `SYS_UART_WRITE` read of a kernel-only map-window page;
+///   - `SYS_NET_MAC` (copy_to_user) write of EL0's own execute-only text;
+///   - `SYS_NET_MAC` (copy_to_user) write of an EL0 read-only page.
+/// The `sysptr-leak-probe` build skips the permission check; then the first
+/// read leaks kernel bytes to UART and the probe fails closed (no `ok`).
+#[allow(dead_code)] // hello kernel only; cargo test uses the case below.
+pub fn observe_sys_ptr_probe() -> bool {
+    if !paging::mmu_enabled() || !paging::user_map_ready() {
+        return false;
+    }
+    if el0::is_active() {
+        return false;
+    }
+    // 0. Positive control: the same copy_to_user syscall into an EL0-RW page
+    //    must succeed (6 MAC bytes land), so a later `n=0` really is the
+    //    permission check refusing, not a missing NIC.
+    let Some(mac) = virtio::guest_mac() else {
+        uart::write_str_raw("el0: sys-ptr bad control no-mac\n");
+        return false;
+    };
+    let mut got = [0u8; 6];
+    let ctl = with_el0_data(|data| {
+        let ran = run_payload(|ptr, _va| write_netmac_payload(ptr, EL0_DATA_VA));
+        for (i, b) in got.iter_mut().enumerate() {
+            *b = unsafe { core::ptr::read_volatile(data.add(i)) };
+        }
+        ran
+    });
+    let n = NET_MAC_LAST.load(Ordering::SeqCst);
+    if !ctl || n != NET_MAC_LEN || got != mac {
+        let mut w = uart::raw();
+        let _ = writeln!(w, "el0: sys-ptr bad control n={}", n);
+        return false;
+    }
+    uart::write_str_raw("el0: sys-ptr control rw-data n=6\n");
+    // Keep going after a leak so the negative build reports every case.
+    let mut ok = true;
+    // 1. Read the identity `_start` stub page (kernel RX, EL0-none in user TTBR0).
+    ok &= sys_ptr_read_denied("kernel-stub", paging::KERNEL_TEXT);
+    // 2. Read a kernel-only map-window page (EL1-RW, EL0-none).
+    let Some(kpa) = frame::alloc() else {
+        return false;
+    };
+    if !paging::map_page(SYSPTR_KWIN_VA, kpa) {
+        frame::free(kpa);
+        return false;
+    }
+    ok &= sys_ptr_read_denied("kernel-window", SYSPTR_KWIN_VA);
+    let _ = paging::unmap_page(SYSPTR_KWIN_VA);
+    frame::free(kpa);
+    // 3. Write EL0's own execute-only text (AP[2:1]=00: EL1-RW, EL0 fetch-only).
+    //    Target is a sentinel inside the payload's own code page; read it back
+    //    (EL1 may read an EL0-none page by VA) before the page is unmapped.
+    let xo_off = 0x800usize;
+    let mut xo_intact = false;
+    let xo_before = SYSPTR_DENIED.load(Ordering::SeqCst);
+    let xo_ok = with_el0_page(|ptr, va| {
+        write_netmac_payload(ptr, va + xo_off as u64);
+        write_bytes(ptr as *mut u8, xo_off, &SYSPTR_SENTINEL.to_le_bytes());
+        reset_probe_flags();
+        let user_sp = va + 4096;
+        el0::install_standing(va, user_sp, paging::user_ttbr0());
+        unsafe {
+            exception::eret_to_el0(black_box(va), 0, user_sp);
+        }
+        if el0::is_active() {
+            el0::clear_active();
+            return false;
+        }
+        let mut b = [0u8; 8];
+        for (i, x) in b.iter_mut().enumerate() {
+            *x = unsafe { core::ptr::read_volatile((ptr as *const u8).add(xo_off + i)) };
+        }
+        xo_intact = u64::from_le_bytes(b) == SYSPTR_SENTINEL;
+        EXIT_OK.load(Ordering::SeqCst)
+    });
+    let xo_checks = SYSPTR_DENIED.load(Ordering::SeqCst) - xo_before;
+    ok &= xo_ok && sys_ptr_write_verdict("xo-text", xo_intact, xo_checks);
+    if !ok {
+        // 4 would make EL1 store to an AP[2]=1 page and take an EL1
+        // permission fault (kernel park): only run it once 1-3 were refused.
+        uart::write_str_raw("el0: sys-ptr skip write-ro\n");
+        return false;
+    }
+    // 4. Write an EL0 read-only page. Fill a sentinel via the frame alias,
+    //    then confirm the store never landed.
+    let Some(rpa) = frame::alloc() else {
+        return false;
+    };
+    let alias = paging::frame_cpu_va(rpa) as *mut u64;
+    unsafe { core::ptr::write_volatile(alias, SYSPTR_SENTINEL) };
+    if !paging::map_el0_ro(SYSPTR_RO_VA, rpa) {
+        frame::free(rpa);
+        return false;
+    }
+    let ro_before = SYSPTR_DENIED.load(Ordering::SeqCst);
+    let ran = run_payload(|ptr, _va| write_netmac_payload(ptr, SYSPTR_RO_VA));
+    let ro_checks = SYSPTR_DENIED.load(Ordering::SeqCst) - ro_before;
+    let intact = unsafe { core::ptr::read_volatile(alias) } == SYSPTR_SENTINEL;
+    let _ = paging::unmap_page(SYSPTR_RO_VA);
+    frame::free(rpa);
+    if !ran || !sys_ptr_write_verdict("write-ro", intact, ro_checks) {
+        return false;
+    }
+    // 4b. Range straddle: `uart_write(EL0_DATA_VA + 4092, 8)` starts on the
+    //     EL0-RW data page and ends on a kernel-only page right after it.
+    //     The second page must be checked too (one refusal, nothing printed).
+    if !sys_ptr_straddle_denied() {
+        return false;
+    }
+    // 5. Every pointer-taking syscall, one refusal each by the check itself.
+    if !sys_ptr_sweep() {
+        return false;
+    }
+    uart::write_str_raw("el0: sys-ptr ok\n");
+    true
 }
 
 /// Serial proof: EL0 issues yield, uart_write, exit. Not app hosting.
@@ -853,4 +1240,21 @@ fn el0_uart_write_rejects_high_alias() {
         "SYS_UART_WRITE must reject a TTBR1 alias of a user-mapped page"
     );
     assert!(!el0::is_active());
+}
+
+/// ADR-094 (G4): syscall pointers need EL0 permission. Kernel stub / kernel
+/// window reads and xo-text / EL0-RO writes are all refused, target intact.
+#[cfg(test)]
+#[test_case]
+fn sys_ptr_requires_el0_permission() {
+    assert!(!el0::is_active(), "must start inactive");
+    assert!(observe_sys_ptr_probe(), "a syscall touched a page EL0 may not touch (G4)");
+    assert!(!el0::is_active());
+}
+
+/// ADR-094: the ABI success trip still prints from an EL0-readable page.
+#[cfg(test)]
+#[test_case]
+fn abi_success_from_el0_data_page() {
+    assert!(abi_success_trip(), "uart_write from the EL0-RW data page must print");
 }

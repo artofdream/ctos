@@ -28,3 +28,8 @@ reach-leak-probe = []
 # the EL0 store completes; the probe must print `el0: write-succeeded` and
 # withhold `el0: write-ok`. Smoke builds both negatives in one kernel.
 write-leak-probe = []
+# ADR-094 (G4) negative probe: skip the EL0-permission part of the syscall
+# user-pointer check (keep only "mapped in user TTBR0"). EL0 can then make
+# `SYS_UART_WRITE` read the `_start` stub page; the probe must print
+# `el0: sys-ptr leaked` and withhold `el0: sys-ptr ok`.
+sysptr-leak-probe = []
