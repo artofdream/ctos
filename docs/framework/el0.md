@@ -106,6 +106,8 @@ Limits that stay with it:
 - EL0 can read its own code bytes (app text+rodata is EL0 read-only + executable, ADR-094).
 - Also outside it (ADR-091 non-scope): task-vs-task isolation beyond ASIDs, DMA / IOMMU / EL2, and taken SError on stock QEMU (still parks).
 
+*Correction (2026-09-29):* until [ADR-098](../03-adr/ADR-098-pan-held-during-el0-exceptions.md) the “PAN is enabled” clause held at boot but not while the kernel handled EL0 exceptions or after EL0 trips (the boot probe ran before any EL0 trip). ADR-098 fixes it and checks it live; the sentence is unchanged and true again.
+
 Checklist: [ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md) (§A and §B all Met). Sponsor closure: [ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md). Do not round single miles into the umbrella, and do not widen the sentence.
 
 *Before M6 (kept for history):* Umbrella isolation stays **Planned / non-claim until checklist**. Verified miles vs unmet requirements: [ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md). Sponsor-facing closure table (locks + reopen gates only): [ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md). Unmet blockers include taken SError ([ADR-053](../03-adr/ADR-053-taken-serror-hard-stop.md) / [ADR-081](../03-adr/ADR-081-taken-serror-reopen.md) / [ADR-082](../03-adr/ADR-082-b1-qemu-type-nmi.md)), never-yank `_start`, and umbrella sponsor accept (PAN enable is Met separately via [ADR-080](../03-adr/ADR-080-pan-enable-fault.md)). Do not round Verified miles into “EL0 isolated.”
