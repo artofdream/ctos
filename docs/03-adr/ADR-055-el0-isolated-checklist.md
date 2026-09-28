@@ -46,7 +46,7 @@ CloudAgent HELD; docs-only.
 | Requirement | Current status | Why unmet | Reopen / lock ADR |
 | --- | --- | --- | --- |
 | Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt TCG (`machine does not provide NMIs`) — re-probed a76 + GICv3/virt-on/max 2026-09-19. B1 opt-in pin Verified ([ADR-083](ADR-083-b1-qemu-nmi-pin.md)); B2 free-runner spike blocked 2026-09-25 ([ADR-084](ADR-084-b2-free-runner-serror.md)) | [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) / [ADR-083](ADR-083-b1-qemu-nmi-pin.md) / [ADR-084](ADR-084-b2-free-runner-serror.md) |
-| Full identity teardown including yank `_start` | **Decided: never** while `-kernel` needs `0x4008_0000` | Boot stub stays (`ident: start-stay`) | ADR-042 / ADR-047 |
+| Full identity teardown **except the documented `_start` stub page** (reworded 2026-09-26 per sponsor D2, [ADR-089](ADR-089-start-stub-identity-exception.md); was “including yank `_start`”) | **Met (this session; not the umbrella)**. The fail-closed inventory reports only the stub page: `ident: inv k=1 u=1 a=1 leaks=0` / `ident: inv-ok allow=stub` | M1 [ADR-087](ADR-087-identity-inventory-ratchet.md) + M2 [ADR-088](ADR-088-mmio-high-alias.md). `_start` never yanked (`ident: start-stay`) | ADR-042 / ADR-047 (amended) / [ADR-089](ADR-089-start-stub-identity-exception.md) |
 | Written sponsor accept that the umbrella sentence is in scope | **Absent** | No ADR-048-style accept for “EL0 isolated” | Would need a future accept ADR — **not** this file |
 
 Until §B is cleared under honest probes (and `_start` policy is redesigned with sponsor scope if ever), the umbrella row stays **non-claim**.

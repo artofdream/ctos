@@ -117,6 +117,7 @@
 - [ADR-086 EL0-isolated checklist audit + milestone plan](03-adr/ADR-086-el0-isolated-checklist-audit.md)
 - [ADR-087 Identity inventory ratchet + RAM-side leftovers tear (M1)](03-adr/ADR-087-identity-inventory-ratchet.md)
 - [ADR-088 MMIO high alias + identity MMIO tear (M2)](03-adr/ADR-088-mmio-high-alias.md)
+- [ADR-089 `_start` stub page = the one identity exception (M3)](03-adr/ADR-089-start-stub-identity-exception.md)
 - [Opt-in CI: QEMU NMI pin](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
