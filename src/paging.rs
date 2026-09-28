@@ -191,6 +191,14 @@ static IDENTITY_HEAP_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static IDENTITY_RAM_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
+/// ADR-088: device MMIO reached through TTBR1 Device blocks (not identity).
+/// Read directly (not `load_flag`): the UART reads it on every access,
+/// including while `TABLES` is held, and it only flips after MMU-on.
+static MMIO_HIGH_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+/// ADR-088: identity MMIO L1 block (I1) cleared from kernel / ASID-B TTBR0.
+static IDENTITY_MMIO_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
 /// ADR-087: low RAM / image padding tail / pre-heap frames unmapped.
 static IDENTITY_LEFT_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
@@ -338,6 +346,9 @@ pub fn is_torn_identity_va(va: u64) -> bool {
         if rlo != 0 && rhi > rlo && page >= rlo && page < rhi {
             return true;
         }
+    }
+    if load_flag(&IDENTITY_MMIO_OK) && page < frame::VIRT_RAM_BASE {
+        return true;
     }
     if load_flag(&IDENTITY_LEFT_OK) {
         for (lo, hi) in leftover_ranges() {
@@ -1429,6 +1440,12 @@ pub fn init() {
             addr_of_mut!(L3_HIGH.entries).write([0; 512]);
             l1_high_slot(0).write(table_desc(l2_high_pa()));
             l2_high_slot(0).write(table_desc(l3_high_pa()));
+            // ADR-088: three 2 MiB Device blocks (EL1 RW, PXN+UXN, EL0 none)
+            // at `TTBR1_BASE + pa` for GIC / PL011 / virtio-mmio. Only these
+            // 6 MiB of the 1 GiB MMIO hole get a high alias.
+            for pa in mmio_high_blocks() {
+                l2_high_slot(((pa >> 21) & 0x1ff) as usize).write(l2_device_block(pa));
+            }
             split_ok = clone_ram_tables_for_high();
             if split_ok {
                 l1_high_slot(1).write(table_desc(l2_high_ram_pa()));
@@ -2448,10 +2465,123 @@ pub fn tear_identity_leftovers() -> bool {
     true
 }
 
+/// ADR-088: 2 MiB MMIO blocks that get a TTBR1 Device alias: GICv2
+/// (`0x0800_0000`: GICD + GICC), PL011 (`0x0900_0000`), virtio-mmio
+/// (`0x0a00_0000`: 32 x 0x200 transports). Built from immediates, not a
+/// `.rodata` table (the ADR-020/025 pointer rewrite relocates tables).
+fn mmio_high_blocks() -> [u64; 3] {
+    [0x0800_0000, 0x0900_0000, 0x0a00_0000]
+}
+
+fn l2_device_block(pa: u64) -> u64 {
+    (pa & !(L2_BLOCK - 1))
+        | DESC_VALID
+        | (ATTR_DEVICE << 2)
+        | DESC_AF
+        | DESC_SH_OUTER
+        | DESC_UXN
+        | DESC_PXN
+}
+
+/// CPU VA for a device register PA (ADR-088). Identity until
+/// `enable_mmio_high`, then the TTBR1 Device alias. Safe pre-MMU (plain load).
+#[inline(always)]
+pub fn mmio_va(pa: usize) -> usize {
+    if MMIO_HIGH_OK.load(core::sync::atomic::Ordering::Relaxed) {
+        pa.wrapping_add(TTBR1_OFFSET as usize)
+    } else {
+        pa
+    }
+}
+
+#[allow(dead_code)]
+pub fn mmio_high_ready() -> bool {
+    MMIO_HIGH_OK.load(core::sync::atomic::Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub fn identity_mmio_ready() -> bool {
+    load_flag(&IDENTITY_MMIO_OK)
+}
+
+/// Device MMIO stays XN on whichever alias is live (W^X probe, ADR-088).
+#[allow(dead_code)]
+pub fn mmio_xn(pa: u64) -> bool {
+    let high = high_pxn_for(to_high_va(pa)) == Some(true);
+    if identity_mmio_ready() {
+        high && pxn_for(pa).is_none()
+    } else {
+        high && pxn_for(pa) == Some(true)
+    }
+}
+
+/// Switch every driver to the TTBR1 Device alias (ADR-088). Call after the
+/// high split, before any identity MMIO is torn. Prints `ident: mmio-high`.
+#[allow(dead_code)]
+pub fn enable_mmio_high() -> bool {
+    if !mmu_enabled() || !high_split_ready() {
+        return false;
+    }
+    for pa in mmio_high_blocks() {
+        let va = to_high_va(pa);
+        if high_pxn_for(va) != Some(true) {
+            return false;
+        }
+    }
+    dsb_ish();
+    MMIO_HIGH_OK.store(true, core::sync::atomic::Ordering::SeqCst);
+    dsb_ish();
+    isb();
+    let mut w = uart::raw();
+    let _ = writeln!(
+        w,
+        "ident: mmio-high gic={:#x} uart={:#x} virtio={:#x}",
+        mmio_va(0x0800_0000),
+        mmio_va(0x0900_0000),
+        mmio_va(0x0a00_0000)
+    );
+    true
+}
+
+/// Clear the identity MMIO L1 block (I1) from kernel TTBR0 and the ASID-B
+/// clone (ADR-088). User TTBR0 never had it. One boot-time `TLBI VMALLE1`.
+#[allow(dead_code)]
+pub fn tear_identity_mmio() -> bool {
+    if !mmio_high_ready() || !identity_left_ready() || identity_mmio_ready() {
+        return false;
+    }
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            if l1_slot(0).read() & DESC_VALID == 0 {
+                return false;
+            }
+            l1_slot(0).write(0);
+            if l1_asid_b_slot(0).read() & DESC_VALID != 0 {
+                l1_asid_b_slot(0).write(0);
+            }
+        }
+        dsb_ish();
+    }
+    tlbi_all();
+    if is_mapped(0x0900_0000) || is_mapped(0x0800_0000) || is_mapped(0x0a00_0000) {
+        return false;
+    }
+    if !is_mapped(KERNEL_TEXT) {
+        return false;
+    }
+    publish_flag(&IDENTITY_MMIO_OK, true);
+    let mut w = uart::raw();
+    let _ = writeln!(w, "ident: mmio lo=0x0 hi=0x40000000 l1=1");
+    true
+}
+
 /// ADR-087 allowlist of identity (VA == PA) TTBR0 leaves after M1:
 /// I1 MMIO 1 GiB Device block (M2 / D3) and I3 boot-stub page (M3 / D2).
 /// Anything else identity-mapped in kernel, user or ASID-B TTBR0 is a leak.
-pub const INV_ALLOW: [(u64, u64); 2] = [(0, 0x4000_0000), (KERNEL_TEXT, KERNEL_TEXT + PAGE)];
+/// ADR-088 (M2): I1 is torn, so only the I3 boot-stub page remains
+/// (sponsor D2: the one documented identity exception).
+pub const INV_ALLOW: [(u64, u64); 1] = [(KERNEL_TEXT, KERNEL_TEXT + PAGE)];
 
 /// Result of one TTBR0 identity walk (ADR-087).
 #[derive(Clone, Copy, Default)]
@@ -2810,7 +2940,8 @@ pub fn prepare_asid_b_tables() -> bool {
         addr_of_mut!(L3_ASID_B.entries).write([0; 512]);
         let mmio = l1_slot(0).read();
         let ram = l1_slot(1).read();
-        if mmio & DESC_VALID == 0 || ram & DESC_VALID == 0 {
+        // ADR-088: identity MMIO may already be torn (slot 0 empty).
+        if ram & DESC_VALID == 0 {
             return false;
         }
         l1_asid_b_slot(0).write(mmio);
@@ -3070,8 +3201,9 @@ fn heap_and_mmio_are_pxn() {
     } else {
         assert_eq!(pxn_for(frame::kernel_end()), Some(true));
     }
-    // PL011 is in the Device L1 block (already XN from M7).
-    assert_eq!(pxn_for(0x0900_0000), Some(true));
+    // PL011: Device + XN on the live alias (identity L1 before ADR-088,
+    // TTBR1 Device block after; identity then unmapped).
+    assert!(mmio_xn(0x0900_0000));
 }
 
 #[cfg(test)]

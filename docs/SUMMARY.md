@@ -116,6 +116,7 @@
 - [ADR-085 B2-P Graviton KVM taken SError (Verified, opt-in)](03-adr/ADR-085-b2p-graviton-kvm-serror.md)
 - [ADR-086 EL0-isolated checklist audit + milestone plan](03-adr/ADR-086-el0-isolated-checklist-audit.md)
 - [ADR-087 Identity inventory ratchet + RAM-side leftovers tear (M1)](03-adr/ADR-087-identity-inventory-ratchet.md)
+- [ADR-088 MMIO high alias + identity MMIO tear (M2)](03-adr/ADR-088-mmio-high-alias.md)
 - [Opt-in CI: QEMU NMI pin](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
