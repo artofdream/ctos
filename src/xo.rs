@@ -26,11 +26,12 @@
 //!    an EL1 store to the text VA faults (AP[2]=1, not PAN).
 //!
 //! 5. **PAN held in handlers** (live, in the `SYS_YIELD` handler): PSTATE.PAN
-//!    is set and SCTLR_EL1.SPAN is clear (ADR-097 PAN fix), and the control
+//!    is set and SCTLR_EL1.SPAN is clear (the ADR-098 fix; reading taken by
+//!    `pan::on_live_syscall` and echoed here), and the control
 //!    load in (4) runs after EL0 trips.
 //!
 //! The `xo-leak-probe` build maps app text EL0-readable again; the probe must
-//! print `xo: leak …` and withhold `xo: ok`. The `pan-keep-leak-probe` build
+//! print `xo: leak …` and withhold `xo: ok`. The ADR-098 `pan-keep-leak-probe` build
 //! undoes the PAN fix; the probe must print `xo: bad pan …` / `xo: bad el1-pan
 //! control …` and withhold `xo: ok`.
 //!
@@ -200,13 +201,10 @@ fn frame_bytes(leaf: u64) -> &'static [u8] {
 /// real `hello-libctos`, all its pages mapped by the loader).
 pub fn on_live() {
     LIVE_DONE.store(true, Ordering::SeqCst);
-    // ADR-097 PAN fix: this runs in the SYS_YIELD handler while the app
-    // stands at EL0. With SCTLR_EL1.SPAN=0 the exception set PSTATE.PAN.
-    // A faulting EL1 load cannot be used here (a current-EL abort inside a
-    // handler is fatal by design), so read PSTATE.PAN with `MRS PAN`; the
-    // image probe below calibrates that read against a real EL1 fault.
-    let span = crate::pan::sctlr_span();
-    let pstate = crate::pan::pstate_pan();
+    // ADR-098 (PAN held during EL0 exceptions): `pan::on_live_syscall` ran
+    // just before this in the same SYS_YIELD handler; report its reading on
+    // the xo line too (no second implementation). Missing reading = bad.
+    let (pstate, span) = crate::pan::live_syscall_seen().unwrap_or((9, 9));
     let pan_live_ok = pstate == 1 && span == 0;
     {
         let mut w = uart::raw();

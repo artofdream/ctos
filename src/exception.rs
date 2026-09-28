@@ -142,9 +142,12 @@ static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_PAN_EL1: AtomicBool = AtomicBool::new(false);
 static PAN_EL1_CAUGHT: AtomicBool = AtomicBool::new(false);
 static PAN_EL1_SPSR_PAN: AtomicBool = AtomicBool::new(false);
-/// ADR-097: reuse the ADR-080 EL1 permission-fault catcher without printing
-/// `pan: el1-fault` (so that marker stays the ADR-080 probe's alone).
+/// ADR-098: reuse the ADR-080 EL1 permission-fault catcher without printing
+/// `pan: el1-fault` (so that marker stays the ADR-080 boot probe's alone).
 static PAN_EL1_QUIET: AtomicBool = AtomicBool::new(false);
+/// ADR-098: number of returns from an EL0 trip back to the kernel
+/// continuation (`return_from_el0`).
+static EL0_RETURNS: AtomicU64 = AtomicU64::new(0);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
 static EL0_KSP: AtomicU64 = AtomicU64::new(0);
 
@@ -1037,10 +1040,15 @@ pub fn pan_el1_fault_caught() -> bool {
     PAN_EL1_CAUGHT.load(Ordering::SeqCst)
 }
 
-/// ADR-097: arm the same catcher for one EL1 load/store, silently.
+/// ADR-098: arm the same catcher for one EL1 load, silently.
 pub fn arm_el1_perm_fault_quiet() {
     PAN_EL1_QUIET.store(true, Ordering::SeqCst);
     arm_pan_el1_fault();
+}
+
+/// ADR-098: how many EL0 trips have returned to the kernel so far.
+pub fn el0_returns() -> u64 {
+    EL0_RETURNS.load(Ordering::SeqCst)
 }
 
 /// True when the caught ADR-080 fault saved SPSR.PAN (bit 22).
@@ -1190,10 +1198,12 @@ fn return_from_el0(ctx: &mut ExceptionContext) {
         );
     }
     ctx.elr = EL0_CONT.load(Ordering::SeqCst);
-    // ADR-097 fix: resume the kernel with PSTATE.PAN set once ADR-080 enabled
+    // ADR-098 fix: resume the kernel with PSTATE.PAN set once ADR-080 enabled
     // it. `SPSR_EL1T_MASKED` alone has PAN (bit 22) clear, so every return
-    // from an EL0 trip used to leave the kernel running without PAN.
+    // from an EL0 trip used to leave the kernel running without PAN until
+    // the next `pan::with_user_access` restored it.
     ctx.spsr = SPSR_EL1T_MASKED | if keep_pan() { SPSR_PAN } else { 0 };
+    EL0_RETURNS.fetch_add(1, Ordering::SeqCst);
 }
 
 #[cfg(not(feature = "pan-keep-leak-probe"))]
@@ -1201,7 +1211,7 @@ fn keep_pan() -> bool {
     crate::pan::pan_is_enabled()
 }
 
-/// Negative build (ADR-097): the pre-fix behaviour (kernel resumes with PAN
+/// Negative build (ADR-098): the pre-fix behaviour (kernel resumes with PAN
 /// clear after every EL0 trip). The smoke must catch it.
 #[cfg(feature = "pan-keep-leak-probe")]
 fn keep_pan() -> bool {

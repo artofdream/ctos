@@ -44,8 +44,9 @@ t2t-leak-probe = []
 # must print `xo: leak` and withhold `xo: ok`. Smoke builds it with the other
 # EL0 negatives in one kernel.
 xo-leak-probe = []
-# ADR-097 negative build: undo the PAN fix (SCTLR_EL1.SPAN stays 1 and the
-# kernel resumes from EL0 trips with SPSR.PAN clear). The xo probe must see
-# PSTATE.PAN clear in a syscall handler and after EL0 trips, and withhold
-# `xo: ok`.
+# ADR-098 negative build: undo the PAN fix (SCTLR_EL1.SPAN stays 1 and the
+# kernel resumes from EL0 trips with SPSR.PAN clear). The boot probe
+# (`pan: enabled` / `pan: el1-fault`) still passes; the live checks must print
+# `pan: lost live-syscall …` / `pan: lost after-el0 …` and withhold
+# `pan: ok held …`. Smoke builds it with the other EL0 negatives in one kernel.
 pan-keep-leak-probe = []
