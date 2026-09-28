@@ -576,6 +576,8 @@ pub fn observe_probe() -> bool {
     let Ok(img) = parse_elf64(&elf) else {
         return false;
     };
+    // ADR-092 (G1): live EL0-reachability walk on the app's first yield.
+    crate::reach::arm_live();
     if !run_loaded() {
         return false;
     }

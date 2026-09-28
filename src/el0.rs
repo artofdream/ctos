@@ -54,6 +54,15 @@ const MOVZ_X1_MAGIC: u32 = 0xD28A3481;
 const BR_X0_A64: u32 = 0xD61F0000;
 /// AArch64 `LDR X1, [X0]`.
 const LDR_X1_X0_A64: u32 = 0xF9400001;
+/// AArch64 `STR X1, [X0]` (ADR-092 G2 store probe).
+const STR_X1_X0_A64: u32 = 0xF9000001;
+/// AArch64 `BRK #0` — reached only if the probed store completed.
+const BRK0_A64: u32 = 0xD4200000;
+/// Kernel `.data` word the EL0 store targets through its TTBR1 alias.
+static KERNEL_WRITE_BAIT: AtomicU64 = AtomicU64::new(WRITE_BAIT_MAGIC);
+const WRITE_BAIT_MAGIC: u64 = 0xC705_BA17_C705_BA17;
+/// Map-window slot for the EL0 read-only target page (ADR-092 G2).
+pub const WRITE_URO_VA: u64 = paging::EL0_STORE_RO_VA;
 /// AArch64 `RET` — payload if the UXN probe failed and EL0 ran kernel data.
 const RET_A64: u32 = 0xD65F03C0;
 
@@ -491,6 +500,110 @@ fn kernel_data_read_fault() -> bool {
     })
 }
 
+/// ADR-092 (G2): run `MOVZ X1, #magic; STR X1, [X0]; BRK #0` at EL0 with
+/// `X0 = target`. Returns `(kind, esr, far, elr, code_va)`.
+fn el0_store_at(target: u64) -> Option<(u64, u64, u64, u64, u64)> {
+    let mut res = None;
+    let ran = with_el0_page(|ptr, va| {
+        unsafe {
+            core::ptr::write_volatile(ptr, MOVZ_X1_MAGIC);
+            core::ptr::write_volatile(ptr.add(1), STR_X1_X0_A64);
+            core::ptr::write_volatile(ptr.add(2), BRK0_A64);
+        }
+        sync_icache(ptr);
+        sync_icache(unsafe { ptr.add(1) });
+        sync_icache(unsafe { ptr.add(2) });
+        exception::arm_el0_write();
+        // Non-standing short probe: IRQ masked (ADR-041).
+        unsafe {
+            exception::eret_to_el0_masked(black_box(va), target, va + 4096);
+        }
+        let (kind, esr, far, elr) = exception::el0_write_result();
+        res = Some((kind, esr, far, elr, va));
+        true
+    });
+    if ran {
+        res
+    } else {
+        None
+    }
+}
+
+/// Check one store probe result and print `el0: write-fault …` or a fail line.
+fn report_store(name: &str, target: u64, r: Option<(u64, u64, u64, u64, u64)>, intact: bool) -> bool {
+    let mut w = uart::raw();
+    let Some((kind, esr, far, elr, code_va)) = r else {
+        let _ = writeln!(w, "el0: write-bad {} va={:#x} setup", name, target);
+        return false;
+    };
+    let level = exception::el0_store_perm_level(esr);
+    if kind == 2 {
+        let _ = writeln!(w, "el0: write-succeeded {} va={:#x} esr={:#x}", name, target, esr);
+        return false;
+    }
+    if kind != 1 || level == 0 || far != target || elr != code_va + 4 || !intact {
+        let _ = writeln!(
+            w,
+            "el0: write-bad {} va={:#x} kind={} esr={:#x} far={:#x} elr={:#x} intact={}",
+            name, target, kind, esr, far, elr, intact
+        );
+        return false;
+    }
+    let _ = writeln!(
+        w,
+        "el0: write-fault {} va={:#x} esr={:#x} far={:#x} ec=0x24 wnr=1 dfsc=perm-l{}",
+        name, target, esr, far, level
+    );
+    true
+}
+
+/// ADR-092 (G2): EL0 stores to (a) kernel `.data` through its TTBR1 alias
+/// (mapped EL1-RW, EL0-none) and (b) an EL0 read-only user page must each
+/// take a lower-EL permission-fault data abort with WnR = 1, FAR = target,
+/// ELR = the `STR`, and leave the target unchanged.
+fn el0_write_faults() -> bool {
+    if !paging::user_map_ready() {
+        return false;
+    }
+    // (a) Kernel data via TTBR1 (TTBR1 walks stay live while EL0 runs).
+    let bait = paging::to_high_va(paging::identity_pa(core::ptr::addr_of!(KERNEL_WRITE_BAIT) as u64));
+    KERNEL_WRITE_BAIT.store(WRITE_BAIT_MAGIC, Ordering::SeqCst);
+    let rk = el0_store_at(bait);
+    let k_intact = KERNEL_WRITE_BAIT.load(Ordering::SeqCst) == WRITE_BAIT_MAGIC;
+    if !report_store("kernel", bait, rk, k_intact) {
+        return false;
+    }
+    // (b) EL0 read-only user page. Fill via the TTBR1 RAM alias: PAN blocks
+    // EL1 access through the EL0-accessible mapping.
+    let Some(pa) = frame::alloc() else {
+        return false;
+    };
+    let alias = paging::to_high_va(pa) as *mut u64;
+    unsafe { core::ptr::write_volatile(alias, WRITE_BAIT_MAGIC) };
+    #[cfg(not(feature = "write-leak-probe"))]
+    let mapped = paging::map_el0_ro(WRITE_URO_VA, pa);
+    // Negative build: the "read-only" page is really EL0-RW, so the store
+    // must complete and the probe must report `el0: write-succeeded`.
+    #[cfg(feature = "write-leak-probe")]
+    let mapped = paging::map_el0_rw(WRITE_URO_VA, pa);
+    if !mapped {
+        frame::free(pa);
+        let mut w = uart::raw();
+        let _ = writeln!(w, "el0: write-bad user-ro va={:#x} map", WRITE_URO_VA);
+        return false;
+    }
+    let ru = el0_store_at(WRITE_URO_VA);
+    let _ = paging::unmap_page(WRITE_URO_VA);
+    let u_intact = unsafe { core::ptr::read_volatile(alias) } == WRITE_BAIT_MAGIC;
+    frame::free(pa);
+    if !report_store("user-ro", WRITE_URO_VA, ru, u_intact) {
+        return false;
+    }
+    let mut w = uart::raw();
+    let _ = writeln!(w, "el0: write-ok kernel,user-ro");
+    true
+}
+
 /// Serial proof: SVC, cannot execute kernel data, cannot read kernel data.
 #[allow(dead_code)] // hello kernel only; cargo test uses the cases below.
 pub fn observe_probe() -> bool {
@@ -509,6 +622,10 @@ pub fn observe_probe() -> bool {
         return false;
     }
     READ_OK.store(true, Ordering::SeqCst);
+    // ADR-092 (G2): EL0 cannot write kernel data or its own read-only page.
+    if !el0_write_faults() {
+        return false;
+    }
     if !stand_and_restore() {
         return false;
     }
@@ -715,3 +832,13 @@ fn el0_entry_without_vmalle1() {
     );
 }
 
+
+/// ADR-092 (G2): EL0 stores to kernel data (TTBR1) and to an EL0-RO page
+/// take a lower-EL permission fault (WnR = 1, FAR = target) and change nothing.
+#[cfg(test)]
+#[test_case]
+fn el0_store_to_kernel_and_ro_page_faults() {
+    assert!(!is_active(), "must start inactive");
+    assert!(el0_write_faults(), "EL0 store must permission-fault on kernel data and an EL0-RO page");
+    assert!(!is_active());
+}

@@ -2,6 +2,7 @@
 
 - Status: Accepted (docs). Umbrella “EL0 isolated” stays **Planned / non-claim** and **cannot become Verified** under current constraints. This ADR tightens the non-claim with an evidence checklist; it does **not** invent Verified.
 - Date: 2026-09-14
+- **Follow-on (2026-09-27, ADR-092):** sponsor option (b) on ADR-091. G1 (EL0-reachability walk) and G2 (EL0 write fault) closed as §A miles below; new gap G4 (syscall copy helpers skip the EL0 permission check) recorded. Row 3 still **not Met** (ADR-091 revision 2 is Draft).
 - **Follow-on (2026-09-26, M5):** the umbrella sentence and scope are **drafted** in [ADR-091](ADR-091-el0-isolated-accept-draft.md) (Draft / pending sponsor accept, D4). Row 3 stays **not Met** until the sponsor has read the draft and accepted it in writing. Nothing is flipped.
 - **Follow-on (2026-09-26, M4):** sponsor D1 accepted. The taken-SError evidence class for the umbrella is the B1 pin job (now **unconditional** on every push/PR) plus the B2-P one-off KVM run ([ADR-090](ADR-090-serror-evidence-class.md)). Row 1 is reworded and Met on that class. Stock QEMU still parks. The umbrella still needs the sponsor's written accept (M5 draft → ADR-091).
 - **Audit (2026-09-26):** [ADR-086](ADR-086-el0-isolated-checklist-audit.md) re-probed every row this session. All §A miles are Verified. All §B rows are still **not** Met: taken SError is Verified only on opt-in paths (B1 pin / B2-P one-off). The identity inventory still leaves five identity ranges (`_start` is one of them, by decision). No umbrella accept exists. §A marker `el0: no data` is stale wording: the code uses `el0: no kernel read`.
@@ -41,6 +42,8 @@ CloudAgent HELD; docs-only.
 | SError **park** honesty | `el0: serror-park` | ADR-043 / ADR-045 |
 | PAN **ID-field** on default probe CPU | `pan: present` on cortex-a76 (ADR-079); historical a57 `pan: absent` | ADR-026 / ADR-079 |
 | PAN **enable** + EL1-vs-EL0 fault | `pan: enabled` / `pan: el1-fault` | ADR-080 |
+| EL0 **store** to kernel data (TTBR1) / EL0-RO page → permission fault (2026-09-27) | `el0: write-fault kernel … ec=0x24 wnr=1 dfsc=perm-l3` / `el0: write-fault user-ro …` / `el0: write-ok kernel,user-ro` | [ADR-092](ADR-092-el0-reach-walk-write-fault.md) |
+| Fail-closed EL0-reachability walk (k/u/ASID-B TTBR0 + TTBR1; allowlist = five user slots) (2026-09-27) | `el0-reach: live k=3 u=3 a=0 h=0 pages=6 leaks=0` / `el0-reach: steady … pages=0 leaks=0` / `el0-reach: neg … caught` / `el0-reach: ok allow=…` | [ADR-092](ADR-092-el0-reach-walk-write-fault.md) |
 | `_start` stay honesty | `ident: start-stay` | ADR-042 / ADR-047 |
 
 ### B. Umbrella requirements still **Unmet** (block Verified)

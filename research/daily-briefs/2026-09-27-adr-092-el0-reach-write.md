@@ -1,0 +1,22 @@
+# 2026-09-27 — ADR-092: G1 EL0-reachability walk + G2 EL0 write fault (sponsor option (b))
+
+- **Sponsor:** 2026-09-27 00:09 CEST, option (b) on ADR-091: close G1 + G2, then bring the sentence back.
+- **G1:** `paging::el0_reach` walks every valid leaf of k/u/ASID-B TTBR0 **and TTBR1**. EL0-reachable = `AP[1]` or `UXN` clear. Rules:
+  - `va`: VA in one of five allowlisted slots (`app-hdr`, `app-text`, `crt-stack-pan`, `user-stack`, `store-ro`)
+  - `kernel-pa` / `heap-pa`: pool frame outside the heap
+  - `device`: not Device
+  - `el0-wx`: not EL0 W+X
+  - `ttbr1`: no EL0 leaf in TTBR1
+- **G1 results:**
+  - live `k=3 u=3 a=0 h=0 pages=6 leaks=0` (hello-libctos at its first yield)
+  - steady `pages=0`
+  - 4 plants caught (`kernel-pa`, `va`, `ttbr1`, `el0-wx`)
+  - `reach-leak-probe` build caught
+- **G2:** EL0 `STR` to kernel `.data` via TTBR1 and to an EL0-RO page, each `esr=0x9200004f` (EC 0x24, WnR 1, perm L3) with FAR = target. The `write-leak-probe` build reports `write-succeeded` (BRK esr 0xf2000000) and is caught. `_start` is not a target.
+- **Findings:**
+  - Nothing is EL0-reachable at rest (so a live walk was needed).
+  - `el0: no kernel read` is a translation fault, not a permission fault.
+  - ADR-091 r1's code-reading note missed `l3_page_el0_exec`.
+  - App rodata shares the EL0 execute-only text page.
+- **New gap G4:** `user_range_ok_max` trusts “mapped in user TTBR0”, not EL0 permission, and `copy_user` clears PAN. So `SYS_UART_WRITE` could copy the EL1-only stub page. Code reading only; not fixed (needs loader rodata remap).
+- **ADR-091 revision 2:** adds “writes”, the all-tables reach clause, and a “direct EL0 access only” limit; G4 listed. Still Draft; B3 not Met; nothing flipped.

@@ -280,6 +280,8 @@ pub fn dispatch(ctx: &mut ExceptionContext) -> Option<SvcAction> {
             YIELD_OK.store(true, Ordering::SeqCst);
             ctx.x[0] = 0;
             uart::write_str_raw("svc: yield\n");
+            // ADR-092 (G1): one live EL0-reachability walk while the app stands.
+            crate::reach::on_yield();
             Some(SvcAction::StayEl0)
         }
         SYS_UART_WRITE => {

@@ -2775,6 +2775,313 @@ pub fn inventory_negative_probe() -> (bool, bool, bool) {
     (k, u, clean)
 }
 
+// ---------------------------------------------------------------------------
+// ADR-092 (G1): fail-closed EL0-reachability walk.
+//
+// A leaf is *EL0-reachable* when EL0 may load/store it (AP[1] set) or fetch
+// it (UXN clear). Table-level APTable/UXNTable bits are ignored, which can
+// only over-count (this kernel never sets them). Every EL0-reachable run in
+// kernel / user / ASID-B TTBR0 must sit inside one `EL0_ALLOW` VA range, be
+// Normal memory, be backed by frame-pool frames outside the heap (never the
+// image / stacks / static page tables below `pool_start`, never MMIO, never
+// outside RAM), and must not be EL0-writable and EL0-executable at once.
+// TTBR1 (`h`) must have no EL0-reachable leaf at all.
+// ---------------------------------------------------------------------------
+
+/// ADR-092 (G2) EL0 read-only store-target page.
+pub const EL0_STORE_RO_VA: u64 = MAP_WINDOW + 9 * PAGE;
+
+/// ADR-092 allowlist of EL0-reachable VA ranges: the five map-window slots
+/// this kernel actually hands to EL0 (every `map_el0_*` call site). Any EL0
+/// leaf elsewhere, including the rest of the window, fails the walk; a
+/// larger guest image needs a new ADR, not a silent widening.
+pub const EL0_ALLOW: [(u64, u64, &str); 5] = [
+    // Loader: rust-lld ELF-header PT_LOAD page (EL0-RO).
+    (MAP_WINDOW, MAP_WINDOW + PAGE, "app-hdr"),
+    // `EL0_PAGE`: loaded app text / rodata and the EL0 probe trampolines.
+    (EL0_PAGE, EL0_PAGE + PAGE, "app-text"),
+    // libctos CRT stack (`EL0_PAGE + 4 KiB`) and the PAN probe page.
+    (EL0_PAGE + PAGE, EL0_PAGE + 2 * PAGE, "crt-stack-pan"),
+    // Loader user stack.
+    (LOADER_STACK_VA, LOADER_STACK_VA + PAGE, "user-stack"),
+    // ADR-092 G2 read-only store target.
+    (EL0_STORE_RO_VA, EL0_STORE_RO_VA + PAGE, "store-ro"),
+];
+
+/// Result of one EL0-reachability walk (ADR-092).
+#[derive(Clone, Copy, Default)]
+pub struct El0Reach {
+    /// EL0-reachable 4 KiB pages per root: kernel, user, ASID-B, TTBR1.
+    pub pages: [u32; 4],
+    /// Coalesced EL0-reachable runs per root.
+    pub runs: [u32; 4],
+    /// Runs that break a rule.
+    pub leaks: u32,
+    /// Per root: a leak covered `query` (negative probe).
+    pub query_hit: [bool; 4],
+    /// Rule the query-hit run broke (negative probe).
+    pub query_why: &'static str,
+}
+
+pub const REACH_ROOT_TAGS: [&str; 4] = ["k", "u", "a", "h"];
+
+/// Physical bounds that count as kernel memory for the ADR-092 PA rule.
+#[derive(Clone, Copy)]
+struct KernelPa {
+    pool_lo: u64,
+    pool_hi: u64,
+    heap_lo: u64,
+    heap_hi: u64,
+}
+
+fn kernel_pa_bounds() -> KernelPa {
+    KernelPa {
+        pool_lo: frame::pool_start(),
+        pool_hi: frame::pool_end(),
+        heap_lo: crate::heap::heap_pa(),
+        heap_hi: crate::heap::heap_pa_end(),
+    }
+}
+
+fn el0_reachable(d: u64) -> bool {
+    d & DESC_AP_EL0 != 0 || d & DESC_UXN == 0
+}
+
+/// Why a run is not allowed (`None` = allowed).
+fn reach_violation(root: usize, lo: u64, hi: u64, pa: u64, attrs: u64, k: &KernelPa) -> Option<&'static str> {
+    if root == 3 {
+        return Some("ttbr1");
+    }
+    if (attrs >> 2) & 7 == ATTR_DEVICE {
+        return Some("device");
+    }
+    let pa_hi = pa + (hi - lo);
+    if k.pool_lo == 0 || pa < k.pool_lo || pa_hi > k.pool_hi {
+        return Some("kernel-pa");
+    }
+    if k.heap_lo != 0 && pa < k.heap_hi && pa_hi > k.heap_lo {
+        return Some("heap-pa");
+    }
+    let el0_w = attrs & DESC_AP_EL0 != 0 && attrs & DESC_AP_RO == 0;
+    if el0_w && attrs & DESC_UXN == 0 {
+        return Some("el0-wx");
+    }
+    if !EL0_ALLOW.iter().any(|&(alo, ahi, _)| lo >= alo && hi <= ahi) {
+        return Some("va");
+    }
+    None
+}
+
+/// Walk every valid leaf of one root; `f(va, size, desc)`.
+unsafe fn walk_leaves(root: u64, base: u64, f: &mut dyn FnMut(u64, u64, u64)) {
+    const OA: u64 = 0x0000_ffff_ffff_f000;
+    for l1i in 0..512usize {
+        let l1e = desc_at(root, l1i);
+        let va1 = base + ((l1i as u64) << 30);
+        if l1e & DESC_VALID == 0 {
+            continue;
+        }
+        if l1e & DESC_TABLE == 0 {
+            f(va1, 1 << 30, l1e);
+            continue;
+        }
+        for l2i in 0..512usize {
+            let l2e = desc_at(l1e & OA, l2i);
+            let va2 = va1 + ((l2i as u64) << 21);
+            if l2e & DESC_VALID == 0 {
+                continue;
+            }
+            if l2e & DESC_TABLE == 0 {
+                f(va2, 1 << 21, l2e);
+                continue;
+            }
+            for l3i in 0..512usize {
+                let l3e = desc_at(l2e & OA, l3i);
+                if l3e & DESC_VALID == 0 {
+                    continue;
+                }
+                f(va2 + ((l3i as u64) << 12), PAGE, l3e);
+            }
+        }
+    }
+}
+
+/// Caller holds `TABLES`. `print` emits `el0-reach: range` / `el0-reach: leak`.
+unsafe fn el0_reach_locked(print: bool, query: Option<u64>, k: &KernelPa) -> El0Reach {
+    const OA: u64 = 0x0000_ffff_ffff_f000;
+    let keep = DESC_AP_EL0 | DESC_AP_RO | DESC_PXN | DESC_UXN | (7 << 2);
+    let roots = [
+        (l1_pa(), 0u64),
+        (l1_user_pa(), 0),
+        (l1_asid_b_pa(), 0),
+        (l1_high_pa(), TTBR1_BASE),
+    ];
+    let mut out = El0Reach::default();
+    for (r, &(root, base)) in roots.iter().enumerate() {
+        // (lo, hi, pa, attrs)
+        let mut run: Option<(u64, u64, u64, u64)> = None;
+        let emit = |run: (u64, u64, u64, u64), out: &mut El0Reach| {
+            let (lo, hi, pa, attrs) = run;
+            out.runs[r] += 1;
+            let bad = reach_violation(r, lo, hi, pa, attrs, k);
+            if let Some(why) = bad {
+                out.leaks += 1;
+                if let Some(q) = query {
+                    if q >= lo && q < hi {
+                        out.query_hit[r] = true;
+                        out.query_why = why;
+                    }
+                }
+            }
+            if print {
+                let mut w = uart::raw();
+                let _ = writeln!(
+                    w,
+                    "el0-reach: {} {} lo={:#x} hi={:#x} pa={:#x} {} {} {}{}",
+                    if bad.is_some() { "leak" } else { "range" },
+                    REACH_ROOT_TAGS[r],
+                    lo,
+                    hi,
+                    pa,
+                    if (attrs >> 2) & 7 == ATTR_DEVICE { "dev" } else { "mem" },
+                    if attrs & DESC_AP_EL0 == 0 {
+                        "el0-none"
+                    } else if attrs & DESC_AP_RO != 0 {
+                        "el0-ro"
+                    } else {
+                        "el0-rw"
+                    },
+                    if attrs & DESC_UXN == 0 { "el0-x" } else { "el0-nx" },
+                    bad.map(why_suffix).unwrap_or("")
+                );
+            }
+        };
+        walk_leaves(root, base, &mut |va, size, d| {
+            if !el0_reachable(d) {
+                if let Some(x) = run.take() {
+                    emit(x, &mut out);
+                }
+                return;
+            }
+            out.pages[r] += (size / PAGE) as u32;
+            let pa = d & OA & !(size - 1);
+            let attrs = d & keep;
+            if let Some(x) = run.as_mut() {
+                if x.1 == va && x.2 + (x.1 - x.0) == pa && x.3 == attrs {
+                    x.1 = va + size;
+                    return;
+                }
+            }
+            if let Some(x) = run.take() {
+                emit(x, &mut out);
+            }
+            run = Some((va, va + size, pa, attrs));
+        });
+        if let Some(x) = run.take() {
+            emit(x, &mut out);
+        }
+    }
+    out
+}
+
+fn why_suffix(why: &'static str) -> &'static str {
+    match why {
+        "ttbr1" => " why=ttbr1",
+        "device" => " why=device",
+        "kernel-pa" => " why=kernel-pa",
+        "heap-pa" => " why=heap-pa",
+        "el0-wx" => " why=el0-wx",
+        _ => " why=va",
+    }
+}
+
+/// Walk kernel / user / ASID-B TTBR0 and TTBR1 for EL0-reachable leaves (ADR-092).
+#[allow(dead_code)]
+pub fn el0_reach(print: bool) -> El0Reach {
+    let k = kernel_pa_bounds();
+    let _g = TABLES.lock();
+    unsafe { el0_reach_locked(print, None, &k) }
+}
+
+/// ADR-092 negative-probe plant kinds.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ReachPlant {
+    /// EL0-RO window page (allowlisted VA) backed by a kernel `.data` page.
+    KernelPa,
+    /// EL0-RO page backed by a pool frame at a VA outside `EL0_ALLOW`.
+    Va,
+    /// EL0-RO page backed by a pool frame in TTBR1.
+    Ttbr1,
+    /// EL0-RW **and** EL0-X page (pool frame) at an allowlisted VA.
+    El0Wx,
+}
+
+/// Window slot for the `Va` plant: inside the map window, outside `EL0_ALLOW`.
+pub const REACH_PLANT_VA_SLOT: usize = 400;
+/// Empty `L3_HIGH` slot for the `Ttbr1` plant (`TTBR1_BASE + 256 * 4 KiB`).
+pub const REACH_PLANT_H_SLOT: usize = 256;
+
+/// `(va, slot pointer, descriptor)` for a plant; `None` if the slot is busy.
+unsafe fn reach_plant_slot(kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> Option<(u64, *mut u64, u64)> {
+    let (va, slot, desc) = match kind {
+        ReachPlant::KernelPa => (LOADER_STACK_VA, l3_slot(7), l3_page_el0_ro(kernel_pa)),
+        ReachPlant::Va => (
+            MAP_WINDOW + (REACH_PLANT_VA_SLOT as u64) * PAGE,
+            l3_slot(REACH_PLANT_VA_SLOT),
+            l3_page_el0_ro(pool_pa),
+        ),
+        ReachPlant::Ttbr1 => (
+            TTBR1_BASE + (REACH_PLANT_H_SLOT as u64) * PAGE,
+            l3_high_slot(REACH_PLANT_H_SLOT),
+            l3_page_el0_ro(pool_pa),
+        ),
+        ReachPlant::El0Wx => (EL0_PAGE, l3_slot(2), l3_page_el0_rw(pool_pa) & !DESC_UXN),
+    };
+    if slot.read() & DESC_VALID != 0 {
+        return None;
+    }
+    Some((va, slot, desc))
+}
+
+/// ADR-092 negative probe: plant one EL0-reachable leaf of `kind`, walk,
+/// remove it, invalidate. The plant is never accessed. Returns
+/// `(planted va, walk)`; `None` if the slot was busy.
+#[allow(dead_code)]
+pub fn el0_reach_plant_probe(kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> Option<(u64, El0Reach)> {
+    let k = kernel_pa_bounds();
+    let res;
+    let va;
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            let (v, slot, desc) = reach_plant_slot(kind, kernel_pa, pool_pa)?;
+            va = v;
+            slot.write(desc);
+            dsb_ish();
+            res = el0_reach_locked(false, Some(va), &k);
+            slot.write(0);
+            dsb_ish();
+        }
+    }
+    tlbi_va(va);
+    Some((va, res))
+}
+
+/// ADR-092 leak-probe build: persistently leave an EL0-readable mapping of
+/// kernel `.data` at `LOADER_STACK_VA`. Never accessed.
+#[cfg(feature = "reach-leak-probe")]
+pub fn plant_persistent_reach_leak(kernel_pa: u64) -> bool {
+    let _g = TABLES.lock();
+    unsafe {
+        let Some((_, slot, desc)) = reach_plant_slot(ReachPlant::KernelPa, kernel_pa, 0) else {
+            return false;
+        };
+        slot.write(desc);
+    }
+    dsb_ish();
+    true
+}
+
 pub fn mmu_enabled() -> bool {
     sctlr_el1() & SCTLR_M != 0
 }

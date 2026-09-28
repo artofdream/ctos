@@ -31,6 +31,7 @@ mod qemu;
 mod ro;
 mod sched;
 mod slot;
+mod reach;
 mod syscall;
 mod teardown;
 mod timer;
@@ -333,6 +334,11 @@ extern "C" fn kernel_main_high() -> ! {
         // heap tear. Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
+        }
+        // ADR-092 (G1): live (armed in the loader probe) + steady + negative
+        // EL0-reachability walks over kernel / user / ASID-B TTBR0 + TTBR1.
+        if !reach::observe_probe() {
+            uart::write_str_raw("el0-reach: probe missed\n");
         }
         // PAN ID was printed in kernel_main_high (ADR-026). Fail-closed
         // if that cut did not publish the ID field (`absent` or `present`).
