@@ -3,8 +3,9 @@
 - Status: Accepted (evidence record, docs only). The sponsor asked for **G3**, the optional B2-P KVM re-run listed as the only remaining limit in [ADR-091](ADR-091-el0-isolated-accept-draft.md) revision 3 (DSO relay 2026-09-28). **Result: PASS on the first smoke attempt.** The taken lower-EL SError still happens under KVM on real Graviton3 hardware on current `main`, the same way [ADR-085](ADR-085-b2p-graviton-kvm-serror.md) run 4 showed it at `159b178`. ADR-091 stays **Draft**; B3 (the sponsor's written accept) is **not Met**; the umbrella “EL0 isolated” stays **Planned / non-claim**. Nothing is flipped here.
 - Date: 2026-09-28 (launch 13:50:32 CEST, smoke PASS before 13:58:13 CEST, teardown verified ≈ 14:06 CEST).
 - Tested commit: `main` at **`8107578a6c715a89c9e5861ebb4102460ba20e80`** (merge of PR #146, ADR-094). It contains the whole EL0-isolation stack: ADR-087 … ADR-092 and ADR-094, including the ADR-090 evidence class and the ADR-091 draft.
+- **`main` moved during review (2026-09-28):** PR #145 (ADR-093) merged as `e1ee4a8` after this run, and this branch merged it. Between the tested `8107578` and `e1ee4a8` there is **no** change to `src/`, `user/`, `libctos/`, `Cargo.*`, `build.rs`, `linker.ld`, the target JSON, `rust-toolchain.toml`, `research/qemu-nmi/` or the three B2 scripts (empty `git diff`), so the guest and QEMU tested here are byte-identical in source to the current tip. ADR-093 changed only docs, `scripts/check-public-ids.sh` and a guard hook in `scripts/qemu-smoke.sh`.
 - No `src/`, `scripts/` or `.github/workflows/` change. The in-tree `scripts/b2-metal-userdata.sh` is unchanged; the run used a copy with the small delta listed below. `_start` (`0x4008_0000`) untouched. CloudAgent not used. Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
-- Public-identifier rule ([ADR-093](https://github.com/artofdream/ctos/pull/145), PR #145): no account, instance, Spot request, security group, volume, network, image or user identifiers appear in this record. They are described in words.
+- Public-identifier rule ([ADR-093](ADR-093-public-identifier-scrub-guard.md), PR #145): no account, instance, Spot request, security group, volume, network, image or user identifiers appear in this record. They are described in words.
 
 ## Context
 
@@ -140,5 +141,5 @@ Say: “ADR-095 (G3): on 2026-09-28 an AWS Graviton3 `c7g.metal` (eu-north-1b, S
 ## Consequences
 
 - Docs: this ADR; ADR-091 gap G3 marked done (pointer here), sentence untouched, status untouched; honesty-ledger rows; threat model **v1.69** note; SUMMARY; research MOC; console excerpt [research/daily-briefs/2026-09-28-adr-095-g3-console.txt](../../research/daily-briefs/2026-09-28-adr-095-g3-console.txt).
-- Code / scripts / CI: unchanged.
+- Code / scripts / CI: unchanged. CI on PR #147: honesty-ledger row “CI on GitHub (ADR-095 / PR #147)”.
 - AWS: everything created for the run is deleted and verified (above).
