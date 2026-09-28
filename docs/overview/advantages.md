@@ -40,7 +40,7 @@ flowchart LR
 
 - **`unsafe` still exists** for page tables, MMIO, and assembly. The type system does not cover those edges.
 - Rust **does not invent a correct architecture** by itself. Wrong maps, wrong EL, and wrong ABI stay wrong.
-- This does **not** mean “secure OS,” “EL0 isolated,” PAN enabled, or taken SError **Verified**. Those are separate probe rows ([limits](limits.md), [honesty ledger](../framework/honesty-ledger.md)).
+- This does **not** mean “secure OS.” “EL0 isolated” is **Verified** only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence: one core, TCG default smoke machine; not speculative-execution / side-channel, not real hardware, not a certification. Its clauses (PAN, taken SError, …) each have their own probe rows ([limits](limits.md), [honesty ledger](../framework/honesty-ledger.md)).
 - Status words still need **probes** / the honesty ledger. Language choice is not a substitute for a serial capture or a `gh run` URL.
 
 Pair with [Drawbacks / limits](limits.md): Rust helps discipline; it does not remove those limits.

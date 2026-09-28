@@ -1,6 +1,6 @@
 ﻿# Archify diagrams
 
-Same-origin views on this site (Documented aid â€” **not** Live product status; umbrella "EL0 isolated" stays non-claim).
+Same-origin views on this site (Documented aid â€” **not** Live product status; snapshot from before M6; for “EL0 isolated” see the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence).
 
 | Diagram | Open |
 | --- | --- |
@@ -11,7 +11,7 @@ Same-origin views on this site (Documented aid â€” **not** Live product sta
 
 - Taken `el0: serror` is **Verified opt-in** (`CTOS_QEMU` + `CTOS_REQUIRE_TAKEN_SERROR=1`); see [ADR-083](../03-adr/ADR-083-b1-qemu-nmi-pin.md).
 - Stock distro QEMU still parks (`el0: serror-park`).
-- Not FEAT_NMI / FIQ / BRK as SError; not "EL0 isolated."
+- Not FEAT_NMI / FIQ / BRK as SError. The pin alone is not the umbrella; since M6, “EL0 isolated” is only the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence.
 
 Source folder: `docs/archify/` (copied into the published `book/archify/` on Pages).
 

@@ -10,7 +10,7 @@ Dated milestones for **ctos** (ctsOS). Sister to [Archify diagrams](../archify/i
 
 ## Honesty
 
-**Documented** aid until [ctos.artof.link](https://ctos.artof.link/chronify/) Pages probe this session. Not Live product status. Does not claim umbrella "EL0 isolated."
+**Documented** aid until [ctos.artof.link](https://ctos.artof.link/chronify/) Pages probe this session. Not Live product status. Snapshot from before M6; for “EL0 isolated” see the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence.
 
 Regenerate with [chronify](https://github.com/artofdream/chronify) v0.1.0:
 

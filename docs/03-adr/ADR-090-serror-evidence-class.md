@@ -1,6 +1,7 @@
 # ADR-090 — Taken-SError evidence class for the umbrella = B1 pin + B2-P (M4, sponsor D1)
 
 - Status: Accepted (docs + CI workflow). Records sponsor decision **D1** (DSO relay 2026-09-26 ~14:35 CEST). The taken lower-EL SError evidence that counts for the umbrella is **the B1 pinned-QEMU CI job plus the B2-P run**, stated verbatim below and copied into the draft accept ADR (ADR-091). Makes the `qemu-nmi-pin` job **unconditional**. No `src/` logic change; one stale M2 doc comment in `src/teardown.rs` is fixed (the allowlist has been stub-only since ADR-088). The umbrella “EL0 isolated” stays **Planned / non-claim**: the sponsor's written accept (B3) is still absent.
+- **Follow-on (2026-09-28, M6):** B3 met: the sponsor accepted the ADR-091 revision-3 sentence and scope in writing (2026-09-28 16:41 CEST). [ADR-091](ADR-091-el0-isolated-accept-draft.md) is **Accepted**. “EL0 isolated” is **Verified** only as that sentence, with its limits. Text in this ADR that says the umbrella is Planned / non-claim is as of this ADR's date.
 - Date: 2026-09-26
 - Base: stacked on PR [#141](https://github.com/artofdream/ctos/pull/141) (ADR-089, M3).
 

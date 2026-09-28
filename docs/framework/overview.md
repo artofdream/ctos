@@ -46,7 +46,7 @@ Unprobed boot stays **Unknown**. File presence is not QEMU boot.
 Do not say “applications run on ctos.” First-class samples and the cannot-run list live in [apps-today.md](apps-today.md). Porting stance: [building-or-porting.md](building-or-porting.md).
 
 - **Can run (probed):** coop EL1 UART workers (`sched: task a/b/ok`); one-byte UART RX (`input: rx 0x41`); standing EL0 stub (`el0: standing` / `el0: restored`); a loaded `libctos` hello as a standing **task** until `exit` (`el0: task-ok`). A heartbeat/counter **variant** is the same shape — not in tree until a probe greps it.
-- **Cannot run:** Linux ELF, shell, Python, network **servers** (Track N is ARP+ICMP+UDP + tiny EL0 net/UDP SVC samples — not sockets), POSIX disk apps, SMP, isolated userspace. Umbrella isolation stays **Planned / non-claim**; PAN enable is a non-goal on default a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap/leftover-RAM tears are ADR-037/038/049. Filesystem stance: [filesystem.md](filesystem.md) (memfs + FAT16 read/write). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
+- **Cannot run:** Linux ELF, shell, Python, network **servers** (Track N is ARP+ICMP+UDP + tiny EL0 net/UDP SVC samples — not sockets), POSIX disk apps, SMP, a POSIX-style userspace. “EL0 isolated” is **Verified** only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (one core, TCG default smoke machine; limits there); PAN is enabled on default cortex-a76 ([ADR-080](../03-adr/ADR-080-pan-enable-fault.md)). Identity `.data`/heap/leftover-RAM tears are ADR-037/038/049. Filesystem stance: [filesystem.md](filesystem.md) (memfs + FAT16 read/write). Gaps to host apps + **containers: non-goal**: [host-apps.md](host-apps.md).
 
 ## Building or porting
 
@@ -86,7 +86,7 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 
 - QEMU `virt` only. No Raspberry Pi or board claim
 - Not POSIX, not multi-tenant, not a product runtime. memfs + FAT16 read/write ([filesystem.md](filesystem.md); [ADR-050](../03-adr/ADR-050-fat16-write.md)). Not a container host (**non-goal**, [ADR-029](../03-adr/ADR-029-containers-nongoal.md)); host `docker-smoke` ≠ guest Docker.
-- Umbrella isolation is **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Live identity `.text` / `.rodata` / `.data` / heap / leftover RAM are torn (ADR-020/025/037/038/049); `_start` stays; PAN enable is a non-goal on default `-cpu cortex-a57` (`pan: absent`)
+- Umbrella “EL0 isolated” is **Verified** only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (M6; history [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Live identity `.text` / `.rodata` / `.data` / heap / leftover RAM are torn (ADR-020/025/037/038/049); `_start` stays; PAN is enabled on the default `-cpu cortex-a76` ([ADR-080](../03-adr/ADR-080-pan-enable-fault.md); historical a57 `pan: absent`)
 - Scoped immutability only ([immutability.md](immutability.md)): RO+NX / WXN / live `.text` tear are probed. Absolute “immutable OS” is incompatible (heap/PTEs/devices must mutate). OS/app **slot first cut** (A9 / ADR-030) is two artifacts + FAT `/hello`. Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load FAT; same ELF on this OS and `ba6541c`.
 - Performance numbers are guest counter deltas, not a latency budget
 - Docs website / custom domain: HTTPS serving the book is **Verified** ([website.md](../website.md))
@@ -94,4 +94,4 @@ A machine that has not run `scripts/qemu-smoke.sh` (or Docker/GHA equivalent) ha
 
 ## Honesty
 
-Do not say “secure OS,” “the kernel moved,” “EL0 isolated,” “immutable OS,” or “apps update independently of the OS.” Point at the [ledger](honesty-ledger.md) for any number you quote. The live docs URL is a separate Verified row — do not invent other site claims.
+Do not say “secure OS,” “the kernel moved,” “immutable OS,” or “apps update independently of the OS.” Point at the [ledger](honesty-ledger.md) for any number you quote. Say “EL0 isolated” only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence, never wider. The live docs URL is a separate Verified row — do not invent other site claims.

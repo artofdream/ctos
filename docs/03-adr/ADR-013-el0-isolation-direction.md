@@ -1,6 +1,7 @@
 # ADR-013 — EL0 isolation direction (first mile)
 
 - Status: Accepted (direction + first mile + user-TTBR0 read mile + ASID isolation mile + standing EL0; umbrella isolation still Planned)
+- **Follow-on (2026-09-28, M6):** B3 met: the sponsor accepted the ADR-091 revision-3 sentence and scope in writing (2026-09-28 16:41 CEST). [ADR-091](ADR-091-el0-isolated-accept-draft.md) is **Accepted**. “EL0 isolated” is **Verified** only as that sentence, with its limits. Text in this ADR that says the umbrella is Planned / non-claim is as of this ADR's date.
 - Date: 2026-09-10
 - Updated: 2026-09-11 (standing EL0 dual-SVC; TTBR1 first cut is ADR-016; isolation still Planned)
 

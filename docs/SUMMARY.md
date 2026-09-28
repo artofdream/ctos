@@ -119,7 +119,7 @@
 - [ADR-088 MMIO high alias + identity MMIO tear (M2)](03-adr/ADR-088-mmio-high-alias.md)
 - [ADR-089 `_start` stub page = the one identity exception (M3)](03-adr/ADR-089-start-stub-identity-exception.md)
 - [ADR-090 Taken-SError evidence class = B1 pin + B2-P (M4)](03-adr/ADR-090-serror-evidence-class.md)
-- [ADR-091 DRAFT umbrella accept — pending sponsor (M5)](03-adr/ADR-091-el0-isolated-accept-draft.md)
+- [ADR-091 Umbrella “EL0 isolated” accept — Accepted (M5 draft, M6)](03-adr/ADR-091-el0-isolated-accept-draft.md)
 - [ADR-092 EL0-reachability walk + EL0 write fault (G1/G2)](03-adr/ADR-092-el0-reach-walk-write-fault.md)
 - [ADR-093 Public-identifier scrub + fail-closed guard](03-adr/ADR-093-public-identifier-scrub-guard.md)
 - [ADR-094 Syscall pointers need EL0 permission (G4)](03-adr/ADR-094-syscall-pointer-el0-permission.md)

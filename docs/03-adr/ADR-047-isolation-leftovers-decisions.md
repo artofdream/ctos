@@ -47,6 +47,7 @@ This ADR records those decisions. It does not change guest code. CloudAgent HELD
 
 - **Decision:** remains **Planned / non-claim** under current constraints (no PAN enable on a57, `_start` stays, taken SError deferred).
 - Specific Verified miles (IRQ/FIQ/tears/start-stay/PAN ID-field/…) are **not** this row. Do not round them up to “EL0 isolated.”
+- **Follow-on (2026-09-28, M6):** every [ADR-055](ADR-055-el0-isolated-checklist.md) §B row is Met and the sponsor accepted the umbrella sentence in writing (B3). This row is **Verified**, only as the accepted [ADR-091](ADR-091-el0-isolated-accept-draft.md) sentence. The decision above is as of 2026-09-14.
 
 ## Status table (after this ADR)
 

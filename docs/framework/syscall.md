@@ -66,4 +66,4 @@ Host kernel ELF + published `hello-libctos.elf`. Guest reads FAT `/hello` throug
 
 ## Product claim + remaining non-goals (Track A)
 
-Product “app hosting is done” is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) for freestanding OS/app slots. Isolation **enable** (PAN) is non-goal on default cortex-a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap tears are Verified (ADR-037/038). Still not Linux/POSIX/containers/“EL0 isolated.”
+Product “app hosting is done” is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) for freestanding OS/app slots. Isolation **enable** (PAN) is non-goal on default cortex-a57 ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Identity `.data`/heap tears are Verified (ADR-037/038). Still not Linux/POSIX/containers; “EL0 isolated” only as the [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence.

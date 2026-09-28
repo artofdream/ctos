@@ -1,0 +1,9 @@
+# 2026-09-28 — M6: “EL0 isolated” flip (ADR-091 Accepted)
+
+- **B3 (verbatim):** “I accept the ADR-091 revision-3 sentence and scope as written. After M6, have ctos propose a short costed list of next milestones.” 2026-09-28 16:41 CEST; relay path: sponsor wrote it in the DSO agent chat, DSO relayed it to ctos. It answered the DSO question “Do you accept the ADR-091 revision-3 sentence and scope as written?”, asked after the DSO showed the sentence verbatim and its non-scope list.
+- **Other gates:** D5 branch protection requires the three smoke checks on `main`; #139–#147 merged; `main` `68d4c8f` (merge of #147, ADR-095) push CI green.
+- **Flip (docs only):** ADR-091 Status → Accepted, B3 recorded. ADR-055 §B row 3 Met. ADR-060 umbrella row, ledger P-SEC-3 row, roadmap P-SEC-3l, el0.md, security.md (threat model v1.70), README, user/README and the overview/framework pages now say “EL0 isolated” only as the ADR-091 sentence, with its limits. Dated follow-on notes on ADR-013/047/086/089/090/092/094/095. Stale “PAN enable non-goal on a57” lines corrected where they contradicted the PAN clause.
+- **Limits kept next to the claim:** one core, the TCG default smoke machine; not a speculative-execution or side-channel claim, not a real-hardware claim, not a certification; EL0 can read its own code bytes; no multi-core race story.
+- **Not changed:** the sentence, S1–S9 scope and non-scope; `src/` (module comments that say “Not ‘EL0 isolated’” describe single miles); generated archify/chronify HTML/JSON (index pages now say they predate M6); `_start`.
+- **Re-probe:** the M6 PR CI run on `main` + this change (three required checks + mdBook); run/job ids in the ledger CI row.
+- **Next:** a short costed [proposal] list of next milestones for the sponsor (requested in B3), sent by the DSO, not in this repo.

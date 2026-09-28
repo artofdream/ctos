@@ -2,6 +2,7 @@
 
 - Status: Accepted (docs). Updated 2026-09-19 for [ADR-079](ADR-079-pan-cpu-reopen.md) / [ADR-080](ADR-080-pan-enable-fault.md) PAN CPU reopen + enable, and [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) taken-SError re-probe (still blocked); 2026-09-25 [ADR-084](ADR-084-b2-free-runner-serror.md) B2 free-runner spike (blocked). **Sponsor-facing closure checklist** for isolation leftovers locked by [ADR-047](ADR-047-isolation-leftovers-decisions.md), [ADR-053](ADR-053-taken-serror-hard-stop.md), [ADR-054](ADR-054-pan-enable-lock.md), [ADR-055](ADR-055-el0-isolated-checklist.md), and [#98](https://github.com/artofdream/ctos/issues/98). Does **not** invent Verified for taken SError or “EL0 isolated.” Does **not** reopen Guest Linux / containers / immutable-OS marketing.
 - Date: 2026-09-15
+- **Follow-on (2026-09-28, M6):** B3 met: the sponsor accepted the ADR-091 revision-3 sentence and scope in writing (2026-09-28 16:41 CEST). [ADR-091](ADR-091-el0-isolated-accept-draft.md) is **Accepted**. The umbrella row below is **Verified**, only as that sentence. The other rows and locks are unchanged: stock TCG still parks SError, and `_start` is never yanked.
 - **Follow-on (2026-09-27, ADR-092):** sponsor chose option (b) on ADR-091. G1 (fail-closed EL0-reachability walk) and G2 (EL0 write permission fault) are closed; new gap G4 (syscall copy helpers skip the EL0 permission check) is recorded. ADR-091 revision 2 goes back to the sponsor. The umbrella row below is unchanged: Planned / non-claim.
 - **Follow-on (2026-09-26, M5):** draft accept [ADR-091](ADR-091-el0-isolated-accept-draft.md) (Draft / pending sponsor accept) proposes the exact umbrella sentence and scope, plus gaps G1–G3 for the sponsor to weigh. The umbrella row below is unchanged: Planned / non-claim.
 - **Follow-on (2026-09-26, M4):** sponsor D1 accepted. The taken-SError evidence class for the umbrella is the B1 pin job (now **unconditional** on every push/PR) plus the B2-P one-off KVM run ([ADR-090](ADR-090-serror-evidence-class.md)). The stock-TCG hard-stop in the row below still holds for stock QEMU.
@@ -25,7 +26,7 @@ The sponsor closure checklist is the table below. Status labels are **locks and 
 | --- | --- | --- | --- | --- |
 | **Taken lower-EL SError** while standing | **Deferred / non-goal (hard-stopped)** ([ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) / ADR-047 §1). `el0: serror-park` stays **Verified**. A-clear path = **dormant prep**. | Honest host inject that delivers **async SError** on the **accepted** smoke machine; serial `el0: serror` under EXPECT; new ADR citing working evidence. | QMP `inject-nmi` / HMP `nmi` → `machine does not provide NMIs` on QEMU 10 `virt` + `-cpu cortex-a76` (re-probed 2026-09-19; also a57 / GICv3 / `virtualization=on` / `max`). No silent invent. FEAT_NMI ≠ SError. KVM out of scope for TCG smoke. | ADR-081 Decision §4 **B1/B2/B3**: (B1) upstream/pinned QEMU virt `TYPE_NMI`→`ARM_CPU_SERROR` — research [ADR-082](ADR-082-b1-qemu-type-nmi.md): **no shippable pin 2026-09-19**; wait upstream or reviewed local pin; (B2) sponsor smoke-machine ADR with CI-runnable honest inject — spike [ADR-084](ADR-084-b2-free-runner-serror.md) 2026-09-25: **blocked** on free hosted runners (no arm64 KVM/HVF/WHPX); needs sponsor choice (self-hosted arm64 KVM / paid bare metal / wait); (B3) permanent non-goal. B1 opt-in pin Verified ([ADR-083](ADR-083-b1-qemu-nmi-pin.md)). |
 | **PAN enable** (PSTATE.PAN + EL1-vs-EL0 fault) | **Verified** ([ADR-080](ADR-080-pan-enable-fault.md) / [#125](https://github.com/artofdream/ctos/issues/125) mile 2). Default `-cpu cortex-a76` → `pan: present` + `pan: enabled` + `pan: el1-fault`. Historical a57 `pan: absent` ([ADR-026](ADR-026-pan-capability.md) / [ADR-054](ADR-054-pan-enable-lock.md) / [ADR-079](ADR-079-pan-cpu-reopen.md)). | Met: EL1 load of EL0-accessible page faults with SPSR.PAN. | a57 alone cannot enable (historical). | ADR-054 gate 1–4 **met** (079+080). |
-| **Umbrella “EL0 isolated”** (P-SEC-3l) | **Planned / non-claim until checklist** ([ADR-055](ADR-055-el0-isolated-checklist.md) / ADR-047 §4 / #98). Specific Verified miles ≠ this row. | **Every** ADR-055 §B Unmet row Met under its own ADR + probes, **plus** written sponsor accept that the umbrella sentence is in scope (ADR-048-style — **not** this file). | Under current constraints: no PAN enable on a57; `_start` stays; taken SError hard-stopped; no umbrella sponsor accept. Remaining miles after #98 = those §B blockers (not more Track A ladder work on virt+a57). | Path to Verified: clear §B under honest probes (and redesign boot if `_start` ever leaves identity — sponsor scope). Path to **permanent non-claim**: leave locks as-is; do not round Verified miles into the umbrella. |
+| **Umbrella “EL0 isolated”** (P-SEC-3l) | **Verified** only as the accepted [ADR-091](ADR-091-el0-isolated-accept-draft.md) sentence (M6, 2026-09-28; B3 met 16:41 CEST; limits: one core, TCG default smoke machine, not side-channel, not real hardware, not a certification). *Was:* Planned / non-claim until checklist ([ADR-055](ADR-055-el0-isolated-checklist.md) / ADR-047 §4 / #98). Specific Verified miles ≠ this row. | **Every** ADR-055 §B Unmet row Met under its own ADR + probes, **plus** written sponsor accept that the umbrella sentence is in scope (ADR-048-style — **not** this file). | Under current constraints: no PAN enable on a57; `_start` stays; taken SError hard-stopped; umbrella sponsor accept absent until 2026-09-28 (now met, B3). Remaining miles after #98 = those §B blockers (not more Track A ladder work on virt+a57). | Path to Verified: clear §B under honest probes (and redesign boot if `_start` ever leaves identity — sponsor scope). Path to **permanent non-claim**: leave locks as-is; do not round Verified miles into the umbrella. |
 | **Yank `_start`** (2026-09-26: the stub page is the one documented identity exception, [ADR-089](ADR-089-start-stub-identity-exception.md); all other identity is torn, see [ADR-087](ADR-087-identity-inventory-ratchet.md) / [ADR-088](ADR-088-mmio-high-alias.md)) | **Decided: never** while QEMU `-kernel` needs `0x4008_0000` ([ADR-042](ADR-042-isolation-leftover-wrap.md) / ADR-047 §3). `ident: start-stay` **Verified honesty**. | N/A under current boot contract — not a Verified target. | Boot stub must stay mapped at entry. | Only a future sponsor-scoped boot redesign ADR. **Never yank `_start`** in the meantime. |
 | **Guest Linux / containers / immutable-OS marketing** | **Still out** ([ADR-029](ADR-029-containers-nongoal.md) / [ADR-036](ADR-036-linux-compat-decision.md) / ADR-055 honesty). | N/A — out of scope for this checklist. | Do not reopen via isolation docs. | Separate product ADR + sponsor scope if ever. |
 
@@ -43,10 +44,10 @@ The sponsor closure checklist is the table below. Status labels are **locks and 
 flowchart TD
   V["Verified miles<br/>standing · tears · IRQ/FIQ<br/>PAN ID · SError park · start-stay"]
   B1["§A Met: PAN enable<br/>ADR-079 + ADR-080"]
-  B2["§B unmet: taken SError<br/>hard-stopped virt TCG (ADR-081)"]
-  B3["§B unmet: never-yank _start<br/>boot contract"]
-  B4["§B unmet: sponsor umbrella accept<br/>absent"]
-  U["Umbrella EL0 isolated<br/>non-claim until checklist"]
+  B2["§B Met: taken SError<br/>ADR-090 evidence class"]
+  B3["§B Met: identity except _start stub<br/>ADR-089"]
+  B4["§B Met: sponsor umbrella accept<br/>B3, 2026-09-28"]
+  U["Umbrella EL0 isolated<br/>Verified: ADR-091 sentence only"]
   V -.-> U
   B1 --> U
   B2 --> U
@@ -54,15 +55,15 @@ flowchart TD
   B4 --> U
 ```
 
-*≤12 nodes. Miles are not the umbrella. Unmet §B blocks Verified under current constraints.*
+*≤12 nodes. Miles alone are not the umbrella. All §B rows are Met (M6, 2026-09-28); the claim is only the ADR-091 sentence.*
 
 ## Honesty
 
-Say: “isolation leftovers are closed as **locks + reopen gates** (ADR-060); PAN enable is Verified (ADR-080); taken SError stays blocked after ADR-081 re-probe; EL0 isolated remains non-Verified.” Do **not** say:
+Say: “isolation leftovers are closed as **locks + reopen gates** (ADR-060); PAN enable is Verified (ADR-080); taken SError stays blocked after ADR-081 re-probe on stock QEMU; “EL0 isolated” is Verified only as the accepted ADR-091 sentence (M6).” Do **not** say:
 
 - taken lower-EL SError is Verified
 - “EL0 isolated” from PAN alone
-- “EL0 isolated” / “secure OS” / “hardened isolation complete”
+- “EL0 isolated” wider than the ADR-091 sentence / “secure OS” / “hardened isolation complete”
 - `_start` was yanked / the kernel moved
 - Guest Linux / containers / immutable-OS marketing as if isolation closed
 

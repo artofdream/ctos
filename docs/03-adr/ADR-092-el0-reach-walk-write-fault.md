@@ -1,6 +1,7 @@
 # ADR-092 — G1 EL0-reachability walk + G2 EL0 write permission fault (sponsor option (b) on ADR-091)
 
 - Status: Accepted (implementation + evidence). Closes ADR-091 gaps **G1** and **G2** with fail-closed probes that CI gates. Found a new gap, **G4** (syscall copy helpers; below), which is recorded, not fixed. The umbrella “EL0 isolated” stays **Planned / non-claim**. ADR-091 stays **Draft**; B3 (the sponsor's written accept) is **not Met**.
+- **Follow-on (2026-09-28, M6):** B3 met: the sponsor accepted the ADR-091 revision-3 sentence and scope in writing (2026-09-28 16:41 CEST). [ADR-091](ADR-091-el0-isolated-accept-draft.md) is **Accepted**. “EL0 isolated” is **Verified** only as that sentence, with its limits. Text in this ADR that says the umbrella is Planned / non-claim is as of this ADR's date.
 - Date: 2026-09-27
 - Sponsor decision: 2026-09-27 00:09 CEST, option (b) on ADR-091: “Close G1 and G2 first (full EL0-reachable walk plus an EL0 write test), then bring the sentence back to me.”
 - Base: stacked on PR [#143](https://github.com/artofdream/ctos/pull/143) (ADR-091 draft).

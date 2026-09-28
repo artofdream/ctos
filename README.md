@@ -95,7 +95,7 @@ Start here before adding kernel features:
 | [ADR-010](docs/03-adr/ADR-010-cooperative-rr-el1.md) | Cooperative round-robin on EL1 (FR-11 / M9) |
 | [ADR-011](docs/03-adr/ADR-011-three-pillars.md) | Three pillars: antifragility, security, performance |
 | [ADR-012](docs/03-adr/ADR-012-wx-nx-heap-stacks.md) | W^X: NX heap + cooperative stacks |
-| [ADR-013](docs/03-adr/ADR-013-el0-isolation-direction.md) | EL0 isolation direction + first mile + standing (isolation Planned) |
+| [ADR-013](docs/03-adr/ADR-013-el0-isolation-direction.md) | EL0 isolation direction + first mile + standing (umbrella “EL0 isolated”: see ADR-091) |
 | [ADR-014](docs/03-adr/ADR-014-linker-stack-guard-pages.md) | Unmapped 4 KiB holes under linker stacks |
 | [ADR-015](docs/03-adr/ADR-015-ro-nx-text-data.md) | RO+NX text/data split (`SCTLR.WXN`) |
 | [ADR-016](docs/03-adr/ADR-016-ttbr1-private-page.md) | TTBR1 kernel-private page (first cut) |
@@ -113,7 +113,7 @@ Start here before adding kernel features:
 | [Three pillars](docs/framework/pillars.md) | Antifragility, security, performance (NFR-05 / NFR-10 / NFR-07) |
 | [Antifragility SOP](docs/framework/antifragility.md) | Ratchet repeated failures into sensors |
 | [Security](docs/framework/security.md) | Threat-model v1.10; not a “secure OS” claim |
-| [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear + SVC ABI + libctos CRT; isolation Planned |
+| [EL0](docs/framework/el0.md) | First mile + standing + TTBR1 + high-VA exec + identity `.text` range + live `.text` tear + SVC ABI + libctos CRT; “EL0 isolated” is Verified only as the [ADR-091](docs/03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (one core, TCG default smoke machine; limits there) |
 | [Syscall ABI](docs/framework/syscall.md) | Track A A1 numbers 16–18 + A2 `libctos`; product freestanding hosting Verified under ADR-048/052 |
 | [Performance](docs/framework/performance.md) | CNTPCT + IRQ-delta + host ELF size + boot-delta; no fake benches |
 | [AGENTS.md](AGENTS.md) | Session protocol and thin roles |

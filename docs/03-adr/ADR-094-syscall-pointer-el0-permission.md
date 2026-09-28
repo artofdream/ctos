@@ -1,6 +1,7 @@
 # ADR-094 — G4: syscall user pointers require EL0 permission on every page
 
 - Status: Accepted (implementation + evidence). Closes ADR-091 gap **G4** with fail-closed probes that CI gates. The umbrella “EL0 isolated” stays **Planned / non-claim**. ADR-091 stays **Draft**; B3 (the sponsor's written accept) is **not Met**.
+- **Follow-on (2026-09-28, M6):** B3 met: the sponsor accepted the ADR-091 revision-3 sentence and scope in writing (2026-09-28 16:41 CEST). [ADR-091](ADR-091-el0-isolated-accept-draft.md) is **Accepted**. “EL0 isolated” is **Verified** only as that sentence, with its limits. Text in this ADR that says the umbrella is Planned / non-claim is as of this ADR's date.
 - Date: 2026-09-27
 - Decision path: the sponsor did not pick among ADR-091 revision-2 options (a)/(b)/(c). The DSO applied the standing order “close gaps before bringing the sentence back” (relay 2026-09-27 ~12:06 CEST), i.e. option (b): fix G4 first.
 - Base: stacked on PR [#144](https://github.com/artofdream/ctos/pull/144) (ADR-092). ADR-093 is the public-identifier guard (PR #145).
