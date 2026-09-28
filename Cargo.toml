@@ -38,3 +38,14 @@ sysptr-leak-probe = []
 # print `t2t: leak` and withhold `t2t: ok`. Smoke builds it with the
 # ADR-092/094 negatives in one kernel.
 t2t-leak-probe = []
+# ADR-097 negative build: the loader maps app text EL0-readable again (the
+# ADR-094 RX mapping). The EL0 text load then succeeds, a syscall given a
+# text pointer copies, and the live layout shows EL0-readable text; the probe
+# must print `xo: leak` and withhold `xo: ok`. Smoke builds it with the other
+# EL0 negatives in one kernel.
+xo-leak-probe = []
+# ADR-097 negative build: undo the PAN fix (SCTLR_EL1.SPAN stays 1 and the
+# kernel resumes from EL0 trips with SPSR.PAN clear). The xo probe must see
+# PSTATE.PAN clear in a syscall handler and after EL0 trips, and withhold
+# `xo: ok`.
+pan-keep-leak-probe = []

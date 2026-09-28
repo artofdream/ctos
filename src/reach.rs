@@ -61,6 +61,8 @@ pub fn on_yield() {
     LIVE_LEAKS.store(r.leaks, Ordering::SeqCst);
     LIVE_TAKEN.store(true, Ordering::SeqCst);
     print_counts("live", &r);
+    // ADR-097: the real app's text/rodata layout at the same moment.
+    crate::xo::on_live();
 }
 
 fn kernel_bait_pa() -> u64 {

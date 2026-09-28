@@ -83,6 +83,37 @@ fn set_pstate_pan(on: bool) {
     }
 }
 
+/// SCTLR_EL1.SPAN (bit 23): 0 = PSTATE.PAN is set on every exception taken
+/// to EL1; 1 = left unchanged.
+const SCTLR_SPAN: u64 = 1 << 23;
+
+#[allow(dead_code)] // not called in the `pan-keep-leak-probe` build
+fn clear_sctlr_span() {
+    unsafe {
+        let mut v: u64;
+        core::arch::asm!("mrs {v}, sctlr_el1", v = out(reg) v, options(nostack, preserves_flags));
+        v &= !SCTLR_SPAN;
+        core::arch::asm!("msr sctlr_el1, {v}", "isb", v = in(reg) v, options(nostack, preserves_flags));
+    }
+}
+
+/// ADR-097: PSTATE.PAN as read by `MRS PAN` (1 = set). Calibrated in the
+/// xo probe against a real EL1 permission fault in plain kernel context.
+#[allow(dead_code)]
+pub fn pstate_pan() -> u64 {
+    let v: u64;
+    unsafe {
+        core::arch::asm!("mrs {v}, pan", v = out(reg) v, options(nostack, preserves_flags));
+    }
+    (v >> 22) & 1
+}
+
+/// ADR-097: current SCTLR_EL1.SPAN (0 after a successful ADR-080 enable).
+#[allow(dead_code)]
+pub fn sctlr_span() -> u64 {
+    (paging::sctlr_el1() & SCTLR_SPAN) >> 23
+}
+
 /// Temporarily clear PSTATE.PAN for intentional EL1 access to
 /// EL0-accessible pages (syscall `copy_user` / `copy_to_user`).
 /// Restores PAN only if this guest left it enabled (ADR-080).
@@ -176,6 +207,13 @@ pub fn observe_enable() -> bool {
 
     // Leave PSTATE.PAN set. Syscall uaccess clears it around copies.
     PAN_ENABLED.store(true, Ordering::SeqCst);
+    // ADR-097 fix: keep it set. SCTLR_EL1.SPAN was 1 (reset value), so an
+    // exception from EL0 left PSTATE.PAN at the EL0 value (0, from the ERET
+    // SPSR): syscall handlers ran with PAN clear. SPAN=0 makes every
+    // exception taken to EL1 set PAN; `exception::return_from_el0` resumes
+    // the kernel with SPSR.PAN set too.
+    #[cfg(not(feature = "pan-keep-leak-probe"))]
+    clear_sctlr_span();
     PAN_EL1_FAULT_OK.store(true, Ordering::SeqCst);
     true
 }

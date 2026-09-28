@@ -70,6 +70,8 @@ const ESR_IFSC_TRANS_L2: u64 = 0x06;
 const ESR_IFSC_TRANS_L3: u64 = 0x07;
 /// SPSR: DAIF masked, AArch64 EL1t (return from EL0 to SPSel=0).
 const SPSR_EL1T_MASKED: u64 = 0x3C4;
+/// SPSR.PAN (bit 22).
+const SPSR_PAN: u64 = 1 << 22;
 /// SPSR: EL0t with IRQ unmasked (D/A/F set, I clear) — default ERET (ADR-041).
 const SPSR_EL0_IRQ_ENABLED: u64 = 0x340;
 /// SPSR: EL0t with FIQ unmasked (D/A/I set, F clear) — ADR-043 FIQ probe.
@@ -140,6 +142,9 @@ static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_PAN_EL1: AtomicBool = AtomicBool::new(false);
 static PAN_EL1_CAUGHT: AtomicBool = AtomicBool::new(false);
 static PAN_EL1_SPSR_PAN: AtomicBool = AtomicBool::new(false);
+/// ADR-097: reuse the ADR-080 EL1 permission-fault catcher without printing
+/// `pan: el1-fault` (so that marker stays the ADR-080 probe's alone).
+static PAN_EL1_QUIET: AtomicBool = AtomicBool::new(false);
 static EL0_CONT: AtomicU64 = AtomicU64::new(0);
 static EL0_KSP: AtomicU64 = AtomicU64::new(0);
 
@@ -1028,7 +1033,14 @@ pub fn arm_pan_el1_fault() {
 
 pub fn pan_el1_fault_caught() -> bool {
     EXPECT_PAN_EL1.store(false, Ordering::SeqCst);
+    PAN_EL1_QUIET.store(false, Ordering::SeqCst);
     PAN_EL1_CAUGHT.load(Ordering::SeqCst)
+}
+
+/// ADR-097: arm the same catcher for one EL1 load/store, silently.
+pub fn arm_el1_perm_fault_quiet() {
+    PAN_EL1_QUIET.store(true, Ordering::SeqCst);
+    arm_pan_el1_fault();
 }
 
 /// True when the caught ADR-080 fault saved SPSR.PAN (bit 22).
@@ -1178,7 +1190,22 @@ fn return_from_el0(ctx: &mut ExceptionContext) {
         );
     }
     ctx.elr = EL0_CONT.load(Ordering::SeqCst);
-    ctx.spsr = SPSR_EL1T_MASKED;
+    // ADR-097 fix: resume the kernel with PSTATE.PAN set once ADR-080 enabled
+    // it. `SPSR_EL1T_MASKED` alone has PAN (bit 22) clear, so every return
+    // from an EL0 trip used to leave the kernel running without PAN.
+    ctx.spsr = SPSR_EL1T_MASKED | if keep_pan() { SPSR_PAN } else { 0 };
+}
+
+#[cfg(not(feature = "pan-keep-leak-probe"))]
+fn keep_pan() -> bool {
+    crate::pan::pan_is_enabled()
+}
+
+/// Negative build (ADR-097): the pre-fix behaviour (kernel resumes with PAN
+/// clear after every EL0 trip). The smoke must catch it.
+#[cfg(feature = "pan-keep-leak-probe")]
+fn keep_pan() -> bool {
+    false
 }
 
 fn svc_imm(esr: u64) -> u64 {
@@ -1361,7 +1388,9 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         // (MRS PAN may read 0 under some QEMU TCG builds; SPSR is the probe).
         PAN_EL1_SPSR_PAN.store(ctx.spsr & (1 << 22) != 0, Ordering::SeqCst);
         PAN_EL1_CAUGHT.store(true, Ordering::SeqCst);
-        uart::write_str_raw("pan: el1-fault\n");
+        if !PAN_EL1_QUIET.swap(false, Ordering::SeqCst) {
+            uart::write_str_raw("pan: el1-fault\n");
+        }
         ctx.elr = ctx.elr.wrapping_add(4);
         return;
     }

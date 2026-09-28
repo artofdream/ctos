@@ -10,6 +10,9 @@
 //! ADR-075: also publish `target/mkdir-libctos.elf` for FAT `/mkdemo`.
 //! ADR-076: also publish `target/tcp-libctos.elf` for FAT `/tcpdemo`.
 //!
+//! ADR-097: `.rodata` must sit on the ELF-header page (0x80000000), not on
+//! the execute-only text page; the payload asserts check both.
+//!
 //! This is **not** a guest ELF loader (A3). The parse is host-side only.
 
 use std::env;
@@ -63,7 +66,7 @@ fn main() {
             image.len()
         );
     }
-    assert_hello_payload(&image);
+    assert_hello_payload(&image, &elf64_ro_page(&elf).unwrap_or_else(|e| panic!("assert_hello_payload ro page: {e}")));
 
     let bin_path = out_dir.join("hello-libctos.bin");
     fs::write(&bin_path, &image).unwrap();
@@ -108,7 +111,7 @@ fn main() {
     if fs_elf.is_empty() || fs_elf.len() > 64 * 1024 {
         panic!("fs-libctos ELF {} bytes empty or > 64 KiB", fs_elf.len());
     }
-    assert_fs_payload(&fs_image);
+    assert_fs_payload(&fs_image, &elf64_ro_page(&fs_elf).unwrap_or_else(|e| panic!("assert_fs_payload ro page: {e}")));
     fs::write(out_dir.join("fs-libctos.elf"), &fs_elf).unwrap();
     fs::write(manifest_dir.join("target/fs-libctos.elf"), &fs_elf).unwrap();
     fs::write(
@@ -133,7 +136,7 @@ fn main() {
     if fat_elf.is_empty() || fat_elf.len() > 64 * 1024 {
         panic!("fat-libctos ELF {} bytes empty or > 64 KiB", fat_elf.len());
     }
-    assert_fat_payload(&fat_image);
+    assert_fat_payload(&fat_image, &elf64_ro_page(&fat_elf).unwrap_or_else(|e| panic!("assert_fat_payload ro page: {e}")));
     fs::write(out_dir.join("fat-libctos.elf"), &fat_elf).unwrap();
     fs::write(manifest_dir.join("target/fat-libctos.elf"), &fat_elf).unwrap();
     fs::write(
@@ -158,7 +161,7 @@ fn main() {
     if yield_elf.is_empty() || yield_elf.len() > 64 * 1024 {
         panic!("yield-libctos ELF {} bytes empty or > 64 KiB", yield_elf.len());
     }
-    assert_yield_payload(&yield_image);
+    assert_yield_payload(&yield_image, &elf64_ro_page(&yield_elf).unwrap_or_else(|e| panic!("assert_yield_payload ro page: {e}")));
     fs::write(out_dir.join("yield-libctos.elf"), &yield_elf).unwrap();
     fs::write(manifest_dir.join("target/yield-libctos.elf"), &yield_elf).unwrap();
     fs::write(
@@ -183,7 +186,7 @@ fn main() {
     if net_elf.is_empty() || net_elf.len() > 64 * 1024 {
         panic!("net-libctos ELF {} bytes empty or > 64 KiB", net_elf.len());
     }
-    assert_net_payload(&net_image);
+    assert_net_payload(&net_image, &elf64_ro_page(&net_elf).unwrap_or_else(|e| panic!("assert_net_payload ro page: {e}")));
     fs::write(out_dir.join("net-libctos.elf"), &net_elf).unwrap();
     fs::write(manifest_dir.join("target/net-libctos.elf"), &net_elf).unwrap();
     fs::write(
@@ -208,7 +211,7 @@ fn main() {
     if udp_elf.is_empty() || udp_elf.len() > 64 * 1024 {
         panic!("udp-libctos ELF {} bytes empty or > 64 KiB", udp_elf.len());
     }
-    assert_udp_payload(&udp_image);
+    assert_udp_payload(&udp_image, &elf64_ro_page(&udp_elf).unwrap_or_else(|e| panic!("assert_udp_payload ro page: {e}")));
     fs::write(out_dir.join("udp-libctos.elf"), &udp_elf).unwrap();
     fs::write(manifest_dir.join("target/udp-libctos.elf"), &udp_elf).unwrap();
     fs::write(
@@ -233,7 +236,7 @@ fn main() {
     if mkdir_elf.is_empty() || mkdir_elf.len() > 64 * 1024 {
         panic!("mkdir-libctos ELF {} bytes empty or > 64 KiB", mkdir_elf.len());
     }
-    assert_mkdir_payload(&mkdir_image);
+    assert_mkdir_payload(&mkdir_image, &elf64_ro_page(&mkdir_elf).unwrap_or_else(|e| panic!("assert_mkdir_payload ro page: {e}")));
     fs::write(out_dir.join("mkdir-libctos.elf"), &mkdir_elf).unwrap();
     fs::write(manifest_dir.join("target/mkdir-libctos.elf"), &mkdir_elf).unwrap();
     fs::write(
@@ -258,7 +261,7 @@ fn main() {
     if tcp_elf.is_empty() || tcp_elf.len() > 64 * 1024 {
         panic!("tcp-libctos ELF {} bytes empty or > 64 KiB", tcp_elf.len());
     }
-    assert_tcp_payload(&tcp_image);
+    assert_tcp_payload(&tcp_image, &elf64_ro_page(&tcp_elf).unwrap_or_else(|e| panic!("assert_tcp_payload ro page: {e}")));
     fs::write(out_dir.join("tcp-libctos.elf"), &tcp_elf).unwrap();
     fs::write(manifest_dir.join("target/tcp-libctos.elf"), &tcp_elf).unwrap();
     fs::write(
@@ -440,7 +443,61 @@ fn elf64_pt_load(elf: &[u8]) -> Result<(u64, Vec<u8>), String> {
     Ok((min_va, image))
 }
 
-fn assert_hello_payload(image: &[u8]) {
+/// ADR-097: headers + `.rodata` share the rust-lld ELF-header page at
+/// 0x80000000 (the allowlisted `app-hdr` slot, EL0 read-only + NX); `.text`
+/// is alone on `EL0_PAGE` (EL0 execute-only). Returns that one 4 KiB page as
+/// the guest loader will map it. Fails if a load below `EL0_PAGE` leaves the
+/// page or is executable/writable.
+fn elf64_ro_page(elf: &[u8]) -> Result<Vec<u8>, String> {
+    const HDR_PAGE: u64 = 0x8000_0000;
+    let phoff = u64::from_le_bytes(elf[32..40].try_into().unwrap()) as usize;
+    let phentsize = u16::from_le_bytes(elf[54..56].try_into().unwrap()) as usize;
+    let phnum = u16::from_le_bytes(elf[56..58].try_into().unwrap()) as usize;
+    let mut page = vec![0u8; 4096];
+    let mut any = false;
+    for i in 0..phnum {
+        let off = phoff + i * phentsize;
+        if off + 56 > elf.len() {
+            return Err("phdr overflow".into());
+        }
+        let p_type = u32::from_le_bytes(elf[off..off + 4].try_into().unwrap());
+        if p_type != 1 {
+            continue;
+        }
+        let p_flags = u32::from_le_bytes(elf[off + 4..off + 8].try_into().unwrap());
+        let p_offset = u64::from_le_bytes(elf[off + 8..off + 16].try_into().unwrap()) as usize;
+        let p_vaddr = u64::from_le_bytes(elf[off + 16..off + 24].try_into().unwrap());
+        let p_filesz = u64::from_le_bytes(elf[off + 32..off + 40].try_into().unwrap()) as usize;
+        let p_memsz = u64::from_le_bytes(elf[off + 40..off + 48].try_into().unwrap());
+        if p_vaddr >= EL0_PAGE {
+            continue;
+        }
+        if p_flags & 3 != 0 {
+            return Err(format!("load at {p_vaddr:#x} below EL0_PAGE is W or X (must be read-only)"));
+        }
+        if p_vaddr < HDR_PAGE || p_vaddr + p_memsz > HDR_PAGE + 4096 {
+            return Err(format!("read-only load {p_vaddr:#x}+{p_memsz:#x} leaves the app-hdr page"));
+        }
+        if p_offset + p_filesz > elf.len() {
+            return Err("read-only load out of file".into());
+        }
+        let dest = (p_vaddr - HDR_PAGE) as usize;
+        page[dest..dest + p_filesz].copy_from_slice(&elf[p_offset..p_offset + p_filesz]);
+        any = true;
+    }
+    if !any {
+        return Err("no read-only load on the app-hdr page".into());
+    }
+    Ok(page)
+}
+
+/// ADR-097: `s` must be in the app's `.rodata` (app-hdr page) and must not
+/// be on the execute-only text page.
+fn in_rodata_only(text: &[u8], ro: &[u8], s: &[u8]) -> bool {
+    ro.windows(s.len()).any(|w| w == s) && !text.windows(s.len()).any(|w| w == s)
+}
+
+fn assert_hello_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -456,15 +513,15 @@ fn assert_hello_payload(image: &[u8]) {
             panic!("payload missing SVC #{need}");
         }
     }
-    if !image.windows(12).any(|w| w == b"libctos: hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: hi\n") {
         panic!("payload missing libctos: hi");
     }
-    if !image.windows(12).any(|w| w == b"libctos: ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: ok\n") {
         panic!("payload missing libctos: ok");
     }
 }
 
-fn assert_fs_payload(image: &[u8]) {
+fn assert_fs_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -480,15 +537,15 @@ fn assert_fs_payload(image: &[u8]) {
             panic!("fs-libctos missing SVC #{need}");
         }
     }
-    if !image.windows(15).any(|w| w == b"libctos: fs-hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: fs-hi\n") {
         panic!("fs-libctos missing libctos: fs-hi");
     }
-    if !image.windows(15).any(|w| w == b"libctos: fs-ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: fs-ok\n") {
         panic!("fs-libctos missing libctos: fs-ok");
     }
 }
 
-fn assert_fat_payload(image: &[u8]) {
+fn assert_fat_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -505,15 +562,15 @@ fn assert_fat_payload(image: &[u8]) {
             panic!("fat-libctos missing SVC #{need}");
         }
     }
-    if !image.windows(16).any(|w| w == b"libctos: fat-hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: fat-hi\n") {
         panic!("fat-libctos missing libctos: fat-hi");
     }
-    if !image.windows(16).any(|w| w == b"libctos: fat-ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: fat-ok\n") {
         panic!("fat-libctos missing libctos: fat-ok");
     }
 }
 
-fn assert_yield_payload(image: &[u8]) {
+fn assert_yield_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -529,18 +586,18 @@ fn assert_yield_payload(image: &[u8]) {
             panic!("yield-libctos missing SVC #{need}");
         }
     }
-    if !image.windows(16).any(|w| w == b"libctos: yld-hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: yld-hi\n") {
         panic!("yield-libctos missing libctos: yld-hi");
     }
-    if !image.windows(14).any(|w| w == b"libctos: beat\n") {
+    if !in_rodata_only(image, ro, b"libctos: beat\n") {
         panic!("yield-libctos missing libctos: beat");
     }
-    if !image.windows(16).any(|w| w == b"libctos: yld-ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: yld-ok\n") {
         panic!("yield-libctos missing libctos: yld-ok");
     }
 }
 
-fn assert_net_payload(image: &[u8]) {
+fn assert_net_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -557,18 +614,18 @@ fn assert_net_payload(image: &[u8]) {
             panic!("net-libctos missing SVC #{need}");
         }
     }
-    if !image.windows(16).any(|w| w == b"libctos: net-hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: net-hi\n") {
         panic!("net-libctos missing libctos: net-hi");
     }
-    if !image.windows(17).any(|w| w == b"libctos: net-mac\n") {
+    if !in_rodata_only(image, ro, b"libctos: net-mac\n") {
         panic!("net-libctos missing libctos: net-mac");
     }
-    if !image.windows(16).any(|w| w == b"libctos: net-ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: net-ok\n") {
         panic!("net-libctos missing libctos: net-ok");
     }
 }
 
-fn assert_udp_payload(image: &[u8]) {
+fn assert_udp_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -585,15 +642,15 @@ fn assert_udp_payload(image: &[u8]) {
             panic!("udp-libctos missing SVC #{need}");
         }
     }
-    if !image.windows(16).any(|w| w == b"libctos: udp-hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: udp-hi\n") {
         panic!("udp-libctos missing libctos: udp-hi");
     }
-    if !image.windows(16).any(|w| w == b"libctos: udp-ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: udp-ok\n") {
         panic!("udp-libctos missing libctos: udp-ok");
     }
 }
 
-fn assert_mkdir_payload(image: &[u8]) {
+fn assert_mkdir_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -610,15 +667,15 @@ fn assert_mkdir_payload(image: &[u8]) {
             panic!("mkdir-libctos missing SVC #{need}");
         }
     }
-    if !image.windows(18).any(|w| w == b"libctos: mkdir-hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: mkdir-hi\n") {
         panic!("mkdir-libctos missing libctos: mkdir-hi");
     }
-    if !image.windows(18).any(|w| w == b"libctos: mkdir-ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: mkdir-ok\n") {
         panic!("mkdir-libctos missing libctos: mkdir-ok");
     }
 }
 
-fn assert_tcp_payload(image: &[u8]) {
+fn assert_tcp_payload(image: &[u8], ro: &[u8]) {
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: Vec<u32> = image
         .chunks_exact(4)
@@ -635,10 +692,10 @@ fn assert_tcp_payload(image: &[u8]) {
             panic!("tcp-libctos missing SVC #{need}");
         }
     }
-    if !image.windows(16).any(|w| w == b"libctos: tcp-hi\n") {
+    if !in_rodata_only(image, ro, b"libctos: tcp-hi\n") {
         panic!("tcp-libctos missing libctos: tcp-hi");
     }
-    if !image.windows(16).any(|w| w == b"libctos: tcp-ok\n") {
+    if !in_rodata_only(image, ro, b"libctos: tcp-ok\n") {
         panic!("tcp-libctos missing libctos: tcp-ok");
     }
 }
