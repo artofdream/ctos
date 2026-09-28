@@ -1,0 +1,71 @@
+# ADR-095 G3 — raw serial-console excerpt (CTOSB2: lines), AWS eu-north-1b, 2026-09-28
+# Source: ec2 get-console-output --latest (via the sanctioned AWS MCP run_script tool), captured by the executor agent.
+# Only lines starting with `CTOSB2:` are kept; cloud-init `set -x` echo duplicates are dropped. Nothing else is edited.
+# Host: one c7g.metal Spot instance (Graviton3), launched 13:50:32 CEST; user-data derived from scripts/b2-metal-userdata.sh (delta in ADR-095).
+# Times in the lines are UTC (Z); CEST = UTC+2. Resource identifiers are intentionally not recorded (ADR-093).
+CTOSB2: start 2026-09-28T11:50:53Z
+CTOSB2: uname Linux 7.0.0-1013-aws aarch64
+CTOSB2: cpu Vendor ID: ARM;BIOS Vendor ID: Amazon EC2;Model name: Neoverse-V1;BIOS Model name: AWS Graviton3 N/A CPU @ 2.6GHz;
+CTOSB2: dmesg [    0.026519] CPU: All CPU(s) started at EL2
+CTOSB2: dmesg [    0.227556] kvm [1]: nv: 570 coarse grained trap handlers
+CTOSB2: dmesg [    0.227593] kvm [1]: nv: 664 fine grained trap handlers
+CTOSB2: dmesg [    0.227665] kvm [1]: IPA Size Limit: 48 bits
+CTOSB2: dmesg [    0.227681] kvm [1]: GICv4 support disabled
+CTOSB2: dmesg [    0.227684] kvm [1]: GICv3: no GICV resource entry
+CTOSB2: dmesg [    0.227686] kvm [1]: disabling GICv2 emulation
+CTOSB2: dmesg [    0.227712] kvm [1]: GIC system register CPU interface enabled
+CTOSB2: dmesg [    0.227723] kvm [1]: vgic interrupt IRQ9
+CTOSB2: dmesg [    0.227753] kvm [1]: VHE mode initialized successfully
+CTOSB2: /dev/kvm=present
+CTOSB2: kvm-api 12
+CTOSB2: deps rc=0
+CTOSB2: rustup rustup 1.29.1 (d95a37b6a 2026-08-13)
+CTOSB2: head 8107578a6c715a89c9e5861ebb4102460ba20e80
+CTOSB2: rustc info: syncing channel updates for nightly-2026-09-12-aarch64-unknown-linux-gnu
+CTOSB2: qemu-build rc=0
+CTOSB2: qemu QEMU emulator version 10.0.0 (v10.0.0-dirty)
+CTOSB2: qemu build-qemu-b2: accelerators: Accelerators supported in QEMU binary: kvm tcg 
+CTOSB2: qemu build-qemu-b2: ok -> /root/ctos/tools/qemu-b2/bin/qemu-system-aarch64
+CTOSB2: qemu-version QEMU emulator version 10.0.0 (v10.0.0-dirty)
+CTOSB2: cargo rc=0
+CTOSB2: cargo warning: the following packages contain code that will be rejected by a future version of Rust: core v0.0.0 (/root/.rustup/toolchains/nightly-2026-09-12-aarch64-unknown-linux-gnu/lib/rustlib/src/rust/library/core)
+CTOSB2: cargo note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+CTOSB2: ===== smoke attempt 1 =====
+CTOSB2: b2-kvm-smoke: cmd: /root/ctos/tools/qemu-b2/bin/qemu-system-aarch64 -accel kvm -machine virt,gic-version=3 -cpu host -m 128M -display none -serial stdio -monitor none -qmp unix:/tmp/ctos-b2-yyvqz4_3/qmp.sock,server,nowait -kernel target-b2/aarch64-ctos/debug/ctos
+CTOSB2: b2-kvm-smoke: qmp ready=True
+CTOSB2: b2: e0 entry
+CTOSB2: b2: e1 uart
+CTOSB2: b2: e2 exc
+CTOSB2: b2: p0 tables (pre-MMU)
+CTOSB2: b2: p1 mmu-on
+CTOSB2: ident: jump
+CTOSB2: ident: mmio-high gic=0xffffff8008000000 uart=0xffffff8009000000 virtio=0xffffff800a000000
+CTOSB2: ident: reloc n=14
+CTOSB2: ident: range lo=0x400c6000 hi=0x400ca000 pages=4
+CTOSB2: ident: live lo=0x40081000 hi=0x400ba000 pages=57
+CTOSB2: ident: data-reloc n=245
+CTOSB2: ident: ro-reloc n=1006
+CTOSB2: ident: rodata lo=0x400ba000 hi=0x400c6000 pages=12
+CTOSB2: ident: data lo=0x40201000 hi=0x4025a000 pages=89
+CTOSB2: pan: id=2
+CTOSB2: pan: present
+CTOSB2: pan: enabled
+CTOSB2: pan: el1-fault
+CTOSB2: ident: heap-reloc n=0
+CTOSB2: ident: heap lo=0x4025b000 hi=0x4026b000 pages=16
+CTOSB2: ident: ram lo=0x4026b000 hi=0x48000000 pages=32149
+CTOSB2: ident: low lo=0x40000000 hi=0x40080000 pages=128 user=0
+CTOSB2: ident: tail lo=0x400ca000 hi=0x40201000 pages=311 user=311
+CTOSB2: ident: kend lo=0x4025a000 hi=0x4025b000 pages=1 user=0
+CTOSB2: ident: mmio lo=0x0 hi=0x40000000 l1=1
+CTOSB2: b2: boot (ADR-085 KVM SError profile)
+CTOSB2: el0: serror-armb2-kvm-smoke: qmp stop=>ok inject-nmi=>ok cont=>ok (ADR-085: KVM_SET_VCPU_EVENTS serror_pending)
+CTOSB2: 
+CTOSB2: el0: standing
+CTOSB2: el0: serror
+CTOSB2: el0: restored
+CTOSB2: b2: taken
+CTOSB2: b2: doneb2-kvm-smoke: summary armed=True injected=True taken_marker=True b2_taken=True park=False kvm_err=False
+CTOSB2: b2-kvm-smoke: PASS taken lower-EL SError observed under accel=kvm ('el0: serror' + 'b2: taken')
+CTOSB2: smoke attempt 1 rc=0
+CTOSB2: end 2026-09-28T11:58:13Z
