@@ -1,6 +1,7 @@
 # ADR-089 — `_start` stub page is the one documented identity exception (M3, sponsor D2)
 
 - Status: Accepted (docs). Records sponsor decision **D2** (DSO relay 2026-09-26 ~14:35 CEST): keep the `_start` boot-stub page (**I3**) as the **one** documented identity exception, never yank `_start`, and reword ADR-047 §3 plus the checklist's identity-teardown row to match. No `src/` change. The umbrella “EL0 isolated” stays **Planned / non-claim**.
+- **Follow-on (2026-09-28, M6):** B3 met: the sponsor accepted the ADR-091 revision-3 sentence and scope in writing (2026-09-28 16:41 CEST). [ADR-091](ADR-091-el0-isolated-accept-draft.md) is **Accepted**. “EL0 isolated” is **Verified** only as that sentence, with its limits. Text in this ADR that says the umbrella is Planned / non-claim is as of this ADR's date.
 - Date: 2026-09-26
 - Base: stacked on PR [#140](https://github.com/artofdream/ctos/pull/140) (ADR-088, M2).
 

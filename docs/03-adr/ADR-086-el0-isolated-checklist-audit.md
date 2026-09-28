@@ -1,6 +1,7 @@
 # ADR-086 — Umbrella “EL0 isolated” checklist audit after B2-P (gap list + milestone plan)
 
 - Status: Accepted (docs / audit). The umbrella “EL0 isolated” (P-SEC-3l) stays **Planned / non-claim**. This ADR audits every [ADR-055](ADR-055-el0-isolated-checklist.md) / [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md) checklist item against evidence gathered **this session** (2026-09-26). It publishes a measured TTBR0 identity inventory, a gap list, and a milestone plan (one milestone per branch/PR). It mints **no** new Verified for the umbrella, taken SError on the accepted smoke machine, or full identity teardown.
+- **Follow-on (2026-09-28, M6):** B3 met: the sponsor accepted the ADR-091 revision-3 sentence and scope in writing (2026-09-28 16:41 CEST). [ADR-091](ADR-091-el0-isolated-accept-draft.md) is **Accepted**. “EL0 isolated” is **Verified** only as that sentence, with its limits. Text in this ADR that says the umbrella is Planned / non-claim is as of this ADR's date.
 - Date: 2026-09-26
 - Trigger: sponsor relay (DSO, 2026-09-26 13:55 CEST): item 2 (umbrella EL0 isolated) is unlocked now that B2 has a result ([ADR-085](ADR-085-b2p-graviton-kvm-serror.md)). “Claim it ONLY when every checklist item is Verified by a probe from this session.”
 - Base: stacked on PR [#137](https://github.com/artofdream/ctos/pull/137) (`915796f`). #136 / #137 are not merged at the time of writing, and `main` @ `4ea871e` has neither.

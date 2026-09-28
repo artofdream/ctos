@@ -58,12 +58,12 @@ A1–A7 are probed. A8 is **docs**: the recipes on [what-can-run.md](what-can-ru
 2. A freestanding CRT / `libctos` — A2.
 3. Guest `PT_LOAD` of that in-tree ELF — A3. Image is FAT `/hello`.
 4. Standing EL0 as **normal** until `exit` — A4 / [ADR-024](../03-adr/ADR-024-standing-el0-normal.md).
-5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN **enable** is a **non-goal** on default `-cpu cortex-a57` ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Leftover identity RAM after the heap is torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); `_start` stays.
+5. Isolation cut (identity `.rodata` + PAN ID-field) — A5. PAN is enabled on the default `-cpu cortex-a76` ([ADR-080](../03-adr/ADR-080-pan-enable-fault.md); PAN enable was a non-goal on the historical `-cpu cortex-a57`, [ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Leftover identity RAM after the heap is torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); `_start` stays.
 6. Thin VFS + memfs — A6. Recipe 4.
 7. virtio-blk + FAT16 read — A7. Recipe 5. FAT16 write depth — [ADR-050](../03-adr/ADR-050-fat16-write.md).
 8. OS/app slot first cut — A9 / [ADR-030](../03-adr/ADR-030-os-app-slots.md). Recipe 6. Leftover cross-update — [ADR-032](../03-adr/ADR-032-track-a-leftovers.md) (Verified host smoke).
 
-Umbrella “EL0 isolated” and a real userspace stay **Planned / non-claim**. Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
+A real userspace stays **Planned**. “EL0 isolated” is **Verified** only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (one core, TCG default smoke machine; limits there). Gaps before hosting, and why containers are a **non-goal**: [Hosting apps / containers](hosting-apps.md).
 
 A POSIX filesystem is the same story: **not present**. Thin VFS + memfs + FAT16 are not Linux `open`. Direction: [Filesystem: new vs extend](filesystem.md).
 

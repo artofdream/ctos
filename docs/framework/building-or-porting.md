@@ -71,11 +71,11 @@ That is **not** glibc. **Not** `exec` of a Linux ELF. The hello image is host-bu
 
 A4 keeps the A3 loader as the way a payload appears. `install_task` + `ERET` is the supported path: the loaded image runs until `exit`; `is_active()` is true only for that lifetime; an unexpected EL0 fault restores fail-closed ([ADR-024](../03-adr/ADR-024-standing-el0-normal.md)). Serial `el0: task-ok`. File presence is not that probe.
 
-That is **not** a process, not POSIX, and not “EL0 isolated.”
+That is **not** a process and not POSIX.
 
 **Still Planned / decided:**
 
-1. Umbrella EL0 isolation stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). PAN **enable** is a **non-goal** on default `cortex-a57` ([ADR-026](../03-adr/ADR-026-pan-capability.md)); leftover identity RAM after the heap is torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); never yank `_start`. A5 took `.rodata` (ADR-025), `.data` (ADR-037), heap (ADR-038), and the PAN ID-field cut.
+1. Umbrella “EL0 isolated” is **Verified** only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (M6; one core, TCG default smoke machine; not speculative-execution / side-channel, not real hardware, not a certification). PAN is enabled on default `cortex-a76` ([ADR-080](../03-adr/ADR-080-pan-enable-fault.md)); leftover identity RAM after the heap is torn ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); never yank `_start`. A5 took `.rodata` (ADR-025), `.data` (ADR-037), heap (ADR-038), and the PAN ID-field cut.
 2. Product freestanding app hosting is **Verified** ([ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md)). Leftover cross-update is Verified host smoke on this OS and `ba6541c` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). A2–A4 load FAT `/hello` (no production embed). Not Linux/POSIX/containers.
 
 “Write a user program for ctos” still means: link `libctos` in-tree, publish `target/hello-libctos.elf`, and put it on FAT `/hello` — **or** add an EL1 task. The easiest thing you can do today remains an in-tree EL1 task.
@@ -86,6 +86,6 @@ The **OS image vs app payload** split ([A9 #48](https://github.com/artofdream/ct
 
 - A porting guide that assumes POSIX, a shell, Python, or containers ([host-apps.md](host-apps.md): containers are a **non-goal**)
 - A claim about the docs URL that skips the [ledger](honesty-ledger.md) (HTTPS is Verified as of 2026-09-11; do not invent extra site KPIs)
-- “Secure OS,” “the kernel moved,” or “EL0 isolated”
+- “Secure OS,” “the kernel moved,” or “EL0 isolated” wider than the [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence
 
 Cite the ledger for any Verified SHA you quote.

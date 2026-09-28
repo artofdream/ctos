@@ -1,12 +1,22 @@
-# ADR-091 — DRAFT: umbrella “EL0 isolated” accept (sentence + scope) — pending sponsor accept (M5, sponsor D4)
+# ADR-091 — Umbrella “EL0 isolated” accept (sentence + scope) — Accepted (M5 draft, sponsor D4; B3 met 2026-09-28; M6)
 
-- Status: **Draft / pending sponsor accept.** Not accepted. Not a claim. This file proposes the exact umbrella sentence and its scope for the sponsor to read (decision **D4**, DSO relay 2026-09-26 ~14:35 CEST). Checklist row **B3** (written sponsor accept, ADR-055 §B row 3) is **not Met** and must not be counted until the sponsor has read this draft and accepted it in writing. Until then the umbrella stays **Planned / non-claim**. Nothing is flipped here: no ledger status change, no roadmap Verified. The flip is M6 and is out of scope for this PR.
+- Status: **Accepted** (2026-09-28, M6). The sponsor accepted the revision-3 sentence and scope in writing: **B3 is met** (record below). “EL0 isolated” is **Verified** only as the sentence below, read together with the non-scope list below. The sentence and the scope are unchanged from revision 3.
+- Draft status (2026-09-26 to 2026-09-28, kept for history): **Draft / pending sponsor accept.** Not accepted. Not a claim. This file proposes the exact umbrella sentence and its scope for the sponsor to read (decision **D4**, DSO relay 2026-09-26 ~14:35 CEST). Checklist row **B3** (written sponsor accept, ADR-055 §B row 3) is **not Met** and must not be counted until the sponsor has read this draft and accepted it in writing. Until then the umbrella stays **Planned / non-claim**. Nothing is flipped here: no ledger status change, no roadmap Verified. The flip is M6 and is out of scope for this PR.
 - Date: 2026-09-26 (draft); **revision 2: 2026-09-27** after sponsor option (b) (2026-09-27 00:09 CEST: “Close G1 and G2 first … then bring the sentence back to me”). [ADR-092](ADR-092-el0-reach-walk-write-fault.md) closed **G1** and **G2** with CI-gated fail-closed probes and found **G4** (below). **Revision 3: 2026-09-27.** The sponsor skipped the G4 question, so the DSO applied the standing order (close G4 before bringing the sentence back). [ADR-094](ADR-094-syscall-pointer-el0-permission.md) closed **G4** with CI-gated fail-closed probes. The “direct EL0 memory access only” carve-out is dropped. **G3** is the only remaining limit, and it is optional. The sentence below is restated for the sponsor. **Still Draft; B3 still not Met; nothing flipped.**
 - **Limits update (2026-09-28, not a revision of the sentence):** the sponsor asked for **G3**. [ADR-095](ADR-095-g3-kvm-recheck.md) re-ran the ADR-085 B2-P procedure on `main` `8107578` on an AWS Graviton3 `c7g.metal` under KVM: **PASS** (`el0: serror` / `b2: taken`, fail-closed smoke, attempt 1). G3 is **done**. The revision-3 sentence and scope are unchanged and need no change. **Still Draft; B3 still not Met; nothing flipped.**
 - Base: stacked on PR [#142](https://github.com/artofdream/ctos/pull/142) (ADR-090, M4).
 - Merge: sponsor only ([ADR-002](ADR-002-pr-identity-split.md)). Merging this draft does **not** constitute acceptance; acceptance is a separate written sponsor statement recorded by a follow-up edit (M6).
 
-## Proposed umbrella sentence (verbatim, revision 3; PROPOSED TEXT, NOT A CLAIM)
+## B3: the sponsor's written accept (verbatim; met 2026-09-28)
+
+- **Quote (verbatim):** “I accept the ADR-091 revision-3 sentence and scope as written. After M6, have ctos propose a short costed list of next milestones.”
+- **Date and time:** 2026-09-28 16:41 CEST (Europe/Oslo).
+- **Relay path:** sponsor wrote it in the DSO agent chat, DSO relayed it to ctos.
+- **Question answered:** “Do you accept the ADR-091 revision-3 sentence and scope as written?” The DSO asked it after showing the sponsor the revision-3 sentence verbatim and the list of what it does not cover.
+- **B3 (ADR-055 §B row 3): Met.** The accept covers the revision-3 sentence and the scope and non-scope below exactly as written. This edit does not change either.
+- The second sentence of the quote is a request to ctos for after M6. It is not part of the claim.
+
+## Accepted umbrella sentence (verbatim, revision 3; accepted 2026-09-28)
 
 > **“On the ctos default smoke machine (QEMU `virt`, `-cpu cortex-a76`, TCG, one core), EL0 is isolated from the kernel at the architectural page-table / exception-level boundary: each EL0 task runs on its own TTBR0 with its own ASID; EL0 faults when it reads, writes or executes kernel memory; in every translation table (kernel, user and ASID-B TTBR0, and TTBR1) the only EL0-reachable pages are five allowlisted user slots backed by non-kernel frames, checked fail-closed while a user app runs and at rest; PAN is enabled and EL1 faults on EL0 memory; lower-EL IRQ and FIQ are taken while EL0 stands; taken lower-EL SError is evidenced by the ADR-090 evidence class; the only identity (VA = PA) mapping left in any TTBR0 is the documented EL1-only `_start` stub page (ADR-089); and a system call copies from or to an EL0 pointer only if EL0 itself may read (for a copy from EL0) or write (for a copy to EL0) every page in the range. It is not a speculative-execution or side-channel claim, not a real-hardware claim, and not a certification.”**
 
@@ -59,13 +69,15 @@ Revision-2 options were (a) accept with G3/G4 as limits, (b) fix G4 first, (c) n
 
 Revision 1 (2026-09-26) proposed: “… EL0 faults when it reads or executes kernel memory; PAN is enabled … (ADR-089). This is not a speculative-execution or side-channel claim, not a real-hardware claim, and not a certification.” Revision 2 adds “writes”, the all-tables EL0-reachability clause (S8) and the direct-access-only limit (G4). Revision 2's sentence ended its clause list with “… `_start` stub page (ADR-089). This covers direct EL0 memory access only, not data the kernel copies on EL0's behalf in system calls. It is not …”. Revision 3 replaces that carve-out with the S9 syscall-pointer clause (G4 closed by ADR-094).
 
-## M6 prerequisites (the flip; **not** done here)
+## M6 prerequisites (all met 2026-09-28; the flip is the M6 PR, branch `isolation/m6-el0-isolated-flip`)
 
-1. **B3:** the sponsor's written accept of the revision-3 sentence and scope (option a/b/c above), recorded verbatim with date and relay path. Merging this PR is not acceptance.
-2. **D5:** before the flip, the sponsor/DSO sets branch protection on `main` to **require** `QEMU aarch64 smoke (ubuntu-24.04-arm)`, `QEMU aarch64 smoke (ubuntu-24.04)` and `QEMU NMI pin smoke (taken SError)`. The agent does not change branch protection.
-3. The stack merged in order: #136–#138 are already merged (2026-09-26); #139 → #140 → #141 → #142 → #143 (this draft) → #144 (ADR-092) → ADR-094's PR remain, with all three checks green on the merge tip.
-4. The flip PR changes ADR-055 §B row 3, ADR-060, the ledger P-SEC-3l row, roadmap, el0.md, SUMMARY and the threat model **only** to the accepted wording, and cites this ADR (status → Accepted).
+1. **B3:** the sponsor's written accept of the revision-3 sentence and scope (option a/b/c above), recorded verbatim with date and relay path. Merging this PR is not acceptance. **Met:** 2026-09-28 16:41 CEST, recorded above.
+2. **D5:** before the flip, the sponsor/DSO sets branch protection on `main` to **require** `QEMU aarch64 smoke (ubuntu-24.04-arm)`, `QEMU aarch64 smoke (ubuntu-24.04)` and `QEMU NMI pin smoke (taken SError)`. The agent does not change branch protection. **Met:** the three checks are required on `main` (set by the sponsor/DSO).
+3. The stack merged in order: #136–#138 are already merged (2026-09-26); #139 → #140 → #141 → #142 → #143 (this draft) → #144 (ADR-092) → ADR-094's PR remain, with all three checks green on the merge tip. **Met:** #139–#147 are merged; `main` at `68d4c8f` (merge of #147, ADR-095) is green on all three checks.
+4. The flip PR changes ADR-055 §B row 3, ADR-060, the ledger P-SEC-3l row, roadmap, el0.md, SUMMARY and the threat model **only** to the accepted wording, and cites this ADR (status → Accepted). **Done** in the M6 PR.
 
-## Honesty (while Draft)
+## Honesty (Accepted, M6)
 
-Say: “ADR-091 is a **draft** of the umbrella sentence and scope, pending the sponsor's written accept; ‘EL0 isolated’ stays Planned / non-claim.” Do **not** quote the proposed sentence as a statement of fact, count B3 as Met, or flip any status.
+Say “EL0 isolated” only as the sentence above: quote it verbatim or point to it, and never widen it. Keep its limits next to it: one core; the TCG default smoke machine; not a speculative-execution or side-channel claim; not a real-hardware claim; not a certification; EL0 can read its own code bytes (app text+rodata is EL0 read-only + executable, [ADR-094](ADR-094-syscall-pointer-el0-permission.md)); no multi-core / SMP race story. Do **not** read it as covering anything in the non-scope list above.
+
+*Honesty text while Draft (kept for history):* Say: “ADR-091 is a **draft** of the umbrella sentence and scope, pending the sponsor's written accept; ‘EL0 isolated’ stays Planned / non-claim.” Do **not** quote the proposed sentence as a statement of fact, count B3 as Met, or flip any status.

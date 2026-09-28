@@ -30,5 +30,5 @@ Without the pin / without `CTOS_REQUIRE_TAKEN_SERROR=1`, smoke keeps requiring
 ## Honesty
 
 - Do **not** claim FEAT_NMI / FIQ / BRK is SError.
-- Do **not** claim umbrella “EL0 isolated.”
+- The pin alone is not the umbrella claim. “EL0 isolated” is only the accepted [ADR-091](../../docs/03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (M6); this job is one part of its taken-SError evidence class (ADR-090).
 - Default GHA/Docker stay on distro QEMU unless opt-in build is enabled.

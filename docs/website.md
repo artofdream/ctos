@@ -129,4 +129,4 @@ curl -sSI https://ctos.artof.link   # expect HTTP 200 (Verified 2026-09-11)
 | Route 53 API row in `<aws-account-id>` / `<route53-zone-id>` | `list-resource-record-sets` as that account | **Unknown** here (no AWS CLI). Sponsor states CREATE already done. Do not CREATE again. |
 | Custom domain reachability | Pages lists the hostname **and** HTTPS 200 with a matching cert | **Verified** — Pages API `cname` + `https_enforced` + cert approved; `curl -sSI https://ctos.artof.link` HTTP 200 |
 
-Do not say “secure OS,” “EL0 isolated,” or that QEMU boot was proven by this docs PR.
+Do not say “secure OS,” or that QEMU boot was proven by this docs PR. Say “EL0 isolated” only as the accepted [ADR-091](03-adr/ADR-091-el0-isolated-accept-draft.md) sentence, with its limits.

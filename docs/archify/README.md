@@ -21,7 +21,7 @@ After Pages deploy from `main`:
 
 - Taken `el0: serror` is **Verified opt-in** (`CTOS_QEMU` + `CTOS_REQUIRE_TAKEN_SERROR=1`).
 - Stock distro QEMU still parks (`el0: serror-park`).
-- Not FEAT_NMI / FIQ / BRK as SError; not umbrella EL0 isolated.
+- Not FEAT_NMI / FIQ / BRK as SError. The pin alone is not the umbrella; since M6, “EL0 isolated” is only the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence.
 
 ### Open locally
 

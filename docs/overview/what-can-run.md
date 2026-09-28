@@ -4,7 +4,7 @@ Plain English. These are **rebuild recipes** for in-tree samples that already ha
 
 **Track A / A8** ([issue #39](https://github.com/artofdream/ctos/issues/39)) is this page: document the sample classes and how to rebuild them. A9 ([ADR-030](../03-adr/ADR-030-os-app-slots.md)) adds two host artifacts + FAT `/hello`. Leftover ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)): A2–A4 load that file (no production embed); same ELF on this OS and `ba6541c` (cross-update Verified). Product freestanding app hosting is **Verified** under [ADR-048](../03-adr/ADR-048-app-hosting-claim-criteria.md) / [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md) (checklist: [hosting-apps.md](hosting-apps.md#claim-criteria-adr-048)). Not Linux/POSIX/containers.
 
-Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Umbrella “EL0 isolated” stays **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)). Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
+Status of each probe: [honesty ledger](../framework/honesty-ledger.md). Walkthroughs: [apps-today.md](../framework/apps-today.md). In-tree index: [`user/README.md`](https://github.com/artofdream/ctos/blob/main/user/README.md). Umbrella “EL0 isolated” is **Verified** only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (M6; one core, TCG default smoke machine; not speculative-execution / side-channel, not real hardware, not a certification). Do not say “apps,” “userspace,” or “secure OS” as if a general-purpose OS existed.
 
 ## Freestanding sample catalog (glance)
 
@@ -28,7 +28,7 @@ flowchart LR
   U --> EL0
 ```
 
-*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), `/netdemo` (ADR-068), `/udpdemo` (ADR-071), `/mkdemo` (ADR-075), and `/tcpdemo` (ADR-076) deepen the catalog. Umbrella “EL0 isolated” stays Planned ([ADR-060](../03-adr/ADR-060-isolation-leftovers-closure-checklist.md)).*
+*`/hello` is the A9 product-slot sample. `/fsdemo` (ADR-059), `/fatdemo` (ADR-061), `/yldemo` (ADR-062), `/netdemo` (ADR-068), `/udpdemo` (ADR-071), `/mkdemo` (ADR-075), and `/tcpdemo` (ADR-076) deepen the catalog. Umbrella “EL0 isolated”: only the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence.*
 
 ## Privilege — where code runs
 
@@ -43,7 +43,7 @@ flowchart TD
   EL0 -.-> PROC
 ```
 
-*The stub is not a process. Umbrella “EL0 isolated” stays Planned.*
+*The stub is not a process. “EL0 isolated” means only the ADR-091 sentence.*
 
 A **supervisor call (SVC)** is the instruction the stub uses to ask the kernel for something. Reserved `SVC #0`–`#2` stay test miles. A1 documented `exit` / `uart_write` / `yield` ([syscall.md](../framework/syscall.md)). A2 wraps those in `libctos`. That is not a process ABI.
 
@@ -121,7 +121,7 @@ cargo build --release \
 
 A kernel `cargo build` already does that via `build.rs` and publishes the result. Then `./scripts/qemu-smoke.sh`. There is no `exec` of a file on disk. The kernel ELF no longer embeds the hello bytes.
 
-This is **not** a process. No libc, no argv, no loader for a foreign ELF. “EL0 isolated” stays **Planned**.
+This is **not** a process. No libc, no argv, no loader for a foreign ELF. “EL0 isolated” means only the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence.
 
 `libctos` wraps `fs_create` / `fs_open` / `fs_read` / `fs_write` / `fs_close` (SVC 19–23). The **hello payload does not call them** (UART + one yield). A second freestanding sample does: see Recipe 3b (`fs-libctos`, [ADR-059](../03-adr/ADR-059-fs-libctos-sample.md)). A third reads **FAT** via the same wrappers: see Recipe 3c (`fat-libctos`, [ADR-061](../03-adr/ADR-061-fat-libctos-sample.md)). A fourth exercises **several cooperative yields**: see Recipe 3d (`yield-libctos`, [ADR-062](../03-adr/ADR-062-yield-libctos-sample.md)). A fifth exercises **EL0 net SVCs**: see Recipe 3e (`net-libctos`, [ADR-068](../03-adr/ADR-068-el0-net-svc-sample.md)). A sixth exercises **EL0 UDP DNS SVC**: see Recipe 3f (`udp-libctos`, [ADR-071](../03-adr/ADR-071-n3x-el0-udp-svc.md)). The kernel `/eprobe` trampoline (`fs: el0`) remains a separate Verified EL0 VFS trip.
 

@@ -17,7 +17,7 @@ Site source of truth: [Hosting apps / containers](../overview/hosting-apps.md). 
 | Files (`open` / a disk) | Thin VFS: memfs + FAT16 (read + write depth, [ADR-050](../03-adr/ADR-050-fat16-write.md)) | **memfs + FAT miles** (A6/A7 + ADR-050). Not POSIX. |
 | Sockets / HTTP | No virtio-net, no stack | **Planned** at best; not a Now mile |
 | Shell / TTY / Python | One injected UART byte; no interpreter | **No** until ABI + FS + line discipline |
-| Isolated userspace | Standing miles + identity tears incl. leftover RAM ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); PAN enable non-goal on a57; `_start` stays | Umbrella isolation **Planned / non-claim** ([ADR-047](../03-adr/ADR-047-isolation-leftovers-decisions.md)) |
+| Isolated userspace | Standing miles + identity tears incl. leftover RAM ([ADR-049](../03-adr/ADR-049-identity-ram-tear.md)); PAN enabled on a76 ([ADR-080](../03-adr/ADR-080-pan-enable-fault.md)); `_start` stays | Umbrella “EL0 isolated” **Verified** only as the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence (one core, TCG; limits there) |
 | Preemption / SMP | Cooperative EL1, one vCPU | **No** on this horizon |
 | Containers (OCI / Docker / k8s **as the guest**) | Nothing | **Non-goal.** See below. |
 
