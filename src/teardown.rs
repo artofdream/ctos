@@ -330,8 +330,9 @@ fn run_left_fault(va: u64, name: &str) -> bool {
 }
 
 /// ADR-087 fail-closed ratchet: every identity (VA == PA) leaf in kernel,
-/// user and ASID-B TTBR0 must sit inside `paging::INV_ALLOW` (I1 MMIO
-/// block, I3 boot-stub page). A planted identity page must be caught.
+/// user and ASID-B TTBR0 must sit inside `paging::INV_ALLOW`. Since ADR-088
+/// that is only the I3 `_start` stub page (ADR-089 exception); the I1 MMIO
+/// block moved to TTBR1. A planted identity page must be caught.
 fn run_inventory() -> bool {
     #[cfg(feature = "inv-leak-probe")]
     if paging::plant_persistent_leak() {

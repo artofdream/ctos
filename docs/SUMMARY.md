@@ -118,7 +118,8 @@
 - [ADR-087 Identity inventory ratchet + RAM-side leftovers tear (M1)](03-adr/ADR-087-identity-inventory-ratchet.md)
 - [ADR-088 MMIO high alias + identity MMIO tear (M2)](03-adr/ADR-088-mmio-high-alias.md)
 - [ADR-089 `_start` stub page = the one identity exception (M3)](03-adr/ADR-089-start-stub-identity-exception.md)
-- [Opt-in CI: QEMU NMI pin](dev/qemu-nmi-pin-ci.md)
+- [ADR-090 Taken-SError evidence class = B1 pin + B2-P (M4)](03-adr/ADR-090-serror-evidence-class.md)
+- [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
 

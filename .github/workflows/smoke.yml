@@ -41,8 +41,8 @@ jobs:
       - name: Build, serial hello, cargo test
         run: ./scripts/qemu-smoke.sh
   qemu-nmi-pin:
-    name: QEMU NMI pin smoke (opt-in)
-    if: ${{ vars.CTOS_BUILD_QEMU_NMI == '1' }}
+    # ADR-090 (sponsor D1/D5): unconditional. A skipped job would pass a required check.
+    name: QEMU NMI pin smoke (taken SError)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
