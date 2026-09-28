@@ -6,5 +6,5 @@
 - windows-11-arm: no VT exposed; WHPX feature disabled and would need a reboot.
 - x86 `/dev/kvm` is present on `ubuntu-24.04` (Android emulator story) — irrelevant for AArch64 guests.
 - Probe script `qemu-nmi-probe.py` races QEMU 6.2 (no cortex-a76) → ConnectionRefused on 22.04-arm. Harmless; could harden later.
-- CopyFromBox to EVO-X2 can only drop into `C:\Users\cts`; move with PowerShell afterwards.
+- CopyFromBox to EVO-X2 can only drop into `C:\Users\<user>`; move with PowerShell afterwards.
 - Temp probe branch `probe/adr-084-b2-kvm` pushed from EVO-X2 (workflow scope). Runs persist after branch deletion.

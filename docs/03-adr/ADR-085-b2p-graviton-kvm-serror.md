@@ -27,15 +27,15 @@ Pieces (branch `isolation/adr-085-b2p-graviton-kvm-serror`):
 
 ## Runs (2026-09-26, eu-north-1, all tagged `project=ctos`, `component=b2-spike`)
 
-Credentials path: the sanctioned `user-Aws-mcp` `aws___run_script` (IAM user `cts`, account 737290977112). Security group `ctos-b2-spike` had **no ingress**. No key pair and no IAM role were created.
+Credentials path: the sanctioned `user-Aws-mcp` `aws___run_script` (IAM user `<iam-user>`, account `<aws-account-id>`). Security group `ctos-b2-spike` had **no ingress**. No key pair and no IAM role were created.
 
 | # | Instance | Type / market | Launch (CEST) | End | Result |
 | --- | --- | --- | --- | --- | --- |
-| 0 | `i-09177cb42dac41e0b` | m6g.metal (Graviton2) Spot | 12:22:26 | self-poweroff ≈12:28:50 | Launched by a batch `RunInstances` whose MCP response timed out; not noticed until flagged. `HOME` unset in cloud-init → `cargo: command not found`. Patched QEMU **built with `kvm`** on Graviton2; smoke failed closed (no ELF). |
-| 1 | `i-0bd798b890b40fdc4` | c7g.metal Spot | 12:23:50 | terminated by me 12:29:29 | Same `HOME` bug; terminated early (at most one metal box at a time). |
-| 2 | `i-0f66c64d769c630dc` | c7g.metal Spot | 12:42:59 | self-poweroff ≈12:55:15 | Guest built. Under KVM: **zero guest UART bytes** in 3×90 s → FAIL (fail-closed). |
-| 3 | `i-09ae5b56eb1f5c23b` | c7g.metal Spot | 13:06:27 | self-poweroff ≈13:17:31 | Early markers reached `b2: p1 mmu-on`, then stalled. Register dump: `PC=ffffff8040080a00` (high-alias VBAR `0xffffff8040080800` + 0x200), `PSTATE=a00003c5` EL1h, identity LR → recursive abort on the vector fetch through TTBR1. A control keeping the pre-MMU spin locks behaved identically, so the "pre-MMU exclusives" hypothesis was **refuted**. |
-| 4 | `i-058d643c72be165d4` | c7g.metal Spot | 13:26:02 | self-poweroff ≈13:33:33 | **PASS** — taken lower-EL SError under KVM (below). |
+| 0 | `<instance-id-run0>` | m6g.metal (Graviton2) Spot | 12:22:26 | self-poweroff ≈12:28:50 | Launched by a batch `RunInstances` whose MCP response timed out; not noticed until flagged. `HOME` unset in cloud-init → `cargo: command not found`. Patched QEMU **built with `kvm`** on Graviton2; smoke failed closed (no ELF). |
+| 1 | `<instance-id-run1>` | c7g.metal Spot | 12:23:50 | terminated by me 12:29:29 | Same `HOME` bug; terminated early (at most one metal box at a time). |
+| 2 | `<instance-id-run2>` | c7g.metal Spot | 12:42:59 | self-poweroff ≈12:55:15 | Guest built. Under KVM: **zero guest UART bytes** in 3×90 s → FAIL (fail-closed). |
+| 3 | `<instance-id-run3>` | c7g.metal Spot | 13:06:27 | self-poweroff ≈13:17:31 | Early markers reached `b2: p1 mmu-on`, then stalled. Register dump: `PC=ffffff8040080a00` (high-alias VBAR `0xffffff8040080800` + 0x200), `PSTATE=a00003c5` EL1h, identity LR → recursive abort on the vector fetch through TTBR1. A control keeping the pre-MMU spin locks behaved identically, so the "pre-MMU exclusives" hypothesis was **refuted**. |
+| 4 | `<instance-id-run4>` | c7g.metal Spot | 13:26:02 | self-poweroff ≈13:33:33 | **PASS** — taken lower-EL SError under KVM (below). |
 
 Early tries at 12:1x CEST got `InsufficientInstanceCapacity` for c6g.metal Spot in eu-north-1a/b/c. Spot placement scores (read-only) then pointed to c7g.metal. ap-south-1 was cheaper but its vCPU quota is 5, so unusable.
 

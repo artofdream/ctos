@@ -90,20 +90,20 @@ See [GitHub: publishing with Actions](https://docs.github.com/en/pages/getting-s
 
 | Field | Value |
 | --- | --- |
-| AWS account | `737290977112` |
+| AWS account | `<aws-account-id>` |
 | Region for CLI | `us-east-1` (Route 53 API is global) |
 | Hosted zone name | `artof.link` |
-| Hosted zone ID | `Z1178AFMV41RWP` (sponsor-stated) |
+| Hosted zone ID | `<route53-zone-id>` (sponsor-stated) |
 | Record | `CNAME` `ctos.artof.link.` → `artofdream.github.io.` (trailing dot) |
 
 This is a **project site** on a **subdomain**. Do **not** CNAME to `artofdream.github.io/ctos`. Do not touch the `artof.link` apex.
 
-Public `dig CNAME ctos.artof.link` returns `artofdream.github.io.` **DNS is in place** at the resolver. That is not a Route 53 API `list-resource-record-sets` from this environment (no AWS CLI / credentials here). Next session may **LIST** zone `Z1178AFMV41RWP` to confirm; skip `change-resource-record-sets` unless the row is missing.
+Public `dig CNAME ctos.artof.link` returns `artofdream.github.io.` **DNS is in place** at the resolver. That is not a Route 53 API `list-resource-record-sets` from this environment (no AWS CLI / credentials here). Next session may **LIST** zone `<route53-zone-id>` to confirm; skip `change-resource-record-sets` unless the row is missing.
 
 ```bash
 export AWS_REGION=us-east-1
-aws sts get-caller-identity --query Account --output text   # expect 737290977112
-aws route53 list-resource-record-sets --hosted-zone-id Z1178AFMV41RWP \
+aws sts get-caller-identity --query Account --output text   # expect "$AWS_ACCOUNT_ID" (set locally, not in repo)
+aws route53 list-resource-record-sets --hosted-zone-id "${ROUTE53_ZONE_ID:?set ROUTE53_ZONE_ID locally}" \
   --query "ResourceRecordSets[?Name=='ctos.artof.link.']"
 ```
 
@@ -126,7 +126,7 @@ curl -sSI https://ctos.artof.link   # expect HTTP 200 (Verified 2026-09-11)
 | Pages workflow builds a PR | Green `pages` run on this branch (build job; deploy skipped) | See honesty ledger |
 | Docs website published | Green `pages` workflow on `main` **and** HTTPS fetch of `https://ctos.artof.link` | **Verified** — deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200 + Driving principles |
 | Public CNAME `ctos.artof.link` | `dig CNAME ctos.artof.link +short` | **Verified** — DNS in place (`artofdream.github.io.`) |
-| Route 53 API row in `737290977112` / `Z1178AFMV41RWP` | `list-resource-record-sets` as that account | **Unknown** here (no AWS CLI). Sponsor states CREATE already done. Do not CREATE again. |
+| Route 53 API row in `<aws-account-id>` / `<route53-zone-id>` | `list-resource-record-sets` as that account | **Unknown** here (no AWS CLI). Sponsor states CREATE already done. Do not CREATE again. |
 | Custom domain reachability | Pages lists the hostname **and** HTTPS 200 with a matching cert | **Verified** — Pages API `cname` + `https_enforced` + cert approved; `curl -sSI https://ctos.artof.link` HTTP 200 |
 
 Do not say “secure OS,” “EL0 isolated,” or that QEMU boot was proven by this docs PR.

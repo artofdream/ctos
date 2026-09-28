@@ -1,5 +1,5 @@
 {
-  "Comment": "RECOVERY ONLY. Sponsor already created ctos.artof.link CNAME in zone Z1178AFMV41RWP (account 737290977112). LIST first. Do not CREATE if the row exists.",
+  "Comment": "RECOVERY ONLY. Sponsor already created ctos.artof.link CNAME in zone <route53-zone-id> (account <aws-account-id>). LIST first. Do not CREATE if the row exists.",
   "Changes": [
     {
       "Action": "CREATE",

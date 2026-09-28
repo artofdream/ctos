@@ -4,15 +4,15 @@ The CNAME is **already created** (sponsor, 2026-09-11). Public `dig` agrees. Do 
 
 | Field | Value |
 | --- | --- |
-| Account | `737290977112` |
+| Account | `<aws-account-id>` |
 | Region | `us-east-1` |
-| Hosted zone | `artof.link` / `Z1178AFMV41RWP` |
+| Hosted zone | `artof.link` / `<route53-zone-id>` |
 | Record | `CNAME` `ctos.artof.link.` → `artofdream.github.io.` |
 
 ```bash
 export AWS_REGION=us-east-1
-test "$(aws sts get-caller-identity --query Account --output text)" = "737290977112"
-aws route53 list-resource-record-sets --hosted-zone-id Z1178AFMV41RWP \
+test "$(aws sts get-caller-identity --query Account --output text)" = "${AWS_ACCOUNT_ID:?set AWS_ACCOUNT_ID locally}"
+aws route53 list-resource-record-sets --hosted-zone-id "${ROUTE53_ZONE_ID:?set ROUTE53_ZONE_ID locally}" \
   --query "ResourceRecordSets[?Name=='ctos.artof.link.']"
 ```
 
