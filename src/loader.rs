@@ -266,7 +266,14 @@ fn find_page(pages: &[Option<MappedPage>; MAX_PAGES], va: u64) -> Option<usize> 
 
 fn map_perm(va: u64, pa: u64, perm: Perm) -> bool {
     match perm {
-        Perm::Exec => paging::map_el0_exec(va, pa),
+        // ADR-094 (G4): app text pages also carry `.rodata`, so EL0 must be
+        // able to *read* the page (its own strings passed to syscalls), not
+        // only fetch it. Map EL0 read-only + executable (AP[2:1]=11, UXN
+        // clear). The bytes are written through the frame alias in
+        // `load_image`, so EL1-RO at this VA is fine. Was execute-only
+        // (AP=00): EL0 could not read its own rodata, and a strict syscall
+        // pointer check would reject the app's own string.
+        Perm::Exec => paging::map_el0_text(va, pa),
         Perm::Rw => paging::map_el0_rw(va, pa),
         Perm::Ro => paging::map_el0_ro(va, pa),
     }
@@ -387,7 +394,9 @@ fn load_image(
         if let Some(m) = slot {
             if m.perm == Perm::Exec {
                 sync_range(paging::frame_cpu_va(m.pa) as *const u8, PAGE as usize);
-                sync_range(m.va as *const u8, PAGE as usize);
+                // ADR-094: text is EL0-readable now, so PAN governs EL1
+                // maintenance by this VA; open the uaccess window (ADR-080).
+                crate::pan::with_user_access(|| sync_range(m.va as *const u8, PAGE as usize));
             }
         }
     }
@@ -576,6 +585,8 @@ pub fn observe_probe() -> bool {
     let Ok(img) = parse_elf64(&elf) else {
         return false;
     };
+    // ADR-092 (G1): live EL0-reachability walk on the app's first yield.
+    crate::reach::arm_live();
     if !run_loaded() {
         return false;
     }

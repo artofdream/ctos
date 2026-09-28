@@ -191,6 +191,23 @@ static IDENTITY_HEAP_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static IDENTITY_RAM_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
+/// ADR-088: device MMIO reached through TTBR1 Device blocks (not identity).
+/// Read directly (not `load_flag`): the UART reads it on every access,
+/// including while `TABLES` is held, and it only flips after MMU-on.
+static MMIO_HIGH_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+/// ADR-088: identity MMIO L1 block (I1) cleared from kernel / ASID-B TTBR0.
+static IDENTITY_MMIO_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+/// ADR-087: low RAM / image padding tail / pre-heap frames unmapped.
+static IDENTITY_LEFT_OK: core::sync::atomic::AtomicBool =
+    core::sync::atomic::AtomicBool::new(false);
+static TORN_LOW_PAGES: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static TORN_TAIL_PAGES: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
+static TORN_KEND_PAGES: core::sync::atomic::AtomicU64 =
+    core::sync::atomic::AtomicU64::new(0);
 static TORN_TEXT_PAGES: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TORN_LIVE_PAGES: core::sync::atomic::AtomicU64 =
@@ -328,6 +345,16 @@ pub fn is_torn_identity_va(va: u64) -> bool {
         let rhi = frame::pool_end();
         if rlo != 0 && rhi > rlo && page >= rlo && page < rhi {
             return true;
+        }
+    }
+    if load_flag(&IDENTITY_MMIO_OK) && page < frame::VIRT_RAM_BASE {
+        return true;
+    }
+    if load_flag(&IDENTITY_LEFT_OK) {
+        for (lo, hi) in leftover_ranges() {
+            if page >= lo && page < hi {
+                return true;
+            }
         }
     }
     false
@@ -687,6 +714,20 @@ pub fn user_mapped(va: u64) -> bool {
     walk_leaf(l1_user_pa(), va).is_some()
 }
 
+/// ADR-094 (G4): EL0 load/store permission for `va` in the **user** TTBR0.
+/// `Some((readable, writable))` from the leaf AP bits (AP[1] = EL0 access,
+/// AP[2] = read-only); `None` if `va` is unmapped in the user TTBR0. An
+/// execute-only leaf (AP[1]=0) is neither EL0-readable nor EL0-writable.
+#[allow(dead_code)]
+pub fn user_el0_access(va: u64) -> Option<(bool, bool)> {
+    let _g = TABLES.lock();
+    walk_leaf(l1_user_pa(), va).map(|d| {
+        let el0 = d & DESC_AP_EL0 != 0;
+        let ro = d & DESC_AP_RO != 0;
+        (el0, el0 && !ro)
+    })
+}
+
 /// Walk TTBR1. The private page is present only after `map_ttbr1_priv`.
 /// After ADR-017, RAM identity VAs are also present at `to_high_va(va)`.
 #[allow(dead_code)]
@@ -860,6 +901,45 @@ pub fn torn_ram_pages() -> u64 {
     load_u64_flag(&TORN_RAM_PAGES)
 }
 
+/// ADR-087 leftovers (low RAM, image padding tail, pre-heap frames) unmapped.
+#[allow(dead_code)]
+pub fn identity_left_ready() -> bool {
+    load_flag(&IDENTITY_LEFT_OK)
+}
+
+/// Pages unmapped by ADR-087: (low, tail, kend). Counts *previously mapped* pages.
+#[allow(dead_code)]
+pub fn torn_left_pages() -> (u64, u64, u64) {
+    (
+        load_u64_flag(&TORN_LOW_PAGES),
+        load_u64_flag(&TORN_TAIL_PAGES),
+        load_u64_flag(&TORN_KEND_PAGES),
+    )
+}
+
+/// ADR-087 identity leftovers, as `[lo, hi)` PA = identity VA ranges:
+/// I2 low RAM below the image (QEMU DTB hole; ctos never reads it),
+/// I4 image padding after the boot stub up to `.data` (live text / rodata /
+/// `.ident_tear` already torn, so only linker padding is still mapped), and
+/// I5 frames allocated before the heap (`[data_tear_end, heap_pa)`).
+/// Never contains `KERNEL_TEXT` (`_start` stays, ADR-042 / ADR-047).
+pub fn leftover_ranges() -> [(u64, u64); 3] {
+    let heap = crate::heap::heap_pa();
+    let klo = data_tear_end();
+    let khi = if heap > klo { heap } else { klo };
+    [
+        (frame::VIRT_RAM_BASE, KERNEL_TEXT),
+        (boot_stub_end(), data_start()),
+        (klo, khi),
+    ]
+}
+
+/// First page of the I5 pre-heap frame range (ADR-087 fault probe).
+#[allow(dead_code)]
+pub fn kend_tear_lo() -> u64 {
+    data_tear_end()
+}
+
 /// How many `.rodata`/`.data` words were rewritten to a high alias.
 #[allow(dead_code)]
 pub fn reloc_count() -> u64 {
@@ -1008,6 +1088,23 @@ fn l3_page_el0_ro(pa: u64) -> u64 {
         | DESC_AF
         | DESC_PXN
         | DESC_UXN
+        | DESC_AP_RO
+        | DESC_AP_EL0
+}
+
+/// ADR-094 (G4): EL0 read-only **and** EL0-executable page (AP[2:1] = 11,
+/// UXN clear, PXN set). App text pages also carry `.rodata`, so EL0 must be
+/// able to read the page (its own strings) as well as fetch it, never write.
+/// WXN leaves it executable because it is not writable. EL1 access is RO, so
+/// callers must write the bytes through the frame's TTBR1 alias, not this VA.
+fn l3_page_el0_text(pa: u64) -> u64 {
+    (pa & !0xfff)
+        | DESC_VALID
+        | DESC_TABLE
+        | (ATTR_NORMAL << 2)
+        | DESC_SH_INNER
+        | DESC_AF
+        | DESC_PXN
         | DESC_AP_RO
         | DESC_AP_EL0
 }
@@ -1374,6 +1471,12 @@ pub fn init() {
             addr_of_mut!(L3_HIGH.entries).write([0; 512]);
             l1_high_slot(0).write(table_desc(l2_high_pa()));
             l2_high_slot(0).write(table_desc(l3_high_pa()));
+            // ADR-088: three 2 MiB Device blocks (EL1 RW, PXN+UXN, EL0 none)
+            // at `TTBR1_BASE + pa` for GIC / PL011 / virtio-mmio. Only these
+            // 6 MiB of the 1 GiB MMIO hole get a high alias.
+            for pa in mmio_high_blocks() {
+                l2_high_slot(((pa >> 21) & 0x1ff) as usize).write(l2_device_block(pa));
+            }
             split_ok = clone_ram_tables_for_high();
             if split_ok {
                 l1_high_slot(1).write(table_desc(l2_high_ram_pa()));
@@ -2302,6 +2405,714 @@ pub fn tear_identity_ram() -> bool {
     true
 }
 
+/// Unmap the ADR-086 identity leftovers I2 / I4 / I5 (ADR-087).
+///
+/// Kernel **and** user TTBR0 (ASID-B shares the kernel RAM L2). High twins
+/// stay. `_start` / boot-stub page stays (never yanked, never moved).
+/// `pages` counts only pages that were still mapped, so the serial line
+/// cannot overstate the tear. One boot-time `TLBI VMALLE1` afterwards.
+#[allow(dead_code)]
+pub fn tear_identity_leftovers() -> bool {
+    if !high_split_ready() || !pc_is_high() || !identity_ram_ready() {
+        return false;
+    }
+    if identity_left_ready() {
+        return false;
+    }
+    let ranges = leftover_ranges();
+    for (lo, hi) in ranges {
+        if lo & (PAGE - 1) != 0 || hi & (PAGE - 1) != 0 || hi < lo {
+            return false;
+        }
+        // Never touch `_start` / the boot stub page.
+        if lo < boot_stub_end() && hi > KERNEL_TEXT {
+            return false;
+        }
+    }
+    let mut counts = [0u64; 3];
+    let mut ucounts = [0u64; 3];
+    let mut first = [0u64; 3];
+    {
+        let _g = TABLES.lock();
+        for (r, (lo, hi)) in ranges.iter().enumerate() {
+            let mut va = *lo;
+            while va < *hi {
+                let kmapped = walk_leaf(l1_pa(), va).is_some();
+                let umapped = walk_leaf(l1_user_pa(), va).is_some();
+                if kmapped {
+                    if counts[r] == 0 {
+                        first[r] = va;
+                    }
+                    counts[r] += 1;
+                    unsafe {
+                        if !unmap_identity_page(va) {
+                            return false;
+                        }
+                    }
+                }
+                if umapped {
+                    ucounts[r] += 1;
+                    unsafe {
+                        if !unmap_user_ram_page(va) {
+                            return false;
+                        }
+                    }
+                }
+                va += PAGE;
+            }
+        }
+        dsb_ish();
+    }
+    tlbi_all();
+    for (lo, hi) in ranges {
+        let mut va = lo;
+        while va < hi {
+            if is_mapped(va) || user_mapped(va) {
+                return false;
+            }
+            va += PAGE;
+        }
+    }
+    if !is_mapped(KERNEL_TEXT) || !is_executable(KERNEL_TEXT) {
+        return false;
+    }
+    if counts[0] < 1 || counts[1] < 1 {
+        return false;
+    }
+    publish_u64(&TORN_LOW_PAGES, counts[0]);
+    publish_u64(&TORN_TAIL_PAGES, counts[1]);
+    publish_u64(&TORN_KEND_PAGES, counts[2]);
+    publish_flag(&IDENTITY_LEFT_OK, true);
+    let mut w = uart::raw();
+    let names = ["low", "tail", "kend"];
+    for r in 0..3 {
+        let lo = if counts[r] > 0 { first[r] } else { ranges[r].0 };
+        let _ = writeln!(
+            w,
+            "ident: {} lo={:#x} hi={:#x} pages={} user={}",
+            names[r], lo, ranges[r].1, counts[r], ucounts[r]
+        );
+    }
+    true
+}
+
+/// ADR-088: 2 MiB MMIO blocks that get a TTBR1 Device alias: GICv2
+/// (`0x0800_0000`: GICD + GICC), PL011 (`0x0900_0000`), virtio-mmio
+/// (`0x0a00_0000`: 32 x 0x200 transports). Built from immediates, not a
+/// `.rodata` table (the ADR-020/025 pointer rewrite relocates tables).
+fn mmio_high_blocks() -> [u64; 3] {
+    [0x0800_0000, 0x0900_0000, 0x0a00_0000]
+}
+
+fn l2_device_block(pa: u64) -> u64 {
+    (pa & !(L2_BLOCK - 1))
+        | DESC_VALID
+        | (ATTR_DEVICE << 2)
+        | DESC_AF
+        | DESC_SH_OUTER
+        | DESC_UXN
+        | DESC_PXN
+}
+
+/// CPU VA for a device register PA (ADR-088). Identity until
+/// `enable_mmio_high`, then the TTBR1 Device alias. Safe pre-MMU (plain load).
+#[inline(always)]
+pub fn mmio_va(pa: usize) -> usize {
+    if MMIO_HIGH_OK.load(core::sync::atomic::Ordering::Relaxed) {
+        pa.wrapping_add(TTBR1_OFFSET as usize)
+    } else {
+        pa
+    }
+}
+
+#[allow(dead_code)]
+pub fn mmio_high_ready() -> bool {
+    MMIO_HIGH_OK.load(core::sync::atomic::Ordering::SeqCst)
+}
+
+#[allow(dead_code)]
+pub fn identity_mmio_ready() -> bool {
+    load_flag(&IDENTITY_MMIO_OK)
+}
+
+/// Device MMIO stays XN on whichever alias is live (W^X probe, ADR-088).
+#[allow(dead_code)]
+pub fn mmio_xn(pa: u64) -> bool {
+    let high = high_pxn_for(to_high_va(pa)) == Some(true);
+    if identity_mmio_ready() {
+        high && pxn_for(pa).is_none()
+    } else {
+        high && pxn_for(pa) == Some(true)
+    }
+}
+
+/// Switch every driver to the TTBR1 Device alias (ADR-088). Call after the
+/// high split, before any identity MMIO is torn. Prints `ident: mmio-high`.
+#[allow(dead_code)]
+pub fn enable_mmio_high() -> bool {
+    if !mmu_enabled() || !high_split_ready() {
+        return false;
+    }
+    for pa in mmio_high_blocks() {
+        let va = to_high_va(pa);
+        if high_pxn_for(va) != Some(true) {
+            return false;
+        }
+    }
+    dsb_ish();
+    MMIO_HIGH_OK.store(true, core::sync::atomic::Ordering::SeqCst);
+    dsb_ish();
+    isb();
+    let mut w = uart::raw();
+    let _ = writeln!(
+        w,
+        "ident: mmio-high gic={:#x} uart={:#x} virtio={:#x}",
+        mmio_va(0x0800_0000),
+        mmio_va(0x0900_0000),
+        mmio_va(0x0a00_0000)
+    );
+    true
+}
+
+/// Clear the identity MMIO L1 block (I1) from kernel TTBR0 and the ASID-B
+/// clone (ADR-088). User TTBR0 never had it. One boot-time `TLBI VMALLE1`.
+#[allow(dead_code)]
+pub fn tear_identity_mmio() -> bool {
+    if !mmio_high_ready() || !identity_left_ready() || identity_mmio_ready() {
+        return false;
+    }
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            if l1_slot(0).read() & DESC_VALID == 0 {
+                return false;
+            }
+            l1_slot(0).write(0);
+            if l1_asid_b_slot(0).read() & DESC_VALID != 0 {
+                l1_asid_b_slot(0).write(0);
+            }
+        }
+        dsb_ish();
+    }
+    tlbi_all();
+    if is_mapped(0x0900_0000) || is_mapped(0x0800_0000) || is_mapped(0x0a00_0000) {
+        return false;
+    }
+    if !is_mapped(KERNEL_TEXT) {
+        return false;
+    }
+    publish_flag(&IDENTITY_MMIO_OK, true);
+    let mut w = uart::raw();
+    let _ = writeln!(w, "ident: mmio lo=0x0 hi=0x40000000 l1=1");
+    true
+}
+
+/// ADR-087 allowlist of identity (VA == PA) TTBR0 leaves after M1:
+/// I1 MMIO 1 GiB Device block (M2 / D3) and I3 boot-stub page (M3 / D2).
+/// Anything else identity-mapped in kernel, user or ASID-B TTBR0 is a leak.
+/// ADR-088 (M2): I1 is torn, so only the I3 boot-stub page remains
+/// (sponsor D2: the one documented identity exception).
+pub const INV_ALLOW: [(u64, u64); 1] = [(KERNEL_TEXT, KERNEL_TEXT + PAGE)];
+
+/// Result of one TTBR0 identity walk (ADR-087).
+#[derive(Clone, Copy, Default)]
+pub struct IdentInventory {
+    /// Coalesced identity ranges per root: kernel, user, ASID-B.
+    pub ranges: [u32; 3],
+    /// Ranges not inside one `INV_ALLOW` entry (or EL0-accessible).
+    pub leaks: u32,
+    /// Per root: a leak covered `query` (negative probe).
+    pub query_hit: [bool; 3],
+}
+
+const INV_ROOT_TAGS: [&str; 3] = ["k", "u", "a"];
+
+fn inv_allowed(lo: u64, hi: u64, attrs: u64) -> bool {
+    if attrs & DESC_AP_EL0 != 0 {
+        return false;
+    }
+    // `INV_ALLOW` may be promoted to `.rodata`, where the ADR-020/025
+    // identity-pointer rewrite turns `0x4008_0000`-like words into TTBR1
+    // aliases. Compare physical bounds, never raw loaded words.
+    INV_ALLOW
+        .iter()
+        .any(|&(alo, ahi)| lo >= identity_pa(alo) && hi <= identity_pa(ahi - 1) + 1)
+}
+
+/// Walk one TTBR0 root; call `f(lo, hi, attrs)` per coalesced identity run.
+/// Non-identity leaves (map window, user pages) end a run and are skipped.
+unsafe fn walk_identity_runs(root: u64, f: &mut dyn FnMut(u64, u64, u64)) {
+    const OA: u64 = 0x0000_ffff_ffff_f000;
+    let keep = DESC_AP_EL0 | DESC_AP_RO | DESC_PXN | DESC_UXN | (7 << 2);
+    let mut run: Option<(u64, u64, u64)> = None;
+    let mut leaf = |va: u64, size: u64, d: u64, run: &mut Option<(u64, u64, u64)>| {
+        let pa = d & OA & !(size - 1);
+        let attrs = d & keep;
+        if pa != va {
+            if let Some(r) = run.take() {
+                f(r.0, r.1, r.2);
+            }
+            return;
+        }
+        if let Some(r) = run {
+            if r.1 == va && r.2 == attrs {
+                r.1 = va + size;
+                return;
+            }
+            f(r.0, r.1, r.2);
+        }
+        *run = Some((va, va + size, attrs));
+    };
+    for l1i in 0..512usize {
+        let l1e = desc_at(root, l1i);
+        let va1 = (l1i as u64) << 30;
+        if l1e & DESC_VALID == 0 {
+            continue;
+        }
+        if l1e & DESC_TABLE == 0 {
+            leaf(va1, 1 << 30, l1e, &mut run);
+            continue;
+        }
+        for l2i in 0..512usize {
+            let l2e = desc_at(l1e & OA, l2i);
+            let va2 = va1 + ((l2i as u64) << 21);
+            if l2e & DESC_VALID == 0 {
+                continue;
+            }
+            if l2e & DESC_TABLE == 0 {
+                leaf(va2, 1 << 21, l2e, &mut run);
+                continue;
+            }
+            for l3i in 0..512usize {
+                let l3e = desc_at(l2e & OA, l3i);
+                if l3e & DESC_VALID == 0 {
+                    continue;
+                }
+                leaf(va2 + ((l3i as u64) << 12), PAGE, l3e, &mut run);
+            }
+        }
+    }
+    if let Some(r) = run {
+        f(r.0, r.1, r.2);
+    }
+}
+
+/// Caller holds `TABLES`. `print` emits `ident: inv-range` / `ident: inv-leak`.
+unsafe fn inventory_locked(print: bool, query: Option<u64>) -> IdentInventory {
+    let roots = [l1_pa(), l1_user_pa(), l1_asid_b_pa()];
+    let mut inv = IdentInventory::default();
+    for (r, root) in roots.iter().enumerate() {
+        if desc_at(*root, 1) & DESC_VALID == 0 && desc_at(*root, 0) & DESC_VALID == 0 {
+            // ASID-B is empty until `prepare_asid_b_tables`.
+            continue;
+        }
+        let tag = INV_ROOT_TAGS[r];
+        walk_identity_runs(*root, &mut |lo, hi, attrs| {
+            inv.ranges[r] += 1;
+            let ok = inv_allowed(lo, hi, attrs);
+            if !ok {
+                inv.leaks += 1;
+                if let Some(q) = query {
+                    if q >= lo && q < hi {
+                        inv.query_hit[r] = true;
+                    }
+                }
+            }
+            if print {
+                let mut w = uart::raw();
+                let kind = if (attrs >> 2) & 7 == ATTR_DEVICE { "dev" } else { "mem" };
+                let el1 = if attrs & DESC_AP_RO != 0 { "ro" } else { "rw" };
+                let x = if attrs & DESC_PXN == 0 { "x" } else { "nx" };
+                let _ = writeln!(
+                    w,
+                    "ident: {} {} lo={:#x} hi={:#x} {} {} {}{}",
+                    if ok { "inv-range" } else { "inv-leak" },
+                    tag,
+                    lo,
+                    hi,
+                    kind,
+                    el1,
+                    x,
+                    if attrs & DESC_AP_EL0 != 0 { " el0" } else { "" }
+                );
+            }
+        });
+    }
+    inv
+}
+
+/// ADR-087 negative probe (opt-in feature): persistently plant one identity
+/// page at `VIRT_RAM_BASE` in kernel TTBR0. Never accessed.
+#[cfg(feature = "inv-leak-probe")]
+pub fn plant_persistent_leak() -> bool {
+    let plant = frame::VIRT_RAM_BASE;
+    let _g = TABLES.lock();
+    unsafe {
+        let Some(l3) = l3_pa_for_ram_block(((plant >> 21) & 0x1ff) as usize) else {
+            return false;
+        };
+        l3_write(l3, ((plant >> 12) & 0x1ff) as usize, l3_page_flags(plant, false, true));
+    }
+    dsb_ish();
+    true
+}
+
+/// Walk kernel / user / ASID-B TTBR0 and report identity leaves (ADR-087).
+#[allow(dead_code)]
+pub fn identity_inventory(print: bool) -> IdentInventory {
+    let _g = TABLES.lock();
+    unsafe { inventory_locked(print, None) }
+}
+
+/// Negative probe (ADR-087): plant one identity page at `VIRT_RAM_BASE`
+/// (an I2 page torn by `tear_identity_leftovers`) in kernel TTBR0, then in
+/// user TTBR0, and require the walk to flag each as a leak; remove the plant
+/// and require a clean walk. Returns `(kernel_caught, user_caught, clean)`.
+/// The plant is never accessed; one `TLBI VAAE1` after removal.
+#[allow(dead_code)]
+pub fn inventory_negative_probe() -> (bool, bool, bool) {
+    let plant = frame::VIRT_RAM_BASE;
+    if !identity_left_ready() || plant == KERNEL_TEXT {
+        return (false, false, false);
+    }
+    let l2i = ((plant >> 21) & 0x1ff) as usize;
+    let l3i = ((plant >> 12) & 0x1ff) as usize;
+    let (mut k, mut u) = (false, false);
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            if let Some(l3) = l3_pa_for_ram_block(l2i) {
+                if desc_at(l3, l3i) & DESC_VALID == 0 {
+                    l3_write(l3, l3i, l3_page_flags(plant, false, true));
+                    dsb_ish();
+                    k = inventory_locked(false, Some(plant)).query_hit[0];
+                    l3_write(l3, l3i, 0);
+                    dsb_ish();
+                }
+            }
+            if let Some(l3) = l3_pa_for_user_block(l2i) {
+                if desc_at(l3, l3i) & DESC_VALID == 0 {
+                    l3_write(l3, l3i, l3_page_flags(plant, false, true));
+                    dsb_ish();
+                    u = inventory_locked(false, Some(plant)).query_hit[1];
+                    l3_write(l3, l3i, 0);
+                    dsb_ish();
+                }
+            }
+        }
+    }
+    tlbi_va(plant);
+    let clean = identity_inventory(false).leaks == 0 && !is_mapped(plant) && !user_mapped(plant);
+    (k, u, clean)
+}
+
+// ---------------------------------------------------------------------------
+// ADR-092 (G1): fail-closed EL0-reachability walk.
+//
+// A leaf is *EL0-reachable* when EL0 may load/store it (AP[1] set) or fetch
+// it (UXN clear). Table-level APTable/UXNTable bits are ignored, which can
+// only over-count (this kernel never sets them). Every EL0-reachable run in
+// kernel / user / ASID-B TTBR0 must sit inside one `EL0_ALLOW` VA range, be
+// Normal memory, be backed by frame-pool frames outside the heap (never the
+// image / stacks / static page tables below `pool_start`, never MMIO, never
+// outside RAM), and must not be EL0-writable and EL0-executable at once.
+// TTBR1 (`h`) must have no EL0-reachable leaf at all.
+// ---------------------------------------------------------------------------
+
+/// ADR-092 (G2) EL0 read-only store-target page.
+pub const EL0_STORE_RO_VA: u64 = MAP_WINDOW + 9 * PAGE;
+
+/// ADR-092 allowlist of EL0-reachable VA ranges: the five map-window slots
+/// this kernel actually hands to EL0 (every `map_el0_*` call site). Any EL0
+/// leaf elsewhere, including the rest of the window, fails the walk; a
+/// larger guest image needs a new ADR, not a silent widening.
+pub const EL0_ALLOW: [(u64, u64, &str); 5] = [
+    // Loader: rust-lld ELF-header PT_LOAD page (EL0-RO).
+    (MAP_WINDOW, MAP_WINDOW + PAGE, "app-hdr"),
+    // `EL0_PAGE`: loaded app text / rodata and the EL0 probe trampolines.
+    (EL0_PAGE, EL0_PAGE + PAGE, "app-text"),
+    // libctos CRT stack (`EL0_PAGE + 4 KiB`) and the PAN probe page.
+    (EL0_PAGE + PAGE, EL0_PAGE + 2 * PAGE, "crt-stack-pan"),
+    // Loader user stack.
+    (LOADER_STACK_VA, LOADER_STACK_VA + PAGE, "user-stack"),
+    // ADR-092 G2 read-only store target.
+    (EL0_STORE_RO_VA, EL0_STORE_RO_VA + PAGE, "store-ro"),
+];
+
+/// Result of one EL0-reachability walk (ADR-092).
+#[derive(Clone, Copy, Default)]
+pub struct El0Reach {
+    /// EL0-reachable 4 KiB pages per root: kernel, user, ASID-B, TTBR1.
+    pub pages: [u32; 4],
+    /// Coalesced EL0-reachable runs per root.
+    pub runs: [u32; 4],
+    /// Runs that break a rule.
+    pub leaks: u32,
+    /// Per root: a leak covered `query` (negative probe).
+    pub query_hit: [bool; 4],
+    /// Rule the query-hit run broke (negative probe).
+    pub query_why: &'static str,
+}
+
+pub const REACH_ROOT_TAGS: [&str; 4] = ["k", "u", "a", "h"];
+
+/// Physical bounds that count as kernel memory for the ADR-092 PA rule.
+#[derive(Clone, Copy)]
+struct KernelPa {
+    pool_lo: u64,
+    pool_hi: u64,
+    heap_lo: u64,
+    heap_hi: u64,
+}
+
+fn kernel_pa_bounds() -> KernelPa {
+    KernelPa {
+        pool_lo: frame::pool_start(),
+        pool_hi: frame::pool_end(),
+        heap_lo: crate::heap::heap_pa(),
+        heap_hi: crate::heap::heap_pa_end(),
+    }
+}
+
+fn el0_reachable(d: u64) -> bool {
+    d & DESC_AP_EL0 != 0 || d & DESC_UXN == 0
+}
+
+/// Why a run is not allowed (`None` = allowed).
+fn reach_violation(root: usize, lo: u64, hi: u64, pa: u64, attrs: u64, k: &KernelPa) -> Option<&'static str> {
+    if root == 3 {
+        return Some("ttbr1");
+    }
+    if (attrs >> 2) & 7 == ATTR_DEVICE {
+        return Some("device");
+    }
+    let pa_hi = pa + (hi - lo);
+    if k.pool_lo == 0 || pa < k.pool_lo || pa_hi > k.pool_hi {
+        return Some("kernel-pa");
+    }
+    if k.heap_lo != 0 && pa < k.heap_hi && pa_hi > k.heap_lo {
+        return Some("heap-pa");
+    }
+    let el0_w = attrs & DESC_AP_EL0 != 0 && attrs & DESC_AP_RO == 0;
+    if el0_w && attrs & DESC_UXN == 0 {
+        return Some("el0-wx");
+    }
+    if !EL0_ALLOW.iter().any(|&(alo, ahi, _)| lo >= alo && hi <= ahi) {
+        return Some("va");
+    }
+    None
+}
+
+/// Walk every valid leaf of one root; `f(va, size, desc)`.
+unsafe fn walk_leaves(root: u64, base: u64, f: &mut dyn FnMut(u64, u64, u64)) {
+    const OA: u64 = 0x0000_ffff_ffff_f000;
+    for l1i in 0..512usize {
+        let l1e = desc_at(root, l1i);
+        let va1 = base + ((l1i as u64) << 30);
+        if l1e & DESC_VALID == 0 {
+            continue;
+        }
+        if l1e & DESC_TABLE == 0 {
+            f(va1, 1 << 30, l1e);
+            continue;
+        }
+        for l2i in 0..512usize {
+            let l2e = desc_at(l1e & OA, l2i);
+            let va2 = va1 + ((l2i as u64) << 21);
+            if l2e & DESC_VALID == 0 {
+                continue;
+            }
+            if l2e & DESC_TABLE == 0 {
+                f(va2, 1 << 21, l2e);
+                continue;
+            }
+            for l3i in 0..512usize {
+                let l3e = desc_at(l2e & OA, l3i);
+                if l3e & DESC_VALID == 0 {
+                    continue;
+                }
+                f(va2 + ((l3i as u64) << 12), PAGE, l3e);
+            }
+        }
+    }
+}
+
+/// Caller holds `TABLES`. `print` emits `el0-reach: range` / `el0-reach: leak`.
+unsafe fn el0_reach_locked(print: bool, query: Option<u64>, k: &KernelPa) -> El0Reach {
+    const OA: u64 = 0x0000_ffff_ffff_f000;
+    let keep = DESC_AP_EL0 | DESC_AP_RO | DESC_PXN | DESC_UXN | (7 << 2);
+    let roots = [
+        (l1_pa(), 0u64),
+        (l1_user_pa(), 0),
+        (l1_asid_b_pa(), 0),
+        (l1_high_pa(), TTBR1_BASE),
+    ];
+    let mut out = El0Reach::default();
+    for (r, &(root, base)) in roots.iter().enumerate() {
+        // (lo, hi, pa, attrs)
+        let mut run: Option<(u64, u64, u64, u64)> = None;
+        let emit = |run: (u64, u64, u64, u64), out: &mut El0Reach| {
+            let (lo, hi, pa, attrs) = run;
+            out.runs[r] += 1;
+            let bad = reach_violation(r, lo, hi, pa, attrs, k);
+            if let Some(why) = bad {
+                out.leaks += 1;
+                if let Some(q) = query {
+                    if q >= lo && q < hi {
+                        out.query_hit[r] = true;
+                        out.query_why = why;
+                    }
+                }
+            }
+            if print {
+                let mut w = uart::raw();
+                let _ = writeln!(
+                    w,
+                    "el0-reach: {} {} lo={:#x} hi={:#x} pa={:#x} {} {} {}{}",
+                    if bad.is_some() { "leak" } else { "range" },
+                    REACH_ROOT_TAGS[r],
+                    lo,
+                    hi,
+                    pa,
+                    if (attrs >> 2) & 7 == ATTR_DEVICE { "dev" } else { "mem" },
+                    if attrs & DESC_AP_EL0 == 0 {
+                        "el0-none"
+                    } else if attrs & DESC_AP_RO != 0 {
+                        "el0-ro"
+                    } else {
+                        "el0-rw"
+                    },
+                    if attrs & DESC_UXN == 0 { "el0-x" } else { "el0-nx" },
+                    bad.map(why_suffix).unwrap_or("")
+                );
+            }
+        };
+        walk_leaves(root, base, &mut |va, size, d| {
+            if !el0_reachable(d) {
+                if let Some(x) = run.take() {
+                    emit(x, &mut out);
+                }
+                return;
+            }
+            out.pages[r] += (size / PAGE) as u32;
+            let pa = d & OA & !(size - 1);
+            let attrs = d & keep;
+            if let Some(x) = run.as_mut() {
+                if x.1 == va && x.2 + (x.1 - x.0) == pa && x.3 == attrs {
+                    x.1 = va + size;
+                    return;
+                }
+            }
+            if let Some(x) = run.take() {
+                emit(x, &mut out);
+            }
+            run = Some((va, va + size, pa, attrs));
+        });
+        if let Some(x) = run.take() {
+            emit(x, &mut out);
+        }
+    }
+    out
+}
+
+fn why_suffix(why: &'static str) -> &'static str {
+    match why {
+        "ttbr1" => " why=ttbr1",
+        "device" => " why=device",
+        "kernel-pa" => " why=kernel-pa",
+        "heap-pa" => " why=heap-pa",
+        "el0-wx" => " why=el0-wx",
+        _ => " why=va",
+    }
+}
+
+/// Walk kernel / user / ASID-B TTBR0 and TTBR1 for EL0-reachable leaves (ADR-092).
+#[allow(dead_code)]
+pub fn el0_reach(print: bool) -> El0Reach {
+    let k = kernel_pa_bounds();
+    let _g = TABLES.lock();
+    unsafe { el0_reach_locked(print, None, &k) }
+}
+
+/// ADR-092 negative-probe plant kinds.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ReachPlant {
+    /// EL0-RO window page (allowlisted VA) backed by a kernel `.data` page.
+    KernelPa,
+    /// EL0-RO page backed by a pool frame at a VA outside `EL0_ALLOW`.
+    Va,
+    /// EL0-RO page backed by a pool frame in TTBR1.
+    Ttbr1,
+    /// EL0-RW **and** EL0-X page (pool frame) at an allowlisted VA.
+    El0Wx,
+}
+
+/// Window slot for the `Va` plant: inside the map window, outside `EL0_ALLOW`.
+pub const REACH_PLANT_VA_SLOT: usize = 400;
+/// Empty `L3_HIGH` slot for the `Ttbr1` plant (`TTBR1_BASE + 256 * 4 KiB`).
+pub const REACH_PLANT_H_SLOT: usize = 256;
+
+/// `(va, slot pointer, descriptor)` for a plant; `None` if the slot is busy.
+unsafe fn reach_plant_slot(kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> Option<(u64, *mut u64, u64)> {
+    let (va, slot, desc) = match kind {
+        ReachPlant::KernelPa => (LOADER_STACK_VA, l3_slot(7), l3_page_el0_ro(kernel_pa)),
+        ReachPlant::Va => (
+            MAP_WINDOW + (REACH_PLANT_VA_SLOT as u64) * PAGE,
+            l3_slot(REACH_PLANT_VA_SLOT),
+            l3_page_el0_ro(pool_pa),
+        ),
+        ReachPlant::Ttbr1 => (
+            TTBR1_BASE + (REACH_PLANT_H_SLOT as u64) * PAGE,
+            l3_high_slot(REACH_PLANT_H_SLOT),
+            l3_page_el0_ro(pool_pa),
+        ),
+        ReachPlant::El0Wx => (EL0_PAGE, l3_slot(2), l3_page_el0_rw(pool_pa) & !DESC_UXN),
+    };
+    if slot.read() & DESC_VALID != 0 {
+        return None;
+    }
+    Some((va, slot, desc))
+}
+
+/// ADR-092 negative probe: plant one EL0-reachable leaf of `kind`, walk,
+/// remove it, invalidate. The plant is never accessed. Returns
+/// `(planted va, walk)`; `None` if the slot was busy.
+#[allow(dead_code)]
+pub fn el0_reach_plant_probe(kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> Option<(u64, El0Reach)> {
+    let k = kernel_pa_bounds();
+    let res;
+    let va;
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            let (v, slot, desc) = reach_plant_slot(kind, kernel_pa, pool_pa)?;
+            va = v;
+            slot.write(desc);
+            dsb_ish();
+            res = el0_reach_locked(false, Some(va), &k);
+            slot.write(0);
+            dsb_ish();
+        }
+    }
+    tlbi_va(va);
+    Some((va, res))
+}
+
+/// ADR-092 leak-probe build: persistently leave an EL0-readable mapping of
+/// kernel `.data` at `LOADER_STACK_VA`. Never accessed.
+#[cfg(feature = "reach-leak-probe")]
+pub fn plant_persistent_reach_leak(kernel_pa: u64) -> bool {
+    let _g = TABLES.lock();
+    unsafe {
+        let Some((_, slot, desc)) = reach_plant_slot(ReachPlant::KernelPa, kernel_pa, 0) else {
+            return false;
+        };
+        slot.write(desc);
+    }
+    dsb_ish();
+    true
+}
+
 pub fn mmu_enabled() -> bool {
     sctlr_el1() & SCTLR_M != 0
 }
@@ -2424,6 +3235,28 @@ pub fn map_el0_exec(va: u64, pa: u64) -> bool {
     true
 }
 
+/// Map a 4 KiB frame at `va` in the dedicated window as EL0 read-only +
+/// executable (ADR-094 G4). App text/rodata pages: EL0 may fetch and read,
+/// never write. Bytes must be written through the frame alias (EL1 sees RO).
+pub fn map_el0_text(va: u64, pa: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_slot(i).write(l3_page_el0_text(pa));
+    }
+    dsb_ish();
+    tlbi_va(va);
+    true
+}
+
 /// Map a 4 KiB frame at `va` in the dedicated window.
 pub fn map_page(va: u64, pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
@@ -2467,7 +3300,8 @@ pub fn prepare_asid_b_tables() -> bool {
         addr_of_mut!(L3_ASID_B.entries).write([0; 512]);
         let mmio = l1_slot(0).read();
         let ram = l1_slot(1).read();
-        if mmio & DESC_VALID == 0 || ram & DESC_VALID == 0 {
+        // ADR-088: identity MMIO may already be torn (slot 0 empty).
+        if ram & DESC_VALID == 0 {
             return false;
         }
         l1_asid_b_slot(0).write(mmio);
@@ -2727,8 +3561,9 @@ fn heap_and_mmio_are_pxn() {
     } else {
         assert_eq!(pxn_for(frame::kernel_end()), Some(true));
     }
-    // PL011 is in the Device L1 block (already XN from M7).
-    assert_eq!(pxn_for(0x0900_0000), Some(true));
+    // PL011: Device + XN on the live alias (identity L1 before ADR-088,
+    // TTBR1 Device block after; identity then unmapped).
+    assert!(mmio_xn(0x0900_0000));
 }
 
 #[cfg(test)]

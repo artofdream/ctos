@@ -2,6 +2,9 @@
 
 - Status: Accepted (docs). Umbrella “EL0 isolated” stays **Planned / non-claim** and **cannot become Verified** under current constraints. This ADR tightens the non-claim with an evidence checklist; it does **not** invent Verified.
 - Date: 2026-09-14
+- **Follow-on (2026-09-27, ADR-092):** sponsor option (b) on ADR-091. G1 (EL0-reachability walk) and G2 (EL0 write fault) closed as §A miles below; new gap G4 (syscall copy helpers skip the EL0 permission check) recorded. Row 3 still **not Met** (ADR-091 revision 2 is Draft).
+- **Follow-on (2026-09-26, M5):** the umbrella sentence and scope are **drafted** in [ADR-091](ADR-091-el0-isolated-accept-draft.md) (Draft / pending sponsor accept, D4). Row 3 stays **not Met** until the sponsor has read the draft and accepted it in writing. Nothing is flipped.
+- **Follow-on (2026-09-26, M4):** sponsor D1 accepted. The taken-SError evidence class for the umbrella is the B1 pin job (now **unconditional** on every push/PR) plus the B2-P one-off KVM run ([ADR-090](ADR-090-serror-evidence-class.md)). Row 1 is reworded and Met on that class. Stock QEMU still parks. The umbrella still needs the sponsor's written accept (M5 draft → ADR-091).
 - **Audit (2026-09-26):** [ADR-086](ADR-086-el0-isolated-checklist-audit.md) re-probed every row this session. All §A miles are Verified. All §B rows are still **not** Met: taken SError is Verified only on opt-in paths (B1 pin / B2-P one-off). The identity inventory still leaves five identity ranges (`_start` is one of them, by decision). No umbrella accept exists. §A marker `el0: no data` is stale wording: the code uses `el0: no kernel read`.
 - Locks [ADR-047](ADR-047-isolation-leftovers-decisions.md) decision #4. Optional ledger clarity: “non-claim until checklist.”
 
@@ -28,7 +31,7 @@ CloudAgent HELD; docs-only.
 | Mile | Evidence (serial / test) | ADR |
 | --- | --- | --- |
 | EL0 first mile + NX kernel data | `el0: ok` / `el0: nx kernel` | ADR-013 |
-| User TTBR0 read mile | `el0: no data` | ADR-013 |
+| User TTBR0 read mile | `el0: no kernel read` (wording fixed 2026-09-26, [ADR-087](ADR-087-identity-inventory-ratchet.md); earlier text said `el0: no data`, which no code prints) | ADR-013 |
 | Standing EL0 + standing task | `el0: standing` / `el0: task-ok` | ADR-013 / ADR-024 |
 | ASID isolation | `asid: ok` | ADR-013 |
 | TTBR1 private page + high EL1 fetch | `ttbr1: ok` / `ttbr1: el1 exec` | ADR-016 / ADR-017 |
@@ -39,15 +42,17 @@ CloudAgent HELD; docs-only.
 | SError **park** honesty | `el0: serror-park` | ADR-043 / ADR-045 |
 | PAN **ID-field** on default probe CPU | `pan: present` on cortex-a76 (ADR-079); historical a57 `pan: absent` | ADR-026 / ADR-079 |
 | PAN **enable** + EL1-vs-EL0 fault | `pan: enabled` / `pan: el1-fault` | ADR-080 |
+| EL0 **store** to kernel data (TTBR1) / EL0-RO page → permission fault (2026-09-27) | `el0: write-fault kernel … ec=0x24 wnr=1 dfsc=perm-l3` / `el0: write-fault user-ro …` / `el0: write-ok kernel,user-ro` | [ADR-092](ADR-092-el0-reach-walk-write-fault.md) |
+| Fail-closed EL0-reachability walk (k/u/ASID-B TTBR0 + TTBR1; allowlist = five user slots) (2026-09-27) | `el0-reach: live k=3 u=3 a=0 h=0 pages=6 leaks=0` / `el0-reach: steady … pages=0 leaks=0` / `el0-reach: neg … caught` / `el0-reach: ok allow=…` | [ADR-092](ADR-092-el0-reach-walk-write-fault.md) |
 | `_start` stay honesty | `ident: start-stay` | ADR-042 / ADR-047 |
 
 ### B. Umbrella requirements still **Unmet** (block Verified)
 
 | Requirement | Current status | Why unmet | Reopen / lock ADR |
 | --- | --- | --- | --- |
-| Taken lower-EL SError while standing | **Deferred / non-goal (hard-stopped)** | No honest inject on virt TCG (`machine does not provide NMIs`) — re-probed a76 + GICv3/virt-on/max 2026-09-19. B1 opt-in pin Verified ([ADR-083](ADR-083-b1-qemu-nmi-pin.md)); B2 free-runner spike blocked 2026-09-25 ([ADR-084](ADR-084-b2-free-runner-serror.md)) | [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) / [ADR-083](ADR-083-b1-qemu-nmi-pin.md) / [ADR-084](ADR-084-b2-free-runner-serror.md) |
-| Full identity teardown including yank `_start` | **Decided: never** while `-kernel` needs `0x4008_0000` | Boot stub stays (`ident: start-stay`) | ADR-042 / ADR-047 |
-| Written sponsor accept that the umbrella sentence is in scope | **Absent** | No ADR-048-style accept for “EL0 isolated” | Would need a future accept ADR — **not** this file |
+| Taken lower-EL SError while standing, **on the D1 evidence class** (reworded 2026-09-26 per sponsor D1, [ADR-090](ADR-090-serror-evidence-class.md)): B1 `qemu-nmi-pin` green, unconditional on every push/PR, plus B2-P ADR-085 run 4 | **Met (D1 evidence class; not the umbrella)**. B1 bare `el0: serror` fail-closed in CI; B2-P `el0: serror` + `b2: taken` under Graviton3 KVM (one-off, at `159b178`). Stock virt TCG itself: still **deferred / non-goal (hard-stopped)**, `el0: serror-park` | Stock QEMU has no honest inject on virt TCG (`machine does not provide NMIs`) — re-probed a76 + GICv3/virt-on/max 2026-09-19. B1 opt-in pin Verified ([ADR-083](ADR-083-b1-qemu-nmi-pin.md)); B2 free-runner spike blocked 2026-09-25 ([ADR-084](ADR-084-b2-free-runner-serror.md)) | [ADR-053](ADR-053-taken-serror-hard-stop.md) / [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) / [ADR-083](ADR-083-b1-qemu-nmi-pin.md) / [ADR-084](ADR-084-b2-free-runner-serror.md) |
+| Full identity teardown **except the documented `_start` stub page** (reworded 2026-09-26 per sponsor D2, [ADR-089](ADR-089-start-stub-identity-exception.md); was “including yank `_start`”) | **Met (this session; not the umbrella)**. The fail-closed inventory reports only the stub page: `ident: inv k=1 u=1 a=1 leaks=0` / `ident: inv-ok allow=stub` | M1 [ADR-087](ADR-087-identity-inventory-ratchet.md) + M2 [ADR-088](ADR-088-mmio-high-alias.md). `_start` never yanked (`ident: start-stay`) | ADR-042 / ADR-047 (amended) / [ADR-089](ADR-089-start-stub-identity-exception.md) |
+| Written sponsor accept that the umbrella sentence is in scope | **Absent** (a **draft** exists, pending the sponsor: [ADR-091](ADR-091-el0-isolated-accept-draft.md), 2026-09-26) | No written sponsor accept. The sentence and scope are drafted (D4) but not yet read and accepted by the sponsor. **Not Met; do not count.** | ADR-091 (Draft) → sponsor's written accept → M6 flip — **not** this file |
 
 Until §B is cleared under honest probes (and `_start` policy is redesigned with sponsor scope if ever), the umbrella row stays **non-claim**.
 

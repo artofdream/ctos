@@ -31,6 +31,7 @@ mod qemu;
 mod ro;
 mod sched;
 mod slot;
+mod reach;
 mod syscall;
 mod teardown;
 mod timer;
@@ -94,6 +95,11 @@ pub extern "C" fn kernel_main() -> ! {
 #[no_mangle]
 extern "C" fn kernel_main_high() -> ! {
     uart::write_str_raw("ident: jump\n");
+    // ADR-088: drivers switch to the TTBR1 Device alias before any
+    // identity MMIO is torn (identity L1 block stays until then).
+    if !paging::enable_mmio_high() {
+        uart::write_str_raw("ident: mmio-high missed\n");
+    }
     if !paging::rewrite_identity_fn_ptrs() {
         uart::write_str_raw("ident: reloc missed\n");
     }
@@ -149,6 +155,17 @@ extern "C" fn kernel_main_high() -> ! {
     // Keep `_start` mapped. High twins stay.
     if !paging::tear_identity_ram() {
         uart::write_str_raw("ident: ram missed\n");
+    }
+    // ADR-087: unmap the remaining RAM-side identity leftovers (low RAM
+    // below the image, image padding tail, pre-heap frames) from kernel and
+    // user TTBR0. `_start` / boot stub stays; MMIO stays (M2).
+    if !paging::tear_identity_leftovers() {
+        uart::write_str_raw("ident: left missed\n");
+    }
+    // ADR-088: clear the identity MMIO L1 block (I1). Only the `_start`
+    // stub page stays identity-mapped (sponsor D2 exception).
+    if !paging::tear_identity_mmio() {
+        uart::write_str_raw("ident: mmio missed\n");
     }
     // ADR-085 B2-P: KVM on real arm64. Skip GIC/timer/virtio/FAT/samples
     // (a KVM host may not offer GICv2). Run only the standing-EL0 SError
@@ -218,6 +235,13 @@ extern "C" fn kernel_main_high() -> ! {
         // Not app hosting. Not a Linux ABI.
         if !syscall::observe_probe() {
             uart::write_str_raw("svc: probe missed\n");
+        }
+        // ADR-094 (G4): syscall user pointers need EL0 permission on every
+        // page. EL0 asks the kernel to read the `_start` stub and a
+        // kernel-only window page, and to write its own execute-only text and
+        // an EL0-RO page; each must be refused (`el0: sys-ptr ok`).
+        if !syscall::observe_sys_ptr_probe() {
+            uart::write_str_raw("el0: sys-ptr probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A2 / ADR-022): libctos CRT.
         // Bytes from FAT `/hello` (ADR-032). Not an ELF loader. Not app hosting.
@@ -317,6 +341,11 @@ extern "C" fn kernel_main_high() -> ! {
         // heap tear. Not “the kernel moved.”
         if !teardown::observe_probe() {
             uart::write_str_raw("ident: probe missed\n");
+        }
+        // ADR-092 (G1): live (armed in the loader probe) + steady + negative
+        // EL0-reachability walks over kernel / user / ASID-B TTBR0 + TTBR1.
+        if !reach::observe_probe() {
+            uart::write_str_raw("el0-reach: probe missed\n");
         }
         // PAN ID was printed in kernel_main_high (ADR-026). Fail-closed
         // if that cut did not publish the ID field (`absent` or `present`).

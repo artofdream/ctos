@@ -36,6 +36,8 @@ This ADR records those decisions. It does not change guest code. CloudAgent HELD
 
 ### 3. Yank `_start` / leftover identity RAM
 
+> **Amended 2026-09-26 by [ADR-089](ADR-089-start-stub-identity-exception.md) (sponsor D2):** “never yank `_start`” stands. Leftover identity RAM was torn (ADR-049, ADR-087), and the MMIO identity block was torn too (ADR-088). The `_start` stub page `[0x4008_0000, 0x4008_1000)` is the **one documented identity exception**, and a fail-closed TTBR0 inventory enforces it. The original text below is kept for history.
+
 - QEMU `-kernel` still needs `_start` at `0x4008_0000`.
 - **Decision:** **never yank `_start`** while that boot contract holds. `ident: start-stay` / `ident: ram-stay` stay **Verified honesty** ([ADR-042](ADR-042-isolation-leftover-wrap.md)).
 - Leftover identity frame RAM after the heap may stay **Planned** as an **optional** later unmap. It is **not required** to close the umbrella isolation row under current constraints.

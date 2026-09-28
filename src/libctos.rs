@@ -66,7 +66,9 @@ fn run_hello() -> bool {
     };
     let va = paging::EL0_PAGE;
     let stack_va = va + 4096;
-    if !paging::map_el0_exec(va, code_pa) {
+    // ADR-094 (G4): EL0 read-only + executable, so the app can pass its own
+    // `.rodata` strings to `uart_write`. Bytes go in via the frame alias.
+    if !paging::map_el0_text(va, code_pa) {
         frame::free(code_pa);
         frame::free(stack_pa);
         return false;
@@ -84,10 +86,15 @@ fn run_hello() -> bool {
         frame::free(code_pa);
         return false;
     };
+    // EL1 sees the EL0-text VA as read-only; write through the TTBR1 alias,
+    // then clean/invalidate both aliases before EL0 fetches.
+    let alias = paging::frame_cpu_va(code_pa);
     unsafe {
-        core::ptr::copy_nonoverlapping(bin.as_ptr(), va as *mut u8, bin.len());
+        core::ptr::copy_nonoverlapping(bin.as_ptr(), alias as *mut u8, bin.len());
     }
-    sync_range(va as *const u8, bin.len());
+    sync_range(alias as *const u8, bin.len());
+    // The EL0 VA is EL0-accessible now: keep PAN out of the way (ADR-080).
+    crate::pan::with_user_access(|| sync_range(va as *const u8, bin.len()));
     // Rust `main` saves x30 on SP. The code page is EL0-exec / no EL0 data
     // (and WXN forbids making it W+X). Stack is a second EL0-RW NX page.
     let user_sp = stack_va + 4096;

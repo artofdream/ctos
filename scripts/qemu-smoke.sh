@@ -1289,6 +1289,103 @@ if ! grep -q "ident: ram-high" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: identity-tear strings present"
+# ADR-087: RAM-side identity leftovers torn + fail-closed TTBR0 identity
+# inventory (allowlist = I1 MMIO block + I3 boot-stub page) + planted-leak
+# negative probe. `_start` stays (ident: start-stay above).
+for m in "ident: low lo=" "ident: tail lo=" "ident: kend lo=" \
+         "ident: low-fault" "ident: tail-fault" "ident: kend-fault" \
+         "ident: inv k=" "ident: inv-range k lo=0x40080000 hi=0x40081000" \
+         "ident: inv-neg k caught" "ident: inv-neg u caught" "ident: inv-neg clean" \
+         "ident: inv-ok allow=stub" "ident: mmio-high gic=0xffffff8008000000 uart=0xffffff8009000000 virtio=0xffffff800a000000" \
+         "ident: mmio lo=0x0 hi=0x40000000" "ident: mmio-fault va=0x9000018"; do
+    if ! grep -q "$m" "$log"; then
+        echo "qemu-smoke: missing '$m' on serial (ADR-087 identity inventory, qemu exit $qemu_ec)" >&2
+        exit 1
+    fi
+done
+for m in "ident: mmio missed" "ident: mmio-high missed" "ident: miss mmio-ready" "ident: miss mmio-fault" \
+         "ident: inv-range k lo=0x0 " "ident: inv-range a lo=0x0 " "ident: left missed" "ident: inv missed" "ident: inv-leak" "ident: inv-neg missed" \
+         "ident: miss left-ready" "ident: miss low-fault" "ident: miss tail-fault" "ident: miss kend-fault"; do
+    if grep -q "$m" "$log"; then
+        echo "qemu-smoke: '$m' on serial (ADR-087 identity leftover / leak, qemu exit $qemu_ec)" >&2
+        grep "ident: inv" "$log" >&2 || true
+        exit 1
+    fi
+done
+if ! grep -E -q '^ident: inv k=1 u=1 a=1 leaks=0' "$log"; then
+    echo "qemu-smoke: 'ident: inv' did not report k=1 u=1 a=1 leaks=0 (ADR-087/088: only the _start stub page)" >&2
+    exit 1
+fi
+# ADR-092 (G1): fail-closed EL0-reachability walk over kernel / user /
+# ASID-B TTBR0 + TTBR1. Live (hello-libctos standing at EL0) must see user
+# pages and no leak; steady state must be empty; four planted leaves must be
+# caught under their rule. (G2): EL0 stores to kernel data (TTBR1) and to an
+# EL0-RO page must permission-fault with WnR=1 and FAR = target.
+for re in '^el0-reach: live k=[1-9][0-9]* u=[1-9][0-9]* a=[0-9]+ h=0 pages=[1-9][0-9]* leaks=0[[:space:]]*$' \
+          '^el0-reach: steady k=0 u=0 a=0 h=0 pages=0 leaks=0[[:space:]]*$' \
+          '^el0-reach: neg kernel-pa caught va=0x80007000 roots=k,u why=kernel-pa[[:space:]]*$' \
+          '^el0-reach: neg va caught va=0x80190000 roots=k,u why=va[[:space:]]*$' \
+          '^el0-reach: neg ttbr1 caught va=0xffffff8000100000 roots=h why=ttbr1[[:space:]]*$' \
+          '^el0-reach: neg el0-wx caught va=0x80002000 roots=k,u why=el0-wx[[:space:]]*$' \
+          '^el0-reach: neg clean[[:space:]]*$' \
+          '^el0-reach: ok allow=app-hdr\[0x80000000,0x80001000\),app-text\[0x80002000,0x80003000\),crt-stack-pan\[0x80003000,0x80004000\),user-stack\[0x80007000,0x80008000\),store-ro\[0x80009000,0x8000a000\)[[:space:]]*$' \
+          '^el0: write-fault kernel va=(0xffffff80[0-9a-f]+) esr=0x9200004[def] far=\1 ec=0x24 wnr=1 dfsc=perm-l[123][[:space:]]*$' \
+          '^el0: write-fault user-ro va=0x80009000 esr=0x9200004[def] far=0x80009000 ec=0x24 wnr=1 dfsc=perm-l[123][[:space:]]*$' \
+          '^el0: write-ok kernel,user-ro[[:space:]]*$'; do
+    if ! grep -E -q "$re" "$log"; then
+        echo "qemu-smoke: missing /$re/ on serial (ADR-092 EL0 reach walk / EL0 write fault, qemu exit $qemu_ec)" >&2
+        grep -E "el0-reach:|el0: write" "$log" >&2 || true
+        exit 1
+    fi
+done
+for m in "el0-reach: leak" "el0-reach: probe missed" "el0-reach: live missed" "el0-reach: live bad" \
+         "missed slot-busy" "el0-reach: neg unclean" "el0: write-succeeded" "el0: write-bad"; do
+    if grep -q "$m" "$log"; then
+        echo "qemu-smoke: '$m' on serial (ADR-092 fail-closed, qemu exit $qemu_ec)" >&2
+        grep -E "el0-reach:|el0: write" "$log" >&2 || true
+        exit 1
+    fi
+done
+if grep -E -q '^el0-reach: neg [a-z0-9-]+ missed' "$log"; then
+    echo "qemu-smoke: an ADR-092 planted EL0-reachable leaf was not caught" >&2
+    exit 1
+fi
+echo "qemu-smoke: EL0 reach walk + EL0 write-fault strings present (ADR-092)"
+# ADR-094 (G4): syscall user pointers need EL0 permission on every page.
+# Control: copy_to_user into an EL0-RW page lands 6 bytes. Then EL0 asks
+# SYS_UART_WRITE to read the `_start` stub and a kernel-only window page, and
+# SYS_NET_MAC (copy_to_user) to write its own execute-only text and an EL0-RO
+# page: each must be refused (return 0, target unchanged).
+for re in '^el0: sys-ptr control rw-data n=6[[:space:]]*$' \
+          '^el0: sys-ptr denied kernel-stub[[:space:]]*$' \
+          '^el0: sys-ptr denied kernel-window[[:space:]]*$' \
+          '^el0: sys-ptr denied xo-text[[:space:]]*$' \
+          '^el0: sys-ptr denied write-ro[[:space:]]*$' \
+          '^el0: sys-ptr denied straddle[[:space:]]*$' \
+          '^el0: sys-ptr denied sys=uart_write nr=17 read kernel-stub[[:space:]]*$' \
+          '^el0: sys-ptr denied sys=fs_create nr=19 read kernel-stub[[:space:]]*$' \
+          '^el0: sys-ptr denied sys=fs_open nr=20 read kernel-stub[[:space:]]*$' \
+          '^el0: sys-ptr denied sys=fs_mkdir nr=27 read kernel-stub[[:space:]]*$' \
+          '^el0: sys-ptr denied sys=fs_write nr=22 read kernel-stub[[:space:]]*$' \
+          '^el0: sys-ptr denied sys=fs_read nr=21 write xo-text[[:space:]]*$' \
+          '^el0: sys-ptr denied sys=net_mac nr=24 write xo-text[[:space:]]*$' \
+          '^el0: sys-ptr sweep syscalls=7 denied=7[[:space:]]*$' \
+          '^el0: sys-ptr ok[[:space:]]*$'; do
+    if ! grep -E -q "$re" "$log"; then
+        echo "qemu-smoke: missing /$re/ on serial (ADR-094 syscall pointer permission, qemu exit $qemu_ec)" >&2
+        grep -E "sys-ptr" "$log" >&2 || true
+        exit 1
+    fi
+done
+for m in "el0: sys-ptr leaked" "el0: sys-ptr bad" "el0: sys-ptr skip" "el0: sys-ptr probe missed"; do
+    if grep -q "$m" "$log"; then
+        echo "qemu-smoke: '$m' on serial (ADR-094 fail-closed, qemu exit $qemu_ec)" >&2
+        grep -E "sys-ptr" "$log" >&2 || true
+        exit 1
+    fi
+done
+echo "qemu-smoke: syscall pointer EL0-permission strings present (ADR-094)"
+echo "qemu-smoke: ADR-087/088 identity inventory allowlist-only (stub) + MMIO high alias + plant caught"
 if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
     exit 1
@@ -1519,5 +1616,72 @@ if [ "$fail_ec" -eq 124 ]; then
     exit 1
 fi
 echo "qemu-smoke: force-fail exited $fail_ec (fail-closed ok)"
+
+# ADR-087 negative probe: a kernel with one planted identity page must make
+# the TTBR0 identity inventory report the leak and withhold inv-ok / ident: ok.
+INV_LEAK_TIMEOUT_SECS="${CTOS_INV_LEAK_TIMEOUT:-$TIMEOUT_SECS}"
+echo "qemu-smoke: inv-leak-probe must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
+cargo build --features inv-leak-probe --target-dir target/inv-leak-probe
+leak_elf="target/inv-leak-probe/aarch64-ctos/debug/ctos"
+leak_log=$(mktemp)
+set +e
+CTOS_QEMU_TIMEOUT="$INV_LEAK_TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
+    "$leak_elf" >"$leak_log" 2>&1
+set -e
+grep "ident: inv" "$leak_log" || true
+if ! grep -q "ident: inv-leak-probe planted va=0x40000000" "$leak_log"; then
+    echo "qemu-smoke: inv-leak-probe kernel did not plant (ADR-087)" >&2
+    rm -f "$leak_log"; exit 1
+fi
+if ! grep -q "ident: inv-leak k lo=0x40000000" "$leak_log"; then
+    echo "qemu-smoke: planted identity page NOT reported by the inventory (ADR-087)" >&2
+    rm -f "$leak_log"; exit 1
+fi
+if grep -q "ident: inv-ok" "$leak_log" || grep -q "^ident: ok" "$leak_log"; then
+    echo "qemu-smoke: inventory passed despite a planted identity page (ADR-087)" >&2
+    rm -f "$leak_log"; exit 1
+fi
+rm -f "$leak_log"
+echo "qemu-smoke: inv-leak-probe caught (fail-closed ok)"
+
+# ADR-092 negative build: one persistent EL0-readable mapping of kernel
+# `.data` (G1) and an EL0 store target that is really EL0-RW (G2). The walk
+# must report the leak and withhold `el0-reach: ok`; the store probe must
+# report the completed store and withhold `el0: write-ok`. ADR-094 (G4): the
+# same kernel skips the EL0-permission part of the syscall pointer check, so
+# EL0 makes the kernel read the stub / a kernel-only page and write its
+# execute-only text; the probe must report each leak and withhold
+# `el0: sys-ptr ok`.
+echo "qemu-smoke: el0-leak-probe (reach + write + sys-ptr) must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
+cargo build --features reach-leak-probe,write-leak-probe,sysptr-leak-probe --target-dir target/el0-leak-probe
+el0leak_elf="target/el0-leak-probe/aarch64-ctos/debug/ctos"
+el0leak_log=$(mktemp)
+set +e
+CTOS_QEMU_TIMEOUT="$INV_LEAK_TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
+    "$el0leak_elf" >"$el0leak_log" 2>&1
+set -e
+grep -E "el0-reach:|el0: write|sys-ptr" "$el0leak_log" || true
+for re in '^el0: write-succeeded user-ro va=0x80009000 ' \
+          '^el0: sys-ptr control rw-data n=6[[:space:]]*$' \
+          'el0: sys-ptr leaked kernel-stub n=8[[:space:]]*$' \
+          '^el0: sys-ptr leaked kernel-window n=8[[:space:]]*$' \
+          '^el0: sys-ptr leaked xo-text n=6 intact=false checks=0[[:space:]]*$' \
+          '^el0: sys-ptr skip write-ro[[:space:]]*$' \
+          '^el0-reach: leak-probe planted va=0x80007000[[:space:]]*$' \
+          '^el0-reach: leak k lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
+          '^el0-reach: leak u lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
+          '^el0-reach: steady k=1 u=1 a=0 h=0 pages=2 leaks=2[[:space:]]*$'; do
+    if ! grep -E -q "$re" "$el0leak_log"; then
+        echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-092)" >&2
+        rm -f "$el0leak_log"; exit 1
+    fi
+done
+if grep -q "el0: write-ok" "$el0leak_log" || grep -q "el0-reach: ok" "$el0leak_log" \
+    || grep -q "el0: sys-ptr ok" "$el0leak_log" || grep -q "el0: sys-ptr denied" "$el0leak_log"; then
+    echo "qemu-smoke: ADR-092/094 walk / store / sys-ptr probe passed despite a planted leak" >&2
+    rm -f "$el0leak_log"; exit 1
+fi
+rm -f "$el0leak_log"
+echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr)"
 
 echo "qemu-smoke: ok"

@@ -42,11 +42,11 @@ pub struct Pl011 {
 
 impl Pl011 {
     unsafe fn write_reg(&self, offset: usize, value: u32) {
-        core::ptr::write_volatile((self.base + offset) as *mut u32, value);
+        core::ptr::write_volatile((crate::paging::mmio_va(self.base) + offset) as *mut u32, value);
     }
 
     unsafe fn read_reg(&self, offset: usize) -> u32 {
-        core::ptr::read_volatile((self.base + offset) as *const u32)
+        core::ptr::read_volatile((crate::paging::mmio_va(self.base) + offset) as *const u32)
     }
 
     /// Minimal TX enable. QEMU virt usually accepts DR writes without this;
