@@ -312,6 +312,57 @@ fn run_ram_fault() -> bool {
     exception::ident_ram_caught()
 }
 
+/// ADR-087: EL1 `LDR` of a torn leftover identity VA must take a
+/// current-EL translation DABORT. Prints `ident: <name>-fault`.
+fn run_left_fault(va: u64, name: &str) -> bool {
+    if paging::is_mapped(va) || paging::user_mapped(va) {
+        uart::write_str_raw("ident: leaked\n");
+        return false;
+    }
+    exception::arm_ident_left();
+    let _ = black_box(unsafe { core::ptr::read_volatile(va as *const u64) });
+    if !exception::ident_left_caught() {
+        return false;
+    }
+    let mut w = uart::raw();
+    let _ = writeln!(w, "ident: {}-fault va={:#x}", name, va);
+    true
+}
+
+/// ADR-087 fail-closed ratchet: every identity (VA == PA) leaf in kernel,
+/// user and ASID-B TTBR0 must sit inside `paging::INV_ALLOW` (I1 MMIO
+/// block, I3 boot-stub page). A planted identity page must be caught.
+fn run_inventory() -> bool {
+    #[cfg(feature = "inv-leak-probe")]
+    if paging::plant_persistent_leak() {
+        uart::write_str_raw("ident: inv-leak-probe planted va=0x40000000\n");
+    }
+    let inv = paging::identity_inventory(true);
+    {
+        let mut w = uart::raw();
+        let _ = writeln!(
+            w,
+            "ident: inv k={} u={} a={} leaks={}",
+            inv.ranges[0], inv.ranges[1], inv.ranges[2], inv.leaks
+        );
+    }
+    if inv.leaks != 0 || inv.ranges[0] == 0 {
+        return false;
+    }
+    let (k, u, clean) = paging::inventory_negative_probe();
+    let plant = frame::VIRT_RAM_BASE;
+    let mut w = uart::raw();
+    if !k || !u || !clean {
+        let _ = writeln!(w, "ident: inv-neg missed k={} u={} clean={}", k, u, clean);
+        return false;
+    }
+    let _ = writeln!(w, "ident: inv-neg k caught va={:#x}", plant);
+    let _ = writeln!(w, "ident: inv-neg u caught va={:#x}", plant);
+    let _ = writeln!(w, "ident: inv-neg clean");
+    let _ = writeln!(w, "ident: inv-ok allow=mmio,stub");
+    true
+}
+
 fn el0_load_torn() -> bool {
     let Some(code_pa) = frame::alloc() else {
         return false;
@@ -536,6 +587,26 @@ fn run_probe() -> bool {
         uart::write_str_raw("ident: miss ram-high\n");
         return false;
     }
+    if !paging::identity_left_ready() {
+        uart::write_str_raw("ident: miss left-ready\n");
+        return false;
+    }
+    if !run_left_fault(frame::VIRT_RAM_BASE, "low") {
+        uart::write_str_raw("ident: miss low-fault\n");
+        return false;
+    }
+    if !run_left_fault(paging::data_start() - 4096, "tail") {
+        uart::write_str_raw("ident: miss tail-fault\n");
+        return false;
+    }
+    if paging::torn_left_pages().2 > 0 && !run_left_fault(paging::kend_tear_lo(), "kend") {
+        uart::write_str_raw("ident: miss kend-fault\n");
+        return false;
+    }
+    if !run_inventory() {
+        uart::write_str_raw("ident: inv missed\n");
+        return false;
+    }
     true
 }
 
@@ -635,4 +706,37 @@ fn identity_ram_torn_high_stays() {
     assert!(paging::torn_ram_pages() >= 1);
     let stub = paging::identity_pa(paging::KERNEL_TEXT);
     assert!(paging::is_mapped(stub), "boot stub must stay");
+}
+
+/// ADR-087: low RAM, image padding tail and pre-heap frames are torn from
+/// kernel and user TTBR0; `_start` stays.
+#[cfg(test)]
+#[test_case]
+fn identity_leftovers_torn_stub_stays() {
+    assert!(paging::identity_left_ready());
+    for (lo, hi) in paging::leftover_ranges() {
+        let mut va = lo;
+        while va < hi {
+            assert!(!paging::is_mapped(va), "ADR-087 leftover still identity-mapped");
+            assert!(!paging::user_mapped(va), "ADR-087 leftover still in user TTBR0");
+            va += 4096;
+        }
+    }
+    let (low, tail, _kend) = paging::torn_left_pages();
+    assert!(low >= 1 && tail >= 1);
+    let stub = paging::identity_pa(paging::KERNEL_TEXT);
+    assert!(paging::is_mapped(stub) && paging::is_executable(stub), "boot stub must stay");
+}
+
+/// ADR-087: the identity inventory is allowlist-only and catches a plant.
+#[cfg(test)]
+#[test_case]
+fn identity_inventory_allowlist_only_catches_plant() {
+    let inv = paging::identity_inventory(false);
+    assert_eq!(inv.leaks, 0, "identity leaf outside the allowlist (MMIO block, stub page)");
+    assert!(inv.ranges[0] >= 2);
+    let (k, u, clean) = paging::inventory_negative_probe();
+    assert!(k, "kernel TTBR0 plant not caught");
+    assert!(u, "user TTBR0 plant not caught");
+    assert!(clean, "plant not removed");
 }

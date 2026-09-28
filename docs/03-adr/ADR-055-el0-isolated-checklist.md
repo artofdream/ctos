@@ -28,7 +28,7 @@ CloudAgent HELD; docs-only.
 | Mile | Evidence (serial / test) | ADR |
 | --- | --- | --- |
 | EL0 first mile + NX kernel data | `el0: ok` / `el0: nx kernel` | ADR-013 |
-| User TTBR0 read mile | `el0: no data` | ADR-013 |
+| User TTBR0 read mile | `el0: no kernel read` (wording fixed 2026-09-26, [ADR-087](ADR-087-identity-inventory-ratchet.md); earlier text said `el0: no data`, which no code prints) | ADR-013 |
 | Standing EL0 + standing task | `el0: standing` / `el0: task-ok` | ADR-013 / ADR-024 |
 | ASID isolation | `asid: ok` | ADR-013 |
 | TTBR1 private page + high EL1 fetch | `ttbr1: ok` / `ttbr1: el1 exec` | ADR-016 / ADR-017 |

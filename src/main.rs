@@ -150,6 +150,12 @@ extern "C" fn kernel_main_high() -> ! {
     if !paging::tear_identity_ram() {
         uart::write_str_raw("ident: ram missed\n");
     }
+    // ADR-087: unmap the remaining RAM-side identity leftovers (low RAM
+    // below the image, image padding tail, pre-heap frames) from kernel and
+    // user TTBR0. `_start` / boot stub stays; MMIO stays (M2).
+    if !paging::tear_identity_leftovers() {
+        uart::write_str_raw("ident: left missed\n");
+    }
     // ADR-085 B2-P: KVM on real arm64. Skip GIC/timer/virtio/FAT/samples
     // (a KVM host may not offer GICv2). Run only the standing-EL0 SError
     // probe, then park. Default build never takes this branch.

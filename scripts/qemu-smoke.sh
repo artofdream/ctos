@@ -1283,6 +1283,32 @@ if ! grep -q "ident: ram-high" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: identity-tear strings present"
+# ADR-087: RAM-side identity leftovers torn + fail-closed TTBR0 identity
+# inventory (allowlist = I1 MMIO block + I3 boot-stub page) + planted-leak
+# negative probe. `_start` stays (ident: start-stay above).
+for m in "ident: low lo=" "ident: tail lo=" "ident: kend lo=" \
+         "ident: low-fault" "ident: tail-fault" "ident: kend-fault" \
+         "ident: inv k=" "ident: inv-range k lo=0x40080000 hi=0x40081000" \
+         "ident: inv-neg k caught" "ident: inv-neg u caught" "ident: inv-neg clean" \
+         "ident: inv-ok"; do
+    if ! grep -q "$m" "$log"; then
+        echo "qemu-smoke: missing '$m' on serial (ADR-087 identity inventory, qemu exit $qemu_ec)" >&2
+        exit 1
+    fi
+done
+for m in "ident: left missed" "ident: inv missed" "ident: inv-leak" "ident: inv-neg missed" \
+         "ident: miss left-ready" "ident: miss low-fault" "ident: miss tail-fault" "ident: miss kend-fault"; do
+    if grep -q "$m" "$log"; then
+        echo "qemu-smoke: '$m' on serial (ADR-087 identity leftover / leak, qemu exit $qemu_ec)" >&2
+        grep "ident: inv" "$log" >&2 || true
+        exit 1
+    fi
+done
+if ! grep -E -q '^ident: inv k=[0-9]+ u=[0-9]+ a=[0-9]+ leaks=0' "$log"; then
+    echo "qemu-smoke: 'ident: inv' did not report leaks=0 (ADR-087)" >&2
+    exit 1
+fi
+echo "qemu-smoke: ADR-087 identity inventory allowlist-only (mmio,stub) + plant caught"
 if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
     exit 1
@@ -1513,5 +1539,32 @@ if [ "$fail_ec" -eq 124 ]; then
     exit 1
 fi
 echo "qemu-smoke: force-fail exited $fail_ec (fail-closed ok)"
+
+# ADR-087 negative probe: a kernel with one planted identity page must make
+# the TTBR0 identity inventory report the leak and withhold inv-ok / ident: ok.
+INV_LEAK_TIMEOUT_SECS="${CTOS_INV_LEAK_TIMEOUT:-$TIMEOUT_SECS}"
+echo "qemu-smoke: inv-leak-probe must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
+cargo build --features inv-leak-probe --target-dir target/inv-leak-probe
+leak_elf="target/inv-leak-probe/aarch64-ctos/debug/ctos"
+leak_log=$(mktemp)
+set +e
+CTOS_QEMU_TIMEOUT="$INV_LEAK_TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
+    "$leak_elf" >"$leak_log" 2>&1
+set -e
+grep "ident: inv" "$leak_log" || true
+if ! grep -q "ident: inv-leak-probe planted va=0x40000000" "$leak_log"; then
+    echo "qemu-smoke: inv-leak-probe kernel did not plant (ADR-087)" >&2
+    rm -f "$leak_log"; exit 1
+fi
+if ! grep -q "ident: inv-leak k lo=0x40000000" "$leak_log"; then
+    echo "qemu-smoke: planted identity page NOT reported by the inventory (ADR-087)" >&2
+    rm -f "$leak_log"; exit 1
+fi
+if grep -q "ident: inv-ok" "$leak_log" || grep -q "^ident: ok" "$leak_log"; then
+    echo "qemu-smoke: inventory passed despite a planted identity page (ADR-087)" >&2
+    rm -f "$leak_log"; exit 1
+fi
+rm -f "$leak_log"
+echo "qemu-smoke: inv-leak-probe caught (fail-closed ok)"
 
 echo "qemu-smoke: ok"
