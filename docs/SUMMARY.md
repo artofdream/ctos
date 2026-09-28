@@ -121,6 +121,7 @@
 - [ADR-090 Taken-SError evidence class = B1 pin + B2-P (M4)](03-adr/ADR-090-serror-evidence-class.md)
 - [ADR-091 DRAFT umbrella accept — pending sponsor (M5)](03-adr/ADR-091-el0-isolated-accept-draft.md)
 - [ADR-092 EL0-reachability walk + EL0 write fault (G1/G2)](03-adr/ADR-092-el0-reach-walk-write-fault.md)
+- [ADR-093 Public-identifier scrub + fail-closed guard](03-adr/ADR-093-public-identifier-scrub-guard.md)
 - [ADR-094 Syscall pointers need EL0 permission (G4)](03-adr/ADR-094-syscall-pointer-el0-permission.md)
 - [ADR-095 G3: B2-P KVM taken-SError re-run on current main (PASS)](03-adr/ADR-095-g3-kvm-recheck.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)

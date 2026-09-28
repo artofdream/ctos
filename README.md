@@ -4,7 +4,7 @@ A minimal bare-metal **AArch64** OS kernel in Rust. Learning and research projec
 
 This repo is hosted on **GitHub only** (`artofdream/ctos`). Issues, PRs, and reviews use `gh`. There is no GitLab tracker.
 
-Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Production URL: [`https://ctos.artof.link`](https://ctos.artof.link) — **Verified** after #30 (main deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200 + Driving principles). Route 53 CNAME remains in place (zone `Z1178AFMV41RWP`, account `737290977112`). `https://artofdream.github.io/ctos` (no trailing slash) 301s to the custom domain. Overview: [what can run today](docs/overview/what-can-run.md), [prerequisites](docs/overview/prerequisites.md), [limits](docs/overview/limits.md). DNS/Pages: [docs/website.md](docs/website.md).
+Learning-kernel docs are built with **mdBook** and published with **GitHub Pages**. Production URL: [`https://ctos.artof.link`](https://ctos.artof.link) — **Verified** after #30 (main deploy [34653046584](https://github.com/artofdream/ctos/actions/runs/34653046584) + HTTPS 200 + Driving principles). Route 53 CNAME remains in place (zone `<route53-zone-id>`, account `<aws-account-id>`). `https://artofdream.github.io/ctos` (no trailing slash) 301s to the custom domain. Overview: [what can run today](docs/overview/what-can-run.md), [prerequisites](docs/overview/prerequisites.md), [limits](docs/overview/limits.md). DNS/Pages: [docs/website.md](docs/website.md).
 
 ## Build and run
 
@@ -50,8 +50,8 @@ cts-ai `./scripts/docker-smoke.sh` (linux/arm64) is **Verified** on `main` `e80d
 Host hygiene for later (evo-x2) smoke — docs note, not a kernel claim:
 
 - Alpine is the default WSL2 distro. Install bash: `wsl -d Alpine -u root -- apk add bash`.
-- Prefer `wsl -d Alpine -u cts -- bash` (real Alpine bash). Do **not** use the WindowsApps `bash.exe` stub.
-- Docker Desktop WSL integration is **not** enabled for Alpine. Call Windows `docker.exe` from Alpine via PATH, e.g. `/mnt/c/Users/cts/AppData/Local/Programs/DockerDesktop/resources/bin`, or run `docker build` / `docker run` from `cmd`.
+- Prefer `wsl -d Alpine -u <user> -- bash` (real Alpine bash). Do **not** use the WindowsApps `bash.exe` stub.
+- Docker Desktop WSL integration is **not** enabled for Alpine. Call Windows `docker.exe` from Alpine via PATH, e.g. `/mnt/c/Users/<user>/AppData/Local/Programs/DockerDesktop/resources/bin`, or run `docker build` / `docker run` from `cmd`.
 - `scripts/docker-smoke.sh` is already `#!/bin/sh` (Alpine ash-friendly when `docker` is on PATH).
 
 ## Docs website (mdBook)

@@ -27,11 +27,17 @@
 # ADR-075: EL0 `fs_mkdir` (27) + FAT `/mkdemo` (`libctos: mkdir-ok` / `mkdemo: ok`).
 # ADR-077: nested FAT mkdir `/fdir/nest` + empty rmdir (`fat: nested` / `fat: rmdir`).
 # ADR-076: EL0 `net_tcp_echo` (28) + FAT `/tcpdemo` (`libctos: tcp-ok` / `tcpdemo: ok`).
+# ADR-093: public-identifier guard runs first (scripts/check-public-ids.sh).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$ROOT"
+
+# ADR-093: public-identifier guard (fail closed, before any build).
+# Self-test first so a broken matcher cannot pass a dirty tree.
+sh ./scripts/check-public-ids.sh --self-test
+sh ./scripts/check-public-ids.sh
 
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
 PAGING="${CTOS_PAGING_STRING:-paging: ok}"
