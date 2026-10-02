@@ -1,8 +1,10 @@
 # ADR-097 — EL0 app text execute-only (rodata moved to the app-hdr slot)
 
-> **Merge requires sponsor rev 4 written accept.** This change makes one clause of the accepted [ADR-091](ADR-091-el0-isolated-accept-draft.md) revision-3 sentence false as literally worded: “PAN is enabled and EL1 faults on EL0 memory”. The execute-only app text page is EL0 memory (EL0 can execute it), and on the default smoke machine (no FEAT_EPAN) an EL1 load of it does **not** fault with PAN set. ADR-091 is **not** edited here. Its sentence and scope stay exactly as accepted. A candidate revision-4 wording is proposed [below](#proposed-revision-4-wording-for-the-sponsor-not-accepted) for the sponsor to read. Until the sponsor accepts a revision 4 in writing, this PR must not be merged.
+> **Accepted (2026-10-02).** The sponsor accepted ADR-091 revision 4 in writing: “I accept ADR-091 rev 4”, given in answer to the exact wording in [Revision-4 wording](#revision-4-wording-proposed-2026-09-28-accepted-2026-10-02) below. Written by the sponsor in the DSO chat, recorded in the DSO vault, relayed by DSO. This PR (#150) was merged as `8344797` after the accept. [ADR-091](ADR-091-el0-isolated-accept-draft.md) was then edited to revision 4 (PAN clause and code-bytes limit only) by a docs-only follow-up PR; the record is in ADR-091 (“B3 rev 4”).
+>
+> *Original notice, 2026-09-28 (kept as history; the condition it set was met on 2026-10-02):* **Merge requires sponsor rev 4 written accept.** This change makes one clause of the accepted [ADR-091](ADR-091-el0-isolated-accept-draft.md) revision-3 sentence false as literally worded: “PAN is enabled and EL1 faults on EL0 memory”. The execute-only app text page is EL0 memory (EL0 can execute it), and on the default smoke machine (no FEAT_EPAN) an EL1 load of it does **not** fault with PAN set. ADR-091 is **not** edited here. Its sentence and scope stay exactly as accepted. A candidate revision-4 wording is proposed [below](#revision-4-wording-proposed-2026-09-28-accepted-2026-10-02) for the sponsor to read. Until the sponsor accepts a revision 4 in writing, this PR must not be merged.
 
-- Status: **Proposed** (implementation + evidence; merge blocked on sponsor rev 4 written accept, see above).
+- Status: **Accepted** (2026-10-02). The sponsor accepted ADR-091 revision 4 in writing (“I accept ADR-091 rev 4”); merged as `8344797`. *Status as of 2026-09-28, kept for history:* Proposed (implementation + evidence; merge blocked on sponsor rev 4 written accept).
 - Date: 2026-09-28
 - Decision path: sponsor-approved milestone 3 (DSO relay, 2026-09-28): split the app's read-only data out of the app code page so EL0 app text becomes execute-only; $0 (local QEMU + existing GitHub Actions checks).
 - Also merges PR [#151](https://github.com/artofdream/ctos/pull/151) (ADR-098, `isolation/pan-span-fix`, based on `main`) for the PAN fix.
@@ -77,6 +79,8 @@ The smoke requires all thirteen lines (ESR low bits / fault level flexible withi
 
 ## ADR-091 clause check (sentence not edited)
 
+*State of 2026-09-28 (this PR did not edit ADR-091). On 2026-10-02, after the sponsor's accept, ADR-091 was edited to revision 4; the table below is the check that led to it.*
+
 | Clause | Still literally true? |
 | --- | --- |
 | Default smoke machine (QEMU `virt`, `-cpu cortex-a76`, TCG, one core) | Yes (unchanged). |
@@ -90,13 +94,15 @@ The smoke requires all thirteen lines (ESR low bits / fault level flexible withi
 | A syscall copies from/to an EL0 pointer only if EL0 may read/write every page | Yes, and stronger for text: EL0 can no longer read its text, so text pointers are refused for copies from EL0. |
 | Not speculative / real-hardware / certification | Unchanged. |
 
-## Proposed revision-4 wording for the sponsor (not accepted)
+## Revision-4 wording (proposed 2026-09-28; accepted 2026-10-02)
+
+**Accepted 2026-10-02:** the sponsor wrote “I accept ADR-091 rev 4” in answer to exactly this wording. ADR-091 now carries it, character for character (PAN clause and code-bytes limit; nothing else changed). *As proposed on 2026-09-28:*
 
 Change only the PAN clause, from “PAN is enabled and EL1 faults on EL0 memory” to:
 
 > “PAN is enabled, including while the kernel handles exceptions from EL0, and EL1 faults on EL0-readable memory (the execute-only app text page is not covered: this CPU has no FEAT_EPAN)”
 
-and replace the limit “EL0 can read its own code bytes” with “app text is EL0 execute-only; EL1 can still read it (no FEAT_EPAN)”. Everything else unchanged. This is a proposal for the sponsor to read, not an edit of ADR-091. If the sponsor declines, the alternative is to close this PR (or keep only the separable PAN fix).
+and replace the limit “EL0 can read its own code bytes” with “app text is EL0 execute-only; EL1 can still read it (no FEAT_EPAN)”. Everything else unchanged. *(2026-09-28 text, history:)* This is a proposal for the sponsor to read, not an edit of ADR-091. If the sponsor declines, the alternative is to close this PR (or keep only the separable PAN fix).
 
 ## Limits
 

@@ -60,6 +60,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - M6 “EL0 isolated” flip (ADR-091 Accepted; B3 met 2026-09-28 16:41 CEST; docs only): [daily-briefs/2026-09-28-m6-el0-isolated-flip.md](daily-briefs/2026-09-28-m6-el0-isolated-flip.md)
 - ADR-096 task-to-task EL0 isolation probe (task A on ASID 1 cannot read/write task B's page on ASID 2; evidence next to ADR-091, not part of it): [daily-briefs/2026-09-28-adr-096-t2t-probe.md](daily-briefs/2026-09-28-adr-096-t2t-probe.md)
 - ADR-097 EL0 execute-only app text (rodata on app-hdr, still five slots; no FEAT_EPAN, so merge needs a sponsor rev 4 accept of the ADR-091 PAN clause; the PAN-held fix it found is split out as ADR-098): [daily-briefs/2026-09-28-adr-097-xo-text.md](daily-briefs/2026-09-28-adr-097-xo-text.md)
+- ADR-091 revision 4 accepted 2026-10-02 (PAN clause + code-bytes limit only; ADR-097 Accepted; docs only): [daily-briefs/2026-10-02-adr-091-rev4.md](daily-briefs/2026-10-02-adr-091-rev4.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)
