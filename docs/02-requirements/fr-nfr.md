@@ -91,6 +91,8 @@ IDs below are **frozen**. Do not invent new FR/NFR IDs in chat; add via issue + 
 
 **NFR-10 note (2026-09-28, ADR-091 / M6):** the sponsor accepted the [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) revision-3 sentence and scope in writing (B3, 2026-09-28 16:41 CEST). Umbrella “EL0 isolated” (P-SEC-3l) is **Verified**, only as that sentence: one core, the TCG default smoke machine; not a speculative-execution or side-channel claim, not a real-hardware claim, not a certification; EL0 can read its own code bytes; no multi-core race story. Checklist [ADR-055](../03-adr/ADR-055-el0-isolated-checklist.md) all Met. Threat-model **v1.70**. Earlier notes that say the umbrella is Planned / non-claim are as of their dates. IDs unchanged.
 
+**NFR-10 note (2026-10-02, ADR-091 revision 4):** the sponsor accepted ADR-091 revision 4 in writing (“I accept ADR-091 rev 4”). Only the PAN clause and the code-bytes limit changed: the limit is now “app text is EL0 execute-only; EL1 can still read it (no FEAT_EPAN)” (was “EL0 can read its own code bytes”). The umbrella “EL0 isolated” (P-SEC-3l) stays **Verified**, only as the revision-4 sentence in [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md). Threat-model **v1.74**. The 2026-09-28 note above records revision 3 as of its date. IDs unchanged.
+
 
 ## Non-functional requirements
 
