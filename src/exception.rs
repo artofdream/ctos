@@ -103,6 +103,14 @@ static EL0_WRITE_KIND: AtomicU64 = AtomicU64::new(0);
 static EL0_WRITE_ESR: AtomicU64 = AtomicU64::new(0);
 static EL0_WRITE_FAR: AtomicU64 = AtomicU64::new(0);
 static EL0_WRITE_ELR: AtomicU64 = AtomicU64::new(0);
+/// ADR-096: generic one-shot capture of the next lower-EL sync exception
+/// (task-to-task probe). Records ESR / FAR / ELR / x1 and returns to EL1.
+static EXPECT_EL0_CAPTURE: AtomicBool = AtomicBool::new(false);
+static EL0_CAP_TAKEN: AtomicBool = AtomicBool::new(false);
+static EL0_CAP_ESR: AtomicU64 = AtomicU64::new(0);
+static EL0_CAP_FAR: AtomicU64 = AtomicU64::new(0);
+static EL0_CAP_ELR: AtomicU64 = AtomicU64::new(0);
+static EL0_CAP_X1: AtomicU64 = AtomicU64::new(0);
 static EL0_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
 static EXPECT_ASID_CONFLICT: AtomicBool = AtomicBool::new(false);
 static ASID_CONFLICT_CAUGHT: AtomicBool = AtomicBool::new(false);
@@ -841,6 +849,28 @@ pub fn el0_write_result() -> (u64, u64, u64, u64) {
     )
 }
 
+/// ADR-096: arm a one-shot capture of the next lower-EL sync exception.
+pub fn arm_el0_capture() {
+    EL0_CAP_TAKEN.store(false, Ordering::SeqCst);
+    EL0_CAP_ESR.store(0, Ordering::SeqCst);
+    EL0_CAP_FAR.store(0, Ordering::SeqCst);
+    EL0_CAP_ELR.store(0, Ordering::SeqCst);
+    EL0_CAP_X1.store(0, Ordering::SeqCst);
+    EXPECT_EL0_CAPTURE.store(true, Ordering::SeqCst);
+}
+
+/// `(taken, esr, far, elr, x1)` of the captured exception; disarms.
+pub fn el0_capture_result() -> (bool, u64, u64, u64, u64) {
+    EXPECT_EL0_CAPTURE.store(false, Ordering::SeqCst);
+    (
+        EL0_CAP_TAKEN.load(Ordering::SeqCst),
+        EL0_CAP_ESR.load(Ordering::SeqCst),
+        EL0_CAP_FAR.load(Ordering::SeqCst),
+        EL0_CAP_ELR.load(Ordering::SeqCst),
+        EL0_CAP_X1.load(Ordering::SeqCst),
+    )
+}
+
 /// ESR fields for a lower-EL permission-fault *store*: EC = 0x24, WnR = 1,
 /// DFSC = permission fault at level 1/2/3. Returns the level or 0.
 pub fn el0_store_perm_level(esr: u64) -> u64 {
@@ -1080,7 +1110,18 @@ pub unsafe fn eret_to_el0_masked(user_pc: u64, user_arg: u64, user_sp: u64) {
     eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_MASKED);
 }
 
+/// ADR-096: masked `ERET` to EL0 on an explicit TTBR0 (value includes the
+/// ASID). The task-to-task probe runs task B on the ASID-B tables.
+#[allow(dead_code)]
+pub unsafe fn eret_to_el0_masked_ttbr(user_pc: u64, user_arg: u64, user_sp: u64, ttbr: u64) {
+    eret_to_el0_spsr_ttbr(user_pc, user_arg, user_sp, SPSR_EL0_MASKED, ttbr);
+}
+
 unsafe fn eret_to_el0_spsr(user_pc: u64, user_arg: u64, user_sp: u64, spsr: u64) {
+    eret_to_el0_spsr_ttbr(user_pc, user_arg, user_sp, spsr, crate::paging::user_ttbr0());
+}
+
+unsafe fn eret_to_el0_spsr_ttbr(user_pc: u64, user_arg: u64, user_sp: u64, spsr: u64, uttbr: u64) {
     // After ADR-037 identity `.bss` is unmapped — store via the high twin.
     let kslot = crate::paging::to_high_va(crate::paging::identity_pa(EL0_KSP.as_ptr() as u64));
     let cslot = crate::paging::to_high_va(crate::paging::identity_pa(EL0_CONT.as_ptr() as u64));
@@ -1122,7 +1163,7 @@ unsafe fn eret_to_el0_spsr(user_pc: u64, user_arg: u64, user_sp: u64, spsr: u64)
         spsr = in(reg) spsr,
         usp = in(reg) user_sp,
         uarg = in(reg) user_arg,
-        uttbr = in(reg) crate::paging::user_ttbr0(),
+        uttbr = in(reg) uttbr,
         lateout("x0") _,
         lateout("x1") _,
         lateout("x2") _,
@@ -1470,6 +1511,16 @@ pub extern "C" fn handle_sync_lower_el(ctx: &mut ExceptionContext) {
         EL0_WRITE_FAR.store(far_el1(), Ordering::SeqCst);
         EL0_WRITE_ELR.store(ctx.elr, Ordering::SeqCst);
         EL0_WRITE_KIND.store(kind, Ordering::SeqCst);
+        return_from_el0(ctx);
+        return;
+    }
+    // ADR-096: task-to-task probe captures whatever EL0 raised first.
+    if EXPECT_EL0_CAPTURE.swap(false, Ordering::SeqCst) {
+        EL0_CAP_ESR.store(ctx.esr, Ordering::SeqCst);
+        EL0_CAP_FAR.store(far_el1(), Ordering::SeqCst);
+        EL0_CAP_ELR.store(ctx.elr, Ordering::SeqCst);
+        EL0_CAP_X1.store(ctx.x[1], Ordering::SeqCst);
+        EL0_CAP_TAKEN.store(true, Ordering::SeqCst);
         return_from_el0(ctx);
         return;
     }

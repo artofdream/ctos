@@ -1097,6 +1097,7 @@ fn l3_page_el0_ro(pa: u64) -> u64 {
 /// able to read the page (its own strings) as well as fetch it, never write.
 /// WXN leaves it executable because it is not writable. EL1 access is RO, so
 /// callers must write the bytes through the frame's TTBR1 alias, not this VA.
+#[allow(dead_code)] // ADR-097: `xo-leak-probe` build only.
 fn l3_page_el0_text(pa: u64) -> u64 {
     (pa & !0xfff)
         | DESC_VALID
@@ -1107,6 +1108,52 @@ fn l3_page_el0_text(pa: u64) -> u64 {
         | DESC_PXN
         | DESC_AP_RO
         | DESC_AP_EL0
+}
+
+/// ADR-097: EL0 **execute-only** app text (AP[2:1] = 10, UXN clear, PXN set).
+/// EL0 may fetch but not load or store (AP[1]=0); EL1 may read but not write
+/// (AP[2]=1), so bytes go in through the frame's TTBR1 alias. Not
+/// EL0-data-accessible, so PSTATE.PAN does **not** cover it: without
+/// FEAT_EPAN (ID_AA64MMFR1_EL1.PAN >= 3) an EL1 load of this VA succeeds with
+/// PAN set. The ADR-092 walk still counts it as EL0-reachable (UXN clear).
+fn l3_page_el0_xo(pa: u64) -> u64 {
+    (pa & !0xfff)
+        | DESC_VALID
+        | DESC_TABLE
+        | (ATTR_NORMAL << 2)
+        | DESC_SH_INNER
+        | DESC_AF
+        | DESC_PXN
+        | DESC_AP_RO
+}
+
+/// ADR-097: what EL0 may do with a leaf, decoded from its bits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LeafView {
+    /// AP[2:1] as a number 0..=3.
+    pub ap: u64,
+    pub uxn: bool,
+    pub pxn: bool,
+    pub el0_read: bool,
+    pub el0_write: bool,
+    pub el0_exec: bool,
+    /// The ADR-092 walk rule (`AP[1]` set or `UXN` clear).
+    pub reachable: bool,
+}
+
+#[allow(dead_code)]
+pub fn leaf_view(d: u64) -> LeafView {
+    let el0 = d & DESC_AP_EL0 != 0;
+    let ro = d & DESC_AP_RO != 0;
+    LeafView {
+        ap: (d >> 6) & 3,
+        uxn: d & DESC_UXN != 0,
+        pxn: d & DESC_PXN != 0,
+        el0_read: el0,
+        el0_write: el0 && !ro,
+        el0_exec: d & DESC_UXN == 0,
+        reachable: el0_reachable(d),
+    }
 }
 
 /// Split an L2 block into L3 so a single 4 KiB slot can be invalidated.
@@ -3098,6 +3145,34 @@ pub fn el0_reach_plant_probe(kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> 
     Some((va, res))
 }
 
+/// ADR-097: plant an EL0 **execute-only** leaf (AP[1]=0, UXN clear; the app
+/// text mapping) at the off-allowlist `Va` plant slot and walk. The walk
+/// must still catch it (`why=va`, kernel + user roots): EL0-reachable means
+/// `AP[1]` set **or** `UXN` clear, so an execute-only page cannot slip past a
+/// read-permission-only rule. Returns `(va, walk, planted leaf)`.
+pub fn el0_reach_xo_plant_probe(pool_pa: u64) -> Option<(u64, El0Reach, u64)> {
+    let k = kernel_pa_bounds();
+    let va = MAP_WINDOW + (REACH_PLANT_VA_SLOT as u64) * PAGE;
+    let desc = l3_page_el0_xo(pool_pa);
+    let res;
+    {
+        let _g = TABLES.lock();
+        unsafe {
+            let slot = l3_slot(REACH_PLANT_VA_SLOT);
+            if slot.read() & DESC_VALID != 0 {
+                return None;
+            }
+            slot.write(desc);
+            dsb_ish();
+            res = el0_reach_locked(false, Some(va), &k);
+            slot.write(0);
+            dsb_ish();
+        }
+    }
+    tlbi_va(va);
+    Some((va, res, desc))
+}
+
 /// ADR-092 leak-probe build: persistently leave an EL0-readable mapping of
 /// kernel `.data` at `LOADER_STACK_VA`. Never accessed.
 #[cfg(feature = "reach-leak-probe")]
@@ -3236,8 +3311,10 @@ pub fn map_el0_exec(va: u64, pa: u64) -> bool {
 }
 
 /// Map a 4 KiB frame at `va` in the dedicated window as EL0 read-only +
-/// executable (ADR-094 G4). App text/rodata pages: EL0 may fetch and read,
-/// never write. Bytes must be written through the frame alias (EL1 sees RO).
+/// executable (ADR-094 G4). Was the app text/rodata mapping; since ADR-097
+/// the loader maps text execute-only (`map_el0_xo`) and only the
+/// `xo-leak-probe` build uses this for app text. Bytes go in via the alias.
+#[allow(dead_code)] // ADR-097: `xo-leak-probe` build only.
 pub fn map_el0_text(va: u64, pa: u64) -> bool {
     let Some(i) = window_index(va) else {
         return false;
@@ -3251,6 +3328,28 @@ pub fn map_el0_text(va: u64, pa: u64) -> bool {
             return false;
         }
         l3_slot(i).write(l3_page_el0_text(pa));
+    }
+    dsb_ish();
+    tlbi_va(va);
+    true
+}
+
+/// ADR-097: map app text EL0 execute-only (`l3_page_el0_xo`). EL0 cannot
+/// read its own code bytes; `.rodata` lives on the app-hdr page instead.
+#[cfg_attr(feature = "xo-leak-probe", allow(dead_code))]
+pub fn map_el0_xo(va: u64, pa: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_slot(i).write(l3_page_el0_xo(pa));
     }
     dsb_ish();
     tlbi_va(va);
@@ -3333,6 +3432,84 @@ pub fn map_asid_b_ng(va: u64, pa: u64) -> bool {
     true
 }
 
+/// ADR-096: EL0 leaf with nG in ASID B's window L3 (task B of the
+/// task-to-task probe). `exec`: EL0 execute-only code page (UXN clear,
+/// PXN); else EL0-RW NX data page. No TLBI (caller invalidates).
+#[allow(dead_code)]
+pub fn map_asid_b_el0(va: u64, pa: u64, exec: bool) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let desc = if exec { l3_page_el0_exec(pa) } else { l3_page_el0_rw(pa) } | DESC_NG;
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_asid_b_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_asid_b_slot(i).write(desc);
+    }
+    dsb_ish();
+    true
+}
+
+/// ADR-096: EL0-RW NX leaf with nG in the shared window (task A's private
+/// page in the user TTBR0). Invalidates `va` in every ASID.
+#[allow(dead_code)]
+pub fn map_el0_rw_ng(va: u64, pa: u64) -> bool {
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    map_window_desc(va, l3_page_el0_rw(pa) | DESC_NG)
+}
+
+/// ADR-096: raw ASID-B window leaf for `va` (0 = empty).
+#[allow(dead_code)]
+pub fn asid_b_leaf(va: u64) -> Option<u64> {
+    let i = window_index(va)?;
+    let _g = TABLES.lock();
+    Some(unsafe { l3_asid_b_slot(i).read() })
+}
+
+/// ADR-096: which TTBR0 root `pa_refs` walks.
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+pub enum T2tRoot {
+    /// User TTBR0 (task A: `L1_USER`, ASID 1).
+    User,
+    /// ASID-B TTBR0 (task B: `L1_ASID_B`, ASID 2).
+    AsidB,
+}
+
+/// ADR-096: walk every valid leaf of one TTBR0 root and count leaves whose
+/// output range covers `pa`: `(any, el0_reachable)`.
+#[allow(dead_code)]
+pub fn pa_refs(root: T2tRoot, pa: u64) -> (u32, u32) {
+    const OA: u64 = 0x0000_ffff_ffff_f000;
+    let l1 = match root {
+        T2tRoot::User => l1_user_pa(),
+        T2tRoot::AsidB => l1_asid_b_pa(),
+    };
+    let pa = pa & !(PAGE - 1);
+    let mut any = 0u32;
+    let mut el0 = 0u32;
+    let _g = TABLES.lock();
+    unsafe {
+        walk_leaves(l1, 0, &mut |_va, size, d| {
+            let lo = d & OA & !(size - 1);
+            if pa >= lo && pa < lo + size {
+                any += 1;
+                if el0_reachable(d) {
+                    el0 += 1;
+                }
+            }
+        });
+    }
+    (any, el0)
+}
+
 #[allow(dead_code)]
 pub fn unmap_asid_b_page(va: u64) -> bool {
     let Some(i) = window_index(va) else {
@@ -3357,6 +3534,11 @@ pub fn asid_b_mapped(va: u64) -> bool {
 }
 
 /// True when the kernel window leaf has nG (ASID-tagged).
+#[allow(dead_code)]
+pub fn desc_is_ng(d: u64) -> bool {
+    d & DESC_VALID != 0 && d & DESC_NG != 0
+}
+
 #[allow(dead_code)]
 pub fn window_is_ng(va: u64) -> bool {
     match l3_entry(va) {

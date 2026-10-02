@@ -62,6 +62,10 @@ pub(crate) enum ParseError {
     BadLoad,
     TooManyLoads,
     Empty,
+    /// ADR-097: read-only data on the execute-only text page.
+    RoOnText,
+    /// ADR-097: a page outside the app-hdr (R) / app-text (RX) slots.
+    OffSlot,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,16 +130,29 @@ fn perm_of(flags: u32) -> Result<Perm, ParseError> {
     }
 }
 
-/// Page-granular union. `Ro`+`Exec` is the usual small-image case
-/// (`.text` RX and `.rodata` R on one 4 KiB page). `Exec`+`Rw` is W+X.
+/// Page-granular union. `Exec`+`Rw` is W+X. ADR-097: `Exec`+`Ro` is refused
+/// too: text pages are EL0 execute-only, so read-only data sharing a text
+/// page would be unreadable by EL0 (apps link `.rodata` onto the ELF-header
+/// page instead). Before ADR-097 that union was the usual small-image case.
 fn combine_perm(a: Perm, b: Perm) -> Result<Perm, ParseError> {
     match (a, b) {
         (Perm::Ro, Perm::Ro) => Ok(Perm::Ro),
         (Perm::Rw, Perm::Rw) | (Perm::Rw, Perm::Ro) | (Perm::Ro, Perm::Rw) => Ok(Perm::Rw),
-        (Perm::Exec, Perm::Exec) | (Perm::Exec, Perm::Ro) | (Perm::Ro, Perm::Exec) => {
-            Ok(Perm::Exec)
-        }
+        (Perm::Exec, Perm::Exec) => Ok(Perm::Exec),
+        (Perm::Exec, Perm::Ro) | (Perm::Ro, Perm::Exec) => Err(ParseError::RoOnText),
         (Perm::Exec, Perm::Rw) | (Perm::Rw, Perm::Exec) => Err(ParseError::WxSegment),
+    }
+}
+
+/// ADR-097: the only pages an app image may occupy are two of the five
+/// ADR-092 allowlisted slots: the read-only ELF-header + `.rodata` page
+/// (`app-hdr`, `MAP_WINDOW`) and the execute-only text page (`app-text`,
+/// `EL0_PAGE`). The loader adds the user stack (`user-stack`) itself.
+fn page_slot_ok(va: u64, perm: Perm) -> bool {
+    match perm {
+        Perm::Ro => va == paging::MAP_WINDOW,
+        Perm::Exec => va == paging::EL0_PAGE,
+        Perm::Rw => false,
     }
 }
 
@@ -266,17 +283,27 @@ fn find_page(pages: &[Option<MappedPage>; MAX_PAGES], va: u64) -> Option<usize> 
 
 fn map_perm(va: u64, pa: u64, perm: Perm) -> bool {
     match perm {
-        // ADR-094 (G4): app text pages also carry `.rodata`, so EL0 must be
-        // able to *read* the page (its own strings passed to syscalls), not
-        // only fetch it. Map EL0 read-only + executable (AP[2:1]=11, UXN
-        // clear). The bytes are written through the frame alias in
-        // `load_image`, so EL1-RO at this VA is fine. Was execute-only
-        // (AP=00): EL0 could not read its own rodata, and a strict syscall
-        // pointer check would reject the app's own string.
-        Perm::Exec => paging::map_el0_text(va, pa),
+        // ADR-097: `.rodata` moved to the app-hdr page, so app text is EL0
+        // execute-only again (AP[2:1]=10, UXN clear): EL0 cannot read its own
+        // code bytes, and a syscall given a text pointer is refused (ADR-094
+        // check: AP[1]=0 is not EL0-readable). ADR-094 had mapped it EL0
+        // read-only + executable because `.rodata` shared the page.
+        Perm::Exec => map_text(va, pa),
         Perm::Rw => paging::map_el0_rw(va, pa),
         Perm::Ro => paging::map_el0_ro(va, pa),
     }
+}
+
+#[cfg(not(feature = "xo-leak-probe"))]
+fn map_text(va: u64, pa: u64) -> bool {
+    paging::map_el0_xo(va, pa)
+}
+
+/// Negative build (ADR-097): app text EL0-readable again (the ADR-094
+/// mapping). The smoke must catch it.
+#[cfg(feature = "xo-leak-probe")]
+fn map_text(va: u64, pa: u64) -> bool {
+    paging::map_el0_text(va, pa)
 }
 
 fn write_pa(pa: u64, off: u64, byte: u8) {
@@ -323,6 +350,11 @@ fn plan_pages(img: &Image) -> Result<([Option<(u64, Perm)>; MAX_PAGES], usize), 
                 n += 1;
             }
             va += PAGE;
+        }
+    }
+    for p in plan[..n].iter().flatten() {
+        if !page_slot_ok(p.0, p.1) {
+            return Err(ParseError::OffSlot);
         }
     }
     Ok((plan, n))
@@ -394,8 +426,10 @@ fn load_image(
         if let Some(m) = slot {
             if m.perm == Perm::Exec {
                 sync_range(paging::frame_cpu_va(m.pa) as *const u8, PAGE as usize);
-                // ADR-094: text is EL0-readable now, so PAN governs EL1
-                // maintenance by this VA; open the uaccess window (ADR-080).
+                // ADR-097: the XO text VA is EL1-readable and not
+                // EL0-data-accessible, so PAN does not apply; the uaccess
+                // window (ADR-080) is kept for the `xo-leak-probe` build,
+                // where text is EL0-readable again.
                 crate::pan::with_user_access(|| sync_range(m.va as *const u8, PAGE as usize));
             }
         }
@@ -466,6 +500,71 @@ pub(crate) fn flatten_pt_load(elf: &[u8]) -> Option<Vec<u8>> {
         image[dest..dest + n].copy_from_slice(&elf[src..src + n]);
     }
     Some(image)
+}
+
+/// ADR-097: the app-hdr page (ELF headers + `.rodata`) as the loader maps it:
+/// one 4 KiB image of every read-only `PT_LOAD` below `EL0_PAGE`. The A2
+/// memcpy path maps this EL0 read-only next to the text page.
+pub(crate) fn ro_page_image(elf: &[u8]) -> Option<Vec<u8>> {
+    let img = parse_elf64(elf).ok()?;
+    let mut page = alloc::vec![0u8; PAGE as usize];
+    let mut any = false;
+    for i in 0..img.nseg {
+        let s = img.segs[i];
+        if s.vaddr >= paging::EL0_PAGE {
+            continue;
+        }
+        if perm_of(s.flags).ok()? != Perm::Ro {
+            return None;
+        }
+        let end = s.vaddr.checked_add(s.memsz)?;
+        if s.vaddr < paging::MAP_WINDOW || end > paging::MAP_WINDOW + PAGE {
+            return None;
+        }
+        let dest = (s.vaddr - paging::MAP_WINDOW) as usize;
+        let src = s.offset as usize;
+        let n = s.filesz as usize;
+        if src > elf.len() || n > elf.len() - src {
+            return None;
+        }
+        page[dest..dest + n].copy_from_slice(&elf[src..src + n]);
+        any = true;
+    }
+    if any {
+        Some(page)
+    } else {
+        None
+    }
+}
+
+/// ADR-097 probe hook: an image mapped by the real loader path, not run.
+pub(crate) struct Loaded {
+    pub entry: u64,
+    pub stack_va: u64,
+    pages: [Option<MappedPage>; MAX_PAGES],
+    stack: Option<(u64, u64)>,
+}
+
+impl Loaded {
+    /// Frame backing the loaded page at `va`, if any.
+    pub fn pa_of(&self, va: u64) -> Option<u64> {
+        find_page(&self.pages, va).and_then(|i| self.pages[i].map(|m| m.pa))
+    }
+}
+
+/// Map `elf` exactly as `run_image` does (same `load_image`), without ERET.
+pub(crate) fn load_only(elf: &[u8]) -> Option<Loaded> {
+    if el0::is_active() || !paging::user_map_ready() {
+        return None;
+    }
+    let img = parse_elf64(elf).ok()?;
+    let (entry, pages, stack) = load_image(elf, &img).ok()?;
+    let stack_va = stack.map(|s| s.0)?;
+    Some(Loaded { entry, stack_va, pages, stack })
+}
+
+pub(crate) fn unload(l: Loaded) {
+    teardown(&l.pages, l.stack);
 }
 
 /// FAT `/hello` bytes that this kernel `build.rs` published. Size must
@@ -675,17 +774,46 @@ fn loader_rejects_pt_interp() {
 
 #[cfg(test)]
 #[test_case]
-fn loader_unions_rx_and_ro_on_hello_page() {
+fn loader_plans_hello_as_ro_hdr_and_xo_text() {
     let elf = hello_elf().expect("FAT /hello must be this build's ELF");
     let img = parse_elf64(&elf).expect("hello ELF must parse");
-    let (plan, n) = plan_pages(&img).expect("RX text + R rodata may share a page");
-    assert!(n >= 2, "header page + payload page");
-    assert!(
-        plan[..n]
-            .iter()
-            .any(|p| p.is_some_and(|(va, perm)| va == paging::EL0_PAGE && perm == Perm::Exec)),
-        "payload page must stay executable after Ro union"
-    );
+    let (plan, n) = plan_pages(&img).expect("ADR-097 layout must plan");
+    assert_eq!(n, 2, "app-hdr (headers + .rodata) + app-text");
+    assert!(plan[..n]
+        .iter()
+        .any(|p| p.is_some_and(|(va, perm)| va == paging::EL0_PAGE && perm == Perm::Exec)));
+    assert!(plan[..n]
+        .iter()
+        .any(|p| p.is_some_and(|(va, perm)| va == paging::MAP_WINDOW && perm == Perm::Ro)));
+    let ro = ro_page_image(&elf).expect("app-hdr page image");
+    let text = flatten_pt_load(&elf).expect("text image");
+    let s = b"libctos: hi\n";
+    assert!(ro.windows(s.len()).any(|w| w == s), ".rodata must be on the app-hdr page");
+    assert!(!text.windows(s.len()).any(|w| w == s), "no .rodata on the XO text page");
+}
+
+#[cfg(test)]
+#[test_case]
+fn loader_rejects_ro_on_text_page() {
+    // The pre-ADR-097 layout: RX text + R rodata on one page.
+    let mut elf = [0u8; 192];
+    write_ehdr(&mut elf, paging::EL0_PAGE, 64, 2);
+    write_phdr(&mut elf, 64, PT_LOAD, PF_X | 4, 0, paging::EL0_PAGE, 4, 4);
+    write_phdr(&mut elf, 64 + PHDR_SIZE, PT_LOAD, 4, 0x80, paging::EL0_PAGE + 0x80, 4, 4);
+    let img = parse_elf64(&elf).expect("each segment alone is fine");
+    assert_eq!(plan_pages(&img).err(), Some(ParseError::RoOnText));
+}
+
+#[cfg(test)]
+#[test_case]
+fn loader_rejects_pages_outside_app_slots() {
+    // Read-only data on the next page after the header page.
+    let mut elf = [0u8; 192];
+    write_ehdr(&mut elf, paging::EL0_PAGE, 64, 2);
+    write_phdr(&mut elf, 64, PT_LOAD, PF_X | 4, 0, paging::EL0_PAGE, 4, 4);
+    write_phdr(&mut elf, 64 + PHDR_SIZE, PT_LOAD, 4, 0x80, paging::MAP_WINDOW + 0x1080, 4, 4);
+    let img = parse_elf64(&elf).expect("parses");
+    assert_eq!(plan_pages(&img).err(), Some(ParseError::OffSlot));
 }
 
 #[cfg(test)]

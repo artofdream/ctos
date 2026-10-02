@@ -87,6 +87,7 @@ That is a confused-deputy path around the page-table boundary. So ADR-091 revisi
 
 - G4 is closed on the default smoke machine: no syscall that takes a user pointer can read a page EL0 cannot read, or write a page EL0 cannot write. Probes cover each such syscall. The ADR-091 draft drops its “direct EL0 memory access only” limit (revision 3). Only **G3** (the optional B2-P re-verify) is left.
 - App text is now EL0-*readable* as well as executable. That is the usual Unix-like model for a shared text+rodata page, and still not writable. An EL0 app can read its own code bytes. That is not a kernel-isolation property.
+  - *Follow-on (2026-09-28, proposed):* [ADR-097](ADR-097-el0-execute-only-app-text.md) moves app `.rodata` onto the `app-hdr` page and maps `.text` EL0 execute-only again, so an EL0 pointer into text is now refused for copies from EL0 (`xo: sys-read text denied … checks=1`). Merge requires a sponsor rev 4 accept of the ADR-091 PAN clause (no FEAT_EPAN). This ADR's text is kept as the record of its time.
 - **Not covered (stated, not gaps in G4's scope):**
   - TOCTOU between check and copy. Today there is one core, and nothing changes the calling task's user page tables during a syscall. On SMP this would need `AT S1E0R/W` or a fault-fixup copy.
   - `AT`-based checks.
