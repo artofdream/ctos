@@ -27,6 +27,7 @@
 # ADR-075: EL0 `fs_mkdir` (27) + FAT `/mkdemo` (`libctos: mkdir-ok` / `mkdemo: ok`).
 # ADR-077: nested FAT mkdir `/fdir/nest` + empty rmdir (`fat: nested` / `fat: rmdir`).
 # ADR-076: EL0 `net_tcp_echo` (28) + FAT `/tcpdemo` (`libctos: tcp-ok` / `tcpdemo: ok`).
+# ADR-098: PAN held while handling EL0 exceptions (`pan: ok held …`; leak build must be caught).
 # ADR-093: public-identifier guard runs first (scripts/check-public-ids.sh).
 # ADR-096: task-to-task EL0 isolation (`t2t: ok`; leak build must be caught).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
@@ -1452,6 +1453,28 @@ if ! grep -q "pan: el1-fault" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: PAN capability + enable + el1-fault strings present"
+# ADR-098: PAN must stay set while the kernel handles EL0 exceptions and after
+# EL0 trips, not only at the ADR-080 boot probe (which runs before any EL0
+# trip). Live: in the loaded app's SYS_YIELD handler, MRS PAN = 1 and
+# SCTLR_EL1.SPAN = 0. After the app exits: MRS PAN = 1 and an EL1 load of an
+# EL0-readable page takes a permission fault with SPSR.PAN set.
+for re in '^pan: live-syscall pstate-pan=1 sctlr-span=0[[:space:]]*$' \
+          '^pan: after-el0 trips=[1-9][0-9]* mrs-pan=1 el1-load va=0x80003000 fault=yes spsr-pan=1[[:space:]]*$' \
+          '^pan: ok held boot,live-syscall,after-el0[[:space:]]*$'; do
+    if ! grep -a -E -q "$re" "$log"; then
+        echo "qemu-smoke: missing /$re/ on serial (ADR-098 PAN held during EL0 exceptions, qemu exit $qemu_ec)" >&2
+        grep -a -E "pan:" "$log" >&2 || true
+        exit 1
+    fi
+done
+for m in "pan: lost" "pan: bad after-el0" "pan: held missed" "pan: held probe missed"; do
+    if grep -a -q "$m" "$log"; then
+        echo "qemu-smoke: '$m' on serial (ADR-098 fail-closed, qemu exit $qemu_ec)" >&2
+        grep -a -E "pan:" "$log" >&2 || true
+        exit 1
+    fi
+done
+echo "qemu-smoke: PAN held during EL0 exception handling + after EL0 trips (ADR-098)"
 if ! grep -q "$PERF" "$log"; then
     echo "qemu-smoke: missing '$PERF' on serial (NFR-07 CNTPCT path, qemu exit $qemu_ec)" >&2
     exit 1
@@ -1690,8 +1713,13 @@ echo "qemu-smoke: inv-leak-probe caught (fail-closed ok)"
 # ADR-096: the same kernel also maps task B's private frame into task A's
 # TTBR0 (a shared-frame bug); the walk, the read and the write must each be
 # reported as a leak and `t2t: ok` withheld.
-echo "qemu-smoke: el0-leak-probe (reach + write + sys-ptr + t2t) must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
-cargo build --features reach-leak-probe,write-leak-probe,sysptr-leak-probe,t2t-leak-probe --target-dir target/el0-leak-probe
+# ADR-098: the same kernel undoes the PAN fix (SCTLR_EL1.SPAN stays 1, the
+# kernel resumes from EL0 trips with SPSR.PAN clear). The ADR-080 boot probe
+# still passes in it; the live checks must report `pan: lost …` and withhold
+# `pan: ok held …`.
+# Each probe is checked individually below (t2t block, then PAN block).
+echo "qemu-smoke: el0-leak-probe (reach + write + sys-ptr + t2t + pan) must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
+cargo build --features reach-leak-probe,write-leak-probe,sysptr-leak-probe,t2t-leak-probe,pan-keep-leak-probe --target-dir target/el0-leak-probe
 el0leak_elf="target/el0-leak-probe/aarch64-ctos/debug/ctos"
 el0leak_log=$(mktemp)
 set +e
@@ -1724,7 +1752,26 @@ if grep -q "el0: write-ok" "$el0leak_log" || grep -q "el0-reach: ok" "$el0leak_l
     echo "qemu-smoke: ADR-092/094/096 walk / store / sys-ptr / t2t probe passed despite a planted leak" >&2
     rm -f "$el0leak_log"; exit 1
 fi
+# ADR-098: the boot probe still passes in this kernel, but PAN is lost while
+# handling EL0 exceptions and after EL0 trips; that must be reported.
+grep -a -E "pan:" "$el0leak_log" || true
+for re in '^pan: enabled[[:space:]]*$' \
+          '^pan: el1-fault[[:space:]]*$' \
+          '^pan: lost live-syscall pstate-pan=0 sctlr-span=1[[:space:]]*$' \
+          '^pan: lost after-el0 trips=[1-9][0-9]* mrs-pan=0 el1-load va=0x80003000 fault=no spsr-pan=0[[:space:]]*$' \
+          '^pan: held missed live-taken=true live-ok=false after-el0=false[[:space:]]*$'; do
+    if ! grep -a -E -q "$re" "$el0leak_log"; then
+        echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-098)" >&2
+        rm -f "$el0leak_log"; exit 1
+    fi
+done
+if grep -a -q "pan: ok held" "$el0leak_log" || grep -a -q "pan: live-syscall pstate-pan=1" "$el0leak_log" \
+    || grep -a -q "pan: after-el0 " "$el0leak_log"; then
+    echo "qemu-smoke: ADR-098 PAN-held check passed despite the PAN fix being undone" >&2
+    rm -f "$el0leak_log"; exit 1
+fi
+echo "qemu-smoke: el0-leak-probe PAN loss caught (ADR-098)"
 rm -f "$el0leak_log"
-echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr + t2t)"
+echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr + t2t + pan)"
 
 echo "qemu-smoke: ok"

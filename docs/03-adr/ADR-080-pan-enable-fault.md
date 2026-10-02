@@ -42,3 +42,7 @@ Say: “on `-cpu cortex-a76` (ADR-079), PSTATE.PAN is enabled (ADR-080); EL1 loa
 - `src/pan.rs`, `src/exception.rs` (arm + SPSR.PAN check), `src/syscall.rs` (uaccess), `src/main.rs`, `scripts/qemu-smoke.sh`, `aarch64-ctos.json`.
 - Docs: this ADR; [ADR-054](ADR-054-pan-enable-lock.md) / [ADR-055](ADR-055-el0-isolated-checklist.md) / [ADR-060](ADR-060-isolation-leftovers-closure-checklist.md) / [ADR-026](ADR-026-pan-capability.md) / [ADR-079](ADR-079-pan-cpu-reopen.md) cross-links; honesty ledger; roadmap P-SEC-3k; threat-model **v1.55**; SUMMARY; el0 / limits / security light touch.
 - Preserve all existing net/FAT/sample smoke greps. CloudAgent HELD. Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+
+## Follow-on note (2026-09-29, ADR-098)
+
+[ADR-098](ADR-098-pan-held-during-el0-exceptions.md) found that PAN, once enabled here, was **not** held while the kernel handled exceptions from EL0 or after it returned from an EL0 trip: `SCTLR_EL1.SPAN` was left at 1 (so exception entry from EL0 did not set PSTATE.PAN), and `return_from_el0` resumed EL1 with SPSR.PAN clear. The `pan: el1-fault` probe above runs once at boot, before any EL0 trip, so it could not see this. ADR-098 clears SPAN after a successful enable, sets SPSR.PAN on `return_from_el0`, and adds fail-closed live checks with a negative build. In that work `MRS PAN` read 1 whenever a fault proved PAN set, so the “`MRS PAN` may read 0” note in Decision 2 is not reproduced there. This ADR's text is kept as the record of its time.

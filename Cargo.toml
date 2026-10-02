@@ -38,3 +38,9 @@ sysptr-leak-probe = []
 # print `t2t: leak` and withhold `t2t: ok`. Smoke builds it with the
 # ADR-092/094 negatives in one kernel.
 t2t-leak-probe = []
+# ADR-098 negative build: undo the PAN fix (SCTLR_EL1.SPAN stays 1 and the
+# kernel resumes from EL0 trips with SPSR.PAN clear). The boot probe
+# (`pan: enabled` / `pan: el1-fault`) still passes; the live checks must print
+# `pan: lost live-syscall …` / `pan: lost after-el0 …` and withhold
+# `pan: ok held …`. Smoke builds it with the other EL0 negatives in one kernel.
+pan-keep-leak-probe = []

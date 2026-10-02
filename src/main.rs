@@ -254,6 +254,14 @@ extern "C" fn kernel_main_high() -> ! {
         if !loader::observe_probe() {
             uart::write_str_raw("loader: probe missed\n");
         }
+        // ADR-098: PAN stays set while the kernel handles EL0 exceptions
+        // (checked live in the loaded app's SYS_YIELD handler, above) and
+        // after EL0 trips return (checked here, right after the loaded app
+        // exited). The ADR-080 boot probe runs before any EL0 trip.
+        let pan_after = pan::observe_after_el0();
+        if !pan::observe_held(pan_after) {
+            uart::write_str_raw("pan: held probe missed\n");
+        }
         // Serial proof for qemu-smoke (Track A / A4 / ADR-024): standing
         // EL0 as normal mode for a loaded image until exit. Fail-closed
         // restore. Not isolation. Not app hosting.

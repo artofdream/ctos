@@ -61,6 +61,8 @@ pub fn on_yield() {
     LIVE_LEAKS.store(r.leaks, Ordering::SeqCst);
     LIVE_TAKEN.store(true, Ordering::SeqCst);
     print_counts("live", &r);
+    // ADR-098: PAN must be set here too (exception from EL0, SCTLR_EL1.SPAN=0).
+    crate::pan::on_live_syscall();
 }
 
 fn kernel_bait_pa() -> u64 {
