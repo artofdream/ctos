@@ -5,6 +5,8 @@
 //! Leftover mile (ADR-032): bytes come from FAT `/hello` (flatten
 //! `PT_LOAD`), not `include_bytes!`. Still not an ELF loader (A3).
 //! Not app hosting. Not POSIX.
+//! ADR-097: text is mapped EL0 execute-only and the app's `.rodata` is on
+//! the app-hdr page (`MAP_WINDOW`, EL0 read-only), as in the A3 loader.
 
 use alloc::vec::Vec;
 use core::fmt::Write;
@@ -24,13 +26,16 @@ const _: () = assert!(HELLO_LOAD_VA == paging::EL0_PAGE);
 const _: () = assert!(HELLO_LEN > 0);
 const _: () = assert!(HELLO_LEN <= 3584);
 
-fn hello_bin() -> Option<Vec<u8>> {
+/// Text image (flattened `PT_LOAD` at `EL0_PAGE`) and, since ADR-097, the
+/// app-hdr page (ELF headers + `.rodata`) that the app's strings live on.
+fn hello_bin() -> Option<(Vec<u8>, Vec<u8>)> {
     let elf = loader::hello_elf()?;
     let image = loader::flatten_pt_load(&elf)?;
     if image.len() != HELLO_LEN {
         return None;
     }
-    Some(image)
+    let ro = loader::ro_page_image(&elf)?;
+    Some((image, ro))
 }
 
 fn sync_range(ptr: *const u8, len: usize) {
@@ -64,28 +69,41 @@ fn run_hello() -> bool {
         frame::free(code_pa);
         return false;
     };
+    let Some(ro_pa) = frame::alloc() else {
+        frame::free(code_pa);
+        frame::free(stack_pa);
+        return false;
+    };
     let va = paging::EL0_PAGE;
     let stack_va = va + 4096;
-    // ADR-094 (G4): EL0 read-only + executable, so the app can pass its own
-    // `.rodata` strings to `uart_write`. Bytes go in via the frame alias.
-    if !paging::map_el0_text(va, code_pa) {
-        frame::free(code_pa);
-        frame::free(stack_pa);
-        return false;
-    }
-    if !paging::map_el0_rw(stack_va, stack_pa) {
-        let _ = paging::unmap_page(va);
-        frame::free(code_pa);
-        frame::free(stack_pa);
-        return false;
-    }
-    let Some(bin) = hello_bin() else {
-        let _ = paging::unmap_page(stack_va);
-        let _ = paging::unmap_page(va);
+    let ro_va = paging::MAP_WINDOW;
+    let Some((bin, ro)) = hello_bin() else {
+        frame::free(ro_pa);
         frame::free(stack_pa);
         frame::free(code_pa);
         return false;
     };
+    // ADR-097: `.rodata` sits on the app-hdr page (EL0 read-only, NX); fill it
+    // through the alias before mapping.
+    unsafe {
+        core::ptr::copy_nonoverlapping(ro.as_ptr(), paging::frame_cpu_va(ro_pa) as *mut u8, ro.len());
+    }
+    // ADR-097: text is EL0 execute-only (same mapping as the A3 loader).
+    // Bytes go in via the frame alias.
+    if !map_text(va, code_pa) {
+        frame::free(ro_pa);
+        frame::free(code_pa);
+        frame::free(stack_pa);
+        return false;
+    }
+    if !paging::map_el0_rw(stack_va, stack_pa) || !paging::map_el0_ro(ro_va, ro_pa) {
+        let _ = paging::unmap_page(stack_va);
+        let _ = paging::unmap_page(va);
+        frame::free(ro_pa);
+        frame::free(code_pa);
+        frame::free(stack_pa);
+        return false;
+    }
     // EL1 sees the EL0-text VA as read-only; write through the TTBR1 alias,
     // then clean/invalidate both aliases before EL0 fetches.
     let alias = paging::frame_cpu_va(code_pa);
@@ -93,7 +111,8 @@ fn run_hello() -> bool {
         core::ptr::copy_nonoverlapping(bin.as_ptr(), alias as *mut u8, bin.len());
     }
     sync_range(alias as *const u8, bin.len());
-    // The EL0 VA is EL0-accessible now: keep PAN out of the way (ADR-080).
+    // ADR-097: the XO text VA is not EL0-data-accessible, so PAN does not
+    // apply; the uaccess window stays for the `xo-leak-probe` build.
     crate::pan::with_user_access(|| sync_range(va as *const u8, bin.len()));
     // Rust `main` saves x30 on SP. The code page is EL0-exec / no EL0 data
     // (and WXN forbids making it W+X). Stack is a second EL0-RW NX page.
@@ -104,8 +123,10 @@ fn run_hello() -> bool {
     }
     let _ = paging::unmap_page(stack_va);
     let _ = paging::unmap_page(va);
+    let _ = paging::unmap_page(ro_va);
     frame::free(stack_pa);
     frame::free(code_pa);
+    frame::free(ro_pa);
     if el0::is_active() {
         el0::clear_active();
         return false;
@@ -116,6 +137,16 @@ fn run_hello() -> bool {
         && syscall::last_uart_write() == 12
         && syscall::last_exit_status() == 0
         && syscall::yield_count() >= 1
+}
+
+#[cfg(not(feature = "xo-leak-probe"))]
+fn map_text(va: u64, pa: u64) -> bool {
+    paging::map_el0_xo(va, pa)
+}
+
+#[cfg(feature = "xo-leak-probe")]
+fn map_text(va: u64, pa: u64) -> bool {
+    paging::map_el0_text(va, pa)
 }
 
 /// Serial proof: linked libctos hello printed via uart_write. Not app hosting.
@@ -151,7 +182,7 @@ fn libctos_numbers_match_a1_abi() {
 #[cfg(test)]
 #[test_case]
 fn libctos_payload_encodes_public_svc_only() {
-    let bin = hello_bin().expect("FAT /hello flatten must match this build");
+    let (bin, ro) = hello_bin().expect("FAT /hello flatten must match this build");
     assert_eq!(bin.len(), HELLO_LEN);
     let svc = |imm: u32| 0xD4000001u32 | (imm << 5);
     let words: &[u32] = unsafe {
@@ -165,8 +196,11 @@ fn libctos_payload_encodes_public_svc_only() {
         !words.contains(&svc(0)) && !words.contains(&svc(1)) && !words.contains(&svc(2)),
         "FAT payload must not issue reserved SVC #0/#1/#2"
     );
-    assert!(bin.windows(12).any(|w| w == b"libctos: hi\n"));
-    assert!(bin.windows(12).any(|w| w == b"libctos: ok\n"));
+    // ADR-097: the strings live in the app-hdr (rodata) page, not in text.
+    for m in [b"libctos: hi\n", b"libctos: ok\n"] {
+        assert!(ro.windows(12).any(|w| w == m));
+        assert!(!bin.windows(12).any(|w| w == m));
+    }
 }
 
 #[cfg(test)]

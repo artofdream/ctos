@@ -969,6 +969,35 @@ fn sys_ptr_sweep() -> bool {
     denied == cases.len()
 }
 
+/// ADR-097: the ADR-094 read check alone, for the live layout report
+/// (`true` = a syscall may copy `len` bytes from `ptr`). Counts refusals in
+/// `SYSPTR_DENIED` like any other call.
+pub(crate) fn el0_read_allowed(ptr: u64, len: u64) -> bool {
+    user_range_ok_max(ptr, len, UART_WRITE_MAX, UAccess::Read)
+}
+
+/// ADR-097: run EL0 code already mapped by the loader at `entry` (it must end
+/// in `SYS_EXIT`) and report `(exited, uart_last, uart_printed,
+/// permission_refusals)` for that trip.
+pub(crate) fn run_loaded_trip(entry: u64, user_sp: u64) -> (bool, u64, bool, u64) {
+    if el0::is_active() {
+        return (false, 0, false, 0);
+    }
+    reset_probe_flags();
+    let before = SYSPTR_DENIED.load(Ordering::SeqCst);
+    el0::install_standing(entry, user_sp, paging::user_ttbr0());
+    unsafe {
+        exception::eret_to_el0(black_box(entry), 0, user_sp);
+    }
+    let mut exited = EXIT_OK.load(Ordering::SeqCst);
+    if el0::is_active() {
+        el0::clear_active();
+        exited = false;
+    }
+    let checks = SYSPTR_DENIED.load(Ordering::SeqCst) - before;
+    (exited, UART_LAST.load(Ordering::SeqCst), UART_OK.load(Ordering::SeqCst), checks)
+}
+
 /// Kernel-only page right after the EL0 data page (unused window slot 4).
 const SYSPTR_NEXT_VA: u64 = EL0_DATA_VA + 4096;
 

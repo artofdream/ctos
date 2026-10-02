@@ -16,6 +16,9 @@ main:
     mov x0, #0
     ret
 
+    // ADR-097: strings live in `.rodata` (EL0-readable app-hdr page), not
+    // on the execute-only text page.
+    .section .rodata
     .align 3
 msg_hi:
     .ascii "libctos: hi\n"

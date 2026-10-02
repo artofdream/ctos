@@ -34,6 +34,7 @@ mod slot;
 mod reach;
 mod syscall;
 mod t2t;
+mod xo;
 mod teardown;
 mod timer;
 mod ttbr1;
@@ -343,6 +344,13 @@ extern "C" fn kernel_main_high() -> ! {
         // ASID 2) at the same VA, right after B ran (no TLBI in between).
         if !t2t::observe_probe() {
             uart::write_str_raw("t2t: probe missed\n");
+        }
+        // ADR-097: app text is EL0 execute-only; `.rodata` is on the app-hdr
+        // page. EL0 load of its own text faults, a syscall given a text
+        // pointer is refused, rodata still reads, and the facts about EL1 /
+        // PAN on the execute-only page are printed.
+        if !xo::observe_probe() {
+            uart::write_str_raw("xo: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-016 + ADR-017):
         // TTBR1 private page + EL1 high-VA fetch.

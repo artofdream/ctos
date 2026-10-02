@@ -38,6 +38,8 @@ static PAN_EL1_FAULT_OK: AtomicBool = AtomicBool::new(false);
 /// ADR-098: the live check ran inside an EL0 syscall handler and PAN was set.
 static LIVE_SYSCALL_TAKEN: AtomicBool = AtomicBool::new(false);
 static LIVE_SYSCALL_OK: AtomicBool = AtomicBool::new(false);
+/// ADR-098: the `(PSTATE.PAN, SCTLR_EL1.SPAN)` pair the live check read.
+static LIVE_SYSCALL_SEEN: AtomicU64 = AtomicU64::new(u64::MAX);
 
 fn id_aa64mmfr1_el1() -> u64 {
     let v: u64;
@@ -131,6 +133,7 @@ pub fn on_live_syscall() {
     let pstate = pstate_pan();
     let ok = pstate == 1 && span == 0;
     LIVE_SYSCALL_OK.store(ok, Ordering::SeqCst);
+    LIVE_SYSCALL_SEEN.store((pstate << 1) | span, Ordering::SeqCst);
     LIVE_SYSCALL_TAKEN.store(true, Ordering::SeqCst);
     let mut w = uart::raw();
     if ok {
@@ -200,6 +203,15 @@ pub fn observe_after_el0() -> bool {
         );
     }
     ok
+}
+
+/// ADR-098: `(PSTATE.PAN, SCTLR_EL1.SPAN)` as read by the last live check,
+/// if it ran. Lets other live probes (ADR-097 `xo:`) report the same reading
+/// without a second implementation.
+#[allow(dead_code)]
+pub fn live_syscall_seen() -> Option<(u64, u64)> {
+    let v = LIVE_SYSCALL_SEEN.load(Ordering::SeqCst);
+    if v == u64::MAX { None } else { Some((v >> 1, v & 1)) }
 }
 
 /// ADR-098: `pan: ok held …` only if the live syscall check ran and passed
