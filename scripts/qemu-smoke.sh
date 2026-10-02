@@ -29,6 +29,7 @@
 # ADR-076: EL0 `net_tcp_echo` (28) + FAT `/tcpdemo` (`libctos: tcp-ok` / `tcpdemo: ok`).
 # ADR-098: PAN held while handling EL0 exceptions (`pan: ok held …`; leak build must be caught).
 # ADR-093: public-identifier guard runs first (scripts/check-public-ids.sh).
+# ADR-096: task-to-task EL0 isolation (`t2t: ok`; leak build must be caught).
 # Used by Docker and GitHub Actions. Do not treat file presence as boot.
 set -eu
 
@@ -1386,6 +1387,40 @@ for m in "el0: sys-ptr leaked" "el0: sys-ptr bad" "el0: sys-ptr skip" "el0: sys-
     fi
 done
 echo "qemu-smoke: syscall pointer EL0-permission strings present (ADR-094)"
+# ADR-096: task-to-task EL0 isolation. Task B (ASID-B TTBR0, ASID 2) writes a
+# sentinel to its private page at 0x80007000; task A (user TTBR0, ASID 1)
+# then loads / stores the same VA with no TLBI of it in between and must take
+# a translation fault without seeing B's sentinel, B's frame intact; A's
+# TTBR0 has no leaf for B's frame. Same VA with A's own frame: each task sees
+# and writes only its own frame.
+for re in '^t2t: walk b-frame u-refs=0 u-el0=0 a-el0=1[[:space:]]*$' \
+          '^t2t: b-own ok asid=2 va=0x80007000 val=0x7a5cb0b0[[:space:]]*$' \
+          '^t2t: a-read fault asid=1 va=0x80007000 esr=0x9200000[4-7] far=0x80007000 ec=0x24 wnr=0 dfsc=trans-l[0-3] got=0x0 after-b no-tlbi[[:space:]]*$' \
+          '^t2t: a-write fault asid=1 va=0x80007000 esr=0x9200004[4-7] far=0x80007000 ec=0x24 wnr=1 dfsc=trans-l[0-3] b-intact=true[[:space:]]*$' \
+          '^t2t: walk same-va a-frame u-el0=1 a-el0=0 b-frame u-el0=0 a-el0=1[[:space:]]*$' \
+          '^t2t: same-va a-sees-own asid=1 got=0x7a5ca0a0 b=0x7a5cb0b0[[:space:]]*$' \
+          '^t2t: same-va a-write-own got=0x7a5ca2a2 b-intact=true[[:space:]]*$' \
+          '^t2t: same-va b-sees-own asid=2 got=0x7a5cb0b0 a-intact=true[[:space:]]*$' \
+          '^t2t: ok asid-a=1 asid-b=2 va=0x80007000 read,write,same-va[[:space:]]*$'; do
+    if ! grep -E -q "$re" "$log"; then
+        echo "qemu-smoke: missing /$re/ on serial (ADR-096 task-to-task isolation, qemu exit $qemu_ec)" >&2
+        grep -E "t2t:" "$log" >&2 || true
+        exit 1
+    fi
+done
+for m in "t2t: leak" "t2t: bad" "t2t: probe missed"; do
+    if grep -q "$m" "$log"; then
+        echo "qemu-smoke: '$m' on serial (ADR-096 fail-closed, qemu exit $qemu_ec)" >&2
+        grep -E "t2t:" "$log" >&2 || true
+        exit 1
+    fi
+done
+# Task B's sentinel must never appear on a task-A line.
+if grep -E -q '^t2t: (a-|same-va a-).*got=0x7a5cb0b0' "$log"; then
+    echo "qemu-smoke: task A observed task B's sentinel (ADR-096)" >&2
+    exit 1
+fi
+echo "qemu-smoke: task-to-task EL0 isolation strings present (ADR-096)"
 echo "qemu-smoke: ADR-087/088 identity inventory allowlist-only (stub) + MMIO high alias + plant caught"
 if grep -q "pan: probe missed" "$log"; then
     echo "qemu-smoke: pan probe missed (ID_AA64MMFR1_EL1.PAN was not published)" >&2
@@ -1675,19 +1710,23 @@ echo "qemu-smoke: inv-leak-probe caught (fail-closed ok)"
 # EL0 makes the kernel read the stub / a kernel-only page and write its
 # execute-only text; the probe must report each leak and withhold
 # `el0: sys-ptr ok`.
+# ADR-096: the same kernel also maps task B's private frame into task A's
+# TTBR0 (a shared-frame bug); the walk, the read and the write must each be
+# reported as a leak and `t2t: ok` withheld.
 # ADR-098: the same kernel undoes the PAN fix (SCTLR_EL1.SPAN stays 1, the
 # kernel resumes from EL0 trips with SPSR.PAN clear). The ADR-080 boot probe
 # still passes in it; the live checks must report `pan: lost …` and withhold
 # `pan: ok held …`.
-echo "qemu-smoke: el0-leak-probe (reach + write + sys-ptr + pan) must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
-cargo build --features reach-leak-probe,write-leak-probe,sysptr-leak-probe,pan-keep-leak-probe --target-dir target/el0-leak-probe
+# Each probe is checked individually below (t2t block, then PAN block).
+echo "qemu-smoke: el0-leak-probe (reach + write + sys-ptr + t2t + pan) must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
+cargo build --features reach-leak-probe,write-leak-probe,sysptr-leak-probe,t2t-leak-probe,pan-keep-leak-probe --target-dir target/el0-leak-probe
 el0leak_elf="target/el0-leak-probe/aarch64-ctos/debug/ctos"
 el0leak_log=$(mktemp)
 set +e
 CTOS_QEMU_TIMEOUT="$INV_LEAK_TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
     "$el0leak_elf" >"$el0leak_log" 2>&1
 set -e
-grep -E "el0-reach:|el0: write|sys-ptr" "$el0leak_log" || true
+grep -a -E "el0-reach:|el0: write|sys-ptr|t2t:" "$el0leak_log" || true
 for re in '^el0: write-succeeded user-ro va=0x80009000 ' \
           '^el0: sys-ptr control rw-data n=6[[:space:]]*$' \
           'el0: sys-ptr leaked kernel-stub n=8[[:space:]]*$' \
@@ -1697,15 +1736,20 @@ for re in '^el0: write-succeeded user-ro va=0x80009000 ' \
           '^el0-reach: leak-probe planted va=0x80007000[[:space:]]*$' \
           '^el0-reach: leak k lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
           '^el0-reach: leak u lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
-          '^el0-reach: steady k=1 u=1 a=0 h=0 pages=2 leaks=2[[:space:]]*$'; do
+          '^el0-reach: steady k=1 u=1 a=0 h=0 pages=2 leaks=2[[:space:]]*$' \
+          '^t2t: leak-probe planted b-frame in a-ttbr0 va=0x80007000[[:space:]]*$' \
+          '^t2t: leak walk b-frame u-refs=1 u-el0=1[[:space:]]*$' \
+          '^t2t: leak read asid=1 va=0x80007000 got=0x7a5cb0b0[[:space:]]*$' \
+          '^t2t: leak write asid=1 va=0x80007000 b=0x7a5ceeee[[:space:]]*$'; do
     if ! grep -E -q "$re" "$el0leak_log"; then
         echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-092)" >&2
         rm -f "$el0leak_log"; exit 1
     fi
 done
 if grep -q "el0: write-ok" "$el0leak_log" || grep -q "el0-reach: ok" "$el0leak_log" \
-    || grep -q "el0: sys-ptr ok" "$el0leak_log" || grep -q "el0: sys-ptr denied" "$el0leak_log"; then
-    echo "qemu-smoke: ADR-092/094 walk / store / sys-ptr probe passed despite a planted leak" >&2
+    || grep -q "el0: sys-ptr ok" "$el0leak_log" || grep -q "el0: sys-ptr denied" "$el0leak_log" \
+    || grep -q "t2t: ok" "$el0leak_log"; then
+    echo "qemu-smoke: ADR-092/094/096 walk / store / sys-ptr / t2t probe passed despite a planted leak" >&2
     rm -f "$el0leak_log"; exit 1
 fi
 # ADR-098: the boot probe still passes in this kernel, but PAN is lost while
@@ -1728,6 +1772,6 @@ if grep -a -q "pan: ok held" "$el0leak_log" || grep -a -q "pan: live-syscall pst
 fi
 echo "qemu-smoke: el0-leak-probe PAN loss caught (ADR-098)"
 rm -f "$el0leak_log"
-echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr)"
+echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr + t2t + pan)"
 
 echo "qemu-smoke: ok"

@@ -104,7 +104,7 @@ Limits that stay with it:
 - The TCG default smoke machine only. Not a real-hardware claim (the B2-P KVM runs are a reduced one-off profile, [ADR-085](../03-adr/ADR-085-b2p-graviton-kvm-serror.md) / [ADR-095](../03-adr/ADR-095-g3-kvm-recheck.md)).
 - Not a speculative-execution or side-channel claim. Not a certification.
 - EL0 can read its own code bytes (app text+rodata is EL0 read-only + executable, ADR-094).
-- Also outside it (ADR-091 non-scope): task-vs-task isolation beyond ASIDs, DMA / IOMMU / EL2, and taken SError on stock QEMU (still parks).
+- Also outside it (ADR-091 non-scope): task-vs-task isolation beyond ASIDs, DMA / IOMMU / EL2, and taken SError on stock QEMU (still parks). *Separate evidence (not part of the sentence):* [ADR-096](../03-adr/ADR-096-task-to-task-el0-isolation-probe.md) probes that an EL0 task on ASID 1 cannot read or write another EL0 task's page on ASID 2 at the same VA (`t2t: ok`; one core, TCG, kernel-built tasks).
 
 *Correction (2026-09-29):* until [ADR-098](../03-adr/ADR-098-pan-held-during-el0-exceptions.md) the “PAN is enabled” clause held at boot but not while the kernel handled EL0 exceptions or after EL0 trips (the boot probe ran before any EL0 trip). ADR-098 fixes it and checks it live; the sentence is unchanged and true again.
 

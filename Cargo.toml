@@ -33,6 +33,11 @@ write-leak-probe = []
 # `SYS_UART_WRITE` read the `_start` stub page; the probe must print
 # `el0: sys-ptr leaked` and withhold `el0: sys-ptr ok`.
 sysptr-leak-probe = []
+# ADR-096 negative probe: also map task B's private frame into task A's
+# TTBR0 (a shared-frame bug). Task A then reads B's sentinel; the probe must
+# print `t2t: leak` and withhold `t2t: ok`. Smoke builds it with the
+# ADR-092/094 negatives in one kernel.
+t2t-leak-probe = []
 # ADR-098 negative build: undo the PAN fix (SCTLR_EL1.SPAN stays 1 and the
 # kernel resumes from EL0 trips with SPSR.PAN clear). The boot probe
 # (`pan: enabled` / `pan: el1-fault`) still passes; the live checks must print

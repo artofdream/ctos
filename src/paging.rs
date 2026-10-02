@@ -3333,6 +3333,84 @@ pub fn map_asid_b_ng(va: u64, pa: u64) -> bool {
     true
 }
 
+/// ADR-096: EL0 leaf with nG in ASID B's window L3 (task B of the
+/// task-to-task probe). `exec`: EL0 execute-only code page (UXN clear,
+/// PXN); else EL0-RW NX data page. No TLBI (caller invalidates).
+#[allow(dead_code)]
+pub fn map_asid_b_el0(va: u64, pa: u64, exec: bool) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let desc = if exec { l3_page_el0_exec(pa) } else { l3_page_el0_rw(pa) } | DESC_NG;
+    let _g = TABLES.lock();
+    unsafe {
+        if l3_asid_b_slot(i).read() & DESC_VALID != 0 {
+            return false;
+        }
+        l3_asid_b_slot(i).write(desc);
+    }
+    dsb_ish();
+    true
+}
+
+/// ADR-096: EL0-RW NX leaf with nG in the shared window (task A's private
+/// page in the user TTBR0). Invalidates `va` in every ASID.
+#[allow(dead_code)]
+pub fn map_el0_rw_ng(va: u64, pa: u64) -> bool {
+    if pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    map_window_desc(va, l3_page_el0_rw(pa) | DESC_NG)
+}
+
+/// ADR-096: raw ASID-B window leaf for `va` (0 = empty).
+#[allow(dead_code)]
+pub fn asid_b_leaf(va: u64) -> Option<u64> {
+    let i = window_index(va)?;
+    let _g = TABLES.lock();
+    Some(unsafe { l3_asid_b_slot(i).read() })
+}
+
+/// ADR-096: which TTBR0 root `pa_refs` walks.
+#[allow(dead_code)]
+#[derive(Clone, Copy)]
+pub enum T2tRoot {
+    /// User TTBR0 (task A: `L1_USER`, ASID 1).
+    User,
+    /// ASID-B TTBR0 (task B: `L1_ASID_B`, ASID 2).
+    AsidB,
+}
+
+/// ADR-096: walk every valid leaf of one TTBR0 root and count leaves whose
+/// output range covers `pa`: `(any, el0_reachable)`.
+#[allow(dead_code)]
+pub fn pa_refs(root: T2tRoot, pa: u64) -> (u32, u32) {
+    const OA: u64 = 0x0000_ffff_ffff_f000;
+    let l1 = match root {
+        T2tRoot::User => l1_user_pa(),
+        T2tRoot::AsidB => l1_asid_b_pa(),
+    };
+    let pa = pa & !(PAGE - 1);
+    let mut any = 0u32;
+    let mut el0 = 0u32;
+    let _g = TABLES.lock();
+    unsafe {
+        walk_leaves(l1, 0, &mut |_va, size, d| {
+            let lo = d & OA & !(size - 1);
+            if pa >= lo && pa < lo + size {
+                any += 1;
+                if el0_reachable(d) {
+                    el0 += 1;
+                }
+            }
+        });
+    }
+    (any, el0)
+}
+
 #[allow(dead_code)]
 pub fn unmap_asid_b_page(va: u64) -> bool {
     let Some(i) = window_index(va) else {
@@ -3357,6 +3435,11 @@ pub fn asid_b_mapped(va: u64) -> bool {
 }
 
 /// True when the kernel window leaf has nG (ASID-tagged).
+#[allow(dead_code)]
+pub fn desc_is_ng(d: u64) -> bool {
+    d & DESC_VALID != 0 && d & DESC_NG != 0
+}
+
 #[allow(dead_code)]
 pub fn window_is_ng(va: u64) -> bool {
     match l3_entry(va) {

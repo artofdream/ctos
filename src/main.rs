@@ -33,6 +33,7 @@ mod sched;
 mod slot;
 mod reach;
 mod syscall;
+mod t2t;
 mod teardown;
 mod timer;
 mod ttbr1;
@@ -336,6 +337,12 @@ extern "C" fn kernel_main_high() -> ! {
         // Serial proof for qemu-smoke (NFR-10 / ADR-013): ASID isolation mile.
         if !asid::observe_probe() {
             uart::write_str_raw("asid: probe missed\n");
+        }
+        // ADR-096: task-to-task EL0 isolation. Task A (user TTBR0, ASID 1)
+        // must not read or write task B's private page (ASID-B TTBR0,
+        // ASID 2) at the same VA, right after B ran (no TLBI in between).
+        if !t2t::observe_probe() {
+            uart::write_str_raw("t2t: probe missed\n");
         }
         // Serial proof for qemu-smoke (NFR-10 / ADR-016 + ADR-017):
         // TTBR1 private page + EL1 high-VA fetch.
