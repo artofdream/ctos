@@ -1,0 +1,335 @@
+# ADR-099 SKETCH. INERT BY DESIGN. DO NOT ENABLE WITHOUT THE SPONSOR PATH.
+#
+# KVM re-check of the reduced `b2-serror` profile on a Graviton3 metal Spot
+# instance, via GitHub OIDC (no stored AWS keys). Reuses what ADR-085 / ADR-095
+# (G3) ran by hand: scripts/b2-kvm-smoke.py, via scripts/kvm-recheck-userdata.sh.
+#
+# Why it is inert:
+#   * `workflow_dispatch` only. No `schedule`, no `push`, no `pull_request`. It is
+#     not, and must not become, a required check.
+#   * It does nothing until the repository variable KVM_ROLE_ARN (and the other
+#     KVM_* variables) are set. The guard step FAILS (red), it does not skip.
+#     A skipped job would read as green.
+#   * Workflow-dispatch files only run from the default branch, and the guard
+#     refuses any ref except refs/heads/main.
+#   * The `environment` must exist, with required reviewers and a main-only
+#     deployment branch policy, BEFORE the AWS role is created (otherwise GitHub
+#     creates an unprotected environment on first reference).
+#   * Third-party actions below are pinned by tag in this sketch; pin them by full
+#     commit SHA before the first real run (ADR-099, precondition P12).
+#
+# What a green run means (ADR-099 "Honesty"): only that, at the printed commit, on
+# a KVM-capable Graviton host, the reduced `b2-serror` profile printed
+# `el0: serror` + `b2: taken`. Not the default image, not the identity inventory,
+# not the EL0 walk, not real-hardware boot of the default image.
+#
+# Result words (only these; each comes from a probe in this file):
+#   PASS | FAIL | INCONCLUSIVE | SKIPPED-no-capacity | REFUSED-active-instance
+#   | LEAK | NOT-RUN. Only PASS exits 0. Nothing else is green.
+#
+# No identifier values (account, instance, security group, subnet, image) are in
+# this file; they come from repository variables. Instance IDs are masked.
+name: kvm-recheck
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit to test. Must be on main. Default: main."
+        required: false
+        default: main
+
+permissions: {}
+
+concurrency:
+  group: kvm-recheck
+  cancel-in-progress: false
+
+jobs:
+  kvm-recheck:
+    name: KVM re-check (b2-serror, Graviton metal) [sketch, inert]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    # Placeholder name; created by the sponsor/DSO path with required reviewers
+    # and a main-only deployment branch policy (ADR-099 P5).
+    environment: kvm-recheck
+    permissions:
+      id-token: write   # OIDC token for the role. Nothing else is granted.
+      contents: read
+    env:
+      KVM_ROLE_ARN: ${{ vars.KVM_ROLE_ARN }}
+      KVM_REGION: ${{ vars.KVM_REGION }}
+      KVM_AMI_ID: ${{ vars.KVM_AMI_ID }}
+      KVM_SG_ID: ${{ vars.KVM_SG_ID }}
+      # Space-separated, one subnet per AZ, in retry order.
+      KVM_SUBNET_IDS: ${{ vars.KVM_SUBNET_IDS }}
+      INPUT_REF: ${{ inputs.ref }}
+      INSTANCE_TYPE: c7g.metal
+      # Hard cost cap per run (ADR-099): MAX_PRICE_USD_HR is the Spot max price
+      # sent to EC2; LIFETIME_MIN is the in-instance shutdown timer. The guard
+      # refuses to run unless MAX_PRICE * (LIFETIME + 5 min boot slack) / 60
+      # <= RUN_COST_CAP_USD.
+      MAX_PRICE_USD_HR: "0.40"
+      LIFETIME_MIN: "45"
+      RUN_COST_CAP_USD: "0.50"
+      POLL_MAX_MIN: "40"
+      RESULT_FILE: kvm-result.env
+    steps:
+      - name: Guard (fails closed, makes no AWS call)
+        shell: bash
+        run: |
+          set -euo pipefail
+          refuse() {
+            echo "::error::kvm-recheck refused: $1"
+            {
+              echo "### KVM re-check: NOT-RUN"
+              echo "Refused: $1"
+              echo "This is not a pass. No AWS call was made."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+          [ "$GITHUB_REPOSITORY" = "artofdream/ctos" ] || refuse "wrong repository"
+          [ "$GITHUB_REF" = "refs/heads/main" ] || refuse "must run from main"
+          [ -n "${KVM_ROLE_ARN:-}" ] || refuse "KVM_ROLE_ARN is unset (workflow is inert until the sponsor path sets it)"
+          for v in KVM_REGION KVM_AMI_ID KVM_SG_ID KVM_SUBNET_IDS; do
+            [ -n "${!v:-}" ] || refuse "$v is unset"
+          done
+          printf '%s' "$KVM_ROLE_ARN" | grep -Eq '^arn:aws:iam::[0-9]{12}:role/[A-Za-z0-9+=,.@_/-]+$' \
+            || refuse "KVM_ROLE_ARN is not a role ARN"
+          printf '%s' "$INPUT_REF" | grep -Eq '^[0-9A-Za-z._/-]{1,100}$' || refuse "bad ref input"
+          awk -v p="$MAX_PRICE_USD_HR" -v l="$LIFETIME_MIN" -v c="$RUN_COST_CAP_USD" \
+            'BEGIN { exit !(p > 0 && p <= 0.60 && l >= 20 && l <= 60 && p * (l + 5) / 60 <= c) }' \
+            || refuse "cost cap check failed (price, lifetime or cap out of range)"
+          echo "Guard passed. Per-run compute cap: $(awk -v p="$MAX_PRICE_USD_HR" -v l="$LIFETIME_MIN" 'BEGIN { printf "%.2f", p * (l + 5) / 60 }') USD (estimate: MaxPrice x lifetime)."
+
+      - name: Check out main (full history)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve the commit under test (must be on main)
+        id: sha
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha=$(git rev-parse --verify "${INPUT_REF}^{commit}") || { echo "::error::ref not found"; exit 1; }
+          git merge-base --is-ancestor "$sha" origin/main \
+            || { echo "::error::commit is not on main; only reviewed commits are tested"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "Testing commit $sha"
+
+      - name: Assume the OIDC role (no stored keys)
+        id: cred
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.KVM_ROLE_ARN }}
+          aws-region: ${{ vars.KVM_REGION }}
+          role-session-name: ctos-kvm-recheck
+          role-duration-seconds: 3600
+          mask-aws-account-id: true
+
+      - name: Pre-flight (refuse if any ctos instance is already active)
+        id: preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          n=$(aws ec2 describe-instances \
+            --filters "Name=tag:project,Values=ctos" \
+                      "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+            --query 'length(Reservations[].Instances[])' --output text)
+          if [ "$n" != "0" ]; then
+            echo "result=REFUSED-active-instance" > "$RESULT_FILE"
+            echo "::error::an active project=ctos instance exists; refusing to start a second metal box"
+            exit 1
+          fi
+          echo "No active project=ctos instance."
+
+      - name: Launch one Spot instance (retry across AZs; capacity failures are not hidden)
+        id: launch
+        shell: bash
+        run: |
+          set -euo pipefail
+          nonce=$(openssl rand -hex 8)
+          echo "nonce=$nonce" >> "$GITHUB_OUTPUT"
+          sed -e "s/__SHA__/${{ steps.sha.outputs.sha }}/" \
+              -e "s/__NONCE__/$nonce/" \
+              -e "s/__LIFETIME_MIN__/$LIFETIME_MIN/" \
+              scripts/kvm-recheck-userdata.sh > userdata.sh
+          tags="{Key=project,Value=ctos},{Key=component,Value=kvm-recheck},{Key=run,Value=$GITHUB_RUN_ID}"
+          capacity_re='InsufficientInstanceCapacity|InsufficientCapacity|SpotMaxPriceTooLow|capacity-not-available|Unsupported|InsufficientFreeAddressesInSubnet'
+          quota_re='MaxSpotInstanceCountExceeded|VcpuLimitExceeded|InstanceLimitExceeded'
+          read -ra subnets <<< "$KVM_SUBNET_IDS"
+          total=${#subnets[@]}
+          tried=0
+          for subnet in "${subnets[@]}"; do
+            tried=$((tried + 1))
+            if iid=$(aws ec2 run-instances --count 1 \
+                --image-id "$KVM_AMI_ID" --instance-type "$INSTANCE_TYPE" \
+                --subnet-id "$subnet" --security-group-ids "$KVM_SG_ID" \
+                --associate-public-ip-address \
+                --instance-market-options "MarketType=spot,SpotOptions={MaxPrice=$MAX_PRICE_USD_HR,SpotInstanceType=one-time,InstanceInterruptionBehavior=terminate}" \
+                --instance-initiated-shutdown-behavior terminate \
+                --metadata-options "HttpTokens=required,HttpEndpoint=enabled,HttpPutResponseHopLimit=1" \
+                --block-device-mappings "DeviceName=/dev/sda1,Ebs={VolumeSize=30,VolumeType=gp3,DeleteOnTermination=true}" \
+                --tag-specifications "ResourceType=instance,Tags=[$tags]" \
+                                     "ResourceType=volume,Tags=[$tags]" \
+                                     "ResourceType=network-interface,Tags=[$tags]" \
+                                     "ResourceType=spot-instances-request,Tags=[$tags]" \
+                --user-data file://userdata.sh \
+                --query 'Instances[0].InstanceId' --output text 2> launch.err); then
+              echo "::add-mask::$iid"
+              echo "iid=$iid" >> "$GITHUB_OUTPUT"
+              echo "Launched in attempt $tried of $total."
+              exit 0
+            fi
+            # Print only the error code. Raw AWS errors can carry ARNs and IDs
+            # and CI logs of this public repository are public.
+            code=$(sed -n 's/.*An error occurred (\([A-Za-z.]*\)).*/\1/p' launch.err | head -1)
+            echo "Attempt $tried failed: code=${code:-unknown}"
+            if printf '%s' "${code:-}" | grep -Eq "$quota_re"; then
+              echo "result=SKIPPED-no-capacity" > "$RESULT_FILE"
+              echo "reason=quota-or-limit" >> "$RESULT_FILE"
+              echo "::error::SKIPPED (quota/limit, code=$code): no instance was started. This is not a pass."
+              exit 1
+            elif printf '%s' "${code:-}" | grep -Eq "$capacity_re"; then
+              continue
+            else
+              echo "result=FAIL" > "$RESULT_FILE"
+              echo "reason=launch-error-${code:-unknown}" >> "$RESULT_FILE"
+              echo "::error::launch failed with a non-capacity error (code=${code:-unknown})"
+              exit 1
+            fi
+          done
+          echo "result=SKIPPED-no-capacity" > "$RESULT_FILE"
+          echo "reason=no-capacity-in-$tried-az" >> "$RESULT_FILE"
+          echo "::error::SKIPPED: no Spot capacity in any of $tried AZ(s). No instance was started. This is not a pass."
+          exit 1
+
+      - name: Wait for the result (console output, filtered)
+        id: wait
+        shell: bash
+        env:
+          IID: ${{ steps.launch.outputs.iid }}
+          NONCE: ${{ steps.launch.outputs.nonce }}
+          SHA: ${{ steps.sha.outputs.sha }}
+        run: |
+          set -euo pipefail
+          deadline=$(( $(date +%s) + POLL_MAX_MIN * 60 ))
+          final_reads=0
+          : > console.filtered
+          while :; do
+            # Only lines the user-data prints on purpose. Never the raw console.
+            aws ec2 get-console-output --instance-id "$IID" --latest --output text 2>/dev/null \
+              | tr -d '\r' | grep -E '^CTOSB2: ' > console.filtered || true
+            if grep -Eq "^CTOSB2: result smoke-rc=[0-9]+ sha=([0-9a-f]{40}|none) nonce=" console.filtered; then break; fi
+            state=$(aws ec2 describe-instances --instance-ids "$IID" \
+              --query 'Reservations[0].Instances[0].[State.Name,StateReason.Code]' --output text 2>/dev/null || echo "unknown unknown")
+            case "$state" in
+              terminated*)
+                # Console text may only be posted at/after termination. Allow a few
+                # more reads, then give up (INCONCLUSIVE), never assume.
+                final_reads=$((final_reads + 1))
+                if [ "$final_reads" -ge 6 ]; then
+                  case "$state" in *SpotInstanceTermination*) why=spot-interrupted;; *) why=terminated-without-result;; esac
+                  echo "result=INCONCLUSIVE" > "$RESULT_FILE"; echo "reason=$why" >> "$RESULT_FILE"
+                  echo "::error::INCONCLUSIVE ($why): no result line. This is not a pass."
+                  exit 1
+                fi
+                ;;
+            esac
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "result=INCONCLUSIVE" > "$RESULT_FILE"; echo "reason=poll-deadline" >> "$RESULT_FILE"
+              echo "::error::INCONCLUSIVE (poll deadline): no result line. This is not a pass."
+              exit 1
+            fi
+            sleep 30
+          done
+          # Parse fail-closed. Every condition must hold for PASS.
+          pass=1
+          grep -Fxq "CTOSB2: result smoke-rc=0 sha=$SHA nonce=$NONCE" console.filtered || pass=0
+          grep -Eq "^CTOSB2: b2-kvm-smoke: PASS taken lower-EL SError observed under accel=kvm" console.filtered || pass=0
+          grep -Eq "^CTOSB2: uname Linux [^ ]+ aarch64$" console.filtered || pass=0
+          grep -Fxq "CTOSB2: /dev/kvm=present" console.filtered || pass=0
+          grep -Eq "^CTOSB2: kvm-api 12$" console.filtered || pass=0
+          if [ "$pass" = 1 ]; then
+            echo "result=PASS" > "$RESULT_FILE"
+          else
+            echo "result=FAIL" > "$RESULT_FILE"; echo "reason=smoke-not-pass-or-markers-missing" >> "$RESULT_FILE"
+          fi
+          # Safe, public excerpt: the marker lines only.
+          {
+            echo '```text'
+            grep -E '^CTOSB2: (uname|cpu|/dev/kvm|kvm-api|head|qemu-version|smoke attempt|b2-kvm-smoke: (PASS|FAIL)|result)' console.filtered || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---- Teardown: always, even on failure or cancel. -------------------
+      - name: Refresh credentials for teardown
+        id: cred2
+        if: always() && steps.cred.outcome == 'success'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.KVM_ROLE_ARN }}
+          aws-region: ${{ vars.KVM_REGION }}
+          role-session-name: ctos-kvm-recheck-teardown
+          role-duration-seconds: 3600
+          mask-aws-account-id: true
+
+      - name: Terminate and sweep (tag-based)
+        id: teardown
+        if: always() && steps.cred.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Terminate everything this run created, found by tag, so a launch that
+          # died after RunInstances (no output) is still cleaned up.
+          ids=$(aws ec2 describe-instances \
+            --filters "Name=tag:project,Values=ctos" "Name=tag:component,Values=kvm-recheck" \
+                      "Name=tag:run,Values=$GITHUB_RUN_ID" \
+                      "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+            --query 'Reservations[].Instances[].InstanceId' --output text)
+          for id in $ids; do echo "::add-mask::$id"; done
+          if [ -n "$ids" ]; then
+            # shellcheck disable=SC2086
+            aws ec2 terminate-instances --instance-ids $ids --query 'length(TerminatingInstances)' --output text
+            # shellcheck disable=SC2086
+            timeout 300 aws ec2 wait instance-terminated --instance-ids $ids || echo "::warning::wait for terminated timed out; the sweep below decides"
+          fi
+          # Sweeper: nothing tagged project=ctos may still be alive, from any run.
+          left=$(aws ec2 describe-instances \
+            --filters "Name=tag:project,Values=ctos" \
+                      "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+            --query 'length(Reservations[].Instances[])' --output text)
+          if [ "$left" != "0" ]; then
+            echo "result=LEAK" > teardown.env
+            echo "::error::LEAK: $left project=ctos instance(s) still alive after teardown. Sweep by hand and tell the DSO."
+            exit 1
+          fi
+          echo "Sweep clean: 0 active project=ctos instances."
+
+      - name: Verdict (the only place a status word is decided)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          result=NOT-RUN; reason=""
+          if [ -f "$RESULT_FILE" ]; then
+            result=$(sed -n 's/^result=//p' "$RESULT_FILE" | head -1)
+            reason=$(sed -n 's/^reason=//p' "$RESULT_FILE" | head -1)
+          fi
+          # A failed teardown outranks everything.
+          if [ "${{ steps.teardown.outcome }}" = "failure" ]; then result=LEAK; fi
+          # Never green unless the wait step itself produced PASS and teardown was clean
+          # (or credentials were never obtained, so nothing was created).
+          if [ "$result" = "PASS" ] && [ "${{ steps.teardown.outcome }}" != "success" ]; then result=LEAK; fi
+          {
+            echo "### KVM re-check: $result"
+            echo "- commit: \`${{ steps.sha.outputs.sha }}\`"
+            [ -n "$reason" ] && echo "- reason: $reason"
+            echo "- scope: reduced \`b2-serror\` profile under KVM on a Graviton metal host, one run. Not the default image. Not ADR-091's other evidence."
+            echo "- only PASS is green; SKIPPED, INCONCLUSIVE, REFUSED, LEAK and NOT-RUN are not passes."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "kvm-recheck result: $result"
+          [ "$result" = "PASS" ]

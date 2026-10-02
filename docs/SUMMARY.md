@@ -125,6 +125,7 @@
 - [ADR-094 Syscall pointers need EL0 permission (G4)](03-adr/ADR-094-syscall-pointer-el0-permission.md)
 - [ADR-095 G3: B2-P KVM taken-SError re-run on current main (PASS)](03-adr/ADR-095-g3-kvm-recheck.md)
 - [ADR-098 PAN held while handling EL0 exceptions (correction)](03-adr/ADR-098-pan-held-during-el0-exceptions.md)
+- [ADR-099 KVM re-check in CI via GitHub OIDC (design sketch, inert)](03-adr/ADR-099-kvm-recheck-ci-oidc-sketch.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap

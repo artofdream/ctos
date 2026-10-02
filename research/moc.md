@@ -57,6 +57,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - ADR-094 G4 syscall pointers need EL0 permission (standing order; ADR-091 revision 3, G3 optional only): [daily-briefs/2026-09-27-adr-094-sys-ptr-perm.md](daily-briefs/2026-09-27-adr-094-sys-ptr-perm.md) / scratch [random-thoughts/2026-09-27-session-memory-adr-094.md](random-thoughts/2026-09-27-session-memory-adr-094.md)
 - ADR-095 G3 B2-P KVM taken-SError re-run on `main` `8107578` (PASS; ADR-091 still Draft): console [daily-briefs/2026-09-28-adr-095-g3-console.txt](daily-briefs/2026-09-28-adr-095-g3-console.txt)
 - ADR-098 PAN held while handling EL0 exceptions (correction of the ADR-091 PAN clause's evidence; SPAN=0 + SPSR.PAN on return; boot probe had missed it): [daily-briefs/2026-09-29-adr-098-pan-held.md](daily-briefs/2026-09-29-adr-098-pan-held.md)
+- ADR-099 KVM re-check in CI via GitHub OIDC, design sketch only (inert workflow, no AWS touched): brief [daily-briefs/2026-10-02-adr-099-kvm-ci-sketch.md](daily-briefs/2026-10-02-adr-099-kvm-ci-sketch.md)
 - M6 “EL0 isolated” flip (ADR-091 Accepted; B3 met 2026-09-28 16:41 CEST; docs only): [daily-briefs/2026-09-28-m6-el0-isolated-flip.md](daily-briefs/2026-09-28-m6-el0-isolated-flip.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
