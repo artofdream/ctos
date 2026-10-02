@@ -4,7 +4,7 @@
 - Date: 2026-10-02 (CEST).
 - Follows: [ADR-085](ADR-085-b2p-graviton-kvm-serror.md) (first KVM run), [ADR-090](ADR-090-serror-evidence-class.md) (evidence class), [ADR-091](ADR-091-el0-isolated-accept-draft.md) (Accepted; its sentence is **not touched**), [ADR-093](ADR-093-public-identifier-scrub-guard.md) (no identifiers in public text), [ADR-095](ADR-095-g3-kvm-recheck.md) (G3: the manual run this automates).
 - Not in this ADR: no `src/`, `user/`, `libctos/` or `Cargo.*` change; `_start` (`0x4008_0000`) untouched; `smoke.yml`, `pages.yml` and the in-tree `scripts/b2-metal-userdata.sh` untouched; the three required checks are unchanged; CloudAgent not used.
-- **No threat-model bump.** `security.md` on `main` is v1.72 (ADR-098, PR #151, merged by the sponsor on 2026-10-02 13:01 CEST); v1.71 and v1.73 are reserved by the open PRs #149 and #150. A bump here would collide with those numbers. The risk table below is written so DSO can attach it to the sponsor record; folding it into `security.md` is a follow-up after #149 and #150 merge.
+- **No threat-model bump.** `security.md` on `main` was v1.72 when this ADR was written (ADR-098, PR #151, merged by DSO on the sponsor's instruction on 2026-10-02 13:01 CEST); #149 and #150 have merged since (v1.71, v1.73), and the next free number is taken by the ADR-091 revision 4 PR (#153). A bump here would collide with those numbers. The risk table below is written so DSO can attach it to the sponsor record; folding it into `security.md` is a follow-up after those PRs merge.
 - Public-identifier rule ([ADR-093](ADR-093-public-identifier-scrub-guard.md)): every account, role, instance, image, subnet, security-group and zone identifier is a `<PLACEHOLDER>` here and in the workflow. Real values belong in repository **variables** set by the sponsor-approved path, never in repo text, commits, PR bodies or logs.
 
 ## Context
@@ -213,6 +213,8 @@ The question: how does "the smoke passed" leave a box that has no credentials, n
 | C. S3 bucket (instance PUTs the result) | Either an instance profile (**`iam:PassRole`**) or a **pre-signed PUT URL** minted by the role (no PassRole, but `s3:PutObject` and a bucket). | A **new resource class** (bucket, lifecycle, public-block settings, cost), a URL that is a bearer secret on the instance and in user-data, a read path. | Not now. Kept as a **fallback** if console output proves unreliable in the pilot; that would be a new sponsor decision under (c). |
 | D. Instance pushes to GitHub (status, artefact, comment, self-hosted runner) | A GitHub token (or runner registration token) **on the instance**. | **Violates the credential rule's intent**: a long-lived or minted secret on a machine that downloads and builds third-party code. | Rejected. |
 
+**Sponsor accept (2026-10-02):** the sponsor accepted this section, results out via tag-scoped `ec2:GetConsoleOutput`, no `iam:PassRole`, no instance profile, in writing on 2026-10-02. It is recorded in the DSO vault and was relayed by DSO. Only this section is accepted; the rest of the ADR is still a proposal.
+
 **Recommendation: A, console output.** It needs the least (two tag-scoped EC2 read/terminate actions the role needs anyway), avoids the most (PassRole, instance profile, S3, SSM, any credential on the instance), and was already proven by hand twice.
 
 How the workflow stays honest with a text-only channel:
@@ -278,7 +280,7 @@ Nothing below is done by this PR. "State" is the state **in this PR's evidence**
 | --- | --- | --- | --- |
 | P1 | **(a)** A CloudTrail trail is on (management events, all regions or at least `<REGION>`) | DSO | **NOT VERIFIED** (no AWS call is allowed here) |
 | P2 | **(b)** Branch protection on `main` enforced for admins | DSO / sponsor | **Verified** via the GitHub API. Note: no required approving review; `strict` is off. |
-| P3 | **(c)** Results-out decided before any extra permission | Sponsor accepts this ADR | **Decided in this ADR (console output)**, **pending sponsor accept**. No PassRole requested. |
+| P3 | **(c)** Results-out decided before any extra permission | Sponsor accepts this ADR | **Decided in this ADR (console output)**. **Section 2 was accepted by the sponsor in writing on 2026-10-02**, recorded in the DSO vault (relayed by DSO; the verbatim wording is in the vault and is not reproduced here). No PassRole requested. |
 | P4 | The GitHub OIDC identity provider exists in the account | DSO | **NOT VERIFIED** |
 | P5 | A GitHub environment (placeholder name `kvm-recheck`) with **required reviewers** and a **main-only deployment branch policy**, created **before** the role | Sponsor / DSO | **Absent** today |
 | P6 | The role created via a **sponsor-approved path** (not by an agent) with exactly the trust and permission policies above, adjusted for the immutable subject | Sponsor / DSO | Not done |
@@ -338,9 +340,20 @@ User-data is derived from the ADR-095 variant of `scripts/b2-metal-userdata.sh`:
 - **Cost of the choice:** the console channel is narrow and text only; Spot capacity makes the check sometimes unavailable; the immutable-subject format and several account facts have to be verified by DSO before the first run.
 - **Not decided here:** a schedule, a per-merge run, making it a required check, an S3 or SSM result channel, an on-demand fallback, a standalone sweeper. Each needs its own sponsor decision.
 
+## Open reconciliation points (for the enabling PR)
+
+DSO's reconciliation notes, 2026-10-02. They are **open points for the PR that would enable this workflow**, not done here. This sketch does not close any of them.
+
+1. **Exact immutable-subject string to be confirmed** (P14). This repository's `sub` claim uses the immutable-subject form (numeric owner and repository IDs), so the trust policy's `sub` must be copied from what GitHub actually emits, then confirmed in the supervised pilot from the CloudTrail event. Never widened to a wildcard.
+2. **The protected environment must be created first** (P5): required reviewers and a main-only deployment branch policy, **before** the role and its trust policy exist. Today no such environment exists.
+3. **Actions must be SHA-pinned** (P12): `actions/checkout` and `aws-actions/configure-aws-credentials` by full commit SHA before the first real run. The sketch uses tags.
+4. **Region: `eu-north-1`.** The policies use `<REGION>`; the region is `eu-north-1`, the one the G3 re-check ([ADR-095](ADR-095-g3-kvm-recheck.md)) used. The region name is not an identifier value. AZ, subnet, image and security-group values stay in repository variables.
+5. **Results-out (section 2) accepted.** The sponsor accepted section 2 in writing on 2026-10-02 (results out via tag-scoped `ec2:GetConsoleOutput`, no `iam:PassRole`, no instance profile), recorded in the DSO vault, relayed by DSO. This satisfies condition (c) for that section only. Anything beyond it (S3, SSM, a PassRole) needs a new decision.
+6. Still open from the checklist and not touched by DSO's notes: CloudTrail on (P1), the OIDC provider (P4), the Spot service-linked role and quota (P8), the DSO vault decision record (P10; not read here), the supervised pilot (P13).
+
 ## Merge notes
 
-This PR is **draft** and based on `main` at `3c47c0c` (after #151 merged; the first version of this branch was cut from `9a1c2bb` and rebased, with the append-only SUMMARY, moc and ledger conflicts resolved by keeping both sides). Open PRs #149 and #150 also append to `docs/SUMMARY.md`, `research/moc.md` and `docs/framework/honesty-ledger.md`; expect trivial append-only conflicts there after they merge. Resolve by keeping both sides. This PR does not touch those PRs.
+This PR is **draft** and must stay a draft until DSO and the sponsor decide. It was cut from `main` at `3c47c0c`, then merged with `main` (a normal merge, no force-push) to stay mergeable after #149 and #150 merged. #149, #150 and #151 were merged by DSO on the sponsor's instruction. The ADR-091 revision 4 PR (#153) also appends to `docs/SUMMARY.md`, `research/moc.md` and `docs/framework/honesty-ledger.md`; if it merges first, expect trivial append-only conflicts there: keep both sides.
 
 ## Reproducibility
 
