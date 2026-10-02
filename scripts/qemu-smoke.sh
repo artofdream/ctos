@@ -1764,6 +1764,7 @@ echo "qemu-smoke: inv-leak-probe caught (fail-closed ok)"
 # ADR-097: the same kernel maps app text EL0-readable again (AP=EL0 RO, UXN=0).
 # The xo probe must report the readable text, the EL0 read of a code word and
 # the syscall that read text, echo the ADR-098 PAN loss, and withhold `xo: ok`.
+# Each probe is checked individually below (t2t, xo and PAN blocks).
 echo "qemu-smoke: el0-leak-probe (reach + write + sys-ptr + t2t + xo + pan) must be caught (timeout ${INV_LEAK_TIMEOUT_SECS}s)"
 cargo build --features reach-leak-probe,write-leak-probe,sysptr-leak-probe,t2t-leak-probe,xo-leak-probe,pan-keep-leak-probe --target-dir target/el0-leak-probe
 el0leak_elf="target/el0-leak-probe/aarch64-ctos/debug/ctos"
@@ -1826,6 +1827,6 @@ if grep -a -q "pan: ok held" "$el0leak_log" || grep -a -q "pan: live-syscall pst
 fi
 echo "qemu-smoke: el0-leak-probe PAN loss caught (ADR-098)"
 rm -f "$el0leak_log"
-echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr + t2t + xo)"
+echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr + t2t + xo + pan)"
 
 echo "qemu-smoke: ok"
