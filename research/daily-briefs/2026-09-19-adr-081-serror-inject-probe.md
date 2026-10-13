@@ -1,7 +1,7 @@
 # ADR-081 research brief — taken lower-EL SError inject (agent-box)
 
 - Date: 2026-09-19 CEST
-- Host: agent-box (`grok-bot-vm-401670533`)
+- Host: agent-box (`<agent-vm-hostname>`)
 - QEMU: `qemu-system-aarch64` **10.0.13** (Debian `1:10.0.13+ds-0+deb13u1`)
 - Accel: TCG only (`query-kvm` → `present=false`; `-accel kvm` → `invalid accelerator kvm`)
 - Default smoke CPU: `-cpu cortex-a76` (ADR-079)

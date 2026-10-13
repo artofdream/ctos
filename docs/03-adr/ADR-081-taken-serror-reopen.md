@@ -2,7 +2,7 @@
 
 - Status: Accepted (docs / evidence). [#125](https://github.com/artofdream/ctos/issues/125) mile (3). Dated re-probe on default `-cpu cortex-a76` + documented virt options: **no honest inject** delivers ARM async SError to standing EL0 on QEMU 10 `virt` TCG. Taken path stays **deferred / non-goal (locked)**. `el0: serror-park` stays **Verified**. Guest A-clear / EXPECT plumbing stays **dormant prep**. Do **not** mark taken SError Verified.
 - Date: 2026-09-19
-- Tracks [#125](https://github.com/artofdream/ctos/issues/125). Builds on [ADR-053](ADR-053-taken-serror-hard-stop.md) reopen gate. CloudAgent **HELD** — agent-box / EVO-X2 / GHA only.
+- Tracks [#125](https://github.com/artofdream/ctos/issues/125). Builds on [ADR-053](ADR-053-taken-serror-hard-stop.md) reopen gate. CloudAgent **HELD** — agent-box / amd64 workstation / GHA only.
 
 ## Context
 

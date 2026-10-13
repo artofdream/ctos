@@ -48,7 +48,7 @@ SECTIONS
        Sit in the *next* 2 MiB L2 block (0x4020_0000+) so KERNEL_TEXT
        (0x4008_0000, first RAM 2 MiB) and .data cannot share one L3.
        A fresh nightly that grows .text/.rodata used to overwrite that
-       single L3 and miss paging/heap/el0 (cts-ai Docker on b2bbb99). */
+       single L3 and miss paging/heap/el0 (arm64 workstation Docker on b2bbb99). */
     . = ALIGN(4096);
     . = 0x40201000;
     __data_start = .;

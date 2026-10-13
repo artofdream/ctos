@@ -1,4 +1,4 @@
-# cts-ai host is Windows ARM64 → Docker Engine linux/arm64.
+# the arm64 workstation host is Windows ARM64 → Docker Engine linux/arm64.
 # Do not pin --platform=linux/amd64. ubuntu:24.04 is multi-arch.
 FROM ubuntu:24.04
 
@@ -9,10 +9,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/usr/local/cargo/bin:$PATH
 
 # build-essential: nightly `build-std` compiles compiler_builtins with a
-# host `cc` even for the freestanding aarch64 target. cts-ai 2026-09-09:
+# host `cc` even for the freestanding aarch64 target. The arm64 workstation 2026-09-09:
 # `docker run` failed with: linker `cc` not found.
 # qemu-efi-aarch64 + ipxe-qemu: `--no-install-recommends` skipped Ubuntu
-# noble Recommends. cts-ai then failed: romfile "efi-virtio.rom" missing
+# noble Recommends. The arm64 workstation then failed: romfile "efi-virtio.rom" missing
 # (ipxe-qemu ships /usr/lib/ipxe/qemu/efi-virtio.rom).
 # python3: qemu-smoke injects one PL011 RX byte (QEMU 8.2 has no UART LBE).
 # git: leftover cross-update worktree-adds prior OS ba6541c (ADR-032).

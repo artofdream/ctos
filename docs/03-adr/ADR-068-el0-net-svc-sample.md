@@ -36,7 +36,7 @@ This mile (**N4**) unlocks a **tiny** EL0 net SVC surface and a fifth freestandi
 
 6. **Docs.** This ADR; honesty ledger evidence-only; `user/README.md`; [what-can-run.md](../overview/what-can-run.md); [apps-today.md](../framework/apps-today.md); [track-n.md](../04-roadmap/track-n.md); SUMMARY; threat-model **v1.43**.
 
-7. **Honesty.** Do **not** claim: TCP/UDP product, BSD sockets, DHCP/DNS, Wi‑Fi, “has networking,” EL0 virtio driver, Linux/POSIX, EL0 isolated, or reopen ADR-048/052. CloudAgent HELD; tag agent-box / EVO-X2. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+7. **Honesty.** Do **not** claim: TCP/UDP product, BSD sockets, DHCP/DNS, Wi‑Fi, “has networking,” EL0 virtio driver, Linux/POSIX, EL0 isolated, or reopen ADR-048/052. CloudAgent HELD; tag agent-box / amd64 workstation. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Consequences
 

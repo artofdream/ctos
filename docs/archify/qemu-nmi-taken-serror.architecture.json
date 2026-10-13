@@ -260,7 +260,7 @@
       "items": [
         "FEAT_NMI / FIQ / BRK are not async SError",
         "Umbrella EL0 isolated remains non-claim (ADR-055)",
-        "CloudAgent HELD \u2014 agent-box proof; EVO-X2 intent only"
+        "CloudAgent HELD \u2014 agent-box proof; amd64 workstation intent only"
       ]
     }
   ]

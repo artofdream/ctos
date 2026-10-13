@@ -105,9 +105,9 @@ We do not publish an uptime KPI. We measure whether **sensors stay fail-closed**
 | `scripts/qemu-smoke.sh` | Build + required serial strings + tests exit 0. Missing a marker is a **fail**, not a skip. |
 | `cargo test --features force-fail` | The panic path is fail-closed (host/QEMU exit 1). A green suite that cannot fail is not a sensor. |
 | Honesty ledger | Every status word is a claim. **Verified** needs a probe. **Unknown** = unprobed. **Planned** = not built yet. **Failed** = the probe ran and lost. File presence is not QEMU boot. |
-| Host ratchets | When a machine finds what CI missed, we keep the Failed row and add a sensor. Example: cts-ai Docker on `main` `b2bbb99` missed `paging: ok` after a larger nightly layout; GHA had been green. |
+| Host ratchets | When a machine finds what CI missed, we keep the Failed row and add a sensor. Example: arm64 workstation Docker on `main` `b2bbb99` missed `paging: ok` after a larger nightly layout; GHA had been green. |
 
-A green GitHub Actions run is one pair of runners. It is not “every host.” Docker on cts-ai is a separate row.
+A green GitHub Actions run is one pair of runners. It is not “every host.” Docker on the arm64 workstation is a separate row.
 
 ## Application support
 

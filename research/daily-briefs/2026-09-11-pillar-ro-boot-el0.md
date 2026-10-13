@@ -22,4 +22,4 @@ GHA `smoke.yml` on this branch: **Unknown**.
 - Isolation row stays Planned. User TTBR0 + cannot-read is a different mile.
 - PAN unclaimed (`cortex-a57` / ARMv8.0).
 - Boot-delta is a measurement, not a budget.
-- cts-ai Docker Desktop path not re-run.
+- the arm64 workstation Docker Desktop path not re-run.

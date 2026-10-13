@@ -19,5 +19,5 @@ GitHub author of #15 was `artofdream`. ADR-002 merge hat was `cursor[bot]`; owne
 
 ## Honesty
 
-- cts-ai Docker Desktop path not re-run.
+- the arm64 workstation Docker Desktop path not re-run.
 - Preemption / SMP / EL0: Unknown (not this path).

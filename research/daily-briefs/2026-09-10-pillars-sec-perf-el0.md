@@ -19,5 +19,5 @@ GHA `smoke.yml` **Verified** on this branch: implementation `8ae63bb` push [3454
 - Threat-model v1 is a file+review Verified. “Secure OS” unclaimed.
 - Heap + coop stacks NX is Verified on this QEMU virt guest. Linker stacks are still executable.
 - IRQ-delta is a spread, not a latency budget.
-- cts-ai Docker Desktop path not re-run.
+- the arm64 workstation Docker Desktop path not re-run.
 - `.obsidian/` was not committed.

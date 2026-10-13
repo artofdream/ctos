@@ -8,7 +8,7 @@ Cloud `scripts/qemu-smoke.sh` **Verified** on `3e710e1` (2026-09-11, QEMU 8.2.2,
 
 First attempt to unmap live `.text` after `_start` **Failed** (unhandled sync on `println!` — rustc `dyn Write` vtables are identity fn pointers). Live `.text` stays. `_start` stays at `0x4008_0000`. Full identity teardown stays **Planned**.
 
-Sponsor cts-ai Docker on `b0f0ee5` recorded Verified in the ledger (47 tests, `ident: ok`). Not this cloud VM.
+Sponsor arm64 workstation Docker on `b0f0ee5` recorded Verified in the ledger (47 tests, `ident: ok`). Not this cloud VM.
 
 ## Do next
 
