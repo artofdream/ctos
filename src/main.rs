@@ -31,6 +31,8 @@ mod qemu;
 mod ro;
 mod sched;
 mod slot;
+#[cfg(feature = "smp2-probe")]
+mod smp;
 mod reach;
 mod syscall;
 mod t2t;
@@ -168,6 +170,20 @@ extern "C" fn kernel_main_high() -> ! {
     // stub page stays identity-mapped (sponsor D2 exception).
     if !paging::tear_identity_mmio() {
         uart::write_str_raw("ident: mmio missed\n");
+    }
+    // ADR-100 S1 (opt-in `smp2-probe`, QEMU `-smp 2` only): PSCI CPU_ON
+    // one secondary at `_secondary_entry` (MMU off, prints MPIDR, parks).
+    // No GIC/timer/virtio/FAT/EL0 after this. Default build never takes it.
+    #[cfg(feature = "smp2-probe")]
+    {
+        uart::write_str_raw("smp: boot (ADR-100 opt-in)\n");
+        let _ = smp::observe_probe();
+        uart::write_str_raw("smp: done\n");
+        loop {
+            unsafe {
+                core::arch::asm!("wfe", options(nomem, nostack));
+            }
+        }
     }
     // ADR-085 B2-P: KVM on real arm64. Skip GIC/timer/virtio/FAT/samples
     // (a KVM host may not offer GICv2). Run only the standing-EL0 SError
