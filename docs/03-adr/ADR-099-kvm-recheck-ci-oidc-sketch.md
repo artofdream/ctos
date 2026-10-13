@@ -125,6 +125,7 @@ Placeholders (region is `eu-north-1`, the one used in ADR-095; formerly `<REGION
       "Action": "ec2:RunInstances",
       "Resource": [
         "arn:aws:ec2:eu-north-1::image/<AMI_ID>",
+        "arn:aws:ec2:eu-north-1::snapshot/*",
         "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:subnet/<SUBNET_ID_1>",
         "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:subnet/<SUBNET_ID_n>"
       ]
@@ -190,7 +191,7 @@ Placeholders (region is `eu-north-1`, the one used in ADR-095; formerly `<REGION
 
 | Action | Needed for | Can the `project=ctos` tag restrict it? |
 | --- | --- | --- |
-| `ec2:RunInstances` | launch the one instance (with Spot market options, in one call) | **Partly.** On `instance`, `volume`, `network-interface`, `spot-instances-request` through `aws:RequestTag/project` (and `component`), i.e. the request **must** tag what it creates. On the security group through `ec2:ResourceTag/project`. **Not** on the image or the subnets (they are not tagged by us; pinned by ARN instead). |
+| `ec2:RunInstances` | launch the one instance (with Spot market options, in one call) | **Partly.** On `instance`, `volume`, `network-interface`, `spot-instances-request` through `aws:RequestTag/project` (and `component`), i.e. the request **must** tag what it creates. On the security group through `ec2:ResourceTag/project`. **Not** on the image, the snapshots behind that image, or the subnets (they are not tagged by us; the image and subnets are pinned by ARN, and the snapshots are `arn:aws:ec2:eu-north-1::snapshot/*` because an EBS-backed AMI's snapshot IDs are not known in this policy). |
 | `ec2:CreateTags` | tag at creation | **Scoped, not by the tag value**: `ec2:CreateAction = RunInstances` means tags can only be written during a launch, never onto an existing resource. |
 | `ec2:TerminateInstances` | teardown | **Yes**, `ec2:ResourceTag/project` + `component` on the instance. |
 | `ec2:GetConsoleOutput` | the result channel | **Yes**, same condition. |
@@ -200,7 +201,7 @@ Placeholders (region is `eu-north-1`, the one used in ADR-095; formerly `<REGION
 | `ec2:CreateSecurityGroup`, `ec2:Authorize*`, key pairs, SSM, S3, KMS | — | **Not requested.** The group is pre-created. |
 | `ec2:DescribeImages`, `DescribeSubnets`, `DescribeSpotPriceHistory` | — | **Not requested.** Image and subnets are pinned; `MaxPrice` is the cap. |
 
-Service-reference check (public AWS documentation, fetched 2026-10-02, not an AWS API call): `TerminateInstances` and `GetConsoleOutput` act on the `instance` resource type, which supports `ec2:ResourceTag/*`; `RunInstances` touches the instance, volume, network-interface, spot-instances-request, security-group, subnet and image types; `Describe*` have no resource types. **IAM condition behaviour is not exercised until a supervised pilot** (P13); expect one or two adjustments, each of which goes back to the sponsor as a change to this ADR.
+Service-reference check (public AWS documentation, fetched 2026-10-02, not an AWS API call): `TerminateInstances` and `GetConsoleOutput` act on the `instance` resource type, which supports `ec2:ResourceTag/*`; `RunInstances` touches the instance, volume, network-interface, spot-instances-request, security-group, subnet, image and snapshot types (the EC2-VPC-EBS-Subnet scenario includes snapshot; an EBS-backed AMI such as Ubuntu is denied without it, and the snapshot ARN has an empty account field); `Describe*` have no resource types. **IAM condition behaviour is not exercised until a supervised pilot** (P13); expect one or two adjustments, each of which goes back to the sponsor as a change to this ADR.
 
 Unverified, flagged for the pilot: if the account's default EBS encryption uses a customer-managed key, `RunInstances` may need extra KMS permissions; if so, that is a **new** permission request and goes to the sponsor under condition (c) logic, it is not added silently.
 
