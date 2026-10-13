@@ -127,6 +127,7 @@
 - [ADR-096 Task-to-task EL0 isolation probe](03-adr/ADR-096-task-to-task-el0-isolation-probe.md)
 - [ADR-097 EL0 execute-only app text (Accepted 2026-10-02, ADR-091 rev 4)](03-adr/ADR-097-el0-execute-only-app-text.md)
 - [ADR-098 PAN held while handling EL0 exceptions (correction)](03-adr/ADR-098-pan-held-during-el0-exceptions.md)
+- [ADR-099 KVM re-check in CI via GitHub OIDC (design sketch, inert)](03-adr/ADR-099-kvm-recheck-ci-oidc-sketch.md)
 - [ADR-100 SMP race story: plan + global-state inventory + S1 secondary bring-up smoke](03-adr/ADR-100-smp-race-story-plan.md)
 - [ADR-101 Host / user name scrub + guard classes](03-adr/ADR-101-host-user-name-scrub-guard.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
