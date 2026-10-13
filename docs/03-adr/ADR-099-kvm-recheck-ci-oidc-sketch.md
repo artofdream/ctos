@@ -96,10 +96,10 @@ Placeholders (region is `eu-north-1`, the one used in ADR-095; formerly `<REGION
           "ec2:InstanceType": "c7g.metal",
           "ec2:InstanceMarketType": "spot",
           "ec2:MetadataHttpTokens": "required",
-          "ec2:MetadataHttpPutResponseHopLimit": "1",
           "aws:RequestTag/project": "ctos",
           "aws:RequestTag/component": "kvm-ci-pilot"
         },
+        "NumericLessThanEquals": { "ec2:MetadataHttpPutResponseHopLimit": 1 },
         "ForAllValues:StringEquals": { "aws:TagKeys": ["project", "component", "run"] }
       }
     },
@@ -379,7 +379,7 @@ Sponsor decision 2026-10-13 20:49 CEST (DSO relay): prepare this PR as the exact
 
 **Tags:** `project=ctos`, `component=kvm-ci-pilot`, `run=<run id>` on the instance, volume, network interface and Spot request (RunInstances request-tag conditions); `TerminateInstances` and `GetConsoleOutput` require `ec2:ResourceTag/project=ctos` and `ec2:ResourceTag/component=kvm-ci-pilot`; `CreateTags` only with `ec2:CreateAction=RunInstances`.
 
-**Limits enforced by IAM condition keys:** `ec2:InstanceType=c7g.metal`, `ec2:InstanceMarketType=spot`, `ec2:MetadataHttpTokens=required`, `ec2:MetadataHttpPutResponseHopLimit=1`, region via `aws:RequestedRegion`. **Not enforceable by IAM:** the Spot price. EC2 has no condition key for the Spot max price (AWS service reference, checked 2026-10-13), so the price cap is the workflow's `MaxPrice` (`MAX_PRICE_USD_HR`, guard refuses above $0.60/h and above the per-run cap), plus the in-instance timer, plus an AWS Budget alarm (P9). **Session:** role MaxSessionDuration 3600 s (a role property, not a policy condition) and `role-duration-seconds: 3600` in the workflow.
+**Limits enforced by IAM condition keys:** `ec2:InstanceType=c7g.metal`, `ec2:InstanceMarketType=spot`, `ec2:MetadataHttpTokens=required`, `ec2:MetadataHttpPutResponseHopLimit` ≤ 1 (`NumericLessThanEquals`), region via `aws:RequestedRegion`. **Not enforceable by IAM:** the Spot price. EC2 has no condition key for the Spot max price (AWS service reference, checked 2026-10-13), so the price cap is the workflow's `MaxPrice` (`MAX_PRICE_USD_HR`, guard refuses above $0.60/h and above the per-run cap), plus the in-instance timer, plus an AWS Budget alarm (P9). **Session:** role MaxSessionDuration 3600 s (a role property, not a policy condition) and `role-duration-seconds: 3600` in the workflow.
 
 **Results out:** tag-scoped `ec2:GetConsoleOutput` only; no `iam:PassRole`, no instance profile (sponsor accepted 2026-10-02, recorded in the DSO vault).
 
