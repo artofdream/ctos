@@ -69,3 +69,28 @@ jobs:
           CTOS_QEMU: ${{ github.workspace }}/tools/qemu-nmi/bin/qemu-system-aarch64
           CTOS_REQUIRE_TAKEN_SERROR: "1"
         run: ./scripts/qemu-smoke.sh
+  qemu-smp2:
+    # ADR-100 S1: opt-in secondary-CPU bring-up smoke (QEMU -smp 2, PSCI
+    # CPU_ON, MPIDR marker, park) plus its -smp 1 negative. NOT a required
+    # check: ADR-091 rev 4 stays one core. Does not run EL0 on the secondary.
+    name: QEMU -smp 2 bring-up (opt-in, ADR-100; not required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly + rust-src
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src, llvm-tools-preview
+
+      - name: Install qemu-system-aarch64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-arm
+          qemu-system-aarch64 --version
+
+      - name: smp2-probe positive (-smp 2) + negative (-smp 1)
+        env:
+          CTOS_SMP2_ONLY: "1"
+        run: ./scripts/qemu-smoke.sh
