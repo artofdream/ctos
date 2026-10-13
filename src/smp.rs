@@ -64,6 +64,9 @@ struct Block {
     verdict: AtomicU64,
     ticks: AtomicU64,
     go: AtomicU64,
+    xtlb_va: AtomicU64,
+    xtlb_phase: AtomicU64,
+    xtlb_result: AtomicU64,
 }
 
 static mut BLOCK: Block = Block {
@@ -79,6 +82,9 @@ static mut BLOCK: Block = Block {
     verdict: AtomicU64::new(V_NONE),
     ticks: AtomicU64::new(0),
     go: AtomicU64::new(0),
+    xtlb_va: AtomicU64::new(0),
+    xtlb_phase: AtomicU64::new(0),
+    xtlb_result: AtomicU64::new(0),
 };
 
 /// Secondary's own stack (no guard page; ADR-102 limits).
@@ -89,10 +95,11 @@ static mut SECONDARY_STACK: Stack = Stack([0; 16 * 1024]);
 /// Written by the secondary's own sync handler: ESR, ELR, PSTATE.PAN at
 /// entry, entry count, and a marker for any vector slot other than sync.
 #[no_mangle]
-static CTOS_CPU1_EXC: [AtomicU64; 5] = [
+static CTOS_CPU1_EXC: [AtomicU64; 6] = [
     AtomicU64::new(0),
     AtomicU64::new(0),
     AtomicU64::new(u64::MAX),
+    AtomicU64::new(0),
     AtomicU64::new(0),
     AtomicU64::new(0),
 ];
@@ -187,6 +194,8 @@ global_asm!(
         str x1, [x0]
         mrs x2, elr_el1
         str x2, [x0, #8]
+        mrs x1, far_el1
+        str x1, [x0, #40]
         mrs x1, pan
         lsr x1, x1, #22
         str x1, [x0, #16]
@@ -279,6 +288,9 @@ extern "C" fn cpu1_main(block: &'static Block) -> ! {
     }
     block.verdict.store(verdict, Ordering::SeqCst);
     unsafe { asm!("dsb ish", "sev", options(nostack)) };
+    if verdict == V_OK {
+        cpu1_xtlb(block);
+    }
     loop {
         unsafe { asm!("wfe", options(nomem, nostack)) };
     }
@@ -366,6 +378,129 @@ fn cpu1_checks() -> u64 {
     V_OK
 }
 
+// ---- ADR-103 (S3): cross-core TLB probe --------------------------------
+//
+// Core 0 maps a page in the shared kernel TTBR0 map window; core 1 reads it
+// (its TLB now caches the translation); core 0 unmaps it with the
+// Inner-Shareable TLBI (`paging::unmap_page`); core 1 reads again and must
+// take a translation fault on its own vectors. The `local-tlbi-leak-probe`
+// build keeps local-only TLBI, so core 1 may still read the old value.
+
+const XTLB_MAGIC: u64 = 0x5854_4c42_5f53_3301; // "XTLB_S3" + 1
+/// Phases (core 0 writes 1 and 3; core 1 writes 2 and 4).
+const X_MAPPED: u64 = 1;
+const X_READ1: u64 = 2;
+const X_UNMAPPED: u64 = 3;
+const X_DONE: u64 = 4;
+/// Results core 1 publishes.
+const XR_FAULT: u64 = 1;
+const XR_LEAK: u64 = 2;
+const XR_FIRST_READ_BAD: u64 = 3;
+const XR_OTHER: u64 = 4;
+/// Load value before the second read; a skipped faulting load leaves it.
+const XTLB_SENTINEL: u64 = 0xdead_0000_0000_0003;
+
+#[repr(C, align(4096))]
+struct Page([u64; 512]);
+static mut XTLB_PAGE: Page = Page([0; 512]);
+
+fn wait_phase(block: &Block, want: u64, ticks: u64) -> bool {
+    let t0 = crate::timer::cntpct();
+    while crate::timer::cntpct().wrapping_sub(t0) < ticks {
+        if block.xtlb_phase.load(Ordering::SeqCst) == want {
+            return true;
+        }
+        core::hint::spin_loop();
+    }
+    false
+}
+
+fn cpu1_xtlb(block: &'static Block) {
+    let freq = cntfrq().max(1);
+    if !wait_phase(block, X_MAPPED, freq * 2) {
+        return;
+    }
+    let va = block.xtlb_va.load(Ordering::SeqCst);
+    let first = unsafe { core::ptr::read_volatile(va as *const u64) };
+    let n0 = CTOS_CPU1_EXC[3].load(Ordering::SeqCst);
+    block.xtlb_phase.store(X_READ1, Ordering::SeqCst);
+    if !wait_phase(block, X_UNMAPPED, freq * 2) {
+        return;
+    }
+    // Second read: one plain `ldr`; on a fault the handler skips it.
+    let mut got: u64 = XTLB_SENTINEL;
+    unsafe {
+        asm!("ldr {v}, [{a}]", v = inout(reg) got, a = in(reg) va, options(nostack));
+    }
+    let n1 = CTOS_CPU1_EXC[3].load(Ordering::SeqCst);
+    let esr = CTOS_CPU1_EXC[0].load(Ordering::SeqCst);
+    let far = CTOS_CPU1_EXC[5].load(Ordering::SeqCst);
+    let ec = esr >> 26;
+    let dfsc = esr & 0x3f;
+    let res = if first != XTLB_MAGIC {
+        line(format_args!("smp: xtlb cpu1 first read bad"));
+        XR_FIRST_READ_BAD
+    } else if n1 == n0 + 1 && ec == 0x25 && (0x04..=0x07).contains(&dfsc) && far == va && got == XTLB_SENTINEL {
+        line(format_args!("smp: xtlb cpu1 fault ec=0x25 dfsc=trans-l{} far=window own-vectors", dfsc - 4));
+        XR_FAULT
+    } else if n1 == n0 && got == XTLB_MAGIC {
+        line(format_args!("smp: xtlb cpu1 read after unmap returned the old value"));
+        XR_LEAK
+    } else {
+        line(format_args!("smp: xtlb cpu1 other n={} esr={esr:#x}", n1 - n0));
+        XR_OTHER
+    };
+    block.xtlb_result.store(res, Ordering::SeqCst);
+    block.xtlb_phase.store(X_DONE, Ordering::SeqCst);
+}
+
+/// Core 0 side. Prints `smp: xtlb unmap cpu0 → cpu1 fault` only when core 1
+/// faulted; `smp: xtlb leak` when core 1 still read the unmapped page.
+fn cpu0_xtlb(b: &Block) -> bool {
+    let freq = cntfrq().max(1);
+    let page_va = core::ptr::addr_of_mut!(XTLB_PAGE) as u64;
+    unsafe { core::ptr::write_volatile(page_va as *mut u64, XTLB_MAGIC) };
+    let pa = crate::paging::identity_pa(page_va);
+    let mut va = 0;
+    for i in (0..512u64).rev() {
+        let cand = crate::paging::MAP_WINDOW + i * 4096;
+        if crate::paging::map_page(cand, pa) {
+            va = cand;
+            break;
+        }
+    }
+    if va == 0 {
+        line(format_args!("smp: xtlb missed (no free window slot)"));
+        return false;
+    }
+    b.xtlb_va.store(va, Ordering::SeqCst);
+    b.xtlb_phase.store(X_MAPPED, Ordering::SeqCst);
+    if !wait_phase(b, X_READ1, freq * 2) {
+        line(format_args!("smp: xtlb missed (cpu1 did not read)"));
+        return false;
+    }
+    let unmapped = crate::paging::unmap_page(va);
+    b.xtlb_phase.store(X_UNMAPPED, Ordering::SeqCst);
+    if !unmapped || !wait_phase(b, X_DONE, freq * 2) {
+        line(format_args!("smp: xtlb missed (unmap={unmapped} or cpu1 timeout)"));
+        return false;
+    }
+    match b.xtlb_result.load(Ordering::SeqCst) {
+        XR_FAULT => {
+            line(format_args!("smp: xtlb unmap cpu0 → cpu1 fault"));
+            true
+        }
+        XR_LEAK => {
+            line(format_args!("smp: xtlb leak"));
+            false
+        }
+        r => {
+            line(format_args!("smp: xtlb missed result={r}"));
+            false
+        }
+    }
+}
+
 /// S1 + S2 probe on core 0. Prints the S1 lines, then waits for the
 /// secondary's S2 verdict and prints `smp: ok cpu1 s2 …` or a miss line.
 pub fn observe_probe() -> bool {
@@ -441,7 +576,7 @@ pub fn observe_probe() -> bool {
     let n = CTOS_CPU1_EXC[3].load(Ordering::SeqCst);
     if v == V_OK && bad == 0 && ticks == TICKS && esr == BRK_ESR && n == 1 {
         line(format_args!("smp: ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked"));
-        true
+        cpu0_xtlb(b)
     } else {
         line(format_args!("smp: cpu1 s2 missed verdict={v} bad={bad:#x} ticks={ticks}"));
         false

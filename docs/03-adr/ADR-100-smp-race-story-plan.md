@@ -96,4 +96,4 @@ The `-smp 2` CI job stays **non-required** until the sponsor accepts a multi-cor
 
 - Default kernel binary: no code from `src/smp.rs` (module is `#[cfg(feature = "smp2-probe")]`). The default smoke proves it still passes and has no `smp:` marker.
 - `_secondary_entry` exists only in the `smp2-probe` build (it lives in `src/smp.rs`), so the default boot-stub page is byte-identical in layout; the ADR-087 inventory on the default run still reports the one stub page (`k=1 u=1 a=1`).
-- Next: S2. **Done as [ADR-102](ADR-102-smp-s2-secondary-mmu-pan-vbar.md)** (opt-in; PerCpu via `TPIDR_EL1` moved to S4).
+- Next: S2. **Done as [ADR-102](ADR-102-smp-s2-secondary-mmu-pan-vbar.md)** (opt-in; PerCpu via `TPIDR_EL1` moved to S4). S3: [ADR-103](ADR-103-smp-s3-tables-lock-broadcast-tlbi.md).

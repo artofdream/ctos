@@ -57,6 +57,8 @@ smp2_check() {
               '^smp: cpu1 regs mmu=1 pan=1 span=0 vbar=own sp=own pc=high mpidr=0x0000000080000001[[:space:]]*$' \
               '^smp: cpu1 exc brk handled esr=0xf2005102 elr=brk handler-pan=1 vbar=own[[:space:]]*$' \
               '^smp: ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked[[:space:]]*$' \
+              '^smp: xtlb cpu1 fault ec=0x25 dfsc=trans-l[0-3] far=window own-vectors[[:space:]]*$' \
+              '^smp: xtlb unmap cpu0 → cpu1 fault[[:space:]]*$' \
               '^smp: done[[:space:]]*$'; do
         if ! tr -d '\r' <"$1" | grep -a -E -q "$re"; then
             echo "qemu-smoke: smp2 missing /$re/ (ADR-100/ADR-102)" >&2
@@ -74,11 +76,11 @@ smp2_check() {
     # Console lock (ADR-102): every line that mentions `smp:` must be one
     # whole known line. A torn or interleaved line fails closed.
     if tr -d '\r' <"$1" | grep -a 'smp:' | grep -a -v -E -x \
-        'smp: (boot \(ADR-100 opt-in\)|cpu0 mpidr=0x[0-9a-f]{16}|secondary up mpidr=0x[0-9a-f]{16}|cpu_on target=0x1 rc=-?[0-9]+|ok cpu1 mpidr=0x[0-9a-f]{16} up|tick cpu[01] [0-3]|cpu1 regs mmu=[01] pan=[01] span=[01] vbar=(own|other) sp=(own|other) pc=(high|low) mpidr=0x[0-9a-f]{16}|cpu1 exc brk handled esr=0x[0-9a-f]+ elr=brk handler-pan=1 vbar=own|ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked|done)' >/dev/null; then
+        'smp: (boot \(ADR-100 opt-in\)|cpu0 mpidr=0x[0-9a-f]{16}|secondary up mpidr=0x[0-9a-f]{16}|cpu_on target=0x1 rc=-?[0-9]+|ok cpu1 mpidr=0x[0-9a-f]{16} up|tick cpu[01] [0-3]|cpu1 regs mmu=[01] pan=[01] span=[01] vbar=(own|other) sp=(own|other) pc=(high|low) mpidr=0x[0-9a-f]{16}|cpu1 exc brk handled esr=0x[0-9a-f]+ elr=brk handler-pan=1 vbar=own|ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked|xtlb cpu1 fault ec=0x25 dfsc=trans-l[0-3] far=window own-vectors|xtlb unmap cpu0 → cpu1 fault|done)' >/dev/null; then
         echo "qemu-smoke: smp2 unexpected or torn smp: line (ADR-102 console lock)" >&2
         return 1
     fi
-    if grep -a -q -E "smp: cpu1 (missed|s2 missed|pan lost|vbar mismatch|mmu missed|exc missed)" "$1"; then
+    if grep -a -q -E "smp: (cpu1 (missed|s2 missed|pan lost|vbar mismatch|mmu missed|exc missed)|xtlb (leak|missed|cpu1 (first|other|read after)))" "$1"; then
         echo "qemu-smoke: smp2 cpu1 miss line on serial (ADR-100/ADR-102)" >&2
         return 1
     fi
@@ -101,7 +103,7 @@ smp2_smoke() {
     if ! smp2_check "$smp2_log"; then
         rm -f "$smp2_log"; exit 1
     fi
-    echo "qemu-smoke: smp2 ok (-smp 2: cpu1 MMU on, own stack/VBAR, PAN=1 SPAN=0, brk handled on cpu1, console lines whole)"
+    echo "qemu-smoke: smp2 ok (-smp 2: cpu1 MMU on, own stack/VBAR, PAN=1 SPAN=0, brk handled on cpu1, console lines whole, xtlb unmap faults on cpu1)"
     smp2_run "$smp2_elf" 1
     if smp2_check "$smp2_log" 2>/dev/null; then
         echo "qemu-smoke: smp2 checker PASSED under -smp 1 (negative test failed, ADR-100)" >&2
@@ -131,6 +133,19 @@ smp2_smoke() {
         fi
         echo "qemu-smoke: smp2 neg-$neg caught (checker fails, miss line present; fail-closed ok)"
     done
+    # ADR-103 S3 negative: local-only TLBI must leave core 1 reading the
+    # page core 0 unmapped (`smp: xtlb leak`), and the checker must fail.
+    cargo build --features local-tlbi-leak-probe --target-dir target/smp2-leak
+    smp2_run "target/smp2-leak/aarch64-ctos/debug/ctos" 2
+    if smp2_check "$smp2_log" 2>/dev/null; then
+        echo "qemu-smoke: smp2 checker PASSED on local-tlbi-leak-probe (negative test failed, ADR-103)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    if ! tr -d '\r' <"$smp2_log" | grep -a -E -q '^smp: xtlb leak[[:space:]]*$'; then
+        echo "qemu-smoke: local-tlbi-leak-probe did not print 'smp: xtlb leak' (ADR-103)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    echo "qemu-smoke: smp2 local-tlbi leak caught (checker fails, smp: xtlb leak; fail-closed ok)"
     rm -f "$smp2_log"
 }
 if [ "${CTOS_SMP2_ONLY:-0}" = 1 ]; then
