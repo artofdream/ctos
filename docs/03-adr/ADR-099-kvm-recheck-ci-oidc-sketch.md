@@ -283,12 +283,12 @@ Nothing below is done by this PR. "State" is the state **in this PR's evidence**
 | P1 | **(a)** A CloudTrail trail is on (management events, all regions or at least `eu-north-1`) | DSO | **MET** (verified by DSO from the arm64 workstation, 2026-10-13 about 20:56 CEST: a multi-region trail, home region `eu-north-1`; the agent made no AWS call) |
 | P2 | **(b)** Branch protection on `main` enforced for admins | DSO / sponsor | **Verified** via the GitHub API. Note: no required approving review; `strict` is off. |
 | P3 | **(c)** Results-out decided before any extra permission | Sponsor accepts this ADR | **Decided in this ADR (console output)**. **Section 2 was accepted by the sponsor in writing on 2026-10-02**, recorded in the DSO vault (relayed by DSO; the verbatim wording is in the vault and is not reproduced here). No PassRole requested. |
-| P4 | The GitHub OIDC identity provider exists in the account | DSO | **NOT VERIFIED** |
-| P5 | A GitHub environment (name `kvm-pilot` since 2026-10-13; was placeholder `kvm-recheck`) with **required reviewers** and a **main-only deployment branch policy**, created **before** the role | Sponsor / DSO | **Absent** today |
-| P6 | The role created via a **sponsor-approved path** (not by an agent) with exactly the trust and permission policies above, adjusted for the immutable subject | Sponsor / DSO | Not done |
+| P4 | The GitHub OIDC identity provider exists in the account | DSO | **Exists (DSO, 2026-10-13):** already present and **shared**; managed by another project's Terraform, not by ctos. |
+| P5 | A GitHub environment (name `kvm-pilot` since 2026-10-13; was placeholder `kvm-recheck`) with **required reviewers** and a **main-only deployment branch policy**, created **before** the role | Sponsor / DSO | **Created by DSO 2026-10-13 22:12-22:16 CEST** (sponsor approval 22:11). Sponsor decision 22:15: sole required reviewer = the sponsor, `prevent_self_review` **off**, deployments from `main` only, admin bypass off. |
+| P6 | The role created via a **sponsor-approved path** with exactly the trust and permission policies above, adjusted for the immutable subject | Sponsor / DSO | **Created by DSO 2026-10-13 22:12-22:16 CEST on the sponsor's 22:11 approval** (supersedes the earlier "not by an agent" wording). Tagged `project=ctos`, `component=kvm-ci-pilot`; inline policy follows this ADR incl. the hop-limit fix (`NumericLessThanEquals`). Not verified by this agent (no AWS call). |
 | P7 | Pinned inputs set as repository **variables** (never repo text): image, no-ingress tagged security group, one subnet per AZ, region, role ARN | DSO | Not done (all unset) |
 | P8 | Spot service-linked role and Spot vCPU quota for one `c7g.metal` | DSO | **NOT VERIFIED** |
-| P9 | AWS Budget alarm (optional backstop) | DSO | **NOT VERIFIED** / optional |
+| P9 | AWS Budget alarm (optional backstop) | DSO | **Set by DSO 2026-10-13:** budget `ctos-monthly-5`, USD 5/month, filtered to `project=ctos`, alerts at 80% actual and 100% forecast. |
 | P10 | Credential rule 4 and the PX0 exception record referenced in the PR that enables the workflow | DSO | **Record not read** for this ADR; rule text not reproduced here |
 | P11 | `KVM_ROLE_ARN` is set **last** | DSO | Unset, so the workflow is inert (verified) |
 | P12 | Third-party actions pinned by full commit SHA | Author, before enabling | Not done (tags in the sketch) |
@@ -384,6 +384,19 @@ Sponsor decision 2026-10-13 20:49 CEST (DSO relay): prepare this PR as the exact
 **Results out:** tag-scoped `ec2:GetConsoleOutput` only; no `iam:PassRole`, no instance profile (sponsor accepted 2026-10-02, recorded in the DSO vault).
 
 **CloudTrail (P1): met** (verified by DSO from the arm64 workstation, 2026-10-13 about 20:56 CEST: a multi-region trail, home region `eu-north-1`). **Still unverified:** OIDC provider, Spot service-linked role and quota, EBS default key, live-vs-terminated console readability, IAM condition behaviour (first exercised in the pilot).
+
+## Setup recorded 2026-10-13 (DSO, sponsor-approved; docs only)
+
+Relayed by DSO; this agent made no AWS call and set no repo variable. Text only, no identifier values.
+
+- **Who/when:** on the sponsor's approval at 22:11 CEST, DSO created the `kvm-pilot` environment and the OIDC role between 22:12 and 22:16 CEST on 2026-10-13. This supersedes P6's earlier "not by an agent" line.
+- **Role:** tagged `project=ctos` and `component=kvm-ci-pilot`; inline policy follows this ADR, including the hop-limit fix.
+- **OIDC provider:** already existed; shared, managed by another project's Terraform.
+- **Image:** Ubuntu 24.04 arm64 AMI dated 20261004 - **not** the image ADR-095 used, so a pilot result is not a byte-identical re-run of ADR-095.
+- **Security group:** no ingress.
+- **Environment protection (sponsor decision 22:15):** sole reviewer is the sponsor, `prevent_self_review` off, deployments from `main` only, admin bypass off.
+- **Budget:** `ctos-monthly-5`, USD 5/month, filtered to `project=ctos`, alerts at 80% actual and 100% forecast.
+- **Still open:** P7/P11 repository variables unset (workflow inert), P8, P10, P12-P15.
 
 ## Open reconciliation points (for the enabling PR)
 
