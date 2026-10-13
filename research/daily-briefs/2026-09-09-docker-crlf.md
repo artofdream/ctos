@@ -2,7 +2,7 @@
 
 ## Where we stopped
 
-PR #4. cts-ai Docker Desktop linux/arm64: `docker build -t ctos-smoke .` && `docker run --rm ctos-smoke` → exit 0 (`Hello World!`, `cargo test` `[ok]`, force-fail exit 1, `qemu-smoke: ok`). Three earlier Failed modes are ratcheted in git.
+PR #4. The arm64 workstation Docker Desktop linux/arm64: `docker build -t ctos-smoke .` && `docker run --rm ctos-smoke` → exit 0 (`Hello World!`, `cargo test` `[ok]`, force-fail exit 1, `qemu-smoke: ok`). Three earlier Failed modes are ratcheted in git.
 
 ## Do next
 

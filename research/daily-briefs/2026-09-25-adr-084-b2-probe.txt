@@ -5,7 +5,7 @@
 ## ubuntu-24.04-arm — job 108264281869
 Image: ubuntu-24.04-arm
 Version: 20260920.129.1
-Linux runnervmoyp6c 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:12:01 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+Linux <gha-runner-hostname> 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:12:01 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
 Model name:                              Neoverse-N2
 [    0.053690] Hyper-V: Host Build 10.0.26102.3668-3-0
 [    0.499091] kvm [1]: HYP mode not available
@@ -32,7 +32,7 @@ b2-probe: machines-probed=118 inject-nmi-ok=0
 ## ubuntu-22.04-arm — job 108264281751
 Image: ubuntu-22.04-arm
 Version: 20260920.137.1
-Linux runnervmgxr10 6.8.0-1064-azure #72~22.04.1-Ubuntu SMP Wed Jul 22 22:38:59 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+Linux <gha-runner-hostname> 6.8.0-1064-azure #72~22.04.1-Ubuntu SMP Wed Jul 22 22:38:59 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
 [    0.078497] Hyper-V: Host Build 10.0.26102.1437-1-0
 [    0.767587] kvm [1]: HYP mode not available
 + echo 'b2-probe: /dev/kvm=absent'
@@ -51,7 +51,7 @@ b2-probe: machines-probed=101 inject-nmi-ok=0
 ## macos-15 — job 108264281730
 Image: macos-15-arm64
 Version: 20260907.0337.1
-Darwin sjc22-bm204-7d530c65-7b2c-4581-a906-782a3bfb4da1-5AA548F86505.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:51:34 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_ARM64_VMAPPLE arm64
+Darwin <gha-runner-hostname>.local 24.6.0 Darwin Kernel Version 24.6.0: Tue Jul 21 20:51:34 PDT 2026; root:xnu-11417.140.69.711.44~1/RELEASE_ARM64_VMAPPLE arm64
 Apple M1 (Virtual)
 sysctl: unknown oid 'kern.hv_support'
 + sysctl kern.hv_vmm_present
@@ -75,7 +75,7 @@ b2-probe: HypervisorPlatform (WHPX) state = Disabled
 ## ubuntu-24.04 (x86_64 control) — job 108264281758
 Image: ubuntu-24.04
 Version: 20260920.314.1
-Linux runnervmtr4k5 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+Linux <gha-runner-hostname> 6.17.0-1022-azure #22-Ubuntu SMP Mon Jul 27 17:24:03 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
 Model name:                              AMD EPYC 9V74 80-Core Processor
 [    0.384877] Hyper-V: Host Build 10.0.26102.3669-3-0
 + echo 'b2-probe: /dev/kvm=present'

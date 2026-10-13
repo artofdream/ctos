@@ -1576,7 +1576,7 @@ pub fn init() {
         #[cfg(feature = "b2-serror")]
         crate::uart::write_str_raw("b2: p1 mmu-on\n");
         // Same class as the boot-delta mark: a pre-MMU `.bss` store can be
-        // invisible to a later cached read (PR #20 test image; cts-ai Docker
+        // invisible to a later cached read (PR #20 test image; arm64 workstation Docker
         // hello). Publish USER_MAP_OK only after MMU + SCTLR.C.
         USER_MAP_OK.store(user_ok, core::sync::atomic::Ordering::SeqCst);
         TTBR1_OK.store(true, core::sync::atomic::Ordering::SeqCst);
@@ -3790,7 +3790,7 @@ fn user_ttbr0_omits_kernel_data() {
 fn layout_stress_crosses_first_ram_l2() {
     // Linker ratchet: `__data_start` lives in the second RAM 2 MiB so a
     // single shared L3 cannot cover both the KERNEL_TEXT straddle and
-    // the data_start straddle (cts-ai Docker / nightly growth).
+    // the data_start straddle (arm64 workstation Docker / nightly growth).
     assert!(
         data_start() >= first_ram_l2_end(),
         "__data_start must leave the first RAM 2 MiB"

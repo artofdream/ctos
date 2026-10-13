@@ -19,5 +19,5 @@ GHA `smoke.yml` on this branch: **Unknown** (no run URL yet).
 - Threat-model v1.1 is a file+review Verified. “Secure OS” unclaimed.
 - Guard pages and EL0 first mile Verified on this QEMU virt guest only.
 - Host ELF size is a measurement, not a budget.
-- cts-ai Docker Desktop path not re-run.
+- the arm64 workstation Docker Desktop path not re-run.
 - `.obsidian/` was not committed.

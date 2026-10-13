@@ -137,7 +137,7 @@ extern "C" fn kernel_main_high() -> ! {
         uart::write_str_raw("pan: probe missed\n");
     }
     // After MMU + D-cache (SCTLR.C). A pre-MMU store to .bss can be
-    // invisible to later cached reads (PR #20 test image; cts-ai Docker
+    // invisible to later cached reads (PR #20 test image; arm64 workstation Docker
     // hello lost `frame::ALLOC` / `USER_MAP_OK` the same way).
     perf::mark_early();
     frame::init();

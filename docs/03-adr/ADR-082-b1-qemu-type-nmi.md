@@ -2,7 +2,7 @@
 
 - Status: Accepted (docs / research). Sponsor chose **B1** (2026-09-19 ~08:58 CEST) after [ADR-081](ADR-081-taken-serror-reopen.md). Dated upstream + agent-box research: **no shippable QEMU pin** this session makes `inject-nmi` deliver real taken SError on `virt` TCG. Taken path stays **deferred / non-goal (locked)**. `el0: serror-park` stays **Verified**. Do **not** mark `el0: serror` Verified. Not B2/B3.
 - Date: 2026-09-19
-- Tracks [#125](https://github.com/artofdream/ctos/issues/125). CloudAgent **HELD** — agent-box / EVO-X2 / GHA only.
+- Tracks [#125](https://github.com/artofdream/ctos/issues/125). CloudAgent **HELD** — agent-box / amd64 workstation / GHA only.
 
 ## Context
 
@@ -12,7 +12,7 @@ Do **not** invent FIQ / BRK / FEAT_NMI as SError. Do **not** silent machine inve
 
 ## Research (agent-box, 2026-09-19 CEST)
 
-Host: agent-box (`grok-bot-vm-401670533`). `qemu-system-aarch64` **10.0.13** (Debian `1:10.0.13+ds-0+deb13u1`). Accel: TCG only. Default smoke CPU: `-cpu cortex-a76` ([ADR-079](ADR-079-pan-cpu-reopen.md)).
+Host: agent-box (`<agent-vm-hostname>`). `qemu-system-aarch64` **10.0.13** (Debian `1:10.0.13+ds-0+deb13u1`). Accel: TCG only. Default smoke CPU: `-cpu cortex-a76` ([ADR-079](ADR-079-pan-cpu-reopen.md)).
 
 ### Live inject matrix (paused `-S`; QMP only)
 

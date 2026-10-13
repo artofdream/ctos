@@ -1,6 +1,6 @@
 # Identity `.data` tear (ADR-037)
 
-Date: 2026-09-12. Machine notes: (evo-x2) intent; implementation verified via Docker/GHA when probes pass.
+Date: 2026-09-12. Machine notes: (amd64 workstation) intent; implementation verified via Docker/GHA when probes pass.
 
 After ADR-025, `.data`/stacks/heap stayed identity-mapped. This mile:
 

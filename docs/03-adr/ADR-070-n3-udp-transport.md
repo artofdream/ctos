@@ -48,7 +48,7 @@ Sponsor unlocked N3: proceed with a **real transport mile**, not docs-only forev
 
 7. **Future N3.x.** TCP and/or richer socket ABI only with **another ADR** + sponsor. Do not silently grow into a sockets product.
 
-8. **Honesty.** Say “the guest sent one UDP datagram and received a UDP reply via SLIRP” only when serial/`qemu-smoke` print `net: udp-ok` on a named tip. Do not say the OS “has networking,” “has sockets,” or “has DNS.” CloudAgent HELD; tag agent-box / EVO-X2. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+8. **Honesty.** Say “the guest sent one UDP datagram and received a UDP reply via SLIRP” only when serial/`qemu-smoke` print `net: udp-ok` on a named tip. Do not say the OS “has networking,” “has sockets,” or “has DNS.” CloudAgent HELD; tag agent-box / amd64 workstation. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Consequences
 

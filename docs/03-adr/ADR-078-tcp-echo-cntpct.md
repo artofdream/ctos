@@ -27,7 +27,7 @@ Do **not** invent a latency SLA, percent, or “faster/slower” claim. Do **not
 2. **Marker (exact form).** On success with a non-zero delta: `perf: tcp-echo ticks=<n>` (decimal ticks, no units, no percent). If the probe succeeds but the counter did not advance: `perf: tcp-echo missed` and treat the probe as failed.
 3. **Smoke.** `scripts/qemu-smoke.sh` greps for the prefix `perf: tcp-echo` (presence). Rejects lines that claim faster/slower/percent. Does **not** assert a numeric tick value. Keep all prior greps (blk/fat/slot/net/ping/udp/tcp/samples/ADR-069/072/076/077). Default `CTOS_FORCE_FAIL_TIMEOUT` remains **180s**.
 4. **Test.** `#[test_case] el0_tcp_echo_cntpct_advances` asserts a successful quiet TCP echo and `tcp_echo_ticks() > 0`.
-5. **Honesty.** QEMU `virt` TCG lab only. Not a latency budget, not SPEC, not “has networking,” not sockets. Record Verified only with serial evidence on a named tip. CloudAgent HELD; tag agent-box / EVO-X2. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+5. **Honesty.** QEMU `virt` TCG lab only. Not a latency budget, not SPEC, not “has networking,” not sockets. Record Verified only with serial evidence on a named tip. CloudAgent HELD; tag agent-box / amd64 workstation. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Consequences
 

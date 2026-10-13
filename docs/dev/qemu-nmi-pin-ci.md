@@ -4,9 +4,9 @@ The default `qemu-smoke` jobs in `.github/workflows/smoke.yml` stay on distro QE
 
 Job `qemu-nmi-pin` (“QEMU NMI pin smoke (taken SError)”) builds the pinned QEMU and runs the smoke with `CTOS_REQUIRE_TAKEN_SERROR=1` on **every push and pull request** ([ADR-090](../03-adr/ADR-090-serror-evidence-class.md), sponsor D1/D5). Until ADR-090 it was gated by repo variable `CTOS_BUILD_QEMU_NMI == '1'`. That gate was removed because GitHub treats a job skipped by `if:` as passing a required check. The variable is now unused; the Dockerfile build-arg of the same name is unrelated and stays opt-in.
 
-Workflow edits need a credential with the OAuth `workflow` scope (EVO-X2 `gh` login). The box OAuth app has `gist, read:org, repo` only.
+Workflow edits need a credential with the OAuth `workflow` scope (amd64 workstation `gh` login). The box OAuth app has `gist, read:org, repo` only.
 
-## Local / EVO-X2 (no GHA variable needed)
+## Local / amd64 workstation (no GHA variable needed)
 
 ```sh
 ./scripts/build-qemu-nmi.sh

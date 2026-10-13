@@ -7,7 +7,7 @@
 
 Track A / A5 closed a deep isolation ladder through [ADR-042](ADR-042-isolation-leftover-wrap.md) (start-stay honesty), [ADR-043](ADR-043-lower-el-fiq-serror.md) (FIQ + SError park), [ADR-044](ADR-044-taken-serror-research.md) / [ADR-045](ADR-045-taken-serror-qmp.md) (taken SError research + QMP attempt), and [ADR-026](ADR-026-pan-capability.md) (PAN ID-field). Four leftovers still read as open **Planned** work in the ledger and roadmap even though sponsor intent is to **decide** them honestly rather than leave them as pending miles that invite a fake Verified.
 
-This ADR records those decisions. It does not change guest code. CloudAgent HELD; (evo-x2) Docker re-smoke is optional for this docs-only PR.
+This ADR records those decisions. It does not change guest code. CloudAgent HELD; (amd64 workstation) Docker re-smoke is optional for this docs-only PR.
 
 ## Hypotheses
 

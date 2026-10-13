@@ -37,7 +37,7 @@
 
 6. **Non-goals restated (locked).** TCP/UDP product; BSD sockets; DHCP/DNS product; Wi‑Fi; virtio-pci-only foundation; Linux net stack; “has networking” marketing; EL0 net SVC/ABI this PR (N4 later). N3+ needs new sponsor ADR.
 
-7. **Honesty.** Say “the guest ARP’d the SLIRP gateway and completed one ICMP echo request/reply” only when serial/`qemu-smoke` print `net: ping-ok` on a named tip. Do not say the OS “has networking.” CloudAgent HELD; tag agent-box / EVO-X2. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+7. **Honesty.** Say “the guest ARP’d the SLIRP gateway and completed one ICMP echo request/reply” only when serial/`qemu-smoke` print `net: ping-ok` on a named tip. Do not say the OS “has networking.” CloudAgent HELD; tag agent-box / amd64 workstation. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Consequences
 

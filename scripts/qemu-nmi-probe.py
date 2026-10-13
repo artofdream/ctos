@@ -100,7 +100,8 @@ def qmp_inject(machine: str, cpu: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    print(f"qemu-nmi-probe: host={socket.gethostname()}")
+    # No host name on purpose (public logs; ADR-101): OS and arch only.
+    print(f"qemu-nmi-probe: host-os={os.uname().sysname} {os.uname().machine}")
     try:
         ver = subprocess.check_output(
             [os.environ.get("CTOS_QEMU", "qemu-system-aarch64"), "--version"], text=True
