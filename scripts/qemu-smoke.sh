@@ -42,59 +42,94 @@ cd "$ROOT"
 sh ./scripts/check-public-ids.sh --self-test
 sh ./scripts/check-public-ids.sh
 
-# ADR-100 S1: opt-in secondary-CPU bring-up smoke (`--features smp2-probe`,
+# ADR-100 S1 + ADR-102 S2: opt-in secondary-CPU probe (`--features smp2-probe`,
 # QEMU `-smp 2`). Not part of the default run: set CTOS_SMP2_SMOKE=1 to add it
 # after the default smoke, or CTOS_SMP2_ONLY=1 to run only the id guard + this.
-# Fail-closed: the checker must PASS on `-smp 2` and must FAIL on the same ELF
-# under `-smp 1` (negative test: PSCI CPU_ON has no core to start).
+# Fail-closed: the checker must PASS on `-smp 2`, must FAIL on the same ELF
+# under `-smp 1` (PSCI CPU_ON has no core to start), and must FAIL on each
+# ADR-102 negative build (neg-pan / neg-span / neg-vbar) with its miss line.
 smp2_check() {
     for re in '^smp: boot \(ADR-100 opt-in\)[[:space:]]*$' \
               '^smp: cpu0 mpidr=0x0000000080000000[[:space:]]*$' \
               '^smp: secondary up mpidr=0x0000000080000001[[:space:]]*$' \
               '^smp: cpu_on target=0x1 rc=0[[:space:]]*$' \
-              '^smp: ok cpu1 mpidr=0x0000000080000001 parked[[:space:]]*$' \
+              '^smp: ok cpu1 mpidr=0x0000000080000001 up[[:space:]]*$' \
+              '^smp: cpu1 regs mmu=1 pan=1 span=0 vbar=own sp=own pc=high mpidr=0x0000000080000001[[:space:]]*$' \
+              '^smp: cpu1 exc brk handled esr=0xf2005102 elr=brk handler-pan=1 vbar=own[[:space:]]*$' \
+              '^smp: ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked[[:space:]]*$' \
               '^smp: done[[:space:]]*$'; do
         if ! tr -d '\r' <"$1" | grep -a -E -q "$re"; then
-            echo "qemu-smoke: smp2 missing /$re/ (ADR-100)" >&2
+            echo "qemu-smoke: smp2 missing /$re/ (ADR-100/ADR-102)" >&2
             return 1
         fi
     done
-    if grep -a -q "smp: cpu1 missed" "$1"; then
-        echo "qemu-smoke: smp2 'smp: cpu1 missed' on serial (ADR-100)" >&2
+    for c in 0 1; do
+        for i in 0 1 2 3; do
+            if [ "$(tr -d '\r' <"$1" | grep -a -c -x "smp: tick cpu$c $i")" != 1 ]; then
+                echo "qemu-smoke: smp2 console line 'smp: tick cpu$c $i' not exactly once (ADR-102)" >&2
+                return 1
+            fi
+        done
+    done
+    # Console lock (ADR-102): every line that mentions `smp:` must be one
+    # whole known line. A torn or interleaved line fails closed.
+    if tr -d '\r' <"$1" | grep -a 'smp:' | grep -a -v -E -x \
+        'smp: (boot \(ADR-100 opt-in\)|cpu0 mpidr=0x[0-9a-f]{16}|secondary up mpidr=0x[0-9a-f]{16}|cpu_on target=0x1 rc=-?[0-9]+|ok cpu1 mpidr=0x[0-9a-f]{16} up|tick cpu[01] [0-3]|cpu1 regs mmu=[01] pan=[01] span=[01] vbar=(own|other) sp=(own|other) pc=(high|low) mpidr=0x[0-9a-f]{16}|cpu1 exc brk handled esr=0x[0-9a-f]+ elr=brk handler-pan=1 vbar=own|ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked|done)' >/dev/null; then
+        echo "qemu-smoke: smp2 unexpected or torn smp: line (ADR-102 console lock)" >&2
+        return 1
+    fi
+    if grep -a -q -E "smp: cpu1 (missed|s2 missed|pan lost|vbar mismatch|mmu missed|exc missed)" "$1"; then
+        echo "qemu-smoke: smp2 cpu1 miss line on serial (ADR-100/ADR-102)" >&2
         return 1
     fi
     return 0
 }
+smp2_run() {
+    timeout "$smp2_timeout" "$smp2_qemu" -machine virt -cpu cortex-a76 -smp "$2" -m 128M \
+        -display none -serial stdio -kernel "$1" </dev/null >"$smp2_log" 2>&1 || true
+    echo "qemu-smoke: smp2 serial ($1, -smp $2):"
+    tr -d '\r' <"$smp2_log" | grep -a "smp:" || true
+}
 smp2_smoke() {
     smp2_timeout="${CTOS_SMP2_TIMEOUT:-10}"
     smp2_qemu="${CTOS_QEMU:-qemu-system-aarch64}"
-    echo "qemu-smoke: smp2-probe (ADR-100 opt-in, -smp 2, timeout ${smp2_timeout}s)"
+    echo "qemu-smoke: smp2-probe (ADR-100 S1 + ADR-102 S2 opt-in, -smp 2, timeout ${smp2_timeout}s)"
     cargo build --features smp2-probe --target-dir target/smp2-probe
     smp2_elf="target/smp2-probe/aarch64-ctos/debug/ctos"
     smp2_log=$(mktemp)
-    for n in 2 1; do
-        set +e
-        timeout "$smp2_timeout" "$smp2_qemu" -machine virt -cpu cortex-a76 -smp "$n" -m 128M \
-            -display none -serial stdio -kernel "$smp2_elf" </dev/null >"$smp2_log" 2>&1
-        set -e
-        echo "qemu-smoke: smp2-probe serial (-smp $n):"
-        tr -d '\r' <"$smp2_log" | grep -a "^smp:" || true
-        if [ "$n" = 2 ]; then
-            if ! smp2_check "$smp2_log"; then
-                rm -f "$smp2_log"; exit 1
-            fi
-            echo "qemu-smoke: smp2 ok (-smp 2: cpu1 up, MPIDR seen by cpu0, parked)"
-        else
-            if smp2_check "$smp2_log" 2>/dev/null; then
-                echo "qemu-smoke: smp2 checker PASSED under -smp 1 (negative test failed, ADR-100)" >&2
-                rm -f "$smp2_log"; exit 1
-            fi
-            if ! tr -d '\r' <"$smp2_log" | grep -a -E -q '^smp: cpu1 missed seen=0x0[[:space:]]*$'; then
-                echo "qemu-smoke: smp2 negative (-smp 1) did not print 'smp: cpu1 missed' (ADR-100)" >&2
-                rm -f "$smp2_log"; exit 1
-            fi
-            echo "qemu-smoke: smp2 negative caught (-smp 1: checker fails, cpu1 missed; fail-closed ok)"
+    smp2_run "$smp2_elf" 2
+    if ! smp2_check "$smp2_log"; then
+        rm -f "$smp2_log"; exit 1
+    fi
+    echo "qemu-smoke: smp2 ok (-smp 2: cpu1 MMU on, own stack/VBAR, PAN=1 SPAN=0, brk handled on cpu1, console lines whole)"
+    smp2_run "$smp2_elf" 1
+    if smp2_check "$smp2_log" 2>/dev/null; then
+        echo "qemu-smoke: smp2 checker PASSED under -smp 1 (negative test failed, ADR-100)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    if ! tr -d '\r' <"$smp2_log" | grep -a -E -q '^smp: cpu1 missed seen=0x0[[:space:]]*$'; then
+        echo "qemu-smoke: smp2 negative (-smp 1) did not print 'smp: cpu1 missed' (ADR-100)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    echo "qemu-smoke: smp2 negative caught (-smp 1: checker fails, cpu1 missed; fail-closed ok)"
+    for neg in pan span vbar; do
+        case "$neg" in
+            pan) want='^smp: cpu1 pan lost \(pstate pan=0\)[[:space:]]*$' ;;
+            span) want='^smp: cpu1 pan lost \(handler pan=0 span=1\)[[:space:]]*$' ;;
+            vbar) want='^smp: cpu1 vbar mismatch[[:space:]]*$' ;;
+        esac
+        cargo build --features "smp2-neg-$neg" --target-dir "target/smp2-neg-$neg"
+        smp2_run "target/smp2-neg-$neg/aarch64-ctos/debug/ctos" 2
+        if smp2_check "$smp2_log" 2>/dev/null; then
+            echo "qemu-smoke: smp2 checker PASSED on neg-$neg build (negative test failed, ADR-102)" >&2
+            rm -f "$smp2_log"; exit 1
         fi
+        if ! tr -d '\r' <"$smp2_log" | grep -a -E -q "$want" ||
+           ! tr -d '\r' <"$smp2_log" | grep -a -E -q '^smp: cpu1 s2 missed verdict=[3-7] '; then
+            echo "qemu-smoke: smp2 neg-$neg did not print its miss lines (ADR-102)" >&2
+            rm -f "$smp2_log"; exit 1
+        fi
+        echo "qemu-smoke: smp2 neg-$neg caught (checker fails, miss line present; fail-closed ok)"
     done
     rm -f "$smp2_log"
 }
