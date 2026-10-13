@@ -178,7 +178,7 @@ extern "C" fn kernel_main_high() -> ! {
     {
         uart::write_str_raw("smp: boot (ADR-100 opt-in)\n");
         let _ = smp::observe_probe();
-        uart::write_str_raw("smp: done\n");
+        uart::UART.lock().write_string("smp: done\n");
         loop {
             unsafe {
                 core::arch::asm!("wfe", options(nomem, nostack));

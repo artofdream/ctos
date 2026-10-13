@@ -130,6 +130,7 @@
 - [ADR-099 KVM re-check in CI via GitHub OIDC (design sketch, inert)](03-adr/ADR-099-kvm-recheck-ci-oidc-sketch.md)
 - [ADR-100 SMP race story: plan + global-state inventory + S1 secondary bring-up smoke](03-adr/ADR-100-smp-race-story-plan.md)
 - [ADR-101 Host / user name scrub + guard classes](03-adr/ADR-101-host-user-name-scrub-guard.md)
+- [ADR-102 SMP S2: secondary MMU on, own stack/VBAR, PAN/SPAN, console lock](03-adr/ADR-102-smp-s2-secondary-mmu-pan-vbar.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
