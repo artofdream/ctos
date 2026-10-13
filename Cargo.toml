@@ -15,6 +15,10 @@ force-fail = []
 # QEMU -accel kvm on real arm64 (Graviton). Skips GIC/timer/virtio/FAT/
 # samples (KVM hosts may lack GICv2). Opt-in only; default build unchanged.
 b2-serror = []
+# ADR-100 S1: opt-in secondary-CPU bring-up smoke. Run under QEMU `-smp 2`
+# only. PSCI CPU_ON one secondary (MMU off), print its MPIDR, park it. Skips
+# GIC/timer/virtio/FAT/EL0 like b2-serror. Default build and smoke unchanged.
+smp2-probe = []
 # ADR-087 negative probe: leave one planted identity page (VIRT_RAM_BASE)
 # in kernel TTBR0 before the identity inventory. The walk must print
 # `ident: inv-leak` and withhold `ident: inv-ok` / `ident: ok`.

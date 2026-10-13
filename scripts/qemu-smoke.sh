@@ -42,6 +42,68 @@ cd "$ROOT"
 sh ./scripts/check-public-ids.sh --self-test
 sh ./scripts/check-public-ids.sh
 
+# ADR-100 S1: opt-in secondary-CPU bring-up smoke (`--features smp2-probe`,
+# QEMU `-smp 2`). Not part of the default run: set CTOS_SMP2_SMOKE=1 to add it
+# after the default smoke, or CTOS_SMP2_ONLY=1 to run only the id guard + this.
+# Fail-closed: the checker must PASS on `-smp 2` and must FAIL on the same ELF
+# under `-smp 1` (negative test: PSCI CPU_ON has no core to start).
+smp2_check() {
+    for re in '^smp: boot \(ADR-100 opt-in\)[[:space:]]*$' \
+              '^smp: cpu0 mpidr=0x0000000080000000[[:space:]]*$' \
+              '^smp: secondary up mpidr=0x0000000080000001[[:space:]]*$' \
+              '^smp: cpu_on target=0x1 rc=0[[:space:]]*$' \
+              '^smp: ok cpu1 mpidr=0x0000000080000001 parked[[:space:]]*$' \
+              '^smp: done[[:space:]]*$'; do
+        if ! tr -d '\r' <"$1" | grep -a -E -q "$re"; then
+            echo "qemu-smoke: smp2 missing /$re/ (ADR-100)" >&2
+            return 1
+        fi
+    done
+    if grep -a -q "smp: cpu1 missed" "$1"; then
+        echo "qemu-smoke: smp2 'smp: cpu1 missed' on serial (ADR-100)" >&2
+        return 1
+    fi
+    return 0
+}
+smp2_smoke() {
+    smp2_timeout="${CTOS_SMP2_TIMEOUT:-10}"
+    smp2_qemu="${CTOS_QEMU:-qemu-system-aarch64}"
+    echo "qemu-smoke: smp2-probe (ADR-100 opt-in, -smp 2, timeout ${smp2_timeout}s)"
+    cargo build --features smp2-probe --target-dir target/smp2-probe
+    smp2_elf="target/smp2-probe/aarch64-ctos/debug/ctos"
+    smp2_log=$(mktemp)
+    for n in 2 1; do
+        set +e
+        timeout "$smp2_timeout" "$smp2_qemu" -machine virt -cpu cortex-a76 -smp "$n" -m 128M \
+            -display none -serial stdio -kernel "$smp2_elf" </dev/null >"$smp2_log" 2>&1
+        set -e
+        echo "qemu-smoke: smp2-probe serial (-smp $n):"
+        tr -d '\r' <"$smp2_log" | grep -a "^smp:" || true
+        if [ "$n" = 2 ]; then
+            if ! smp2_check "$smp2_log"; then
+                rm -f "$smp2_log"; exit 1
+            fi
+            echo "qemu-smoke: smp2 ok (-smp 2: cpu1 up, MPIDR seen by cpu0, parked)"
+        else
+            if smp2_check "$smp2_log" 2>/dev/null; then
+                echo "qemu-smoke: smp2 checker PASSED under -smp 1 (negative test failed, ADR-100)" >&2
+                rm -f "$smp2_log"; exit 1
+            fi
+            if ! tr -d '\r' <"$smp2_log" | grep -a -E -q '^smp: cpu1 missed seen=0x0[[:space:]]*$'; then
+                echo "qemu-smoke: smp2 negative (-smp 1) did not print 'smp: cpu1 missed' (ADR-100)" >&2
+                rm -f "$smp2_log"; exit 1
+            fi
+            echo "qemu-smoke: smp2 negative caught (-smp 1: checker fails, cpu1 missed; fail-closed ok)"
+        fi
+    done
+    rm -f "$smp2_log"
+}
+if [ "${CTOS_SMP2_ONLY:-0}" = 1 ]; then
+    smp2_smoke
+    echo "qemu-smoke: smp2-only ok"
+    exit 0
+fi
+
 HELLO="${CTOS_HELLO_STRING:-Hello World!}"
 PAGING="${CTOS_PAGING_STRING:-paging: ok}"
 HEAP="${CTOS_HEAP_STRING:-heap: ok}"
@@ -1319,6 +1381,13 @@ if ! grep -E -q '^ident: inv k=1 u=1 a=1 leaks=0' "$log"; then
     echo "qemu-smoke: 'ident: inv' did not report k=1 u=1 a=1 leaks=0 (ADR-087/088: only the _start stub page)" >&2
     exit 1
 fi
+# ADR-100: the default kernel is one core (ADR-091 rev 4 scope). No `smp:`
+# line may appear on the default serial; the opt-in path is separate.
+if tr -d '\r' <"$log" | grep -a -q '^smp:'; then
+    echo "qemu-smoke: 'smp:' marker on the default one-core serial (ADR-100)" >&2
+    exit 1
+fi
+echo "qemu-smoke: default one-core (no smp: markers, ADR-100)"
 # ADR-092 (G1): fail-closed EL0-reachability walk over kernel / user /
 # ASID-B TTBR0 + TTBR1. Live (hello-libctos standing at EL0) must see user
 # pages and no leak; steady state must be empty; four planted leaves must be
@@ -1828,5 +1897,9 @@ fi
 echo "qemu-smoke: el0-leak-probe PAN loss caught (ADR-098)"
 rm -f "$el0leak_log"
 echo "qemu-smoke: el0-leak-probe caught (fail-closed ok; reach + write + sys-ptr + t2t + xo + pan)"
+
+if [ "${CTOS_SMP2_SMOKE:-0}" = 1 ]; then
+    smp2_smoke
+fi
 
 echo "qemu-smoke: ok"
