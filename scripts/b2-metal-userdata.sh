@@ -11,7 +11,7 @@ set -x
 export HOME=/root
 export PATH=/root/.cargo/bin:$PATH
 echo "CTOSB2: start $(date -u +%FT%TZ)"
-echo "CTOSB2: uname $(uname -srm)"  # no host name (ADR-100)
+echo "CTOSB2: uname $(uname -srm)"  # no host name (ADR-101)
 echo "CTOSB2: cpu $(lscpu | grep -E 'Model name|Vendor' | tr -s ' ' | tr '\n' ';')"
 dmesg | grep -iE 'kvm|hyp|EL2' | sed 's/^/CTOSB2: dmesg /' | head -20
 if [ -e /dev/kvm ]; then echo "CTOSB2: /dev/kvm=present"; ls -l /dev/kvm; else echo "CTOSB2: /dev/kvm=absent"; fi

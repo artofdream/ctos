@@ -100,7 +100,7 @@ def qmp_inject(machine: str, cpu: str) -> dict[str, Any]:
 
 
 def main() -> int:
-    # No host name on purpose (public logs; ADR-100): OS and arch only.
+    # No host name on purpose (public logs; ADR-101): OS and arch only.
     print(f"qemu-nmi-probe: host-os={os.uname().sysname} {os.uname().machine}")
     try:
         ver = subprocess.check_output(

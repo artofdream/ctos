@@ -4,7 +4,7 @@
 # public repo: AWS account IDs (12 digits next to an account/owner word,
 # in an ARN, or in an ECR host), AWS access key IDs, EC2/VPC resource IDs,
 # Spot request IDs and Route 53 hosted-zone IDs.
-# ADR-100 adds host / user classes: agent VM host names, EC2 private host
+# ADR-101 adds host / user classes: agent VM host names, EC2 private host
 # names, host names inside uname lines, GitHub runner host names, user home
 # paths, WSL -u user names, UUIDs (machine IDs), and retired machine names.
 # Machine names are matched by SHA-256 of the lower-cased token, so this
@@ -23,7 +23,7 @@ set -eu
 # Public AWS documentation example values only. Never add a real value here.
 ALLOW='123456789012|111122223333|444455556666|AKIAIOSFODNN7EXAMPLE|i-1234567890abcdef0|sg-1234567890abcdef0|/home/runner|-u root'
 
-# SHA-256 of retired machine names (lower case). ADR-100. Never add a
+# SHA-256 of retired machine names (lower case). ADR-101. Never add a
 # plain-text name here.
 NAME_HASHES='e604d7f1aef8fc520698b611efb1972873cc7e52dd5d01b9a79884c667b8f020 6d5be622942356f7679e404951ec776b8473ea063011a6b301ccf559f26517c3 695b675832ecadd6a62c3bb85a0e0a8fdf3a7cf1faa9b52901775cfffb581e43'
 EXTRA_HASHES=''

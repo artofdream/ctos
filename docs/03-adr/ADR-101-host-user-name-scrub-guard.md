@@ -1,4 +1,4 @@
-# ADR-100 — Forward-only scrub of host and user names + guard classes
+# ADR-101 — Forward-only scrub of host and user names + guard classes
 
 - Status: Accepted on merge (security / compliance guardrail, sponsor decision 2026-10-13 20:49 CEST, relayed by DSO). Not a kernel change.
 - Date: 2026-10-13
