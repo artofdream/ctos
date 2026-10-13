@@ -19,6 +19,14 @@ b2-serror = []
 # only. PSCI CPU_ON one secondary (MMU off), print its MPIDR, park it. Skips
 # GIC/timer/virtio/FAT/EL0 like b2-serror. Default build and smoke unchanged.
 smp2-probe = []
+# ADR-102 S2 negative builds (each implies smp2-probe). The checker must
+# fail on each and the named miss line must appear.
+# neg-pan: cpu1 skips `msr pan, #1` -> `smp: cpu1 pan lost (pstate pan=0)`.
+smp2-neg-pan = ["smp2-probe"]
+# neg-span: cpu1 skips the SCTLR.SPAN clear -> handler sees PAN=0 -> `smp: cpu1 pan lost`.
+smp2-neg-span = ["smp2-probe"]
+# neg-vbar: cpu1 installs core 0's vectors -> `smp: cpu1 vbar mismatch`, no exception taken.
+smp2-neg-vbar = ["smp2-probe"]
 # ADR-087 negative probe: leave one planted identity page (VIRT_RAM_BASE)
 # in kernel TTBR0 before the identity inventory. The walk must print
 # `ident: inv-leak` and withhold `ident: inv-ok` / `ident: ok`.
