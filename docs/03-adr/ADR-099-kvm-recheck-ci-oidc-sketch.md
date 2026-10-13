@@ -280,7 +280,7 @@ Nothing below is done by this PR. "State" is the state **in this PR's evidence**
 
 | # | Precondition | Owner | State (2026-10-02) |
 | --- | --- | --- | --- |
-| P1 | **(a)** A CloudTrail trail is on (management events, all regions or at least `eu-north-1`) | DSO | **NOT VERIFIED** (no AWS call is allowed here) |
+| P1 | **(a)** A CloudTrail trail is on (management events, all regions or at least `eu-north-1`) | DSO | **MET** (verified by DSO from the arm64 workstation, 2026-10-13 about 20:56 CEST: a multi-region trail, home region `eu-north-1`; the agent made no AWS call) |
 | P2 | **(b)** Branch protection on `main` enforced for admins | DSO / sponsor | **Verified** via the GitHub API. Note: no required approving review; `strict` is off. |
 | P3 | **(c)** Results-out decided before any extra permission | Sponsor accepts this ADR | **Decided in this ADR (console output)**. **Section 2 was accepted by the sponsor in writing on 2026-10-02**, recorded in the DSO vault (relayed by DSO; the verbatim wording is in the vault and is not reproduced here). No PassRole requested. |
 | P4 | The GitHub OIDC identity provider exists in the account | DSO | **NOT VERIFIED** |
@@ -317,7 +317,7 @@ Impact is "what an attacker or a mistake could cost". Residual is after the list
 | 13 | **Supply chain on the instance** (apt, the rustup install script, git clone, QEMU source) | Medium × Low | QEMU is built from the pinned v10.0.0 source plus the repo's patches; the repo is cloned at a commit already on `main`; the instance holds **no credentials**, has no ingress, IMDSv2 hop limit 1, and lives under an hour | Low. Open egress remains (needed for apt/rustup/git). |
 | 14 | **Repo rename or transfer** (subject reuse by a new owner) | Low × High | The immutable subject (owner and repo IDs) is what the trust policy pins | Low once P14 is confirmed. |
 | 15 | **Cost runaway** | Low × Low | Cost-cap guard; MaxPrice; lifetime; concurrency 1; budget alarm | Low; about $0.33 worst case per run [estimate]. |
-| 16 | **CloudTrail off, so no audit trail** | Unknown × High | Condition (a) is a hard precondition before the role is **created or used** | Open until P1 is verified. |
+| 16 | **CloudTrail off, so no audit trail** | Unknown × High | Condition (a) is a hard precondition before the role is **created or used** | P1 met 2026-10-13 (multi-region trail, DSO-verified). |
 | 17 | **Unprotected environment auto-created** by the workflow's first reference | Medium × High | P5: create the environment with protections first; order matters | Low if the order is followed. |
 | 18 | **Unknown account facts** (Spot service-linked role, quota, EBS default key) | Medium × Low | P8; pilot; any new permission goes to the sponsor, not added silently | Low. |
 | 19 | **Credential rule 4 is only relaxed for this role** | Low × Medium | One role, one repository, one environment, no stored key, 1 h tokens; the exception record is referenced in the enabling PR (P10) | Low. Any second role or a schedule needs its own approval. |
@@ -348,7 +348,7 @@ Sponsor decision 2026-10-13 20:49 CEST (DSO relay): prepare this PR as the exact
 
 **Order of operations (DSO / sponsor; the agent does none of these):**
 
-1. DSO confirms a CloudTrail trail is on (management events, `eu-north-1` at least) from the arm64 workstation. **Still unverified** (P1).
+1. CloudTrail on (P1): **met**, verified by DSO from the arm64 workstation, 2026-10-13 about 20:56 CEST: a multi-region trail, home region `eu-north-1`.
 2. Create the GitHub environment `kvm-pilot` (below), **before** the role.
 3. Create the OIDC provider (if absent) and the role through the sponsor-approved path, with exactly the trust policy and permission policy in section 1 and role **MaxSessionDuration = 3600 s**.
 4. Set the repository variables `KVM_AMI_ID`, `KVM_SG_ID` (pre-created, tagged `project=ctos`, no ingress), `KVM_SUBNET_IDS`, and **last** `KVM_ROLE_ARN`.
@@ -383,9 +383,11 @@ Sponsor decision 2026-10-13 20:49 CEST (DSO relay): prepare this PR as the exact
 
 **Results out:** tag-scoped `ec2:GetConsoleOutput` only; no `iam:PassRole`, no instance profile (sponsor accepted 2026-10-02, recorded in the DSO vault).
 
-**Still unverified:** CloudTrail on (DSO to check from the arm64 workstation), OIDC provider, Spot service-linked role and quota, EBS default key, live-vs-terminated console readability, IAM condition behaviour (first exercised in the pilot).
+**CloudTrail (P1): met** (verified by DSO from the arm64 workstation, 2026-10-13 about 20:56 CEST: a multi-region trail, home region `eu-north-1`). **Still unverified:** OIDC provider, Spot service-linked role and quota, EBS default key, live-vs-terminated console readability, IAM condition behaviour (first exercised in the pilot).
 
 ## Open reconciliation points (for the enabling PR)
+
+0. **CloudTrail (P1, condition (a)): met** — verified by DSO from the arm64 workstation, 2026-10-13 about 20:56 CEST: a multi-region trail, home region `eu-north-1`.
 
 DSO's reconciliation notes, 2026-10-02. They are **open points for the PR that would enable this workflow**, not done here. This sketch does not close any of them.
 
@@ -394,7 +396,7 @@ DSO's reconciliation notes, 2026-10-02. They are **open points for the PR that w
 3. **Actions must be SHA-pinned** (P12): **done 2026-10-13** (see Pilot spec). Re-check against the tags before the run.
 4. **Region: `eu-north-1`.** Since 2026-10-13 the policies and the workflow state it directly; the region is `eu-north-1`, the one the G3 re-check ([ADR-095](ADR-095-g3-kvm-recheck.md)) used. The region name is not an identifier value. AZ, subnet, image and security-group values stay in repository variables.
 5. **Results-out (section 2) accepted.** The sponsor accepted section 2 in writing on 2026-10-02 (results out via tag-scoped `ec2:GetConsoleOutput`, no `iam:PassRole`, no instance profile), recorded in the DSO vault, relayed by DSO. This satisfies condition (c) for that section only. Anything beyond it (S3, SSM, a PassRole) needs a new decision.
-6. Still open from the checklist and not touched by DSO's notes: CloudTrail on (P1), the OIDC provider (P4), the Spot service-linked role and quota (P8), the DSO vault decision record (P10; not read here), the supervised pilot (P13).
+6. Still open from the checklist and not touched by DSO's notes: the OIDC provider (P4), the Spot service-linked role and quota (P8), the DSO vault decision record (P10; not read here), the supervised pilot (P13).
 
 ## Merge notes
 

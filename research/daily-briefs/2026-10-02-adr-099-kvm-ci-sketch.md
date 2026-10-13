@@ -16,4 +16,4 @@ Milestone item 2, design only. Draft PR; no AWS call, no AWS resource created or
 - Environment `kvm-pilot` (required reviewers, main-only deployment branches) to be created by DSO **before** the role; not created by the agent.
 - Actions pinned by full SHA (checkout v7.0.1, configure-aws-credentials v6.3.0); region `eu-north-1`; tags `project=ctos`, `component=kvm-ci-pilot`.
 - Spot price cap is not expressible as an IAM condition; enforced by the workflow guard and a budget alarm.
-- CloudTrail still unverified until DSO checks it from the arm64 workstation. No AWS call made.
+- CloudTrail (P1) met: DSO verified a multi-region trail, home region `eu-north-1`, from the arm64 workstation (2026-10-13 about 20:56 CEST). No AWS call by the agent.
