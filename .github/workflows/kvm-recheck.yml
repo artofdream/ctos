@@ -31,7 +31,11 @@
 #
 # Result words (only these; each comes from a probe in this file):
 #   PASS | FAIL | INCONCLUSIVE | SKIPPED-no-capacity | REFUSED-active-instance
-#   | LEAK | NOT-RUN. Only PASS exits 0. Nothing else is green.
+#   | LEAK | ABORTED-after-aws-call | NOT-RUN. Only PASS exits 0. Nothing else
+#   is green. NOT-RUN means no AWS call was attempted. ABORTED-after-aws-call
+#   means the run was cancelled or crashed after the role was requested (or an
+#   instance launched) without writing a result; teardown still runs.
+#   LEAK is decided only from instances THIS run launched (tag run=<run id>).
 #
 # No identifier values (account, instance, security group, subnet, image) are in
 # this file; they come from repository variables. Instance IDs are masked.
@@ -309,17 +313,29 @@ jobs:
             # shellcheck disable=SC2086
             timeout 300 aws ec2 wait instance-terminated --instance-ids $ids || echo "::warning::wait for terminated timed out; the sweep below decides"
           fi
-          # Sweeper: nothing tagged project=ctos may still be alive, from any run.
+          # Sweeper (verdict): only instances THIS run launched (tag run=<run id>).
+          # A pre-existing project=ctos instance is what REFUSED-active-instance
+          # reports; it must not turn this run's verdict into LEAK.
           left=$(aws ec2 describe-instances \
-            --filters "Name=tag:project,Values=ctos" \
+            --filters "Name=tag:project,Values=ctos" "Name=tag:component,Values=kvm-ci-pilot" \
+                      "Name=tag:run,Values=$GITHUB_RUN_ID" \
                       "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
             --query 'length(Reservations[].Instances[])' --output text)
           if [ "$left" != "0" ]; then
             echo "result=LEAK" > teardown.env
-            echo "::error::LEAK: $left project=ctos instance(s) still alive after teardown. Sweep by hand and tell the DSO."
+            echo "::error::LEAK: $left instance(s) launched by this run still alive after teardown. Sweep by hand and tell the DSO."
             exit 1
           fi
-          echo "Sweep clean: 0 active project=ctos instances."
+          echo "Sweep clean: 0 active instances from this run."
+          # Information only (never changes the verdict): other active project=ctos
+          # instances, e.g. the one a REFUSED-active-instance pre-flight found.
+          other=$(aws ec2 describe-instances \
+            --filters "Name=tag:project,Values=ctos" \
+                      "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+            --query 'length(Reservations[].Instances[])' --output text)
+          if [ "$other" != "0" ]; then
+            echo "::warning::$other other active project=ctos instance(s) (not launched by this run). Tell the DSO."
+          fi
 
       - name: Verdict (the only place a status word is decided)
         if: always()
@@ -331,6 +347,17 @@ jobs:
             result=$(sed -n 's/^result=//p' "$RESULT_FILE" | head -1)
             reason=$(sed -n 's/^reason=//p' "$RESULT_FILE" | head -1)
           fi
+          # NOT-RUN only when no AWS call was attempted. If the credential step
+          # ran at all (role requested) and no step wrote a result, the run was
+          # cancelled or crashed after an AWS call: never NOT-RUN.
+          case "${{ steps.cred.outcome }}" in
+            success|failure|cancelled)
+              if [ ! -f "$RESULT_FILE" ] || [ -z "$result" ]; then
+                result=ABORTED-after-aws-call
+                reason="no result written; launch=${{ steps.launch.outcome }} wait=${{ steps.wait.outcome }}"
+              fi
+              ;;
+          esac
           # A failed teardown outranks everything.
           if [ "${{ steps.teardown.outcome }}" = "failure" ]; then result=LEAK; fi
           # Never green unless the wait step itself produced PASS and teardown was clean
@@ -341,7 +368,7 @@ jobs:
             echo "- commit: \`${{ steps.sha.outputs.sha }}\`"
             [ -n "$reason" ] && echo "- reason: $reason"
             echo "- scope: reduced \`b2-serror\` profile under KVM on a Graviton metal host, one run. Not the default image. Not ADR-091's other evidence."
-            echo "- only PASS is green; SKIPPED, INCONCLUSIVE, REFUSED, LEAK and NOT-RUN are not passes."
+            echo "- only PASS is green; SKIPPED, INCONCLUSIVE, REFUSED, LEAK, ABORTED-after-aws-call and NOT-RUN are not passes."
           } >> "$GITHUB_STEP_SUMMARY"
           echo "kvm-recheck result: $result"
           [ "$result" = "PASS" ]
