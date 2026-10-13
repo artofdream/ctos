@@ -4,4 +4,4 @@
 - Mile: wire `irq_lower_el`, restore kernel TTBR0, handle GIC, `stay_at_el0` when standing; probe with `WFI` + SPSR I-clear; serial `el0: irq`.
 - Still parks: lower-EL FIQ/SError; default standing/task `ERET` still masks IRQ.
 - Still Planned: PAN enable, remaining identity RAM / `_start`, umbrella isolation.
-- (evo-x2) intent `f074e48c-ff1d-4a00-945c-74838a5b1550`; CloudAgent HELD — agent-box clone.
+- (amd64 workstation) intent `<machine-id>`; CloudAgent HELD — agent-box clone.

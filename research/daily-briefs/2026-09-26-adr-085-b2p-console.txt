@@ -89,7 +89,7 @@ CTOSB2: end 2026-09-26T11:17:11Z
 # c7g.metal <instance-id-run4> eu-north-1b Spot <spot-request-id-run4>, launched 2026-09-26T11:26:02Z (13:26:02 CEST)
 # branch isolation/adr-085-b2p-graviton-kvm-serror head 159b178 (TG1=4K fix); self-terminated after `CTOSB2: end 2026-09-26T11:33:13Z`
 CTOSB2: start 2026-09-26T11:26:23Z
-CTOSB2: uname Linux ip-172-31-42-173 7.0.0-1013-aws #13~24.04.1-Ubuntu SMP PREEMPT Fri Sep  4 21:20:04 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+CTOSB2: uname Linux <ec2-private-hostname> 7.0.0-1013-aws #13~24.04.1-Ubuntu SMP PREEMPT Fri Sep  4 21:20:04 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
 CTOSB2: cpu Vendor ID: ARM;BIOS Vendor ID: Amazon EC2;Model name: Neoverse-V1;BIOS Model name: AWS Graviton3 N/A CPU @ 2.6GHz;
 CTOSB2: dmesg [    0.026567] CPU: All CPU(s) started at EL2
 CTOSB2: dmesg [    0.228011] kvm [1]: IPA Size Limit: 48 bits

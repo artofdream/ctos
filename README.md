@@ -31,7 +31,7 @@ The ELF lands at `target/aarch64-ctos/debug/ctos`. QEMU serial Hello World was p
 cargo test                # #[test_case] including VBAR/BRK/stacks/guards/RO+NX/timer/IRQ-delta/empty RX/MMU/frames/heap/sched/CNTPCT/boot-delta/W^X/EL0/standing/SVC ABI/ASID/TTBR1 private + high-VA exec + identity-tear + vtable reloc + live .text; QEMU exits 0 via ARM semihosting
 ```
 
-### Docker (cts-ai: Windows ARM64 → linux/arm64)
+### Docker (arm64 workstation: Windows ARM64 → linux/arm64)
 
 Do **not** pass `--platform linux/amd64`. The image is `ubuntu:24.04` (multi-arch) plus nightly Rust, `build-essential` (host `cc` for `compiler_builtins` / build-std), `qemu-system-arm`, `qemu-efi-aarch64`, `ipxe-qemu` (`efi-virtio.rom`), and `python3` (UART RX inject). Shell scripts are LF-only (`.gitattributes`); a CRLF shebang makes `docker run` fail with `no such file or directory`.
 
@@ -43,11 +43,11 @@ docker run --rm ctos-smoke
 # optional: docker compose run --rm smoke
 ```
 
-cts-ai `./scripts/docker-smoke.sh` (linux/arm64) is **Verified** on `main` `e80dc93` (Merge PR #28 / ADR-020): 50 tests, `ident: reloc n=12`, live pages=37, force-fail ok. Earlier Docker Verified: `24d94e6` (#27 / ADR-019), `b0f0ee5` (#24–#26), and `71ee15f` (layout L3). The first 2026-09-09 Docker pass after the LF / `build-essential` / ROM ratchets is still a ledger row. Keep the `b2bbb99` Failed row. This is not a Raspberry Pi port.
+the arm64 workstation `./scripts/docker-smoke.sh` (linux/arm64) is **Verified** on `main` `e80dc93` (Merge PR #28 / ADR-020): 50 tests, `ident: reloc n=12`, live pages=37, force-fail ok. Earlier Docker Verified: `24d94e6` (#27 / ADR-019), `b0f0ee5` (#24–#26), and `71ee15f` (layout L3). The first 2026-09-09 Docker pass after the LF / `build-essential` / ROM ratchets is still a ledger row. Keep the `b2bbb99` Failed row. This is not a Raspberry Pi port.
 
-### Docker on EVO-X2 (Alpine WSL2 + Docker Desktop)
+### Docker on the amd64 workstation (Alpine WSL2 + Docker Desktop)
 
-Host hygiene for later (evo-x2) smoke — docs note, not a kernel claim:
+Host hygiene for later (amd64 workstation) smoke — docs note, not a kernel claim:
 
 - Alpine is the default WSL2 distro. Install bash: `wsl -d Alpine -u root -- apk add bash`.
 - Prefer `wsl -d Alpine -u <user> -- bash` (real Alpine bash). Do **not** use the WindowsApps `bash.exe` stub.

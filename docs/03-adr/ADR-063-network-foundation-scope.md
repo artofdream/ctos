@@ -58,7 +58,7 @@ This mile (N0) is **document-first**: name the track, lock foundation scope and 
    - Ledger status for Track N foundation / first frame stays **Planned** until N1 probes pass.
    - Do not claim: TCP/UDP, sockets, DHCP/DNS product, Wi‑Fi, Linux net stack, “has networking,” EL0 net ABI, “secure OS,” or reopen Track B Linux-compat.
    - No silent `-cpu`. Never yank `_start`. Author does not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
-   - CloudAgent remains HELD; N1 evidence tags agent-box or EVO-X2 as available.
+   - CloudAgent remains HELD; N1 evidence tags agent-box or the amd64 workstation as available.
 
 7. **Docs wiring (this PR).** SUMMARY + ADR list; roadmap Track N section; [track-n.md](../04-roadmap/track-n.md); honesty-ledger **Planned** row; [limits.md](../overview/limits.md) (“Track N Planned — see ADR”); index one-liner; threat-model light bump ([security.md](../framework/security.md) v1.38 — I/O surface names Track N Planned, still no stack).
 

@@ -4,13 +4,13 @@
 
 #21 merged as `71ee15f` on `main`. Layout fix is on the tip. Follow-up branch `cursor/layout-gha-ledger-c915` only folds the GHA URLs.
 
-cts-ai Docker on `b2bbb99`: **Failed** (sponsor serial). Cloud qemu-smoke on `c04b84b`: **Verified**. GHA: **Verified** — branch push [34563006005](https://github.com/artofdream/ctos/actions/runs/34563006005), PR [34563008516](https://github.com/artofdream/ctos/actions/runs/34563008516), merge-commit [34563104020](https://github.com/artofdream/ctos/actions/runs/34563104020) on `71ee15f`. Both matrices grepped `paging: layout` / `paging: ok` / `el0: ok`.
+The arm64 workstation Docker on `b2bbb99`: **Failed** (sponsor serial). Cloud qemu-smoke on `c04b84b`: **Verified**. GHA: **Verified** — branch push [34563006005](https://github.com/artofdream/ctos/actions/runs/34563006005), PR [34563008516](https://github.com/artofdream/ctos/actions/runs/34563008516), merge-commit [34563104020](https://github.com/artofdream/ctos/actions/runs/34563104020) on `71ee15f`. Both matrices grepped `paging: layout` / `paging: ok` / `el0: ok`.
 
 Docker after the fix (`71ee15f`): **Unknown** until the sponsor re-runs `./scripts/docker-smoke.sh`.
 
 ## Do next
 
-1. Sponsor re-probes cts-ai Docker Desktop on `main` `71ee15f`. This cloud VM has no Docker engine.
+1. Sponsor re-probes arm64 workstation Docker Desktop on `main` `71ee15f`. This cloud VM has no Docker engine.
 2. Isolation stays Planned. Do not claim “EL0 isolated.”
 3. Identity image is W^X on this virt guest only. Do not say “secure OS.”
 4. GitHub author of #21 was `artofdream`. ADR-002: that login does not merge its own PR.

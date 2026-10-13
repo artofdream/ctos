@@ -3,7 +3,7 @@
 - Status: Accepted (implementation + evidence). Sponsor B1 (ADR-081/082) met via **pinned QEMU build** (not upstream merge). Dated proof: QMP `inject-nmi` succeeds and guest serial shows **`el0: serror`** under EXPECT. Stock distro QEMU path **unchanged** (park Verified). Umbrella “EL0 isolated” stays **non-claim**.
 - Date: 2026-09-19
 - **Follow-on (2026-09-26):** [ADR-090](ADR-090-serror-evidence-class.md) (sponsor D1/D5) made `qemu-nmi-pin` **unconditional** (repo-variable gate removed, job renamed “QEMU NMI pin smoke (taken SError)”). This reverses §6's “do not force the compile on every PR”. It is part of the umbrella's taken-SError evidence class together with B2-P.
-- Tracks [#125](https://github.com/artofdream/ctos/issues/125). CloudAgent **HELD** — agent-box proof; EVO-X2 preferred for heavy build but offline this session (`f074e48c-…` intent). Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+- Tracks [#125](https://github.com/artofdream/ctos/issues/125). CloudAgent **HELD** — agent-box proof; amd64 workstation preferred for heavy build but offline this session (`<machine-id>` intent). Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Context
 
@@ -28,7 +28,7 @@
 | `CTOS_QEMU=… CTOS_REQUIRE_TAKEN_SERROR=1 ./scripts/qemu-smoke.sh` | **`el0: serror`** present; `qemu-smoke: ok` |
 | Stock inject (no pin) | `inject-nmi` error + `el0: serror-park` |
 
-Machine tag: **(agent-box)**; **(evo-x2)** intent only (CloudAgent HELD / cts-ai offline).
+Machine tag: **(agent-box)**; **(amd64 workstation)** intent only (CloudAgent HELD / arm64 workstation offline).
 
 ## Honesty
 

@@ -52,7 +52,7 @@ A **supervisor call (SVC)** is how user-mode code asks the kernel for help. Rese
 
 Those need Linux kernel features (namespaces, cgroups, a Linux ABI, usually overlay or equivalent, a rich syscall surface) that this learning kernel **does not have**. Decision: [ADR-029](../03-adr/ADR-029-containers-nongoal.md). Track B B7 ([#47](https://github.com/artofdream/ctos/issues/47)).
 
-**Today the arrow is the other way:** Docker on a host (cts-ai `linux/arm64`) **runs the ctos smoke image**. That is “Docker hosts ctos,” not “ctos hosts containers.” See the [README Docker notes](https://github.com/artofdream/ctos#readme) and the Docker rows in the [ledger](../framework/honesty-ledger.md).
+**Today the arrow is the other way:** Docker on a host (arm64 workstation `linux/arm64`) **runs the ctos smoke image**. That is “Docker hosts ctos,” not “ctos hosts containers.” See the [README Docker notes](https://github.com/artofdream/ctos#readme) and the Docker rows in the [ledger](../framework/honesty-ledger.md).
 
 ```mermaid
 flowchart LR
@@ -81,7 +81,7 @@ Tip audited: `190ef5a` (Merge #106 / docs polish; or newer `main` with ADR-062).
 | # | Criterion | Status | Tip evidence (cite ledger / tip) |
 | --- | --- | --- | --- |
 | 1 | Documented recipes (A8) | **Met** | Ledger “Documented sample apps (Track A A8)” Verified; hub [what-can-run.md](what-can-run.md) / [apps-today.md](../framework/apps-today.md) / `user/README.md`. |
-| 2 | Slot cross-update | **Met** | Ledger “A9 cross-update …” Verified: `cross-update prior-os=ba6541c… slot:ok` + `cross-update this-os=… slot:ok` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Re-probed on later tips (incl. ADR-046 / evo-x2 Docker rows). |
+| 2 | Slot cross-update | **Met** | Ledger “A9 cross-update …” Verified: `cross-update prior-os=ba6541c… slot:ok` + `cross-update this-os=… slot:ok` ([ADR-032](../03-adr/ADR-032-track-a-leftovers.md)). Re-probed on later tips (incl. ADR-046 / amd64 workstation Docker rows). |
 | 3 | No production embed | **Met** | Ledger “A2–A4 hello without `include_bytes!` (ADR-032)” Verified; smoke rejects `slot: embed`. Probe-only `include_bytes!` in `src/slot.rs` only ([ADR-046](../03-adr/ADR-046-slot-perf-delta.md)). |
 | 4 | Honesty: no Linux/POSIX/containers | **Met** | Containers **non-goal** ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)); this page + Track B frame refuse Linux userspace / POSIX / guest OCI. |
 | 5 | Explicit sponsor accept | **Met** | Sponsor: “address 1. app hosting” after still-Planned #5-only review. [ADR-052](../03-adr/ADR-052-sponsor-accept-app-hosting.md). Flip PR; no self-merge. |

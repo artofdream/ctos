@@ -1,6 +1,6 @@
 # ADR-083 brief — pinned QEMU TYPE_NMI → el0: serror
 
-Date: 2026-09-19 CEST. Host: agent-box (EVO-X2 intent; CloudAgent HELD).
+Date: 2026-09-19 CEST. Host: agent-box (amd64 workstation intent; CloudAgent HELD).
 
 ## Result
 

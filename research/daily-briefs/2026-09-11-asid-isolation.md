@@ -4,7 +4,7 @@
 
 Draft PR https://github.com/artofdream/ctos/pull/23 (`cursor/el0-asid-isolation-f98d`). Parent is `main` `7dbd7e6` (Merge PR #22). One PR: Docker Verified on `71ee15f` + ASID TLB mile. No new FR/NFR IDs.
 
-A — Sponsor cts-ai Docker on `71ee15f`: **Verified** (`elf-size bytes=3838592`, layout + all hello probes, 38 tests, EXIT 0). Keep `b2bbb99` Failed.
+A — Sponsor arm64 workstation Docker on `71ee15f`: **Verified** (`elf-size bytes=3838592`, layout + all hello probes, 38 tests, EXIT 0). Keep `b2bbb99` Failed.
 
 B — Cloud `scripts/qemu-smoke.sh` **Verified** (2026-09-11, QEMU 8.2.2, `rustc` 1.100.0-nightly `67eda617e`): host `perf: elf-size bytes=3853144`; `asid: dual` / `asid: conflict` / `asid: ok`; `Running 39 tests` all `[ok]`; force-fail exit 1.
 

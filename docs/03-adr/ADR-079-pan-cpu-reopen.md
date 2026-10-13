@@ -2,7 +2,7 @@
 
 - Status: Accepted (CPU reopen foundation). Meets [ADR-054](ADR-054-pan-enable-lock.md) reopen gate items **1–2**: sponsor-approved FEAT_PAN default probe CPU + serial `pan: present`. Enable+fault is **[ADR-080](ADR-080-pan-enable-fault.md)** (Accepted). Taken SError reopen is **ADR-081** (follow-up). Does **not** claim “EL0 isolated.”
 - Date: 2026-09-19
-- Tracks [#125](https://github.com/artofdream/ctos/issues/125). Sponsor unlock Sat 19 Sep 2026 via DSO. CloudAgent **HELD** — agent-box / EVO-X2 / GHA only.
+- Tracks [#125](https://github.com/artofdream/ctos/issues/125). Sponsor unlock Sat 19 Sep 2026 via DSO. CloudAgent **HELD** — agent-box / amd64 workstation / GHA only.
 
 ## Context
 

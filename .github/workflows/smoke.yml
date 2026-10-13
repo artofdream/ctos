@@ -1,5 +1,5 @@
 # Sensor: build + QEMU aarch64 serial smoke + cargo test (FR-13 / NFR-04).
-# Prefer ubuntu-24.04-arm (native aarch64, matches cts-ai). Also run
+# Prefer ubuntu-24.04-arm (native aarch64, matches the arm64 workstation). Also run
 # ubuntu-24.04 so an x86_64 TCG guest still gates the PR if the ARM
 # label is missing or queued.
 name: smoke

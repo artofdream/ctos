@@ -7,7 +7,7 @@ The sponsor brief named this decision “ADR-002.” On the harness tip, [ADR-00
 
 ## Context
 
-The sponsor host (cts-ai) is Windows ARM64 with Docker `linux/arm64`. Native AArch64 QEMU is the right guest. Keeping x86_64 as primary would mean a translated or foreign ISA on that machine.
+The sponsor host (arm64 workstation) is Windows ARM64 with Docker `linux/arm64`. Native AArch64 QEMU is the right guest. Keeping x86_64 as primary would mean a translated or foreign ISA on that machine.
 
 The previous primary path (phil-opp VGA text at `0xb8000`, `bootloader` 0.9, `bootimage`, `qemu-system-x86_64`) is superseded. It was a tutorial-era lift, not a host-ISA decision.
 

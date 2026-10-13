@@ -20,7 +20,7 @@ Explore what Linux userspace / ABI-subset work would take **without** dropping c
 
 ## Keep
 
-Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (antifragility / security / performance), ADR-gated ISA/memory/EL0 decisions, QEMU `virt` until an ADR widens it.
+Honesty ledger, fail-closed smoke (including Docker/arm64 workstation ratchets), pillars (antifragility / security / performance), ADR-gated ISA/memory/EL0 decisions, QEMU `virt` until an ADR widens it.
 
 ## Ordered research
 
@@ -38,7 +38,7 @@ Honesty ledger, fail-closed smoke (including Docker/cts-ai ratchets), pillars (a
 
 [ADR-031](../03-adr/ADR-031-linux-compat-goals.md) is the Track B frame. Linux-compat here means **research** into a possible Linux AArch64 ABI **subset**, not a promise to run a distro, glibc, musl, a shell, or Linux userspace.
 
-**Keep:** honesty ledger, fail-closed smoke (including host Docker/cts-ai ratchets), three pillars, the freestanding Track A path (A1–A9 first cuts), QEMU `virt` until an ADR widens it.
+**Keep:** honesty ledger, fail-closed smoke (including host Docker/arm64 workstation ratchets), three pillars, the freestanding Track A path (A1–A9 first cuts), QEMU `virt` until an ADR widens it.
 
 **Out:** full Linux ABI as a promise; guest containers ([ADR-029](../03-adr/ADR-029-containers-nongoal.md)); replacing SVC `#n` / `libctos` with Linux `x8` numbers in a research mile; claiming userspace because A3 loads ELF64 or A9 reads FAT `/hello`.
 
