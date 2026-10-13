@@ -1,6 +1,7 @@
 # ADR-099 — Milestone item 2: the KVM re-check in CI via GitHub OIDC (design sketch, inert)
 
-- Status: **Proposed — design only.** Nothing in this ADR is implemented. **No AWS call was made and no AWS resource was created or changed** to write it. The workflow it adds, [`.github/workflows/kvm-recheck.yml`](../../.github/workflows/kvm-recheck.yml), is **inert** (`workflow_dispatch` only, not scheduled, not a required check, fails closed while its role variable is unset). The sponsor and DSO decide; do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+- Status: **Proposed — design only; since 2026-10-13 also the exact spec for ONE supervised pilot run** (sponsor decision 2026-10-13 20:49 CEST, DSO relay). Not recurring: manual dispatch only, no schedule. See [Pilot spec](#pilot-spec-one-off-supervised-2026-10-13).
+- Original status line: Nothing in this ADR is implemented. **No AWS call was made and no AWS resource was created or changed** to write it. The workflow it adds, [`.github/workflows/kvm-recheck.yml`](../../.github/workflows/kvm-recheck.yml), is **inert** (`workflow_dispatch` only, not scheduled, not a required check, fails closed while its role variable is unset). The sponsor and DSO decide; do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 - Date: 2026-10-02 (CEST).
 - Follows: [ADR-085](ADR-085-b2p-graviton-kvm-serror.md) (first KVM run), [ADR-090](ADR-090-serror-evidence-class.md) (evidence class), [ADR-091](ADR-091-el0-isolated-accept-draft.md) (Accepted; its sentence is **not touched**), [ADR-093](ADR-093-public-identifier-scrub-guard.md) (no identifiers in public text), [ADR-095](ADR-095-g3-kvm-recheck.md) (G3: the manual run this automates).
 - Not in this ADR: no `src/`, `user/`, `libctos/` or `Cargo.*` change; `_start` (`0x4008_0000`) untouched; `smoke.yml`, `pages.yml` and the in-tree `scripts/b2-metal-userdata.sh` untouched; the three required checks are unchanged; CloudAgent not used.
@@ -56,7 +57,7 @@ Add an **opt-in, manual, inert** workflow that, once the sponsor path enables it
       "Condition": {
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "<SUB_FOR_THIS_REPO_AND_ENVIRONMENT>"
+          "token.actions.githubusercontent.com:sub": "repo:artofdream@<OWNER_ID>/ctos@<REPO_ID>:environment:kvm-pilot"
         }
       }
     }
@@ -79,7 +80,7 @@ Why the environment form: a pull request from a fork, or from any branch, produc
 
 #### 1.2 Permission policy (least privilege)
 
-Placeholders: `<REGION>` (one region, the one used in ADR-095), `<ACCOUNT_ID>`, `<AMI_ID>` (pinned Ubuntu 24.04 arm64 image), `<SUBNET_ID_1>` … `<SUBNET_ID_n>` (one subnet per AZ), `<SG_ID>` (a security group **pre-created** by DSO: tagged, **no ingress**).
+Placeholders (region is `eu-north-1`, the one used in ADR-095; formerly `<REGION>`), `<ACCOUNT_ID>`, `<AMI_ID>` (pinned Ubuntu 24.04 arm64 image), `<SUBNET_ID_1>` … `<SUBNET_ID_n>` (one subnet per AZ), `<SG_ID>` (a security group **pre-created** by DSO: tagged, **no ingress**).
 
 ```json
 {
@@ -89,14 +90,15 @@ Placeholders: `<REGION>` (one region, the one used in ADR-095), `<ACCOUNT_ID>`, 
       "Sid": "RunInstancesNewInstanceOnly",
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
-      "Resource": "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:instance/*",
+      "Resource": "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:instance/*",
       "Condition": {
         "StringEquals": {
           "ec2:InstanceType": "c7g.metal",
           "ec2:InstanceMarketType": "spot",
           "ec2:MetadataHttpTokens": "required",
+          "ec2:MetadataHttpPutResponseHopLimit": "1",
           "aws:RequestTag/project": "ctos",
-          "aws:RequestTag/component": "kvm-recheck"
+          "aws:RequestTag/component": "kvm-ci-pilot"
         },
         "ForAllValues:StringEquals": { "aws:TagKeys": ["project", "component", "run"] }
       }
@@ -106,14 +108,14 @@ Placeholders: `<REGION>` (one region, the one used in ADR-095), `<ACCOUNT_ID>`, 
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
       "Resource": [
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:volume/*",
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:network-interface/*",
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:spot-instances-request/*"
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:volume/*",
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:network-interface/*",
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:spot-instances-request/*"
       ],
       "Condition": {
         "StringEquals": {
           "aws:RequestTag/project": "ctos",
-          "aws:RequestTag/component": "kvm-recheck"
+          "aws:RequestTag/component": "kvm-ci-pilot"
         }
       }
     },
@@ -122,16 +124,16 @@ Placeholders: `<REGION>` (one region, the one used in ADR-095), `<ACCOUNT_ID>`, 
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
       "Resource": [
-        "arn:aws:ec2:<REGION>::image/<AMI_ID>",
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:subnet/<SUBNET_ID_1>",
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:subnet/<SUBNET_ID_n>"
+        "arn:aws:ec2:eu-north-1::image/<AMI_ID>",
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:subnet/<SUBNET_ID_1>",
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:subnet/<SUBNET_ID_n>"
       ]
     },
     {
       "Sid": "RunInstancesTaggedNoIngressSecurityGroupOnly",
       "Effect": "Allow",
       "Action": "ec2:RunInstances",
-      "Resource": "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:security-group/<SG_ID>",
+      "Resource": "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:security-group/<SG_ID>",
       "Condition": { "StringEquals": { "ec2:ResourceTag/project": "ctos" } }
     },
     {
@@ -139,10 +141,10 @@ Placeholders: `<REGION>` (one region, the one used in ADR-095), `<ACCOUNT_ID>`, 
       "Effect": "Allow",
       "Action": "ec2:CreateTags",
       "Resource": [
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:instance/*",
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:volume/*",
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:network-interface/*",
-        "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:spot-instances-request/*"
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:instance/*",
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:volume/*",
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:network-interface/*",
+        "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:spot-instances-request/*"
       ],
       "Condition": { "StringEquals": { "ec2:CreateAction": "RunInstances" } }
     },
@@ -150,11 +152,11 @@ Placeholders: `<REGION>` (one region, the one used in ADR-095), `<ACCOUNT_ID>`, 
       "Sid": "TerminateAndReadConsoleOfOurTaggedInstancesOnly",
       "Effect": "Allow",
       "Action": ["ec2:TerminateInstances", "ec2:GetConsoleOutput"],
-      "Resource": "arn:aws:ec2:<REGION>:<ACCOUNT_ID>:instance/*",
+      "Resource": "arn:aws:ec2:eu-north-1:<ACCOUNT_ID>:instance/*",
       "Condition": {
         "StringEquals": {
           "ec2:ResourceTag/project": "ctos",
-          "ec2:ResourceTag/component": "kvm-recheck"
+          "ec2:ResourceTag/component": "kvm-ci-pilot"
         }
       }
     },
@@ -163,14 +165,14 @@ Placeholders: `<REGION>` (one region, the one used in ADR-095), `<ACCOUNT_ID>`, 
       "Effect": "Allow",
       "Action": "ec2:DescribeInstances",
       "Resource": "*",
-      "Condition": { "StringEquals": { "aws:RequestedRegion": "<REGION>" } }
+      "Condition": { "StringEquals": { "aws:RequestedRegion": "eu-north-1" } }
     },
     {
       "Sid": "DenyOtherRegions",
       "Effect": "Deny",
       "Action": "ec2:*",
       "Resource": "*",
-      "Condition": { "StringNotEquals": { "aws:RequestedRegion": "<REGION>" } }
+      "Condition": { "StringNotEquals": { "aws:RequestedRegion": "eu-north-1" } }
     },
     {
       "Sid": "DenyIamS3SsmExplicitly",
@@ -278,11 +280,11 @@ Nothing below is done by this PR. "State" is the state **in this PR's evidence**
 
 | # | Precondition | Owner | State (2026-10-02) |
 | --- | --- | --- | --- |
-| P1 | **(a)** A CloudTrail trail is on (management events, all regions or at least `<REGION>`) | DSO | **NOT VERIFIED** (no AWS call is allowed here) |
+| P1 | **(a)** A CloudTrail trail is on (management events, all regions or at least `eu-north-1`) | DSO | **NOT VERIFIED** (no AWS call is allowed here) |
 | P2 | **(b)** Branch protection on `main` enforced for admins | DSO / sponsor | **Verified** via the GitHub API. Note: no required approving review; `strict` is off. |
 | P3 | **(c)** Results-out decided before any extra permission | Sponsor accepts this ADR | **Decided in this ADR (console output)**. **Section 2 was accepted by the sponsor in writing on 2026-10-02**, recorded in the DSO vault (relayed by DSO; the verbatim wording is in the vault and is not reproduced here). No PassRole requested. |
 | P4 | The GitHub OIDC identity provider exists in the account | DSO | **NOT VERIFIED** |
-| P5 | A GitHub environment (placeholder name `kvm-recheck`) with **required reviewers** and a **main-only deployment branch policy**, created **before** the role | Sponsor / DSO | **Absent** today |
+| P5 | A GitHub environment (name `kvm-pilot` since 2026-10-13; was placeholder `kvm-recheck`) with **required reviewers** and a **main-only deployment branch policy**, created **before** the role | Sponsor / DSO | **Absent** today |
 | P6 | The role created via a **sponsor-approved path** (not by an agent) with exactly the trust and permission policies above, adjusted for the immutable subject | Sponsor / DSO | Not done |
 | P7 | Pinned inputs set as repository **variables** (never repo text): image, no-ingress tagged security group, one subnet per AZ, region, role ARN | DSO | Not done (all unset) |
 | P8 | Spot service-linked role and Spot vCPU quota for one `c7g.metal` | DSO | **NOT VERIFIED** |
@@ -340,14 +342,57 @@ User-data is derived from the ADR-095 variant of `scripts/b2-metal-userdata.sh`:
 - **Cost of the choice:** the console channel is narrow and text only; Spot capacity makes the check sometimes unavailable; the immutable-subject format and several account facts have to be verified by DSO before the first run.
 - **Not decided here:** a schedule, a per-merge run, making it a required check, an S3 or SSM result channel, an on-demand fallback, a standalone sweeper. Each needs its own sponsor decision.
 
+## Pilot spec (one-off, supervised; 2026-10-13)
+
+Sponsor decision 2026-10-13 20:49 CEST (DSO relay): prepare this PR as the exact spec for **one supervised pilot run**. Not recurring: the workflow stays `workflow_dispatch` only, with **no schedule**, and it is not a required check. The PR stays **draft**. Nothing here creates an AWS or GitHub resource.
+
+**Order of operations (DSO / sponsor; the agent does none of these):**
+
+1. DSO confirms a CloudTrail trail is on (management events, `eu-north-1` at least) from the arm64 workstation. **Still unverified** (P1).
+2. Create the GitHub environment `kvm-pilot` (below), **before** the role.
+3. Create the OIDC provider (if absent) and the role through the sponsor-approved path, with exactly the trust policy and permission policy in section 1 and role **MaxSessionDuration = 3600 s**.
+4. Set the repository variables `KVM_AMI_ID`, `KVM_SG_ID` (pre-created, tagged `project=ctos`, no ingress), `KVM_SUBNET_IDS`, and **last** `KVM_ROLE_ARN`.
+5. One supervised dispatch from `main` with `pilot_ack` = `supervised-one-off-pilot`; a reviewer approves the environment deployment; DSO watches the run.
+6. DSO reviews CloudTrail for the session, then unsets `KVM_ROLE_ARN` (back to inert) unless the sponsor decides otherwise.
+
+**Exact `sub` (environment-scoped, immutable-subject form):** `repo:artofdream@<OWNER_ID>/ctos@<REPO_ID>:environment:kvm-pilot`. The repository reports `use_default: true`, `use_immutable_subject: true` (read-only GitHub API, 2026-10-13); its subject prefix carries the numeric owner and repository IDs. `<OWNER_ID>` and `<REPO_ID>` are those numeric IDs: **values supplied to DSO out of band**, not written here. `StringEquals`, no wildcard.
+
+**Environment `kvm-pilot` (GitHub setting, $0; to be created by DSO / the sponsor):**
+
+| Setting | Value |
+| --- | --- |
+| Name | `kvm-pilot` (the workflow's `environment:` and the `sub` must match exactly) |
+| Required reviewers | the sponsor (and/or DSO's account); at least one; “Prevent self-review” on |
+| Wait timer | 0 |
+| Deployment branches and tags | **Selected branches and tags**, one rule: branch `main` (no tags) |
+| Allow administrators to bypass | **off** |
+| Environment secrets / variables | none (no stored keys; repository variables above are enough) |
+
+**Pinned actions (full commit SHA, version in the comment; looked up from the release tags 2026-10-13):**
+
+| Action | Tag | Commit SHA |
+| --- | --- | --- |
+| `actions/checkout` | v7.0.1 | `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `aws-actions/configure-aws-credentials` | v6.3.0 | `e1253824e5c10ff9df46874f81ed3ec929e19cfd` |
+
+**Region:** `eu-north-1` (hard-coded in the workflow and in the policies; not an identifier value).
+
+**Tags:** `project=ctos`, `component=kvm-ci-pilot`, `run=<run id>` on the instance, volume, network interface and Spot request (RunInstances request-tag conditions); `TerminateInstances` and `GetConsoleOutput` require `ec2:ResourceTag/project=ctos` and `ec2:ResourceTag/component=kvm-ci-pilot`; `CreateTags` only with `ec2:CreateAction=RunInstances`.
+
+**Limits enforced by IAM condition keys:** `ec2:InstanceType=c7g.metal`, `ec2:InstanceMarketType=spot`, `ec2:MetadataHttpTokens=required`, `ec2:MetadataHttpPutResponseHopLimit=1`, region via `aws:RequestedRegion`. **Not enforceable by IAM:** the Spot price. EC2 has no condition key for the Spot max price (AWS service reference, checked 2026-10-13), so the price cap is the workflow's `MaxPrice` (`MAX_PRICE_USD_HR`, guard refuses above $0.60/h and above the per-run cap), plus the in-instance timer, plus an AWS Budget alarm (P9). **Session:** role MaxSessionDuration 3600 s (a role property, not a policy condition) and `role-duration-seconds: 3600` in the workflow.
+
+**Results out:** tag-scoped `ec2:GetConsoleOutput` only; no `iam:PassRole`, no instance profile (sponsor accepted 2026-10-02, recorded in the DSO vault).
+
+**Still unverified:** CloudTrail on (DSO to check from the arm64 workstation), OIDC provider, Spot service-linked role and quota, EBS default key, live-vs-terminated console readability, IAM condition behaviour (first exercised in the pilot).
+
 ## Open reconciliation points (for the enabling PR)
 
 DSO's reconciliation notes, 2026-10-02. They are **open points for the PR that would enable this workflow**, not done here. This sketch does not close any of them.
 
-1. **Exact immutable-subject string to be confirmed** (P14). This repository's `sub` claim uses the immutable-subject form (numeric owner and repository IDs), so the trust policy's `sub` must be copied from what GitHub actually emits, then confirmed in the supervised pilot from the CloudTrail event. Never widened to a wildcard.
+1. **Exact immutable-subject string** (P14): **stated 2026-10-13** in the Pilot spec, with the numeric IDs supplied to DSO out of band; still to be confirmed against the pilot's CloudTrail event. This repository's `sub` claim uses the immutable-subject form (numeric owner and repository IDs), so the trust policy's `sub` must be copied from what GitHub actually emits, then confirmed in the supervised pilot from the CloudTrail event. Never widened to a wildcard.
 2. **The protected environment must be created first** (P5): required reviewers and a main-only deployment branch policy, **before** the role and its trust policy exist. Today no such environment exists.
-3. **Actions must be SHA-pinned** (P12): `actions/checkout` and `aws-actions/configure-aws-credentials` by full commit SHA before the first real run. The sketch uses tags.
-4. **Region: `eu-north-1`.** The policies use `<REGION>`; the region is `eu-north-1`, the one the G3 re-check ([ADR-095](ADR-095-g3-kvm-recheck.md)) used. The region name is not an identifier value. AZ, subnet, image and security-group values stay in repository variables.
+3. **Actions must be SHA-pinned** (P12): **done 2026-10-13** (see Pilot spec). Re-check against the tags before the run.
+4. **Region: `eu-north-1`.** Since 2026-10-13 the policies and the workflow state it directly; the region is `eu-north-1`, the one the G3 re-check ([ADR-095](ADR-095-g3-kvm-recheck.md)) used. The region name is not an identifier value. AZ, subnet, image and security-group values stay in repository variables.
 5. **Results-out (section 2) accepted.** The sponsor accepted section 2 in writing on 2026-10-02 (results out via tag-scoped `ec2:GetConsoleOutput`, no `iam:PassRole`, no instance profile), recorded in the DSO vault, relayed by DSO. This satisfies condition (c) for that section only. Anything beyond it (S3, SSM, a PassRole) needs a new decision.
 6. Still open from the checklist and not touched by DSO's notes: CloudTrail on (P1), the OIDC provider (P4), the Spot service-linked role and quota (P8), the DSO vault decision record (P10; not read here), the supervised pilot (P13).
 

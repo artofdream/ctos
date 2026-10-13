@@ -9,3 +9,11 @@ Milestone item 2, design only. Draft PR; no AWS call, no AWS resource created or
 - **Not verified:** CloudTrail, OIDC provider, Spot service-linked role and quota, EBS default key, exact `sub` string, console readability live vs after termination, IAM condition behaviour, budget alarm.
 - **Cost:** about $0.03–0.07 per run [estimate]; computed worst case about $0.33 per run [estimate].
 - **Update 2026-10-02 (DSO):** the sponsor accepted section 2 (results out via tag-scoped `ec2:GetConsoleOutput`, no PassRole, no instance profile) in writing, recorded in the DSO vault. ADR-099 now lists the open reconciliation points (immutable-subject string, environment first, SHA-pinned actions, region `eu-north-1`). The PR stays a draft.
+
+## Update 2026-10-13: one-off supervised pilot spec
+
+- Sponsor decision (20:49 CEST, DSO relay): #152 becomes the exact spec for **one** supervised pilot run; stays draft; manual dispatch only, no schedule.
+- Environment `kvm-pilot` (required reviewers, main-only deployment branches) to be created by DSO **before** the role; not created by the agent.
+- Actions pinned by full SHA (checkout v7.0.1, configure-aws-credentials v6.3.0); region `eu-north-1`; tags `project=ctos`, `component=kvm-ci-pilot`.
+- Spot price cap is not expressible as an IAM condition; enforced by the workflow guard and a budget alarm.
+- CloudTrail still unverified until DSO checks it from the arm64 workstation. No AWS call made.
