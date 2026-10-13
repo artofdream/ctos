@@ -58,7 +58,7 @@ Prior miles left TCP as a locked non-goal. This ADR opens a **single-connection 
 
 7. **Follow-ups.** EL0 TCP SVC / richer socket ABI / listen-accept only with **another ADR** + sponsor.
 
-8. **Honesty.** Say “the guest completed one TCP active open and echoed one payload via QEMU guestfwd” only when serial/`qemu-smoke` print `net: tcp-ok` on a named tip. Do not say the OS “has networking,” “has sockets,” or “has TCP.” CloudAgent HELD; tag agent-box / EVO-X2. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+8. **Honesty.** Say “the guest completed one TCP active open and echoed one payload via QEMU guestfwd” only when serial/`qemu-smoke` print `net: tcp-ok` on a named tip. Do not say the OS “has networking,” “has sockets,” or “has TCP.” CloudAgent HELD; tag agent-box / amd64 workstation. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Consequences
 

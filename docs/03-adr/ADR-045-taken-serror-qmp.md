@@ -44,4 +44,4 @@ Say “guest A-clear standing SError path is wired; QMP `inject-nmi` does not ta
 - A later ADR may find a **different** honest inject (new QEMU feature, or a constrained CPU story with sponsor approval). That work is not this cut.
 - **Hard-stop lock:** [ADR-053](ADR-053-taken-serror-hard-stop.md) (2026-09-14) re-probed `inject-nmi` / HMP `nmi` on QEMU 10.0.13 virt+cortex-a57 — same `machine does not provide NMIs`. Taken path is locked deferred/non-goal, not a fuzzy Planned mile.
 - **Reopen re-probe:** [ADR-081](ADR-081-taken-serror-reopen.md) / [ADR-082](ADR-082-b1-qemu-type-nmi.md) (2026-09-19) on default `-cpu cortex-a76` + GICv3/`virtualization=on`/`max` — still `machine does not provide NMIs`. Dormant prep unchanged.
-- Docker/(evo-x2) re-probe is optional; agent-box smoke must show park + QMP error log, not a fake `el0: serror`.
+- Docker/(amd64 workstation) re-probe is optional; agent-box smoke must show park + QMP error log, not a fake `el0: serror`.

@@ -1,5 +1,5 @@
 # Optional. Same smoke as `docker build` / `scripts/docker-smoke.sh`.
-# Do not add platform: linux/amd64 — cts-ai is linux/arm64.
+# Do not add platform: linux/amd64 — arm64 workstation is linux/arm64.
 services:
   smoke:
     build: .

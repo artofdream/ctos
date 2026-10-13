@@ -224,7 +224,7 @@
       "items": [
         "Not FEAT_NMI; not FIQ/BRK as SError",
         "Not umbrella EL0 isolated",
-        "ADR-083 tip ~6ec1f4e; CloudAgent HELD for EVO-X2"
+        "ADR-083 tip ~6ec1f4e; CloudAgent HELD for the amd64 workstation"
       ]
     }
   ]

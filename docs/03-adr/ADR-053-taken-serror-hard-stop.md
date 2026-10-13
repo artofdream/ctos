@@ -30,7 +30,7 @@ Commands tried (documented H1 path only; no invented inject):
 
 | ID | Option | 2026-09-14 status |
 | --- | --- | --- |
-| H1 | QMP/HMP `nmi` → `ARM_CPU_SERROR` | **Impossible** on this smoke machine (dated error text above). Matches ADR-045 / evo-x2 `3f7d3c5` smoke log. |
+| H1 | QMP/HMP `nmi` → `ARM_CPU_SERROR` | **Impossible** on this smoke machine (dated error text above). Matches ADR-045 / amd64 workstation `3f7d3c5` smoke log. |
 | H2 | Guest-only RAS / poisoned load | Still **rejected for Verified** (ADR-044). |
 | H3 | Treat sync/BRK/FIQ as SError | Still **forbidden**. |
 | H5 | KVM `serror_pending` / plugin inject | Still **out of scope** for TCG virt `-kernel` smoke. |

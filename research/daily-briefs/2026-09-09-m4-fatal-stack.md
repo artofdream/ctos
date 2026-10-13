@@ -16,6 +16,6 @@ GHA `smoke.yml` still **Unknown** until a run URL on the post-fix commit.
 
 ## Honesty
 
-- cts-ai offline. Docker Desktop path not re-run.
+- the arm64 workstation offline. Docker Desktop path not re-run.
 - Nested IRQ / lower-EL: Unknown (not taken).
 - Probe is nested `BRK`, not an MMU stack-overflow fault (no paging yet).

@@ -52,7 +52,7 @@
 
 7. **Non-goals restated (locked).** TCP/UDP product; BSD sockets; DHCP/DNS product; Wi‑Fi; virtio-pci-only foundation; Linux net stack; “has networking” marketing; EL0 net SVC/ABI. N2 ICMP is [ADR-067](ADR-067-virtio-net-icmp-ping.md); N3+ needs new sponsor ADR.
 
-8. **Honesty.** Say “the guest programmed virtio-net and exchanged one ARP request/reply with QEMU SLIRP” only when serial/`qemu-smoke` print `net: ok` on a named tip. Do not say the OS “has networking.” CloudAgent HELD; tag agent-box / EVO-X2. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+8. **Honesty.** Say “the guest programmed virtio-net and exchanged one ARP request/reply with QEMU SLIRP” only when serial/`qemu-smoke` print `net: ok` on a named tip. Do not say the OS “has networking.” CloudAgent HELD; tag agent-box / amd64 workstation. No self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Consequences
 

@@ -1,6 +1,6 @@
 # ADR-084 brief — B2 spike on free GitHub-hosted runners (blocked)
 
-Date: 2026-09-25 CEST (~23:45–00:30). Host: agent-box (`gh` reads) + EVO-X2 (workflow-scoped push). CloudAgent not used (over cap). No self-hosted / paid / larger runner.
+Date: 2026-09-25 CEST (~23:45–00:30). Host: agent-box (`gh` reads) + amd64 workstation (workflow-scoped push). CloudAgent not used (over cap). No self-hosted / paid / larger runner.
 
 ## Order
 

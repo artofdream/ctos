@@ -56,7 +56,7 @@ This ADR does **not** implement B2–B6. It does **not** mint FR-16+ or NFR-15+.
    | Invariant | Why it stays |
    | --- | --- |
    | Honesty (NFR-06 / [ADR-001](ADR-001-honesty-harness-for-ctos.md)) | Status words need a probe. Unprobed stays **Unknown**. This ADR is not Verified Linux. |
-   | Antifragility (NFR-05) | Fail-closed `qemu-smoke` and host Docker/cts-ai ratchets stay. Host `docker-smoke.sh` is still “Docker hosts ctos,” not a guest Linux ABI. |
+   | Antifragility (NFR-05) | Fail-closed `qemu-smoke` and host Docker/arm64 workstation ratchets stay. Host `docker-smoke.sh` is still “Docker hosts ctos,” not a guest Linux ABI. |
    | Security (NFR-10) | No “secure OS,” “Linux-compat isolation,” or “the kernel is W^X” from a research frame. |
    | Performance (NFR-07) | No invented benches for a compat layer that does not exist. Measure first if a later mile adds a path. |
    | Document-first / one-PR loops | One child → one branch → one GitHub PR. |

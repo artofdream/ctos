@@ -14,7 +14,7 @@
 
 Sponsor / DSO asked for a **single clear table** that closes the leftover *decision surface* after the isolation-gap locks (#98 / ADR-053–055): what is locked, what would be required for an honest Verified, what is blocked on the default smoke machine (`virt` + `-cpu cortex-a57`), and the reopen gates. This ADR cites those decisions; it does **not** rewrite them.
 
-CloudAgent HELD. Docs-only. Prefer EVO-X2 / agent-box for docs build. Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+CloudAgent HELD. Docs-only. Prefer the amd64 workstation / agent-box for docs build. Do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 
 ## Decision (cite locks; do not invent Verified)
 
