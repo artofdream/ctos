@@ -351,13 +351,18 @@ jobs:
           fi
           # Information only (never changes the verdict): other active project=ctos
           # instances, e.g. the one a REFUSED-active-instance pre-flight found.
+          # Must never fail the step: an error here would turn the verdict into LEAK.
           total=$(aws ec2 describe-instances \
             --filters "Name=tag:project,Values=ctos" \
                       "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
-            --query 'length(Reservations[].Instances[])' --output text)
-          other=$(( total - alive - slow ))
-          if [ "$other" -gt 0 ]; then
-            echo "::warning::$other other active project=ctos instance(s) (not launched by this run). Tell the DSO."
+            --query 'length(Reservations[].Instances[])' --output text 2>/dev/null) || total=""
+          if printf '%s' "$total" | grep -Eq '^[0-9]+$'; then
+            other=$(( total - alive - slow ))
+            if [ "$other" -gt 0 ]; then
+              echo "::warning::$other other active project=ctos instance(s) (not launched by this run). Tell the DSO."
+            fi
+          else
+            echo "::warning::informational project=ctos count unavailable (does not change the verdict)."
           fi
 
       - name: Verdict (the only place a status word is decided)
