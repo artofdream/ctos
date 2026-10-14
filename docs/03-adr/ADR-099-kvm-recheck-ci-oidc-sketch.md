@@ -234,7 +234,7 @@ Four layers, so no single failure leaves a metal instance running:
 1. **Pre-flight refusal.** If any `project=ctos` instance is active, the run stops with `REFUSED-active-instance` before spending anything. Concurrency group `kvm-recheck` (`cancel-in-progress: false`) serialises runs.
 2. **On the instance:** `shutdown -h +<LIFETIME_MIN>` is the first line of the user-data (default **45 min**; the guard refuses anything over 60), shutdown behaviour is `terminate`, and the script powers off after a 90 s linger. This works even if the runner dies.
 3. **Always-run terminate step.** `if: always()`, with **fresh credentials** (a second `configure-aws-credentials`, guarded by the first one's success, because the first session may have expired or been cancelled). It finds the run's instances **by tag** (`run=<run id>`), so a launch that died after `RunInstances` but before returning an ID is still cleaned up, terminates them, and waits for `terminated`.
-4. **Tag-based sweeper check (same step).** Counts every non-terminated `project=ctos` instance. Any left over gives result **LEAK** and a red job. This is a check inside the run, **not** a scheduled sweeper: a schedule would use the role with no human present and needs its own sponsor decision.
+4. **Tag-based sweeper check (same step).** After polling up to 20 min for `terminated`, counts the instances **this run launched** (`project=ctos`, `component=kvm-ci-pilot`, `run=<run id>`). Any still `pending`/`running`/`stopping`/`stopped` gives **LEAK**; any still `shutting-down` gives **TEARDOWN-SLOW** (red, not LEAK). Other active `project=ctos` instances (for example the one a `REFUSED-active-instance` pre-flight found) only raise a warning; they never turn this run's verdict into LEAK (that informational count cannot fail the step) (Bugbot finding, fixed 2026-10-13). This is a check inside the run, **not** a scheduled sweeper: a schedule would use the role with no human present and needs its own sponsor decision.
 
 Job `timeout-minutes` is 60; the poll limit is 40 min.
 
@@ -266,7 +266,7 @@ CloudTrail cost for one management-events trail is small [unverified]. An **AWS 
 
 **A skip is never green.** The job exits non-zero with a step summary that says "not a pass". There is **no on-demand fallback**: a metal on-demand instance would break the cost cap. A mid-run Spot interruption (`StateReason` of Spot termination) is INCONCLUSIVE and is **not** retried automatically. The ledger records the **last PASS commit and date**; a skipped or inconclusive run never updates it.
 
-Result words: **PASS** (the only exit 0), **FAIL**, **INCONCLUSIVE**, **SKIPPED-no-capacity**, **REFUSED-active-instance**, **LEAK**, **NOT-RUN** (guard refused, no AWS call).
+Result words: **PASS** (the only exit 0), **FAIL**, **INCONCLUSIVE**, **SKIPPED-no-capacity**, **REFUSED-active-instance**, **LEAK**, **TEARDOWN-SLOW** (this run's instance still shutting down when the teardown wait ended), **ABORTED-after-aws-call** (cancelled or crashed after the role was requested or an instance launched, with no result written; teardown still runs), **NOT-RUN** (guard refused or an earlier step failed; **no AWS call was attempted**).
 
 ### 5. Honesty: what a PASS proves
 
@@ -311,7 +311,7 @@ Impact is "what an attacker or a mistake could cost". Residual is after the list
 | 7 | **Identifier leakage in public logs** (instance ID, account ID, host name, IP) | Medium × Low–Medium | Account-ID masking; instance IDs masked at creation; only `^CTOSB2: ` lines and error **codes** are printed; no raw console or stderr; identifier guard on repo text | Low. Confirm on the pilot (P15). |
 | 8 | **Leaked running instance (cost, exposure)** | Medium × Low | Pre-flight refusal; in-instance `shutdown -h +45` and terminate-on-shutdown; always-run terminate with fresh credentials, by tag; wait for terminated; sweeper gives LEAK; budget alarm | Low. Worst case about $0.40/h until noticed if the runner and the user-data both fail. |
 | 9 | **Console text is forged or replayed** | Low × Medium | Per-run nonce and commit in the result line; anchored PASS line; KVM and arch markers; terminate-by-tag so one run's console is read once | Low. The code under test can print its own PASS (inherent; the commit is recorded and the tested commit must be on `main`). |
-| 10 | **Silent green on a skip or timeout** | Medium × High (trust) | Only PASS exits 0; SKIPPED, INCONCLUSIVE, REFUSED, LEAK, NOT-RUN are red; guard fails (not skips) on an unset variable | Low. |
+| 10 | **Silent green on a skip or timeout** | Medium × High (trust) | Only PASS exits 0; SKIPPED, INCONCLUSIVE, REFUSED, LEAK, TEARDOWN-SLOW, ABORTED-after-aws-call, NOT-RUN are red; guard fails (not skips) on an unset variable | Low. |
 | 11 | **Spot capacity or interruption** | High × Low | Multi-AZ retry; honest SKIPPED / INCONCLUSIVE; no on-demand fallback | Accepted: the check is sometimes unavailable. |
 | 12 | **Third-party action supply chain** (`configure-aws-credentials`, `checkout`) | Low × High | Pin by full commit SHA before enabling (P12); `permissions: {}` at top level; the job only gets `id-token: write` and `contents: read` | Low–Medium until pinned. |
 | 13 | **Supply chain on the instance** (apt, the rustup install script, git clone, QEMU source) | Medium × Low | QEMU is built from the pinned v10.0.0 source plus the repo's patches; the repo is cloned at a commit already on `main`; the instance holds **no credentials**, has no ingress, IMDSv2 hop limit 1, and lives under an hour | Low. Open egress remains (needed for apt/rustup/git). |
@@ -397,6 +397,24 @@ Relayed by DSO; this agent made no AWS call and set no repo variable. Text only,
 - **Environment protection (sponsor decision 22:15):** sole reviewer is the sponsor, `prevent_self_review` off, deployments from `main` only, admin bypass off.
 - **Budget:** `ctos-monthly-5`, USD 5/month, filtered to `project=ctos`, alerts at 80% actual and 100% forecast.
 - **Still open:** P7/P11 repository variables unset (workflow inert), P8, P10, P12-P15.
+
+## Pilot run 2026-10-13 (relayed by DSO)
+
+- The sponsor set the repository variables and dispatched the one supervised pilot, workflow run 38468490030, at `main` `069fe83`.
+- **Smoke: PASS** under `accel=kvm` on `c7g.metal` (`el0: serror` + `b2: taken`; run nonce `685780b675853a95`).
+- The run's final verdict was **red, from a false LEAK**: teardown's 5-minute wait for `terminated` timed out while the metal instance was still shutting down, and the sweep counted it. DSO verified the instance reached `terminated`. Fixed by the slow-termination change below (item 4).
+- `RunInstances` succeeded with the policy as written (no snapshot resource).
+- Relayed facts; this agent made no AWS call. No instance or account identifiers here.
+
+## Review fixes 2026-10-13 (Cursor Bugbot findings on PR #152, plus pilot findings)
+
+1. **High (Bugbot) - snapshot resource for RunInstances: kept out.** AWS docs list `snapshot` as a `RunInstances` resource type (Service Authorization Reference; account-less ARN form), but the live pilot run launched **without** it (the AMI is public and its snapshot is not in this account). The policy is unchanged. Add a snapshot resource only if a concrete `UnauthorizedOperation` denial on a snapshot appears.
+2. **Medium - a pre-flight refusal was reported as LEAK.** The sweeper counted every active `project=ctos` instance, so the instance that triggered `REFUSED-active-instance` made teardown fail and the verdict became LEAK. The sweeper now counts only instances this run launched (tag `run=<run id>`); others only warn.
+4. **Slow metal termination (pilot finding).** The pilot's teardown waited only 5 minutes for `terminated`; a `c7g.metal` was still shutting down, and the sweep reported a false LEAK. Teardown now polls up to `TERM_WAIT_MIN` (20 min; job timeout 75 min). At the end: a run-tagged instance still `pending`/`running`/`stopping`/`stopped` is **LEAK**; one still `shutting-down` is **TEARDOWN-SLOW** (red, not a pass, not LEAK; the smoke result stays in the summary). A later run's pre-flight still refuses on any instance that never terminates.
+5. **Subnet list parsing.** `KVM_SUBNET_IDS` may be separated by spaces, commas, or both; an empty list after parsing fails the launch step.
+3. **Low - NOT-RUN after an AWS call.** The verdict defaulted to NOT-RUN whenever no result file existed, including a cancel or crash after assume-role or launch. New word **ABORTED-after-aws-call**: used when the credential step ran (success, failure or cancelled) and no result was written. NOT-RUN now means no AWS call was attempted. Teardown is unchanged (`if: always()` after credentials succeeded).
+
+No identifier values. No AWS call, no repository variable set, no dispatch by the agent.
 
 ## Open reconciliation points (for the enabling PR)
 

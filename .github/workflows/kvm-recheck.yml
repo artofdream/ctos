@@ -31,7 +31,16 @@
 #
 # Result words (only these; each comes from a probe in this file):
 #   PASS | FAIL | INCONCLUSIVE | SKIPPED-no-capacity | REFUSED-active-instance
-#   | LEAK | NOT-RUN. Only PASS exits 0. Nothing else is green.
+#   | LEAK | TEARDOWN-SLOW | ABORTED-after-aws-call | NOT-RUN. Only PASS exits
+#   0. Nothing else
+#   is green. NOT-RUN means no AWS call was attempted. ABORTED-after-aws-call
+#   means the run was cancelled or crashed after the role was requested (or an
+#   instance launched) without writing a result; teardown still runs.
+#   LEAK is decided only from instances THIS run launched (tag run=<run id>)
+#   that are still pending/running/stopping/stopped after the teardown wait.
+#   TEARDOWN-SLOW: this run's instance was still shutting-down when the wait
+#   ended (metal can take more than 10 min); red, not a pass, not LEAK. A
+#   later run's pre-flight still refuses on any instance that never ends.
 #
 # No identifier values (account, instance, security group, subnet, image) are in
 # this file; they come from repository variables. Instance IDs are masked.
@@ -59,7 +68,8 @@ jobs:
   kvm-recheck:
     name: KVM re-check (b2-serror, Graviton metal) [sketch, inert]
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    # 40 min poll + up to 20 min teardown wait + slack.
+    timeout-minutes: 75
     # Placeholder name; created by the sponsor/DSO path with required reviewers
     # and a main-only deployment branch policy (ADR-099 P5).
     environment: kvm-pilot
@@ -72,7 +82,7 @@ jobs:
       PILOT_ACK: ${{ inputs.pilot_ack }}
       KVM_AMI_ID: ${{ vars.KVM_AMI_ID }}
       KVM_SG_ID: ${{ vars.KVM_SG_ID }}
-      # Space-separated, one subnet per AZ, in retry order.
+      # One subnet per AZ, in retry order; separated by spaces, commas, or both.
       KVM_SUBNET_IDS: ${{ vars.KVM_SUBNET_IDS }}
       INPUT_REF: ${{ inputs.ref }}
       INSTANCE_TYPE: c7g.metal
@@ -84,6 +94,8 @@ jobs:
       LIFETIME_MIN: "45"
       RUN_COST_CAP_USD: "0.50"
       POLL_MAX_MIN: "40"
+      # Teardown: poll for this run's instances to reach terminated (metal is slow).
+      TERM_WAIT_MIN: "20"
       RESULT_FILE: kvm-result.env
     steps:
       - name: Guard (fails closed, makes no AWS call)
@@ -172,7 +184,8 @@ jobs:
           tags="{Key=project,Value=ctos},{Key=component,Value=kvm-ci-pilot},{Key=run,Value=$GITHUB_RUN_ID}"
           capacity_re='InsufficientInstanceCapacity|InsufficientCapacity|SpotMaxPriceTooLow|capacity-not-available|Unsupported|InsufficientFreeAddressesInSubnet'
           quota_re='MaxSpotInstanceCountExceeded|VcpuLimitExceeded|InstanceLimitExceeded'
-          read -ra subnets <<< "$KVM_SUBNET_IDS"
+          read -ra subnets <<< "$(printf '%s' "$KVM_SUBNET_IDS" | tr ',' ' ')"
+          if [ "${#subnets[@]}" -eq 0 ]; then echo "::error::KVM_SUBNET_IDS has no subnet after parsing"; exit 1; fi
           total=${#subnets[@]}
           tried=0
           for subnet in "${subnets[@]}"; do
@@ -306,20 +319,51 @@ jobs:
           if [ -n "$ids" ]; then
             # shellcheck disable=SC2086
             aws ec2 terminate-instances --instance-ids $ids --query 'length(TerminatingInstances)' --output text
-            # shellcheck disable=SC2086
-            timeout 300 aws ec2 wait instance-terminated --instance-ids $ids || echo "::warning::wait for terminated timed out; the sweep below decides"
           fi
-          # Sweeper: nothing tagged project=ctos may still be alive, from any run.
-          left=$(aws ec2 describe-instances \
-            --filters "Name=tag:project,Values=ctos" \
-                      "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
-            --query 'length(Reservations[].Instances[])' --output text)
-          if [ "$left" != "0" ]; then
+          # Wait (poll) up to TERM_WAIT_MIN for this run's instances to leave every
+          # non-terminated state. Metal can take more than 10 minutes.
+          run_filter=(--filters "Name=tag:project,Values=ctos" "Name=tag:component,Values=kvm-ci-pilot" "Name=tag:run,Values=$GITHUB_RUN_ID")
+          count_run() {
+            aws ec2 describe-instances "${run_filter[@]}" \
+              "Name=instance-state-name,Values=$1" \
+              --query 'length(Reservations[].Instances[])' --output text
+          }
+          deadline=$(( $(date +%s) + TERM_WAIT_MIN * 60 ))
+          while :; do
+            alive=$(count_run pending,running,stopping,stopped)
+            slow=$(count_run shutting-down)
+            if [ "$alive" = "0" ] && [ "$slow" = "0" ]; then break; fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then break; fi
+            sleep 30
+          done
+          # Verdict input, run-scoped only. A pre-existing project=ctos instance is
+          # what REFUSED-active-instance reports; it must not become LEAK here.
+          if [ "$alive" != "0" ]; then
             echo "result=LEAK" > teardown.env
-            echo "::error::LEAK: $left project=ctos instance(s) still alive after teardown. Sweep by hand and tell the DSO."
+            echo "::error::LEAK: $alive instance(s) launched by this run still pending/running/stopping/stopped after ${TERM_WAIT_MIN} min. Sweep by hand and tell the DSO."
             exit 1
           fi
-          echo "Sweep clean: 0 active project=ctos instances."
+          if [ "$slow" != "0" ]; then
+            echo "result=TEARDOWN-SLOW" > teardown.env
+            echo "::warning::TEARDOWN-SLOW: $slow instance(s) from this run still shutting-down after ${TERM_WAIT_MIN} min. Terminate was accepted; check it reached terminated. A later run's pre-flight refuses if it did not."
+          else
+            echo "Sweep clean: 0 non-terminated instances from this run."
+          fi
+          # Information only (never changes the verdict): other active project=ctos
+          # instances, e.g. the one a REFUSED-active-instance pre-flight found.
+          # Must never fail the step: an error here would turn the verdict into LEAK.
+          total=$(aws ec2 describe-instances \
+            --filters "Name=tag:project,Values=ctos" \
+                      "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
+            --query 'length(Reservations[].Instances[])' --output text 2>/dev/null) || total=""
+          if printf '%s' "$total" | grep -Eq '^[0-9]+$'; then
+            other=$(( total - alive - slow ))
+            if [ "$other" -gt 0 ]; then
+              echo "::warning::$other other active project=ctos instance(s) (not launched by this run). Tell the DSO."
+            fi
+          else
+            echo "::warning::informational project=ctos count unavailable (does not change the verdict)."
+          fi
 
       - name: Verdict (the only place a status word is decided)
         if: always()
@@ -331,17 +375,33 @@ jobs:
             result=$(sed -n 's/^result=//p' "$RESULT_FILE" | head -1)
             reason=$(sed -n 's/^reason=//p' "$RESULT_FILE" | head -1)
           fi
+          # NOT-RUN only when no AWS call was attempted. If the credential step
+          # ran at all (role requested) and no step wrote a result, the run was
+          # cancelled or crashed after an AWS call: never NOT-RUN.
+          case "${{ steps.cred.outcome }}" in
+            success|failure|cancelled)
+              if [ ! -f "$RESULT_FILE" ] || [ -z "$result" ]; then
+                result=ABORTED-after-aws-call
+                reason="no result written; launch=${{ steps.launch.outcome }} wait=${{ steps.wait.outcome }}"
+              fi
+              ;;
+          esac
           # A failed teardown outranks everything.
           if [ "${{ steps.teardown.outcome }}" = "failure" ]; then result=LEAK; fi
           # Never green unless the wait step itself produced PASS and teardown was clean
           # (or credentials were never obtained, so nothing was created).
           if [ "$result" = "PASS" ] && [ "${{ steps.teardown.outcome }}" != "success" ]; then result=LEAK; fi
+          # Slow metal shutdown: not LEAK, not a pass. Keep the smoke result visible.
+          if [ "$result" != "LEAK" ] && [ -f teardown.env ] && grep -qx 'result=TEARDOWN-SLOW' teardown.env; then
+            reason="smoke=$result${reason:+; $reason}; this run's instance still shutting-down at the end of the teardown wait"
+            result=TEARDOWN-SLOW
+          fi
           {
             echo "### KVM re-check: $result"
             echo "- commit: \`${{ steps.sha.outputs.sha }}\`"
             [ -n "$reason" ] && echo "- reason: $reason"
             echo "- scope: reduced \`b2-serror\` profile under KVM on a Graviton metal host, one run. Not the default image. Not ADR-091's other evidence."
-            echo "- only PASS is green; SKIPPED, INCONCLUSIVE, REFUSED, LEAK and NOT-RUN are not passes."
+            echo "- only PASS is green; SKIPPED, INCONCLUSIVE, REFUSED, LEAK, TEARDOWN-SLOW, ABORTED-after-aws-call and NOT-RUN are not passes."
           } >> "$GITHUB_STEP_SUMMARY"
           echo "kvm-recheck result: $result"
           [ "$result" = "PASS" ]
