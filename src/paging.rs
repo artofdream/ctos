@@ -129,8 +129,9 @@ const SCTLR_WXN: u64 = 1 << 19;
 const PROBE_MAGIC: u64 = 0x4354_4F53; // "CTOS"
 
 /// `spin::Mutex` prefixes an atomic, so tables cannot live inside it
-/// (TTBR0 / table descriptors must be 4 KiB-aligned). Single-core:
-/// take `TABLES` before touching these.
+/// (TTBR0 / table descriptors must be 4 KiB-aligned). ADR-103: the
+/// storage lives in the private `tables` module; writers need a
+/// `TablesGuard` from `lock_tables()`.
 #[derive(Clone, Copy)]
 #[repr(C, align(4096))]
 struct Table {
@@ -140,6 +141,14 @@ struct Table {
 const fn empty_table() -> Table {
     Table { entries: [0; 512] }
 }
+
+/// ADR-103 (S3): page-table storage is private to this module. Every
+/// function that hands out a writable slot or allocates / clears a table
+/// takes `&mut TablesGuard`, and the only way to get one is
+/// [`lock_tables`] (spin lock + IRQs masked while held). Taking a table's
+/// physical address needs no guard (it writes nothing).
+mod tables {
+    use super::*;
 
 static mut L1: Table = empty_table();
 static mut L2: Table = empty_table();
@@ -167,6 +176,216 @@ static mut L3_HIGH: Table = empty_table();
 static mut L2_HIGH_RAM: Table = empty_table();
 static mut L3_HIGH_RAM: [Table; L3_KERNEL_CAP] = [empty_table(); L3_KERNEL_CAP];
 static mut L3_HIGH_RAM_USED: usize = 0;
+
+    /// Token held inside the `TABLES` mutex. Private field: only this
+    /// module can build one, so a `TablesGuard` exists only via the lock.
+    pub(super) struct Token(());
+    static TABLES: Mutex<Token> = Mutex::new(Token(()));
+
+    /// Proof that `TABLES` is held, with DAIF.I masked for its lifetime.
+    pub(super) struct TablesGuard {
+        _g: spin::MutexGuard<'static, Token>,
+        daif: u64,
+    }
+
+    impl Drop for TablesGuard {
+        fn drop(&mut self) {
+            unsafe { core::arch::asm!("msr daif, {d}", d = in(reg) self.daif, options(nomem, nostack)) };
+        }
+    }
+
+    /// Mask IRQs, then take the page-table lock.
+    pub(super) fn lock_tables() -> TablesGuard {
+        let daif: u64;
+        unsafe {
+            core::arch::asm!("mrs {d}, daif", "msr daifset, #2", d = out(reg) daif, options(nomem, nostack));
+        }
+        TablesGuard { _g: TABLES.lock(), daif }
+    }
+
+    pub(super) unsafe fn clear_kernel_roots(_g: &mut TablesGuard) {
+        addr_of_mut!(L1.entries).write([0; 512]);
+        addr_of_mut!(L2.entries).write([0; 512]);
+        addr_of_mut!(L3.entries).write([0; 512]);
+        addr_of_mut!(L2_RAM.entries).write([0; 512]);
+        L3_KERNEL_USED = 0;
+        L3_USER_USED = 0;
+        L3_HIGH_RAM_USED = 0;
+    }
+
+    pub(super) unsafe fn clear_high_roots(_g: &mut TablesGuard) {
+        addr_of_mut!(L1_HIGH.entries).write([0; 512]);
+        addr_of_mut!(L2_HIGH.entries).write([0; 512]);
+        addr_of_mut!(L3_HIGH.entries).write([0; 512]);
+    }
+
+    pub(super) unsafe fn clear_high_ram(_g: &mut TablesGuard) {
+        addr_of_mut!(L2_HIGH_RAM.entries).write([0; 512]);
+        L3_HIGH_RAM_USED = 0;
+    }
+
+    pub(super) unsafe fn clear_user_roots(_g: &mut TablesGuard) {
+        addr_of_mut!(L1_USER.entries).write([0; 512]);
+        addr_of_mut!(L2_USER.entries).write([0; 512]);
+        L3_USER_USED = 0;
+    }
+
+    pub(super) unsafe fn clear_asid_b_roots(_g: &mut TablesGuard) {
+        addr_of_mut!(L1_ASID_B.entries).write([0; 512]);
+        addr_of_mut!(L2_ASID_B.entries).write([0; 512]);
+        addr_of_mut!(L3_ASID_B.entries).write([0; 512]);
+    }
+
+pub(super) fn l1_pa() -> u64 {
+    identity_pa(addr_of!(L1) as usize as u64)
+}
+
+pub(super) fn l2_pa() -> u64 {
+    identity_pa(addr_of!(L2) as usize as u64)
+}
+
+pub(super) fn l3_pa() -> u64 {
+    identity_pa(addr_of!(L3) as usize as u64)
+}
+
+pub(super) fn l2_ram_pa() -> u64 {
+    identity_pa(addr_of!(L2_RAM) as usize as u64)
+}
+
+pub(super) fn l3_kernel_pa(i: usize) -> u64 {
+    unsafe { identity_pa(addr_of!(L3_KERNEL[i]) as usize as u64) }
+}
+
+pub(super) fn l1_user_pa() -> u64 {
+    identity_pa(addr_of!(L1_USER) as usize as u64)
+}
+
+pub(super) fn l2_user_pa() -> u64 {
+    identity_pa(addr_of!(L2_USER) as usize as u64)
+}
+
+pub(super) fn l3_user_pa(i: usize) -> u64 {
+    unsafe { identity_pa(addr_of!(L3_USER[i]) as usize as u64) }
+}
+
+pub(super) fn l1_asid_b_pa() -> u64 {
+    identity_pa(addr_of!(L1_ASID_B) as usize as u64)
+}
+
+pub(super) fn l2_asid_b_pa() -> u64 {
+    identity_pa(addr_of!(L2_ASID_B) as usize as u64)
+}
+
+pub(super) fn l3_asid_b_pa() -> u64 {
+    identity_pa(addr_of!(L3_ASID_B) as usize as u64)
+}
+
+pub(super) fn l1_high_pa() -> u64 {
+    identity_pa(addr_of!(L1_HIGH) as usize as u64)
+}
+
+pub(super) fn l2_high_pa() -> u64 {
+    identity_pa(addr_of!(L2_HIGH) as usize as u64)
+}
+
+pub(super) fn l3_high_pa() -> u64 {
+    identity_pa(addr_of!(L3_HIGH) as usize as u64)
+}
+
+pub(super) fn l2_high_ram_pa() -> u64 {
+    identity_pa(addr_of!(L2_HIGH_RAM) as usize as u64)
+}
+
+pub(super) fn l3_high_ram_pa(i: usize) -> u64 {
+    unsafe { identity_pa(addr_of!(L3_HIGH_RAM[i]) as usize as u64) }
+}
+
+pub(super) unsafe fn l1_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L1.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l2_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L2.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l3_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L3.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l2_ram_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L2_RAM.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l1_user_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L1_USER.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l2_user_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L2_USER.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l1_asid_b_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L1_ASID_B.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l2_asid_b_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L2_ASID_B.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l3_asid_b_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L3_ASID_B.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l1_high_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L1_HIGH.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l2_high_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L2_HIGH.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l3_high_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L3_HIGH.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn l2_high_ram_slot(_g: &mut TablesGuard, i: usize) -> *mut u64 {
+    addr_of_mut!(L2_HIGH_RAM.entries).cast::<u64>().add(i)
+}
+
+pub(super) unsafe fn alloc_kernel_l3(_g: &mut TablesGuard) -> Option<u64> {
+    let n = L3_KERNEL_USED;
+    if n >= L3_KERNEL_CAP {
+        return None;
+    }
+    L3_KERNEL_USED = n + 1;
+    addr_of_mut!(L3_KERNEL[n].entries).write([0; 512]);
+    Some(l3_kernel_pa(n))
+}
+
+pub(super) unsafe fn alloc_high_ram_l3(_g: &mut TablesGuard) -> Option<u64> {
+    let n = L3_HIGH_RAM_USED;
+    if n >= L3_KERNEL_CAP {
+        return None;
+    }
+    L3_HIGH_RAM_USED = n + 1;
+    addr_of_mut!(L3_HIGH_RAM[n].entries).write([0; 512]);
+    Some(l3_high_ram_pa(n))
+}
+
+pub(super) unsafe fn alloc_user_l3(_g: &mut TablesGuard) -> Option<u64> {
+    let n = L3_USER_USED;
+    if n >= L3_USER_CAP {
+        return None;
+    }
+    L3_USER_USED = n + 1;
+    addr_of_mut!(L3_USER[n].entries).write([0; 512]);
+    Some(l3_user_pa(n))
+}
+}
+use tables::{lock_tables, TablesGuard};
+#[allow(unused_imports)]
+use tables::*;
+
 static USER_MAP_OK: core::sync::atomic::AtomicBool =
     core::sync::atomic::AtomicBool::new(false);
 static TTBR1_OK: core::sync::atomic::AtomicBool =
@@ -228,7 +447,6 @@ static TORN_HEAP_PAGES: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
 static TORN_RAM_PAGES: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0);
-static TABLES: Mutex<()> = Mutex::new(());
 
 unsafe extern "C" {
     static __text_end: u8;
@@ -393,151 +611,6 @@ pub fn invoke_high(f: fn()) {
     g();
 }
 
-fn l1_pa() -> u64 {
-    identity_pa(addr_of!(L1) as usize as u64)
-}
-
-fn l2_pa() -> u64 {
-    identity_pa(addr_of!(L2) as usize as u64)
-}
-
-fn l3_pa() -> u64 {
-    identity_pa(addr_of!(L3) as usize as u64)
-}
-
-fn l2_ram_pa() -> u64 {
-    identity_pa(addr_of!(L2_RAM) as usize as u64)
-}
-
-fn l3_kernel_pa(i: usize) -> u64 {
-    unsafe { identity_pa(addr_of!(L3_KERNEL[i]) as usize as u64) }
-}
-
-fn l1_user_pa() -> u64 {
-    identity_pa(addr_of!(L1_USER) as usize as u64)
-}
-
-fn l2_user_pa() -> u64 {
-    identity_pa(addr_of!(L2_USER) as usize as u64)
-}
-
-fn l3_user_pa(i: usize) -> u64 {
-    unsafe { identity_pa(addr_of!(L3_USER[i]) as usize as u64) }
-}
-
-fn l1_asid_b_pa() -> u64 {
-    identity_pa(addr_of!(L1_ASID_B) as usize as u64)
-}
-
-fn l2_asid_b_pa() -> u64 {
-    identity_pa(addr_of!(L2_ASID_B) as usize as u64)
-}
-
-fn l3_asid_b_pa() -> u64 {
-    identity_pa(addr_of!(L3_ASID_B) as usize as u64)
-}
-
-fn l1_high_pa() -> u64 {
-    identity_pa(addr_of!(L1_HIGH) as usize as u64)
-}
-
-fn l2_high_pa() -> u64 {
-    identity_pa(addr_of!(L2_HIGH) as usize as u64)
-}
-
-fn l3_high_pa() -> u64 {
-    identity_pa(addr_of!(L3_HIGH) as usize as u64)
-}
-
-fn l2_high_ram_pa() -> u64 {
-    identity_pa(addr_of!(L2_HIGH_RAM) as usize as u64)
-}
-
-fn l3_high_ram_pa(i: usize) -> u64 {
-    unsafe { identity_pa(addr_of!(L3_HIGH_RAM[i]) as usize as u64) }
-}
-
-unsafe fn l1_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L1.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l2_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L2.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l3_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L3.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l2_ram_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L2_RAM.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l1_user_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L1_USER.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l2_user_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L2_USER.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l1_asid_b_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L1_ASID_B.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l2_asid_b_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L2_ASID_B.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l3_asid_b_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L3_ASID_B.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l1_high_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L1_HIGH.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l2_high_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L2_HIGH.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l3_high_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L3_HIGH.entries).cast::<u64>().add(i)
-}
-
-unsafe fn l2_high_ram_slot(i: usize) -> *mut u64 {
-    addr_of_mut!(L2_HIGH_RAM.entries).cast::<u64>().add(i)
-}
-
-unsafe fn alloc_kernel_l3() -> Option<u64> {
-    let n = L3_KERNEL_USED;
-    if n >= L3_KERNEL_CAP {
-        return None;
-    }
-    L3_KERNEL_USED = n + 1;
-    addr_of_mut!(L3_KERNEL[n].entries).write([0; 512]);
-    Some(l3_kernel_pa(n))
-}
-
-unsafe fn alloc_high_ram_l3() -> Option<u64> {
-    let n = L3_HIGH_RAM_USED;
-    if n >= L3_KERNEL_CAP {
-        return None;
-    }
-    L3_HIGH_RAM_USED = n + 1;
-    addr_of_mut!(L3_HIGH_RAM[n].entries).write([0; 512]);
-    Some(l3_high_ram_pa(n))
-}
-
-unsafe fn alloc_user_l3() -> Option<u64> {
-    let n = L3_USER_USED;
-    if n >= L3_USER_CAP {
-        return None;
-    }
-    L3_USER_USED = n + 1;
-    addr_of_mut!(L3_USER[n].entries).write([0; 512]);
-    Some(l3_user_pa(n))
-}
 
 /// CPU VA for a page-table PA. After the high split, prefer the TTBR1
 /// twin so identity `.bss` (where the tables live) can be torn (ADR-037).
@@ -563,7 +636,7 @@ pub fn frame_cpu_va(pa: u64) -> u64 {
     }
 }
 
-unsafe fn l3_write(l3_pa: u64, index: usize, desc: u64) {
+unsafe fn l3_write(_g: &mut TablesGuard, l3_pa: u64, index: usize, desc: u64) {
     core::ptr::write((table_cpu_va(l3_pa) as *mut u64).add(index), desc);
 }
 
@@ -680,14 +753,14 @@ fn walk_leaf(l1_table: u64, va: u64) -> Option<u64> {
 /// Walk kernel TTBR0. `Some(true)` = PXN set (EL1 must not execute).
 #[allow(dead_code)] // hello W^X probe + `#[test_case]`.
 pub fn pxn_for(va: u64) -> Option<bool> {
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_pa(), va).map(|d| d & DESC_PXN != 0)
 }
 
 /// Walk kernel TTBR0. `Some(true)` = AP[2] set (EL1 read-only).
 #[allow(dead_code)]
 pub fn readonly_for(va: u64) -> Option<bool> {
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_pa(), va).map(|d| d & DESC_AP_RO != 0)
 }
 
@@ -710,7 +783,7 @@ pub fn is_mapped(va: u64) -> bool {
 /// Walk the user TTBR0 tables. Kernel `.data` must be absent.
 #[allow(dead_code)]
 pub fn user_mapped(va: u64) -> bool {
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_user_pa(), va).is_some()
 }
 
@@ -720,7 +793,7 @@ pub fn user_mapped(va: u64) -> bool {
 /// execute-only leaf (AP[1]=0) is neither EL0-readable nor EL0-writable.
 #[allow(dead_code)]
 pub fn user_el0_access(va: u64) -> Option<(bool, bool)> {
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_user_pa(), va).map(|d| {
         let el0 = d & DESC_AP_EL0 != 0;
         let ro = d & DESC_AP_RO != 0;
@@ -732,7 +805,7 @@ pub fn user_el0_access(va: u64) -> Option<(bool, bool)> {
 /// After ADR-017, RAM identity VAs are also present at `to_high_va(va)`.
 #[allow(dead_code)]
 pub fn high_mapped(va: u64) -> bool {
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_high_pa(), va).is_some()
 }
 
@@ -742,7 +815,7 @@ pub fn high_pxn_for(va: u64) -> Option<bool> {
     if !is_high_va(va) {
         return None;
     }
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_high_pa(), va).map(|d| d & DESC_PXN != 0)
 }
 
@@ -752,7 +825,7 @@ pub fn high_readonly_for(va: u64) -> Option<bool> {
     if !is_high_va(va) {
         return None;
     }
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_high_pa(), va).map(|d| d & DESC_AP_RO != 0)
 }
 
@@ -1158,8 +1231,8 @@ pub fn leaf_view(d: u64) -> LeafView {
 
 /// Split an L2 block into L3 so a single 4 KiB slot can be invalidated.
 /// Returns the L3 table PA, or `None` if the slot is empty or we are out of tables.
-unsafe fn l3_pa_for_ram_block(l2_index: usize) -> Option<u64> {
-    let l2e = l2_ram_slot(l2_index).read();
+unsafe fn l3_pa_for_ram_block(g: &mut TablesGuard, l2_index: usize) -> Option<u64> {
+    let l2e = l2_ram_slot(g, l2_index).read();
     if l2e & DESC_VALID == 0 {
         return None;
     }
@@ -1169,32 +1242,32 @@ unsafe fn l3_pa_for_ram_block(l2_index: usize) -> Option<u64> {
     let exec = l2e & DESC_PXN == 0;
     let writable = l2e & DESC_AP_RO == 0;
     let block_va = frame::VIRT_RAM_BASE + (l2_index as u64) * L2_BLOCK;
-    let l3_pa = alloc_kernel_l3()?;
+    let l3_pa = alloc_kernel_l3(g)?;
     for p in 0..512 {
         let page_va = block_va + p as u64 * PAGE;
-        l3_write(l3_pa, p, l3_page_flags(page_va, exec, writable));
+        l3_write(g, l3_pa, p, l3_page_flags(page_va, exec, writable));
     }
-    l2_ram_slot(l2_index).write(table_desc(l3_pa));
+    l2_ram_slot(g, l2_index).write(table_desc(l3_pa));
     Some(l3_pa)
 }
 
 /// Clear the identity L3 slot for `va` (4 KiB aligned). Used for stack guards.
-unsafe fn unmap_identity_page(va: u64) -> bool {
+unsafe fn unmap_identity_page(g: &mut TablesGuard, va: u64) -> bool {
     if va & (PAGE - 1) != 0 {
         return false;
     }
     let l2i = ((va >> 21) & 0x1ff) as usize;
-    let Some(l3_pa) = l3_pa_for_ram_block(l2i) else {
+    let Some(l3_pa) = l3_pa_for_ram_block(g, l2i) else {
         return false;
     };
     let l3i = ((va >> 12) & 0x1ff) as usize;
-    l3_write(l3_pa, l3i, 0);
+    l3_write(g, l3_pa, l3i, 0);
     true
 }
 
 /// Split a user L2 block into L3 so one 4 KiB slot can be cleared.
-unsafe fn l3_pa_for_user_block(l2_index: usize) -> Option<u64> {
-    let l2e = l2_user_slot(l2_index).read();
+unsafe fn l3_pa_for_user_block(g: &mut TablesGuard, l2_index: usize) -> Option<u64> {
+    let l2e = l2_user_slot(g, l2_index).read();
     if l2e & DESC_VALID == 0 {
         return None;
     }
@@ -1204,63 +1277,62 @@ unsafe fn l3_pa_for_user_block(l2_index: usize) -> Option<u64> {
     let exec = l2e & DESC_PXN == 0;
     let writable = l2e & DESC_AP_RO == 0;
     let block_va = frame::VIRT_RAM_BASE + (l2_index as u64) * L2_BLOCK;
-    let l3_pa = alloc_user_l3()?;
+    let l3_pa = alloc_user_l3(g)?;
     for p in 0..512 {
         let page_va = block_va + p as u64 * PAGE;
-        l3_write(l3_pa, p, l3_page_flags(page_va, exec, writable));
+        l3_write(g, l3_pa, p, l3_page_flags(page_va, exec, writable));
     }
-    l2_user_slot(l2_index).write(table_desc(l3_pa));
+    l2_user_slot(g, l2_index).write(table_desc(l3_pa));
     Some(l3_pa)
 }
 
 /// Clear the user-TTBR0 L3 slot for `va`. Independent of identity `L2_RAM`.
-unsafe fn unmap_user_ram_page(va: u64) -> bool {
+unsafe fn unmap_user_ram_page(g: &mut TablesGuard, va: u64) -> bool {
     if va & (PAGE - 1) != 0 {
         return false;
     }
     let l2i = ((va >> 21) & 0x1ff) as usize;
-    let Some(l3_pa) = l3_pa_for_user_block(l2i) else {
+    let Some(l3_pa) = l3_pa_for_user_block(g, l2i) else {
         return false;
     };
     let l3i = ((va >> 12) & 0x1ff) as usize;
-    l3_write(l3_pa, l3i, 0);
+    l3_write(g, l3_pa, l3i, 0);
     true
 }
 
 /// Clone identity RAM L2/L3 into `L2_HIGH_RAM` so TTBR1 can keep a page
 /// after identity unmaps it (ADR-018). L2 block descriptors are copied;
 /// L3 tables are duplicated.
-unsafe fn clone_ram_tables_for_high() -> bool {
-    addr_of_mut!(L2_HIGH_RAM.entries).write([0; 512]);
-    L3_HIGH_RAM_USED = 0;
+unsafe fn clone_ram_tables_for_high(g: &mut TablesGuard) -> bool {
+    clear_high_ram(g);
     for i in 0..512 {
-        let e = l2_ram_slot(i).read();
+        let e = l2_ram_slot(g, i).read();
         if e & DESC_VALID == 0 {
-            l2_high_ram_slot(i).write(0);
+            l2_high_ram_slot(g, i).write(0);
             continue;
         }
         if e & DESC_TABLE == 0 {
-            l2_high_ram_slot(i).write(e);
+            l2_high_ram_slot(g, i).write(e);
             continue;
         }
         let src = e & !0xfff;
-        let Some(dst) = alloc_high_ram_l3() else {
+        let Some(dst) = alloc_high_ram_l3(g) else {
             return false;
         };
         for p in 0..512 {
             let d = core::ptr::read((table_cpu_va(src) as *const u64).add(p));
             core::ptr::write((table_cpu_va(dst) as *mut u64).add(p), d);
         }
-        l2_high_ram_slot(i).write(table_desc(dst));
+        l2_high_ram_slot(g, i).write(table_desc(dst));
     }
     true
 }
 
 /// Punch the three linker-stack guard holes (ADR-014). Call before MMU on.
-unsafe fn install_stack_guards() -> bool {
+unsafe fn install_stack_guards(g: &mut TablesGuard) -> bool {
     let mut ok = true;
     for va in crate::exception::stack_guards() {
-        if !unmap_identity_page(va) {
+        if !unmap_identity_page(g, va) {
             ok = false;
         }
     }
@@ -1277,7 +1349,7 @@ fn page_writable(va: u64, data: u64) -> bool {
 
 /// Fill L2 (and one fresh L3 per mixed 2 MiB) so `.text`/`.rodata` are
 /// RO+X and everything else in the 128 MiB guest is RW+NX.
-unsafe fn fill_ram_wx() {
+unsafe fn fill_ram_wx(g: &mut TablesGuard) {
     let data = data_start();
     let ram_lo = frame::VIRT_RAM_BASE;
     let ram_hi = ram_lo + frame::VIRT_RAM_SIZE;
@@ -1287,13 +1359,13 @@ unsafe fn fill_ram_wx() {
         let i = ((va >> 21) & 0x1ff) as usize;
         if next <= KERNEL_TEXT || va >= data {
             // Entire block is data-side (DTB hole, .data/.bss/stacks, or heap).
-            l2_ram_slot(i).write(l2_block(va, false, true));
+            l2_ram_slot(g, i).write(l2_block(va, false, true));
         } else if va >= KERNEL_TEXT && next <= data {
-            l2_ram_slot(i).write(l2_block(va, true, false));
-        } else if let Some(l3) = alloc_kernel_l3() {
+            l2_ram_slot(g, i).write(l2_block(va, true, false));
+        } else if let Some(l3) = alloc_kernel_l3(g) {
             for p in 0..512 {
                 let page_va = va + p as u64 * PAGE;
-                l3_write(
+                l3_write(g, 
                     l3,
                     p,
                     l3_page_flags(
@@ -1303,7 +1375,7 @@ unsafe fn fill_ram_wx() {
                     ),
                 );
             }
-            l2_ram_slot(i).write(table_desc(l3));
+            l2_ram_slot(g, i).write(table_desc(l3));
         }
         va = next;
     }
@@ -1315,10 +1387,8 @@ fn ranges_overlap(a0: u64, a1: u64, b0: u64, b1: u64) -> bool {
 
 /// User TTBR0: every 2 MiB that holds text/rodata or the exception stack.
 /// Shared map-window L2 so `EL0_PAGE` is visible. Omits `.data`/heap.
-unsafe fn fill_user_map() -> bool {
-    addr_of_mut!(L1_USER.entries).write([0; 512]);
-    addr_of_mut!(L2_USER.entries).write([0; 512]);
-    L3_USER_USED = 0;
+unsafe fn fill_user_map(g: &mut TablesGuard) -> bool {
+    clear_user_roots(g);
     let data = data_start();
     let exc_lo = crate::exception::exc_stack_bottom();
     let exc_hi = crate::exception::exc_stack_top();
@@ -1343,30 +1413,30 @@ unsafe fn fill_user_map() -> bool {
         let all_text = va >= KERNEL_TEXT && next <= data && !overlaps_exc;
         let all_exc = va >= exc_lo && next <= exc_hi && !overlaps_text;
         if all_text {
-            l2_user_slot(i).write(l2_block(va, true, false));
+            l2_user_slot(g, i).write(l2_block(va, true, false));
         } else if all_exc {
-            l2_user_slot(i).write(l2_block(va, false, true));
+            l2_user_slot(g, i).write(l2_block(va, false, true));
         } else {
-            let Some(l3) = alloc_user_l3() else {
+            let Some(l3) = alloc_user_l3(g) else {
                 return false;
             };
             for p in 0..512 {
                 let page_va = va + p as u64 * PAGE;
                 if page_va >= KERNEL_TEXT && page_va < data {
-                    l3_write(l3, p, l3_page_flags(page_va, true, false));
+                    l3_write(g, l3, p, l3_page_flags(page_va, true, false));
                 } else if page_va >= exc_lo && page_va < exc_hi {
-                    l3_write(l3, p, l3_page_flags(page_va, false, true));
+                    l3_write(g, l3, p, l3_page_flags(page_va, false, true));
                 } else {
-                    l3_write(l3, p, 0);
+                    l3_write(g, l3, p, 0);
                 }
             }
-            l2_user_slot(i).write(table_desc(l3));
+            l2_user_slot(g, i).write(table_desc(l3));
         }
         va = next;
     }
-    l1_user_slot(1).write(table_desc(l2_user_pa()));
+    l1_user_slot(g, 1).write(table_desc(l2_user_pa()));
     // Same map-window L2/L3 as the kernel (EL0 trampoline lives there).
-    l1_user_slot(2).write(table_desc(l2_pa()));
+    l1_user_slot(g, 2).write(table_desc(l2_pa()));
     true
 }
 
@@ -1450,18 +1520,36 @@ fn load_u64_flag(flag: &core::sync::atomic::AtomicU64) -> u64 {
     }
 }
 
+/// ADR-103 (S3): every unmap / downgrade / tear invalidates with the
+/// Inner-Shareable (broadcast) forms, so another core's TLB drops the entry
+/// too: `dsb ishst` (descriptor write visible to all walkers), `tlbi …is`,
+/// `dsb ish`, `isb`. The `local-tlbi-leak-probe` negative build keeps the
+/// old local-only forms (`vmalle1` / `vaae1`) so the cross-core probe can
+/// show what is lost.
 fn tlbi_all() {
     unsafe {
-        core::arch::asm!("tlbi vmalle1", options(nostack, preserves_flags));
+        #[cfg(not(feature = "local-tlbi-leak-probe"))]
+        core::arch::asm!("dsb ishst", "tlbi vmalle1is", options(nostack, preserves_flags));
+        #[cfg(feature = "local-tlbi-leak-probe")]
+        core::arch::asm!("dsb ishst", "tlbi vmalle1", options(nostack, preserves_flags));
     }
     dsb_ish();
     isb();
 }
 
 fn tlbi_va(va: u64) {
-    let page = va >> 12;
+    let page = (va >> 12) & ((1u64 << 44) - 1);
     unsafe {
+        #[cfg(not(feature = "local-tlbi-leak-probe"))]
         core::arch::asm!(
+            "dsb ishst",
+            "tlbi vaae1is, {x}",
+            x = in(reg) page,
+            options(nostack, preserves_flags),
+        );
+        #[cfg(feature = "local-tlbi-leak-probe")]
+        core::arch::asm!(
+            "dsb ishst",
             "tlbi vaae1, {x}",
             x = in(reg) page,
             options(nostack, preserves_flags),
@@ -1489,47 +1577,39 @@ pub fn init() {
     #[cfg(feature = "b2-serror")]
     crate::uart::write_str_raw("b2: p0 tables (pre-MMU)\n");
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         unsafe {
-            addr_of_mut!(L1.entries).write([0; 512]);
-            addr_of_mut!(L2.entries).write([0; 512]);
-            addr_of_mut!(L3.entries).write([0; 512]);
-            addr_of_mut!(L2_RAM.entries).write([0; 512]);
-            L3_KERNEL_USED = 0;
-            L3_USER_USED = 0;
-            L3_HIGH_RAM_USED = 0;
+            clear_kernel_roots(g);
             // 0x0000_0000–0x3FFF_FFFF: virt MMIO (UART, GIC, flash).
-            l1_slot(0).write(l1_block(0x0000_0000, ATTR_DEVICE, false));
+            l1_slot(g, 0).write(l1_block(0x0000_0000, ATTR_DEVICE, false));
             // 0x4000_0000–0x7FFF_FFFF: L2 RAM (text RO+X, data/stacks/heap RW+NX).
-            l1_slot(1).write(table_desc(l2_ram_pa()));
-            fill_ram_wx();
-            if !install_stack_guards() {
+            l1_slot(g, 1).write(table_desc(l2_ram_pa()));
+            fill_ram_wx(g);
+            if !install_stack_guards(g) {
                 // Leave tables as-is; the hello / test probe will fail closed.
             }
             // 0x8000_0000–0xBFFF_FFFF: L2/L3 window for 4 KiB maps.
-            l1_slot(2).write(table_desc(l2_pa()));
-            l2_slot(0).write(table_desc(l3_pa()));
-            user_ok = fill_user_map();
+            l1_slot(g, 2).write(table_desc(l2_pa()));
+            l2_slot(g, 0).write(table_desc(l3_pa()));
+            user_ok = fill_user_map(g);
             // TTBR1: empty L3 behind a live table walk (ADR-016). Probe maps
             // TTBR1_PRIV later. L1[1] uses a **clone** of identity RAM so
             // unmap-identity does not drop the high twin (ADR-018).
-            addr_of_mut!(L1_HIGH.entries).write([0; 512]);
-            addr_of_mut!(L2_HIGH.entries).write([0; 512]);
-            addr_of_mut!(L3_HIGH.entries).write([0; 512]);
-            l1_high_slot(0).write(table_desc(l2_high_pa()));
-            l2_high_slot(0).write(table_desc(l3_high_pa()));
+            clear_high_roots(g);
+            l1_high_slot(g, 0).write(table_desc(l2_high_pa()));
+            l2_high_slot(g, 0).write(table_desc(l3_high_pa()));
             // ADR-088: three 2 MiB Device blocks (EL1 RW, PXN+UXN, EL0 none)
             // at `TTBR1_BASE + pa` for GIC / PL011 / virtio-mmio. Only these
             // 6 MiB of the 1 GiB MMIO hole get a high alias.
             for pa in mmio_high_blocks() {
-                l2_high_slot(((pa >> 21) & 0x1ff) as usize).write(l2_device_block(pa));
+                l2_high_slot(g, ((pa >> 21) & 0x1ff) as usize).write(l2_device_block(pa));
             }
-            split_ok = clone_ram_tables_for_high();
+            split_ok = clone_ram_tables_for_high(g);
             if split_ok {
-                l1_high_slot(1).write(table_desc(l2_high_ram_pa()));
+                l1_high_slot(g, 1).write(table_desc(l2_high_ram_pa()));
             } else {
                 // Fail closed on the tear mile; keep ADR-017 fetch alive.
-                l1_high_slot(1).write(table_desc(l2_ram_pa()));
+                l1_high_slot(g, 1).write(table_desc(l2_ram_pa()));
             }
         }
         dsb_ish();
@@ -1619,12 +1699,12 @@ pub fn tear_identity_probe_page() -> bool {
         return false;
     }
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         unsafe {
-            if !unmap_identity_page(va) {
+            if !unmap_identity_page(g, va) {
                 return false;
             }
-            if !unmap_user_ram_page(va) {
+            if !unmap_user_ram_page(g, va) {
                 return false;
             }
         }
@@ -1660,14 +1740,14 @@ pub fn tear_identity_text_range() -> bool {
         return false;
     }
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         let mut va = lo;
         unsafe {
             while va < hi {
-                if !unmap_identity_page(va) {
+                if !unmap_identity_page(g, va) {
                     return false;
                 }
-                if !unmap_user_ram_page(va) {
+                if !unmap_user_ram_page(g, va) {
                     return false;
                 }
                 va += PAGE;
@@ -1729,8 +1809,8 @@ fn set_identity_page_writable(va: u64, writable: bool) -> bool {
     if va & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
-    let ok = unsafe { set_identity_l3_writable(va, writable) };
+    let g = &mut lock_tables();
+    let ok = unsafe { set_identity_l3_writable(g, va, writable) };
     if ok {
         dsb_ish();
         tlbi_va(va);
@@ -1738,9 +1818,9 @@ fn set_identity_page_writable(va: u64, writable: bool) -> bool {
     ok
 }
 
-unsafe fn set_identity_l3_writable(va: u64, writable: bool) -> bool {
+unsafe fn set_identity_l3_writable(g: &mut TablesGuard, va: u64, writable: bool) -> bool {
     let l2i = ((va >> 21) & 0x1ff) as usize;
-    let Some(l3_pa) = l3_pa_for_ram_block(l2i) else {
+    let Some(l3_pa) = l3_pa_for_ram_block(g, l2i) else {
         return false;
     };
     let l3i = ((va >> 12) & 0x1ff) as usize;
@@ -1753,7 +1833,7 @@ unsafe fn set_identity_l3_writable(va: u64, writable: bool) -> bool {
     } else {
         d | DESC_AP_RO
     };
-    l3_write(l3_pa, l3i, new);
+    l3_write(g, l3_pa, l3i, new);
     true
 }
 
@@ -1914,14 +1994,14 @@ pub fn tear_live_identity_text() -> bool {
         return false;
     }
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         let mut va = lo;
         unsafe {
             while va < hi {
-                if !unmap_identity_page(va) {
+                if !unmap_identity_page(g, va) {
                     return false;
                 }
-                if !unmap_user_ram_page(va) {
+                if !unmap_user_ram_page(g, va) {
                     return false;
                 }
                 va += PAGE;
@@ -2022,14 +2102,14 @@ pub fn tear_identity_rodata() -> bool {
         return false;
     }
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         let mut va = lo;
         unsafe {
             while va < hi {
-                if !unmap_identity_page(va) {
+                if !unmap_identity_page(g, va) {
                     return false;
                 }
-                if !unmap_user_ram_page(va) {
+                if !unmap_user_ram_page(g, va) {
                     return false;
                 }
                 va += PAGE;
@@ -2194,15 +2274,15 @@ pub fn tear_identity_data() -> bool {
         return false;
     }
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         let mut va = lo;
         unsafe {
             while va < hi {
                 // Guard holes are already clear; clearing again is fine.
-                if !unmap_identity_page(va) {
+                if !unmap_identity_page(g, va) {
                     return false;
                 }
-                let _ = unmap_user_ram_page(va);
+                let _ = unmap_user_ram_page(g, va);
                 va += PAGE;
             }
         }
@@ -2313,14 +2393,14 @@ pub fn tear_identity_heap() -> bool {
         return false;
     }
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         let mut va = lo;
         unsafe {
             while va < hi {
-                if !unmap_identity_page(va) {
+                if !unmap_identity_page(g, va) {
                     return false;
                 }
-                let _ = unmap_user_ram_page(va);
+                let _ = unmap_user_ram_page(g, va);
                 va += PAGE;
             }
         }
@@ -2396,7 +2476,7 @@ pub fn tear_identity_ram() -> bool {
     }
     let mut pages: u64 = 0;
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         let mut va = lo;
         unsafe {
             while va < hi {
@@ -2406,15 +2486,15 @@ pub fn tear_identity_ram() -> bool {
                 if va == block && tear_hi == block_end {
                     // Whole 2 MiB: clear the L2 slot (block or table).
                     let l2i = ((va >> 21) & 0x1ff) as usize;
-                    l2_ram_slot(l2i).write(0);
+                    l2_ram_slot(g, l2i).write(0);
                     pages += L2_BLOCK / PAGE;
                     va = block_end;
                 } else {
                     while va < tear_hi {
-                        if !unmap_identity_page(va) {
+                        if !unmap_identity_page(g, va) {
                             return false;
                         }
-                        let _ = unmap_user_ram_page(va);
+                        let _ = unmap_user_ram_page(g, va);
                         pages += 1;
                         va += PAGE;
                     }
@@ -2480,7 +2560,7 @@ pub fn tear_identity_leftovers() -> bool {
     let mut ucounts = [0u64; 3];
     let mut first = [0u64; 3];
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         for (r, (lo, hi)) in ranges.iter().enumerate() {
             let mut va = *lo;
             while va < *hi {
@@ -2492,7 +2572,7 @@ pub fn tear_identity_leftovers() -> bool {
                     }
                     counts[r] += 1;
                     unsafe {
-                        if !unmap_identity_page(va) {
+                        if !unmap_identity_page(g, va) {
                             return false;
                         }
                     }
@@ -2500,7 +2580,7 @@ pub fn tear_identity_leftovers() -> bool {
                 if umapped {
                     ucounts[r] += 1;
                     unsafe {
-                        if !unmap_user_ram_page(va) {
+                        if !unmap_user_ram_page(g, va) {
                             return false;
                         }
                     }
@@ -2629,14 +2709,14 @@ pub fn tear_identity_mmio() -> bool {
         return false;
     }
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         unsafe {
-            if l1_slot(0).read() & DESC_VALID == 0 {
+            if l1_slot(g, 0).read() & DESC_VALID == 0 {
                 return false;
             }
-            l1_slot(0).write(0);
-            if l1_asid_b_slot(0).read() & DESC_VALID != 0 {
-                l1_asid_b_slot(0).write(0);
+            l1_slot(g, 0).write(0);
+            if l1_asid_b_slot(g, 0).read() & DESC_VALID != 0 {
+                l1_asid_b_slot(g, 0).write(0);
             }
         }
         dsb_ish();
@@ -2793,12 +2873,12 @@ unsafe fn inventory_locked(print: bool, query: Option<u64>) -> IdentInventory {
 #[cfg(feature = "inv-leak-probe")]
 pub fn plant_persistent_leak() -> bool {
     let plant = frame::VIRT_RAM_BASE;
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        let Some(l3) = l3_pa_for_ram_block(((plant >> 21) & 0x1ff) as usize) else {
+        let Some(l3) = l3_pa_for_ram_block(g, ((plant >> 21) & 0x1ff) as usize) else {
             return false;
         };
-        l3_write(l3, ((plant >> 12) & 0x1ff) as usize, l3_page_flags(plant, false, true));
+        l3_write(g, l3, ((plant >> 12) & 0x1ff) as usize, l3_page_flags(plant, false, true));
     }
     dsb_ish();
     true
@@ -2807,7 +2887,7 @@ pub fn plant_persistent_leak() -> bool {
 /// Walk kernel / user / ASID-B TTBR0 and report identity leaves (ADR-087).
 #[allow(dead_code)]
 pub fn identity_inventory(print: bool) -> IdentInventory {
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     unsafe { inventory_locked(print, None) }
 }
 
@@ -2826,23 +2906,23 @@ pub fn inventory_negative_probe() -> (bool, bool, bool) {
     let l3i = ((plant >> 12) & 0x1ff) as usize;
     let (mut k, mut u) = (false, false);
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         unsafe {
-            if let Some(l3) = l3_pa_for_ram_block(l2i) {
+            if let Some(l3) = l3_pa_for_ram_block(g, l2i) {
                 if desc_at(l3, l3i) & DESC_VALID == 0 {
-                    l3_write(l3, l3i, l3_page_flags(plant, false, true));
+                    l3_write(g, l3, l3i, l3_page_flags(plant, false, true));
                     dsb_ish();
                     k = inventory_locked(false, Some(plant)).query_hit[0];
-                    l3_write(l3, l3i, 0);
+                    l3_write(g, l3, l3i, 0);
                     dsb_ish();
                 }
             }
-            if let Some(l3) = l3_pa_for_user_block(l2i) {
+            if let Some(l3) = l3_pa_for_user_block(g, l2i) {
                 if desc_at(l3, l3i) & DESC_VALID == 0 {
-                    l3_write(l3, l3i, l3_page_flags(plant, false, true));
+                    l3_write(g, l3, l3i, l3_page_flags(plant, false, true));
                     dsb_ish();
                     u = inventory_locked(false, Some(plant)).query_hit[1];
-                    l3_write(l3, l3i, 0);
+                    l3_write(g, l3, l3i, 0);
                     dsb_ish();
                 }
             }
@@ -3077,7 +3157,7 @@ fn why_suffix(why: &'static str) -> &'static str {
 #[allow(dead_code)]
 pub fn el0_reach(print: bool) -> El0Reach {
     let k = kernel_pa_bounds();
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     unsafe { el0_reach_locked(print, None, &k) }
 }
 
@@ -3100,20 +3180,20 @@ pub const REACH_PLANT_VA_SLOT: usize = 400;
 pub const REACH_PLANT_H_SLOT: usize = 256;
 
 /// `(va, slot pointer, descriptor)` for a plant; `None` if the slot is busy.
-unsafe fn reach_plant_slot(kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> Option<(u64, *mut u64, u64)> {
+unsafe fn reach_plant_slot(g: &mut TablesGuard, kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> Option<(u64, *mut u64, u64)> {
     let (va, slot, desc) = match kind {
-        ReachPlant::KernelPa => (LOADER_STACK_VA, l3_slot(7), l3_page_el0_ro(kernel_pa)),
+        ReachPlant::KernelPa => (LOADER_STACK_VA, l3_slot(g, 7), l3_page_el0_ro(kernel_pa)),
         ReachPlant::Va => (
             MAP_WINDOW + (REACH_PLANT_VA_SLOT as u64) * PAGE,
-            l3_slot(REACH_PLANT_VA_SLOT),
+            l3_slot(g, REACH_PLANT_VA_SLOT),
             l3_page_el0_ro(pool_pa),
         ),
         ReachPlant::Ttbr1 => (
             TTBR1_BASE + (REACH_PLANT_H_SLOT as u64) * PAGE,
-            l3_high_slot(REACH_PLANT_H_SLOT),
+            l3_high_slot(g, REACH_PLANT_H_SLOT),
             l3_page_el0_ro(pool_pa),
         ),
-        ReachPlant::El0Wx => (EL0_PAGE, l3_slot(2), l3_page_el0_rw(pool_pa) & !DESC_UXN),
+        ReachPlant::El0Wx => (EL0_PAGE, l3_slot(g, 2), l3_page_el0_rw(pool_pa) & !DESC_UXN),
     };
     if slot.read() & DESC_VALID != 0 {
         return None;
@@ -3130,9 +3210,9 @@ pub fn el0_reach_plant_probe(kind: ReachPlant, kernel_pa: u64, pool_pa: u64) -> 
     let res;
     let va;
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         unsafe {
-            let (v, slot, desc) = reach_plant_slot(kind, kernel_pa, pool_pa)?;
+            let (v, slot, desc) = reach_plant_slot(g, kind, kernel_pa, pool_pa)?;
             va = v;
             slot.write(desc);
             dsb_ish();
@@ -3156,9 +3236,9 @@ pub fn el0_reach_xo_plant_probe(pool_pa: u64) -> Option<(u64, El0Reach, u64)> {
     let desc = l3_page_el0_xo(pool_pa);
     let res;
     {
-        let _g = TABLES.lock();
+        let g = &mut lock_tables();
         unsafe {
-            let slot = l3_slot(REACH_PLANT_VA_SLOT);
+            let slot = l3_slot(g, REACH_PLANT_VA_SLOT);
             if slot.read() & DESC_VALID != 0 {
                 return None;
             }
@@ -3177,9 +3257,9 @@ pub fn el0_reach_xo_plant_probe(pool_pa: u64) -> Option<(u64, El0Reach, u64)> {
 /// kernel `.data` at `LOADER_STACK_VA`. Never accessed.
 #[cfg(feature = "reach-leak-probe")]
 pub fn plant_persistent_reach_leak(kernel_pa: u64) -> bool {
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        let Some((_, slot, desc)) = reach_plant_slot(ReachPlant::KernelPa, kernel_pa, 0) else {
+        let Some((_, slot, desc)) = reach_plant_slot(g, ReachPlant::KernelPa, kernel_pa, 0) else {
             return false;
         };
         slot.write(desc);
@@ -3258,12 +3338,12 @@ pub fn map_el0_ro(va: u64, pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID != 0 {
+        if l3_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_slot(i).write(l3_page_el0_ro(pa));
+        l3_slot(g, i).write(l3_page_el0_ro(pa));
     }
     dsb_ish();
     tlbi_va(va);
@@ -3278,12 +3358,12 @@ pub fn map_el0_rw(va: u64, pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID != 0 {
+        if l3_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_slot(i).write(l3_page_el0_rw(pa));
+        l3_slot(g, i).write(l3_page_el0_rw(pa));
     }
     dsb_ish();
     tlbi_va(va);
@@ -3298,12 +3378,12 @@ pub fn map_el0_exec(va: u64, pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID != 0 {
+        if l3_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_slot(i).write(l3_page_el0_exec(pa));
+        l3_slot(g, i).write(l3_page_el0_exec(pa));
     }
     dsb_ish();
     tlbi_va(va);
@@ -3322,12 +3402,12 @@ pub fn map_el0_text(va: u64, pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID != 0 {
+        if l3_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_slot(i).write(l3_page_el0_text(pa));
+        l3_slot(g, i).write(l3_page_el0_text(pa));
     }
     dsb_ish();
     tlbi_va(va);
@@ -3344,12 +3424,12 @@ pub fn map_el0_xo(va: u64, pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID != 0 {
+        if l3_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_slot(i).write(l3_page_el0_xo(pa));
+        l3_slot(g, i).write(l3_page_el0_xo(pa));
     }
     dsb_ish();
     tlbi_va(va);
@@ -3377,12 +3457,12 @@ fn map_window_desc(va: u64, desc: u64) -> bool {
     let Some(i) = window_index(va) else {
         return false;
     };
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID != 0 {
+        if l3_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_slot(i).write(desc);
+        l3_slot(g, i).write(desc);
     }
     dsb_ish();
     tlbi_va(va);
@@ -3392,21 +3472,19 @@ fn map_window_desc(va: u64, desc: u64) -> bool {
 /// Clone kernel MMIO + RAM L1 slots; give ASID B its own empty map-window L3.
 #[allow(dead_code)]
 pub fn prepare_asid_b_tables() -> bool {
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        addr_of_mut!(L1_ASID_B.entries).write([0; 512]);
-        addr_of_mut!(L2_ASID_B.entries).write([0; 512]);
-        addr_of_mut!(L3_ASID_B.entries).write([0; 512]);
-        let mmio = l1_slot(0).read();
-        let ram = l1_slot(1).read();
+        clear_asid_b_roots(g);
+        let mmio = l1_slot(g, 0).read();
+        let ram = l1_slot(g, 1).read();
         // ADR-088: identity MMIO may already be torn (slot 0 empty).
         if ram & DESC_VALID == 0 {
             return false;
         }
-        l1_asid_b_slot(0).write(mmio);
-        l1_asid_b_slot(1).write(ram);
-        l2_asid_b_slot(0).write(table_desc(l3_asid_b_pa()));
-        l1_asid_b_slot(2).write(table_desc(l2_asid_b_pa()));
+        l1_asid_b_slot(g, 0).write(mmio);
+        l1_asid_b_slot(g, 1).write(ram);
+        l2_asid_b_slot(g, 0).write(table_desc(l3_asid_b_pa()));
+        l1_asid_b_slot(g, 2).write(table_desc(l2_asid_b_pa()));
     }
     dsb_ish();
     true
@@ -3421,12 +3499,12 @@ pub fn map_asid_b_ng(va: u64, pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_asid_b_slot(i).read() & DESC_VALID != 0 {
+        if l3_asid_b_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_asid_b_slot(i).write(l3_page(pa) | DESC_NG);
+        l3_asid_b_slot(g, i).write(l3_page(pa) | DESC_NG);
     }
     dsb_ish();
     true
@@ -3444,12 +3522,12 @@ pub fn map_asid_b_el0(va: u64, pa: u64, exec: bool) -> bool {
         return false;
     }
     let desc = if exec { l3_page_el0_exec(pa) } else { l3_page_el0_rw(pa) } | DESC_NG;
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_asid_b_slot(i).read() & DESC_VALID != 0 {
+        if l3_asid_b_slot(g, i).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_asid_b_slot(i).write(desc);
+        l3_asid_b_slot(g, i).write(desc);
     }
     dsb_ish();
     true
@@ -3469,8 +3547,8 @@ pub fn map_el0_rw_ng(va: u64, pa: u64) -> bool {
 #[allow(dead_code)]
 pub fn asid_b_leaf(va: u64) -> Option<u64> {
     let i = window_index(va)?;
-    let _g = TABLES.lock();
-    Some(unsafe { l3_asid_b_slot(i).read() })
+    let g = &mut lock_tables();
+    Some(unsafe { l3_asid_b_slot(g, i).read() })
 }
 
 /// ADR-096: which TTBR0 root `pa_refs` walks.
@@ -3495,7 +3573,7 @@ pub fn pa_refs(root: T2tRoot, pa: u64) -> (u32, u32) {
     let pa = pa & !(PAGE - 1);
     let mut any = 0u32;
     let mut el0 = 0u32;
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     unsafe {
         walk_leaves(l1, 0, &mut |_va, size, d| {
             let lo = d & OA & !(size - 1);
@@ -3515,12 +3593,12 @@ pub fn unmap_asid_b_page(va: u64) -> bool {
     let Some(i) = window_index(va) else {
         return false;
     };
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_asid_b_slot(i).read() & DESC_VALID == 0 {
+        if l3_asid_b_slot(g, i).read() & DESC_VALID == 0 {
             return false;
         }
-        l3_asid_b_slot(i).write(0);
+        l3_asid_b_slot(g, i).write(0);
     }
     dsb_ish();
     true
@@ -3529,7 +3607,7 @@ pub fn unmap_asid_b_page(va: u64) -> bool {
 /// Walk ASID-B tables. Used by the isolation `#[test_case]`.
 #[allow(dead_code)]
 pub fn asid_b_mapped(va: u64) -> bool {
-    let _g = TABLES.lock();
+    let _g = lock_tables();
     walk_leaf(l1_asid_b_pa(), va).is_some()
 }
 
@@ -3553,12 +3631,12 @@ pub fn map_ttbr1_priv(pa: u64) -> bool {
     if pa & (PAGE - 1) != 0 {
         return false;
     }
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_high_slot(0).read() & DESC_VALID != 0 {
+        if l3_high_slot(g, 0).read() & DESC_VALID != 0 {
             return false;
         }
-        l3_high_slot(0).write(l3_page(pa));
+        l3_high_slot(g, 0).write(l3_page(pa));
     }
     dsb_ish();
     tlbi_va(TTBR1_PRIV);
@@ -3568,12 +3646,12 @@ pub fn map_ttbr1_priv(pa: u64) -> bool {
 /// Clear the TTBR1 private page. Identity of `pa` is unchanged.
 #[allow(dead_code)]
 pub fn unmap_ttbr1_priv() -> bool {
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_high_slot(0).read() & DESC_VALID == 0 {
+        if l3_high_slot(g, 0).read() & DESC_VALID == 0 {
             return false;
         }
-        l3_high_slot(0).write(0);
+        l3_high_slot(g, 0).write(0);
     }
     dsb_ish();
     tlbi_va(TTBR1_PRIV);
@@ -3583,8 +3661,8 @@ pub fn unmap_ttbr1_priv() -> bool {
 /// High-page leaf. `Some(d)` after a map; `Some(0)` after unmap.
 #[allow(dead_code)]
 pub fn ttbr1_priv_entry() -> u64 {
-    let _g = TABLES.lock();
-    unsafe { l3_high_slot(0).read() }
+    let g = &mut lock_tables();
+    unsafe { l3_high_slot(g, 0).read() }
 }
 
 /// Clear the L3 slot for `va` and invalidate that translation.
@@ -3592,12 +3670,12 @@ pub fn unmap_page(va: u64) -> bool {
     let Some(i) = window_index(va) else {
         return false;
     };
-    let _g = TABLES.lock();
+    let g = &mut lock_tables();
     unsafe {
-        if l3_slot(i).read() & DESC_VALID == 0 {
+        if l3_slot(g, i).read() & DESC_VALID == 0 {
             return false;
         }
-        l3_slot(i).write(0);
+        l3_slot(g, i).write(0);
     }
     dsb_ish();
     tlbi_va(va);
@@ -3607,8 +3685,8 @@ pub fn unmap_page(va: u64) -> bool {
 #[allow(dead_code)]
 pub fn l3_entry(va: u64) -> Option<u64> {
     let i = window_index(va)?;
-    let _g = TABLES.lock();
-    Some(unsafe { l3_slot(i).read() })
+    let g = &mut lock_tables();
+    Some(unsafe { l3_slot(g, i).read() })
 }
 
 /// Serial addresses for the next host that hits a layout miss.
@@ -3886,8 +3964,8 @@ fn high_ram_tables_are_independent() {
         l2_high_ram_pa(),
         "identity L2_RAM and L2_HIGH_RAM must be distinct tables"
     );
-    let _g = TABLES.lock();
-    let slot = unsafe { l1_high_slot(1).read() };
+    let g = &mut lock_tables();
+    let slot = unsafe { l1_high_slot(g, 1).read() };
     assert_eq!(
         slot & !0xfff,
         l2_high_ram_pa(),

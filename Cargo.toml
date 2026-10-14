@@ -27,6 +27,10 @@ smp2-neg-pan = ["smp2-probe"]
 smp2-neg-span = ["smp2-probe"]
 # neg-vbar: cpu1 installs core 0's vectors -> `smp: cpu1 vbar mismatch`, no exception taken.
 smp2-neg-vbar = ["smp2-probe"]
+# ADR-103 S3 negative: keep the old local-only TLBI (`tlbi vmalle1` /
+# `vaae1`) everywhere; the cross-core probe must report `smp: xtlb leak`
+# (core 1 still reads the page core 0 unmapped). Implies smp2-probe.
+local-tlbi-leak-probe = ["smp2-probe"]
 # ADR-087 negative probe: leave one planted identity page (VIRT_RAM_BASE)
 # in kernel TTBR0 before the identity inventory. The walk must print
 # `ident: inv-leak` and withhold `ident: inv-ok` / `ident: ok`.
