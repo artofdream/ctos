@@ -66,6 +66,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - ADR-101 forward-only host / user name scrub + guard classes: [daily-briefs/2026-10-13-adr-101-host-user-scrub.md](daily-briefs/2026-10-13-adr-101-host-user-scrub.md)
 - ADR-102 SMP S2 (opt-in: core 1 MMU on, own stack/VBAR, PAN/SPAN, own brk handled, console lock; ADR-091 stays one core): [daily-briefs/2026-10-13-adr-102-smp-s2.md](daily-briefs/2026-10-13-adr-102-smp-s2.md)
 - ADR-103 SMP S3 (type-enforced TABLES, Inner-Shareable TLBI, cross-core unmap probe + local-TLBI leak negative; ADR-091 stays one core): [daily-briefs/2026-10-13-adr-103-smp-s3.md](daily-briefs/2026-10-13-adr-103-smp-s3.md)
+- ADR-104 SMP S4 (PerCpu via TPIDR_EL1, ASID allocator with generations + broadcast rollover, every isolation probe re-run on core 1, leak builds caught on core 1; ADR-091 stays one core): [daily-briefs/2026-10-19-adr-104-smp-s4.md](daily-briefs/2026-10-19-adr-104-smp-s4.md)
 - Handoffs: [daily-briefs/](daily-briefs/)
 - Session memory: [random-thoughts/](random-thoughts/)
 - This-session samples/porting scratch: [random-thoughts/2026-09-11-session-memory-apps-today-porting.md](random-thoughts/2026-09-11-session-memory-apps-today-porting.md)

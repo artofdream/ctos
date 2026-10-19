@@ -1632,7 +1632,11 @@ pub fn init() {
                 "msr tcr_el1, {tcr}",
                 "msr ttbr0_el1, {ttbr}",
                 "msr ttbr1_el1, {ttbr1}",
-                "msr tpidr_el1, {ttbr}",
+                // ADR-104: TPIDR_EL1 = 0 until `kernel_main_high` installs
+                // core 0's PerCpu block after the identity tears (the ADR-037
+                // `.data`/`.bss` pointer rewrite would otherwise rewrite the
+                // saved TTBR0, a `.bss` PA). Trampolines skip the restore on 0.
+                "msr tpidr_el1, xzr",
                 "isb",
                 mair = in(reg) MAIR,
                 tcr = in(reg) tcr,
@@ -3679,6 +3683,25 @@ pub fn unmap_page(va: u64) -> bool {
     }
     dsb_ish();
     tlbi_va(va);
+    true
+}
+
+/// ADR-104 (S4 probe only): clear a map-window descriptor **without** any
+/// TLBI. Models tearing down a retired task's tables under the ASID
+/// generation rule (its ASID is not reissued until a rollover flush).
+#[cfg(feature = "smp2-probe")]
+pub fn clear_window_no_tlbi(va: u64) -> bool {
+    let Some(i) = window_index(va) else {
+        return false;
+    };
+    let g = &mut lock_tables();
+    unsafe {
+        if l3_slot(g, i).read() & DESC_VALID == 0 {
+            return false;
+        }
+        l3_slot(g, i).write(0);
+    }
+    dsb_ish();
     true
 }
 

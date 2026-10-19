@@ -219,6 +219,16 @@ def main() -> int:
         "-kernel",
         elf,
     ]
+    # ADR-104 (S4): opt-in core count for the SMP probe runs. Absent (the
+    # default smoke) keeps QEMU's single core, exactly as before.
+    smp = os.environ.get("CTOS_QEMU_SMP", "")
+    if smp:
+        if not smp.isdigit():
+            print("qemu-serial-inject: CTOS_QEMU_SMP must be a number", file=sys.stderr)
+            return 1
+        cmd[1:1] = ["-smp", smp]
+    # ADR-104: optional early stop once this serial text appears (opt-in).
+    stop_at = os.environ.get("CTOS_QEMU_STOP_AT", "").encode()
     proc = subprocess.Popen(
         cmd,
         stdin=subprocess.PIPE,
@@ -261,6 +271,8 @@ def main() -> int:
                 sys.stdout.buffer.write(chunk)
                 sys.stdout.buffer.flush()
                 buf += chunk
+                if stop_at and stop_at in buf:
+                    break
                 if not injected and HELLO in buf:
                     proc.stdin.write(INJECT)
                     proc.stdin.flush()

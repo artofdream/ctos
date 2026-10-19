@@ -16,8 +16,9 @@ force-fail = []
 # samples (KVM hosts may lack GICv2). Opt-in only; default build unchanged.
 b2-serror = []
 # ADR-100 S1: opt-in secondary-CPU bring-up smoke. Run under QEMU `-smp 2`
-# only. PSCI CPU_ON one secondary (MMU off), print its MPIDR, park it. Skips
-# GIC/timer/virtio/FAT/EL0 like b2-serror. Default build and smoke unchanged.
+# only. PSCI CPU_ON one secondary; S2/S3 probes; ADR-104 S4 runs the EL0
+# isolation probes on core 1 (needs the inject script's devices). Default
+# build and smoke unchanged.
 smp2-probe = []
 # ADR-102 S2 negative builds (each implies smp2-probe). The checker must
 # fail on each and the named miss line must appear.
@@ -31,6 +32,10 @@ smp2-neg-vbar = ["smp2-probe"]
 # `vaae1`) everywhere; the cross-core probe must report `smp: xtlb leak`
 # (core 1 still reads the page core 0 unmapped). Implies smp2-probe.
 local-tlbi-leak-probe = ["smp2-probe"]
+# ADR-104 S4 negative: the ASID-rollover flush is local `tlbi vmalle1`
+# instead of `tlbi vmalle1is`; core 1 must then read a retired page through
+# a stale entry after its ASID is reissued (`smp: asidgen leak`).
+asid-rollover-local-probe = ["smp2-probe"]
 # ADR-087 negative probe: leave one planted identity page (VIRT_RAM_BASE)
 # in kernel TTBR0 before the identity inventory. The walk must print
 # `ident: inv-leak` and withhold `ident: inv-ok` / `ident: ok`.

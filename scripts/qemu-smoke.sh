@@ -42,8 +42,84 @@ cd "$ROOT"
 sh ./scripts/check-public-ids.sh --self-test
 sh ./scripts/check-public-ids.sh
 
-# ADR-100 S1 + ADR-102 S2: opt-in secondary-CPU probe (`--features smp2-probe`,
-# QEMU `-smp 2`). Not part of the default run: set CTOS_SMP2_SMOKE=1 to add it
+# ADR-087 / ADR-092..098 leak-build log checks. Shared by the single-core
+# leak builds and the ADR-104 S4 leak build that runs the probes on core 1.
+inv_leak_check() {
+    grep "ident: inv" "$1" || true
+    if ! grep -q "ident: inv-leak-probe planted va=0x40000000" "$1"; then
+        echo "qemu-smoke: inv-leak-probe kernel did not plant (ADR-087)" >&2
+        return 1
+    fi
+    if ! grep -q "ident: inv-leak k lo=0x40000000" "$1"; then
+        echo "qemu-smoke: planted identity page NOT reported by the inventory (ADR-087)" >&2
+        return 1
+    fi
+    if grep -q "ident: inv-ok" "$1" || grep -q "^ident: ok" "$1"; then
+        echo "qemu-smoke: inventory passed despite a planted identity page (ADR-087)" >&2
+        return 1
+    fi
+    return 0
+}
+# $1 = log; $2 = the line that must report the xo probe miss (main.rs on
+# core 0, or the ADR-104 cpu1 tag line).
+el0_leak_check() {
+    grep -a -E "el0-reach:|el0: write|sys-ptr|t2t:|xo:" "$1" || true
+    for re in '^el0: write-succeeded user-ro va=0x80009000 ' \
+              '^el0: sys-ptr control rw-data n=6[[:space:]]*$' \
+              'el0: sys-ptr leaked kernel-stub n=8[[:space:]]*$' \
+              '^el0: sys-ptr leaked kernel-window n=8[[:space:]]*$' \
+              '^el0: sys-ptr leaked xo-text n=6 intact=false checks=0[[:space:]]*$' \
+              '^el0: sys-ptr skip write-ro[[:space:]]*$' \
+              '^el0-reach: leak-probe planted va=0x80007000[[:space:]]*$' \
+              '^el0-reach: leak k lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
+              '^el0-reach: leak u lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
+              '^el0-reach: steady k=1 u=1 a=0 h=0 pages=2 leaks=2[[:space:]]*$' \
+              '^t2t: leak-probe planted b-frame in a-ttbr0 va=0x80007000[[:space:]]*$' \
+              '^t2t: leak walk b-frame u-refs=1 u-el0=1[[:space:]]*$' \
+              '^t2t: leak read asid=1 va=0x80007000 got=0x7a5cb0b0[[:space:]]*$' \
+              '^t2t: leak write asid=1 va=0x80007000 b=0x7a5ceeee[[:space:]]*$' \
+              '^xo: bad pan live-syscall pstate-pan=0 sctlr-span=1[[:space:]]*$' \
+              '^xo: leak live text ap=3 el0=rx sys-read=allow[[:space:]]*$' \
+              '^xo: leak layout text ap=3 el0=rx[[:space:]]*$' \
+              '^xo: leak el0-read-text va=0x80002000 got=0x[0-9a-f]*[1-9a-f][0-9a-f]*[[:space:]]*$' \
+              'xo: leak sys-read text n=8 checks=0[[:space:]]*$' \
+              '^xo: bad el1-pan control pan=true mrs-pan=0 fault=false spsr-pan=false[[:space:]]*$' \
+              "$2"; do
+        if ! grep -E -q "$re" "$1"; then
+            echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-092)" >&2
+            return 1
+        fi
+    done
+    if grep -q "el0: write-ok" "$1" || grep -q "el0-reach: ok" "$1" \
+        || grep -q "el0: sys-ptr ok" "$1" || grep -q "el0: sys-ptr denied" "$1" \
+        || grep -q "t2t: ok" "$1" || grep -q "xo: ok" "$1" \
+        || grep -q "xo: el0-read-text fault" "$1" || grep -q "xo: sys-read text denied" "$1"; then
+        echo "qemu-smoke: ADR-092/094/096/097 walk / store / sys-ptr / t2t / xo probe passed despite a planted leak" >&2
+        return 1
+    fi
+    # ADR-098: the boot probe still passes in this kernel, but PAN is lost while
+    # handling EL0 exceptions and after EL0 trips; that must be reported.
+    grep -a -E "pan:" "$1" || true
+    for re in '^pan: enabled[[:space:]]*$' \
+              '^pan: el1-fault[[:space:]]*$' \
+              '^pan: lost live-syscall pstate-pan=0 sctlr-span=1[[:space:]]*$' \
+              '^pan: lost after-el0 trips=[1-9][0-9]* mrs-pan=0 el1-load va=0x80003000 fault=no spsr-pan=0[[:space:]]*$' \
+              '^pan: held missed live-taken=true live-ok=false after-el0=false[[:space:]]*$'; do
+        if ! grep -a -E -q "$re" "$1"; then
+            echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-098)" >&2
+            return 1
+        fi
+    done
+    if grep -a -q "pan: ok held" "$1" || grep -a -q "pan: live-syscall pstate-pan=1" "$1" \
+        || grep -a -q "pan: after-el0 " "$1"; then
+        echo "qemu-smoke: ADR-098 PAN-held check passed despite the PAN fix being undone" >&2
+        return 1
+    fi
+    return 0
+}
+
+# ADR-100 S1 + ADR-102 S2 + ADR-103 S3 + ADR-104 S4: opt-in secondary-CPU
+# probe (`--features smp2-probe`, QEMU `-smp 2`). Not part of the default run: set CTOS_SMP2_SMOKE=1 to add it
 # after the default smoke, or CTOS_SMP2_ONLY=1 to run only the id guard + this.
 # Fail-closed: the checker must PASS on `-smp 2`, must FAIL on the same ELF
 # under `-smp 1` (PSCI CPU_ON has no core to start), and must FAIL on each
@@ -59,9 +135,36 @@ smp2_check() {
               '^smp: ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked[[:space:]]*$' \
               '^smp: xtlb cpu1 fault ec=0x25 dfsc=trans-l[0-3] far=window own-vectors[[:space:]]*$' \
               '^smp: xtlb unmap cpu0 → cpu1 fault[[:space:]]*$' \
+              '^smp: s4 go cpu1[[:space:]]*$' \
+              '^smp: cpu1 kernel-mode tpidr=percpu1 vbar=kernel spsel=0 sp=own-thread pan=1 span=0 cpu=1[[:space:]]*$' \
+              '^smp: cpu1 probes ok n=13 cpu=1[[:space:]]*$' \
+              '^smp: asidgen alloc cpu0\+cpu1 n=300 unique range=3\.\.=255 gens=[2-9] rollovers=[1-9][[:space:]]*$' \
+              '^smp: asidgen rollover gen [0-9]+->[0-9]+ asid [0-9]+ reissued \(flush=vmalle1is\)[[:space:]]*$' \
+              '^smp: asidgen cpu1 fault ec=0x25 dfsc=trans-l[0-3] gen-seen=[0-9]+ cpu=1[[:space:]]*$' \
+              '^smp: asidgen reissue cpu0 rollover → cpu1 fault[[:space:]]*$' \
+              '^smp: ok cpu1 s4 percpu=tpidr el0=cpu1 probes=13 asidgen=unique,rollover-is[[:space:]]*$' \
+              '^el0: ok[[:space:]]*$' \
+              '^svc: ok[[:space:]]*$' \
+              '^el0: sys-ptr ok[[:space:]]*$' \
+              '^libctos: ok[[:space:]]*$' \
+              '^loader: ok[[:space:]]*$' \
+              '^pan: ok held boot,live-syscall,after-el0[[:space:]]*$' \
+              '^asid: ok[[:space:]]*$' \
+              '^t2t: ok ' \
+              '^xo: ok ' \
+              '^ttbr1: ok[[:space:]]*$' \
+              '^ident: ok[[:space:]]*$' \
+              '^el0-reach: ok ' \
               '^smp: done[[:space:]]*$'; do
         if ! tr -d '\r' <"$1" | grep -a -E -q "$re"; then
             echo "qemu-smoke: smp2 missing /$re/ (ADR-100/ADR-102)" >&2
+            return 1
+        fi
+    done
+    # ADR-104 (S4): every isolation probe ran on core 1 and passed there.
+    for p in el0 svc sys-ptr libctos loader pan-held asid t2t xo ttbr1 ident el0-reach pan; do
+        if [ "$(tr -d '\r' <"$1" | grep -a -c -x "smp: cpu1 probe $p ok cpu=1")" != 1 ]; then
+            echo "qemu-smoke: smp2 'smp: cpu1 probe $p ok cpu=1' not exactly once (ADR-104)" >&2
             return 1
         fi
     done
@@ -76,11 +179,11 @@ smp2_check() {
     # Console lock (ADR-102): every line that mentions `smp:` must be one
     # whole known line. A torn or interleaved line fails closed.
     if tr -d '\r' <"$1" | grep -a 'smp:' | grep -a -v -E -x \
-        'smp: (boot \(ADR-100 opt-in\)|cpu0 mpidr=0x[0-9a-f]{16}|secondary up mpidr=0x[0-9a-f]{16}|cpu_on target=0x1 rc=-?[0-9]+|ok cpu1 mpidr=0x[0-9a-f]{16} up|tick cpu[01] [0-3]|cpu1 regs mmu=[01] pan=[01] span=[01] vbar=(own|other) sp=(own|other) pc=(high|low) mpidr=0x[0-9a-f]{16}|cpu1 exc brk handled esr=0x[0-9a-f]+ elr=brk handler-pan=1 vbar=own|ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked|xtlb cpu1 fault ec=0x25 dfsc=trans-l[0-3] far=window own-vectors|xtlb unmap cpu0 → cpu1 fault|done)' >/dev/null; then
+        'smp: (boot \(ADR-100 opt-in\)|cpu0 mpidr=0x[0-9a-f]{16}|secondary up mpidr=0x[0-9a-f]{16}|cpu_on target=0x1 rc=-?[0-9]+|ok cpu1 mpidr=0x[0-9a-f]{16} up|tick cpu[01] [0-3]|cpu1 regs mmu=[01] pan=[01] span=[01] vbar=(own|other) sp=(own|other) pc=(high|low) mpidr=0x[0-9a-f]{16}|cpu1 exc brk handled esr=0x[0-9a-f]+ elr=brk handler-pan=1 vbar=own|ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked|xtlb cpu1 fault ec=0x25 dfsc=trans-l[0-3] far=window own-vectors|xtlb unmap cpu0 → cpu1 fault|s4 go cpu1|cpu1 kernel-mode tpidr=(percpu1|missing) vbar=(kernel|other) spsel=[01] sp=(own-thread|other) pan=[01] span=[01] cpu=[01]|cpu1 probe [a-z0-9-]+ (ok|missed) cpu=1|cpu1 probes (ok n=[0-9]+ cpu=1|missed failed=[0-9]+ n=[0-9]+)|asidgen alloc cpu0\+cpu1 n=[0-9]+ (unique|duplicate) range=(3\.\.=255|bad) gens=[0-9]+ rollovers=[0-9]+|asidgen rollover gen [0-9]+->[0-9]+ asid [0-9]+ reissued \(flush=(vmalle1is|local)\)|asidgen cpu1 fault ec=0x25 dfsc=trans-l[0-3] gen-seen=[0-9]+ cpu=1|asidgen cpu1 read the retired page under the reissued asid cpu=1|asidgen reissue cpu0 rollover → cpu1 fault|asidgen leak|ok cpu1 s4 percpu=tpidr el0=cpu1 probes=[0-9]+ asidgen=unique,rollover-is|s4 missed .*|done)' >/dev/null; then
         echo "qemu-smoke: smp2 unexpected or torn smp: line (ADR-102 console lock)" >&2
         return 1
     fi
-    if grep -a -q -E "smp: (cpu1 (missed|s2 missed|pan lost|vbar mismatch|mmu missed|exc missed)|xtlb (leak|missed|cpu1 (first|other|read after)))" "$1"; then
+    if grep -a -q -E "smp: (cpu1 (missed|s2 missed|pan lost|vbar mismatch|mmu missed|exc missed|probe [a-z0-9-]+ missed|probes missed)|xtlb (leak|missed|cpu1 (first|other|read after))|s4 missed|asidgen (leak|missed|cpu1 (first|slot|other|read)))" "$1"; then
         echo "qemu-smoke: smp2 cpu1 miss line on serial (ADR-100/ADR-102)" >&2
         return 1
     fi
@@ -92,18 +195,28 @@ smp2_run() {
     echo "qemu-smoke: smp2 serial ($1, -smp $2):"
     tr -d '\r' <"$smp2_log" | grep -a "smp:" || true
 }
+# ADR-104 (S4): core 0 brings up virtio-blk / FAT for the probes core 1
+# runs, so the S4 runs use the inject script's QEMU devices (`-smp 2` via
+# CTOS_QEMU_SMP) and stop at `smp: done`.
+smp2_run_dev() {
+    CTOS_QEMU_SMP="$2" CTOS_QEMU_STOP_AT="smp: done" CTOS_QEMU_TIMEOUT="$smp2_dev_timeout" \
+        python3 "$ROOT/scripts/qemu-serial-inject.py" "$1" >"$smp2_log" 2>&1 || true
+    echo "qemu-smoke: smp2 serial ($1, -smp $2, devices):"
+    tr -d '\r' <"$smp2_log" | grep -a "smp:" || true
+}
 smp2_smoke() {
     smp2_timeout="${CTOS_SMP2_TIMEOUT:-10}"
+    smp2_dev_timeout="${CTOS_SMP2_DEV_TIMEOUT:-180}"
     smp2_qemu="${CTOS_QEMU:-qemu-system-aarch64}"
     echo "qemu-smoke: smp2-probe (ADR-100 S1 + ADR-102 S2 opt-in, -smp 2, timeout ${smp2_timeout}s)"
     cargo build --features smp2-probe --target-dir target/smp2-probe
     smp2_elf="target/smp2-probe/aarch64-ctos/debug/ctos"
     smp2_log=$(mktemp)
-    smp2_run "$smp2_elf" 2
+    smp2_run_dev "$smp2_elf" 2
     if ! smp2_check "$smp2_log"; then
         rm -f "$smp2_log"; exit 1
     fi
-    echo "qemu-smoke: smp2 ok (-smp 2: cpu1 MMU on, own stack/VBAR, PAN=1 SPAN=0, brk handled on cpu1, console lines whole, xtlb unmap faults on cpu1)"
+    echo "qemu-smoke: smp2 ok (-smp 2: cpu1 MMU on, own stack/VBAR, PAN=1 SPAN=0, brk handled on cpu1, console lines whole, xtlb unmap faults on cpu1; S4: cpu1 kernel mode via TPIDR PerCpu, 13 isolation probes ok on cpu1, ASID alloc unique across a rollover, reissued ASID faults on cpu1)"
     smp2_run "$smp2_elf" 1
     if smp2_check "$smp2_log" 2>/dev/null; then
         echo "qemu-smoke: smp2 checker PASSED under -smp 1 (negative test failed, ADR-100)" >&2
@@ -146,6 +259,44 @@ smp2_smoke() {
         rm -f "$smp2_log"; exit 1
     fi
     echo "qemu-smoke: smp2 local-tlbi leak caught (checker fails, smp: xtlb leak; fail-closed ok)"
+    # ADR-104 S4 negative: the existing leak builds (ADR-087 inventory plant,
+    # ADR-092..098 reach / write / sys-ptr / t2t / xo / PAN-keep) plus the
+    # local-only ASID-rollover flush, with the probes on core 1. Every leak
+    # must be reported on cpu1 with its ok marker withheld, the rollover
+    # reissue must read the retired page (`smp: asidgen leak`), and the
+    # checker must fail.
+    cargo build --features smp2-probe,asid-rollover-local-probe,inv-leak-probe,reach-leak-probe,write-leak-probe,sysptr-leak-probe,t2t-leak-probe,xo-leak-probe,pan-keep-leak-probe --target-dir target/smp2-s4-leak
+    smp2_run_dev "target/smp2-s4-leak/aarch64-ctos/debug/ctos" 2
+    if smp2_check "$smp2_log" 2>/dev/null; then
+        echo "qemu-smoke: smp2 checker PASSED on the S4 leak build (negative test failed, ADR-104)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    if ! inv_leak_check "$smp2_log" || ! el0_leak_check "$smp2_log" '^smp: cpu1 probe xo missed cpu=1[[:space:]]*$'; then
+        echo "qemu-smoke: S4 leak build: a leak was not reported on cpu1 (ADR-104)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    for re in '^smp: cpu1 kernel-mode tpidr=percpu1 vbar=kernel spsel=0 sp=own-thread pan=1 span=1 cpu=1[[:space:]]*$' \
+              '^smp: cpu1 probes missed failed=7 n=13[[:space:]]*$' \
+              '^smp: asidgen rollover gen [0-9]+->[0-9]+ asid [0-9]+ reissued \(flush=local\)[[:space:]]*$' \
+              '^smp: asidgen cpu1 read the retired page under the reissued asid cpu=1[[:space:]]*$' \
+              '^smp: asidgen leak[[:space:]]*$' \
+              '^smp: done[[:space:]]*$'; do
+        if ! tr -d '\r' <"$smp2_log" | grep -a -E -q "$re"; then
+            echo "qemu-smoke: S4 leak build missing /$re/ (ADR-104)" >&2
+            rm -f "$smp2_log"; exit 1
+        fi
+    done
+    for p in el0 sys-ptr pan-held t2t xo ident el0-reach; do
+        if ! tr -d '\r' <"$smp2_log" | grep -a -q -x "smp: cpu1 probe $p missed cpu=1"; then
+            echo "qemu-smoke: S4 leak build: probe $p not reported missed on cpu1 (ADR-104)" >&2
+            rm -f "$smp2_log"; exit 1
+        fi
+    done
+    if tr -d '\r' <"$smp2_log" | grep -a -q -E "^smp: (ok cpu1 s4|asidgen reissue cpu0 rollover → cpu1 fault)"; then
+        echo "qemu-smoke: S4 leak build printed an S4 ok line (ADR-104)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    echo "qemu-smoke: smp2 S4 leaks caught on cpu1 (inventory, reach, write, sys-ptr, t2t, xo, PAN-keep, local ASID-rollover flush; fail-closed ok)"
     rm -f "$smp2_log"
 }
 if [ "${CTOS_SMP2_ONLY:-0}" = 1 ]; then
@@ -1849,17 +2000,7 @@ set +e
 CTOS_QEMU_TIMEOUT="$INV_LEAK_TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
     "$leak_elf" >"$leak_log" 2>&1
 set -e
-grep "ident: inv" "$leak_log" || true
-if ! grep -q "ident: inv-leak-probe planted va=0x40000000" "$leak_log"; then
-    echo "qemu-smoke: inv-leak-probe kernel did not plant (ADR-087)" >&2
-    rm -f "$leak_log"; exit 1
-fi
-if ! grep -q "ident: inv-leak k lo=0x40000000" "$leak_log"; then
-    echo "qemu-smoke: planted identity page NOT reported by the inventory (ADR-087)" >&2
-    rm -f "$leak_log"; exit 1
-fi
-if grep -q "ident: inv-ok" "$leak_log" || grep -q "^ident: ok" "$leak_log"; then
-    echo "qemu-smoke: inventory passed despite a planted identity page (ADR-087)" >&2
+if ! inv_leak_check "$leak_log"; then
     rm -f "$leak_log"; exit 1
 fi
 rm -f "$leak_log"
@@ -1892,56 +2033,7 @@ set +e
 CTOS_QEMU_TIMEOUT="$INV_LEAK_TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
     "$el0leak_elf" >"$el0leak_log" 2>&1
 set -e
-grep -a -E "el0-reach:|el0: write|sys-ptr|t2t:|xo:" "$el0leak_log" || true
-for re in '^el0: write-succeeded user-ro va=0x80009000 ' \
-          '^el0: sys-ptr control rw-data n=6[[:space:]]*$' \
-          'el0: sys-ptr leaked kernel-stub n=8[[:space:]]*$' \
-          '^el0: sys-ptr leaked kernel-window n=8[[:space:]]*$' \
-          '^el0: sys-ptr leaked xo-text n=6 intact=false checks=0[[:space:]]*$' \
-          '^el0: sys-ptr skip write-ro[[:space:]]*$' \
-          '^el0-reach: leak-probe planted va=0x80007000[[:space:]]*$' \
-          '^el0-reach: leak k lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
-          '^el0-reach: leak u lo=0x80007000 hi=0x80008000 pa=0x[0-9a-f]+ mem el0-ro el0-nx why=kernel-pa[[:space:]]*$' \
-          '^el0-reach: steady k=1 u=1 a=0 h=0 pages=2 leaks=2[[:space:]]*$' \
-          '^t2t: leak-probe planted b-frame in a-ttbr0 va=0x80007000[[:space:]]*$' \
-          '^t2t: leak walk b-frame u-refs=1 u-el0=1[[:space:]]*$' \
-          '^t2t: leak read asid=1 va=0x80007000 got=0x7a5cb0b0[[:space:]]*$' \
-          '^t2t: leak write asid=1 va=0x80007000 b=0x7a5ceeee[[:space:]]*$' \
-          '^xo: bad pan live-syscall pstate-pan=0 sctlr-span=1[[:space:]]*$' \
-          '^xo: leak live text ap=3 el0=rx sys-read=allow[[:space:]]*$' \
-          '^xo: leak layout text ap=3 el0=rx[[:space:]]*$' \
-          '^xo: leak el0-read-text va=0x80002000 got=0x[0-9a-f]*[1-9a-f][0-9a-f]*[[:space:]]*$' \
-          'xo: leak sys-read text n=8 checks=0[[:space:]]*$' \
-          '^xo: bad el1-pan control pan=true mrs-pan=0 fault=false spsr-pan=false[[:space:]]*$' \
-          '^xo: probe missed[[:space:]]*$'; do
-    if ! grep -E -q "$re" "$el0leak_log"; then
-        echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-092)" >&2
-        rm -f "$el0leak_log"; exit 1
-    fi
-done
-if grep -q "el0: write-ok" "$el0leak_log" || grep -q "el0-reach: ok" "$el0leak_log" \
-    || grep -q "el0: sys-ptr ok" "$el0leak_log" || grep -q "el0: sys-ptr denied" "$el0leak_log" \
-    || grep -q "t2t: ok" "$el0leak_log" || grep -q "xo: ok" "$el0leak_log" \
-    || grep -q "xo: el0-read-text fault" "$el0leak_log" || grep -q "xo: sys-read text denied" "$el0leak_log"; then
-    echo "qemu-smoke: ADR-092/094/096/097 walk / store / sys-ptr / t2t / xo probe passed despite a planted leak" >&2
-    rm -f "$el0leak_log"; exit 1
-fi
-# ADR-098: the boot probe still passes in this kernel, but PAN is lost while
-# handling EL0 exceptions and after EL0 trips; that must be reported.
-grep -a -E "pan:" "$el0leak_log" || true
-for re in '^pan: enabled[[:space:]]*$' \
-          '^pan: el1-fault[[:space:]]*$' \
-          '^pan: lost live-syscall pstate-pan=0 sctlr-span=1[[:space:]]*$' \
-          '^pan: lost after-el0 trips=[1-9][0-9]* mrs-pan=0 el1-load va=0x80003000 fault=no spsr-pan=0[[:space:]]*$' \
-          '^pan: held missed live-taken=true live-ok=false after-el0=false[[:space:]]*$'; do
-    if ! grep -a -E -q "$re" "$el0leak_log"; then
-        echo "qemu-smoke: el0-leak-probe missing /$re/ (ADR-098)" >&2
-        rm -f "$el0leak_log"; exit 1
-    fi
-done
-if grep -a -q "pan: ok held" "$el0leak_log" || grep -a -q "pan: live-syscall pstate-pan=1" "$el0leak_log" \
-    || grep -a -q "pan: after-el0 " "$el0leak_log"; then
-    echo "qemu-smoke: ADR-098 PAN-held check passed despite the PAN fix being undone" >&2
+if ! el0_leak_check "$el0leak_log" "^xo: probe missed[[:space:]]*$"; then
     rm -f "$el0leak_log"; exit 1
 fi
 echo "qemu-smoke: el0-leak-probe PAN loss caught (ADR-098)"
