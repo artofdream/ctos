@@ -71,5 +71,9 @@ Same as `smp2-probe` but the ASID rollover no longer keeps running ASIDs reserve
 
 ## Consequences
 
-- Default kernel: core 1's stacks add ~96 KiB to `.bss` in the opt-in build only (the `Guarded` statics are behind `smp2-probe`… actually they are in smp.rs which is cfg'd). Default build unchanged.
+- Default kernel: core 1's stacks add ~96 KiB to `.bss` in the opt-in build only (the `Guarded` statics live in `smp.rs`, which is compiled only with `smp2-probe`). Default build unchanged.
 - Opt-in CI job builds one more ELF (S5 reserve-drop negative). Still not required.
+
+## Fix-forward (CI)
+
+The first CI run of the opt-in smp2 job failed: core 0's unlocked `el0: task-enter` print tore core 1's locked `s5 cpu1 hold` line. In the `smp2-probe` build the task-enter/active/exit/restored and `svc: exit` lines now go through the `UART` lock, one whole line at a time. The default build still uses the raw writer and is unchanged.

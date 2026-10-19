@@ -368,7 +368,7 @@ fn dispatch_inner(ctx: &mut ExceptionContext, nr: u64) -> Option<SvcAction> {
             let status = ctx.x[0];
             EXIT_STATUS.store(status, Ordering::SeqCst);
             EXIT_OK.store(true, Ordering::SeqCst);
-            uart::write_str_raw("svc: exit\n");
+            crate::el0::task_line("svc: exit\n");
             Some(SvcAction::ReturnEl1)
         }
         SYS_FS_CREATE => {
