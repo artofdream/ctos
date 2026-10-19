@@ -127,7 +127,20 @@ pub(crate) fn install_task(pc: u64, sp: u64, ttbr: u64) {
     USER_TTBR.store(ttbr, Ordering::SeqCst);
     KIND.store(KIND_TASK, Ordering::SeqCst);
     ACTIVE.store(true, Ordering::SeqCst);
-    uart::write_str_raw("el0: task-enter\n");
+    task_line("el0: task-enter\n");
+}
+
+/// ADR-105: in the SMP build both cores enter tasks at once, so task lines
+/// go through the `UART` lock (whole lines). Default build: raw as before.
+pub(crate) fn task_line(s: &str) {
+    #[cfg(feature = "smp2-probe")]
+    {
+        use core::fmt::Write;
+        let mut g = uart::UART.lock();
+        let _ = g.write_str(s);
+    }
+    #[cfg(not(feature = "smp2-probe"))]
+    uart::write_str_raw(s);
 }
 
 pub(crate) fn reset_task_flags() {
@@ -142,7 +155,7 @@ pub(crate) fn note_active_while_standing() {
         return;
     }
     if !TASK_ACTIVE_SEEN.swap(true, Ordering::SeqCst) {
-        uart::write_str_raw("el0: task-active\n");
+        task_line("el0: task-active\n");
     }
 }
 
@@ -150,8 +163,8 @@ pub(crate) fn note_active_while_standing() {
 pub(crate) fn restore_exit() {
     if is_task() {
         TASK_EXIT_SEEN.store(true, Ordering::SeqCst);
-        uart::write_str_raw("el0: task-exit\n");
-        uart::write_str_raw("el0: task-restored\n");
+        task_line("el0: task-exit\n");
+        task_line("el0: task-restored\n");
     }
     clear_active();
 }
