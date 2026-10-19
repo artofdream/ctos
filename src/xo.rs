@@ -76,8 +76,8 @@ const SVC_UART: u32 = 0xD400_0221; // SVC #17
 const EC_DABORT_LOWER: u64 = 0x24;
 const EC_BRK: u64 = 0x3C;
 
-static LIVE_DONE: AtomicBool = AtomicBool::new(false);
-static LIVE_OK: AtomicBool = AtomicBool::new(false);
+static LIVE_DONE: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static LIVE_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 
 fn movz(rd: u32, imm: u16, hw: u32) -> u32 {
     0xD280_0000 | (hw << 21) | ((imm as u32) << 5) | rd

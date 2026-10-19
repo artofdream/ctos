@@ -36,6 +36,10 @@ local-tlbi-leak-probe = ["smp2-probe"]
 # instead of `tlbi vmalle1is`; core 1 must then read a retired page through
 # a stale entry after its ASID is reissued (`smp: asidgen leak`).
 asid-rollover-local-probe = ["smp2-probe"]
+# ADR-105 S5 negative: the ASID rollover no longer keeps each core's running
+# ASID reserved; the concurrent probe must report that core 1's running ASID
+# was reissued mid-run (`smp: s5 asid reissued while running cpu=1`).
+asid-reserve-drop-probe = ["smp2-probe"]
 # ADR-087 negative probe: leave one planted identity page (VIRT_RAM_BASE)
 # in kernel TTBR0 before the identity inventory. The walk must print
 # `ident: inv-leak` and withhold `ident: inv-ok` / `ident: ok`.

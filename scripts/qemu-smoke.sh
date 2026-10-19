@@ -143,6 +143,12 @@ smp2_check() {
               '^smp: asidgen cpu1 fault ec=0x25 dfsc=trans-l[0-3] gen-seen=[0-9]+ cpu=1[[:space:]]*$' \
               '^smp: asidgen reissue cpu0 rollover → cpu1 fault[[:space:]]*$' \
               '^smp: ok cpu1 s4 percpu=tpidr el0=cpu1 probes=13 asidgen=unique,rollover-is[[:space:]]*$' \
+              '^smp: s5 guards unmapped thread,exc,fatal cpu=1[[:space:]]*$' \
+              '^smp: s5 go cpu0\+cpu1[[:space:]]*$' \
+              '^smp: s5 cpu1 hold asid=[0-9]+ still-active=yes run=ok cpu=1[[:space:]]*$' \
+              '^smp: s5 cpu1 fatal nested stack=own cpu=1[[:space:]]*$' \
+              '^smp: s5 runs cpu0=[1-9][0-9]* cpu1=[1-9][0-9]* rollover=yes reissued=no reach=ok xo=ok viol=0[[:space:]]*$' \
+              '^smp: ok cpu0\+cpu1 s5 runq=locked asid=reserved concurrent=el0 reach,t2t,xo[[:space:]]*$' \
               '^el0: ok[[:space:]]*$' \
               '^svc: ok[[:space:]]*$' \
               '^el0: sys-ptr ok[[:space:]]*$' \
@@ -179,11 +185,11 @@ smp2_check() {
     # Console lock (ADR-102): every line that mentions `smp:` must be one
     # whole known line. A torn or interleaved line fails closed.
     if tr -d '\r' <"$1" | grep -a 'smp:' | grep -a -v -E -x \
-        'smp: (boot \(ADR-100 opt-in\)|cpu0 mpidr=0x[0-9a-f]{16}|secondary up mpidr=0x[0-9a-f]{16}|cpu_on target=0x1 rc=-?[0-9]+|ok cpu1 mpidr=0x[0-9a-f]{16} up|tick cpu[01] [0-3]|cpu1 regs mmu=[01] pan=[01] span=[01] vbar=(own|other) sp=(own|other) pc=(high|low) mpidr=0x[0-9a-f]{16}|cpu1 exc brk handled esr=0x[0-9a-f]+ elr=brk handler-pan=1 vbar=own|ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked|xtlb cpu1 fault ec=0x25 dfsc=trans-l[0-3] far=window own-vectors|xtlb unmap cpu0 → cpu1 fault|s4 go cpu1|cpu1 kernel-mode tpidr=(percpu1|missing) vbar=(kernel|other) spsel=[01] sp=(own-thread|other) pan=[01] span=[01] cpu=[01]|cpu1 probe [a-z0-9-]+ (ok|missed) cpu=1|cpu1 probes (ok n=[0-9]+ cpu=1|missed failed=[0-9]+ n=[0-9]+)|asidgen alloc cpu0\+cpu1 n=[0-9]+ (unique|duplicate) range=(3\.\.=255|bad) gens=[0-9]+ rollovers=[0-9]+|asidgen rollover gen [0-9]+->[0-9]+ asid [0-9]+ reissued \(flush=(vmalle1is|local)\)|asidgen cpu1 fault ec=0x25 dfsc=trans-l[0-3] gen-seen=[0-9]+ cpu=1|asidgen cpu1 read the retired page under the reissued asid cpu=1|asidgen reissue cpu0 rollover → cpu1 fault|asidgen leak|ok cpu1 s4 percpu=tpidr el0=cpu1 probes=[0-9]+ asidgen=unique,rollover-is|s4 missed .*|done)' >/dev/null; then
+        'smp: (boot \(ADR-100 opt-in\)|cpu0 mpidr=0x[0-9a-f]{16}|secondary up mpidr=0x[0-9a-f]{16}|cpu_on target=0x1 rc=-?[0-9]+|ok cpu1 mpidr=0x[0-9a-f]{16} up|tick cpu[01] [0-3]|cpu1 regs mmu=[01] pan=[01] span=[01] vbar=(own|other) sp=(own|other) pc=(high|low) mpidr=0x[0-9a-f]{16}|cpu1 exc brk handled esr=0x[0-9a-f]+ elr=brk handler-pan=1 vbar=own|ok cpu1 s2 mmu-on pan=1 span=0 vbar=own exc=handled console=locked|xtlb cpu1 fault ec=0x25 dfsc=trans-l[0-3] far=window own-vectors|xtlb unmap cpu0 → cpu1 fault|s4 go cpu1|cpu1 kernel-mode tpidr=(percpu1|missing) vbar=(kernel|other) spsel=[01] sp=(own-thread|other) pan=[01] span=[01] cpu=[01]|cpu1 probe [a-z0-9-]+ (ok|missed) cpu=1|cpu1 probes (ok n=[0-9]+ cpu=1|missed failed=[0-9]+ n=[0-9]+)|asidgen alloc cpu0\+cpu1 n=[0-9]+ (unique|duplicate) range=(3\.\.=255|bad) gens=[0-9]+ rollovers=[0-9]+|asidgen rollover gen [0-9]+->[0-9]+ asid [0-9]+ reissued \(flush=(vmalle1is|local)\)|asidgen cpu1 fault ec=0x25 dfsc=trans-l[0-3] gen-seen=[0-9]+ cpu=1|asidgen cpu1 read the retired page under the reissued asid cpu=1|asidgen reissue cpu0 rollover → cpu1 fault|asidgen leak|ok cpu1 s4 percpu=tpidr el0=cpu1 probes=[0-9]+ asidgen=unique,rollover-is|s4 missed .*|s5 guards unmapped thread,exc,fatal cpu=1|s5 go cpu0\+cpu1|s5 cpu1 hold asid=[0-9]+ still-active=(yes|no) run=(ok|missed) cpu=1|s5 asid reissued while running cpu=1 asid=[0-9]+|s5 cpu1 fatal nested stack=own cpu=1|s5 cpu1 fatal missed seen=[0-9]+|s5 runs cpu0=[0-9]+ cpu1=[0-9]+ rollover=(yes|no) reissued=(yes|no) reach=(ok|missed) xo=(ok|missed) viol=[0-9]+|ok cpu0\+cpu1 s5 runq=locked asid=reserved concurrent=el0 reach,t2t,xo|s5 missed|s5 reach .*|s5 t2t .*|s5 xo .*|s5 guard .*|done)' >/dev/null; then
         echo "qemu-smoke: smp2 unexpected or torn smp: line (ADR-102 console lock)" >&2
         return 1
     fi
-    if grep -a -q -E "smp: (cpu1 (missed|s2 missed|pan lost|vbar mismatch|mmu missed|exc missed|probe [a-z0-9-]+ missed|probes missed)|xtlb (leak|missed|cpu1 (first|other|read after))|s4 missed|asidgen (leak|missed|cpu1 (first|slot|other|read)))" "$1"; then
+    if grep -a -q -E "smp: (cpu1 (missed|s2 missed|pan lost|vbar mismatch|mmu missed|exc missed|probe [a-z0-9-]+ missed|probes missed)|xtlb (leak|missed|cpu1 (first|other|read after))|s4 missed|asidgen (leak|missed|cpu1 (first|slot|other|read))|s5 missed|s5 asid reissued while running)" "$1"; then
         echo "qemu-smoke: smp2 cpu1 miss line on serial (ADR-100/ADR-102)" >&2
         return 1
     fi
@@ -216,7 +222,7 @@ smp2_smoke() {
     if ! smp2_check "$smp2_log"; then
         rm -f "$smp2_log"; exit 1
     fi
-    echo "qemu-smoke: smp2 ok (-smp 2: cpu1 MMU on, own stack/VBAR, PAN=1 SPAN=0, brk handled on cpu1, console lines whole, xtlb unmap faults on cpu1; S4: cpu1 kernel mode via TPIDR PerCpu, 13 isolation probes ok on cpu1, ASID alloc unique across a rollover, reissued ASID faults on cpu1)"
+    echo "qemu-smoke: smp2 ok (-smp 2: S1–S5; cpu1 MMU/PAN/VBAR, xtlb, PerCpu EL0 probes on cpu1, ASID rollover, concurrent EL0 on both cores with reserved ASID + reach/t2t/xo, cpu1 fatal on own stack, guard pages)"
     smp2_run "$smp2_elf" 1
     if smp2_check "$smp2_log" 2>/dev/null; then
         echo "qemu-smoke: smp2 checker PASSED under -smp 1 (negative test failed, ADR-100)" >&2
@@ -297,6 +303,20 @@ smp2_smoke() {
         rm -f "$smp2_log"; exit 1
     fi
     echo "qemu-smoke: smp2 S4 leaks caught on cpu1 (inventory, reach, write, sys-ptr, t2t, xo, PAN-keep, local ASID-rollover flush; fail-closed ok)"
+    # ADR-105 S5 negative: drop the reserved-running-ASID rule. Core 1's
+    # running ASID must be reissued mid-run; the checker must fail; no S5 ok.
+    cargo build --features smp2-probe,asid-reserve-drop-probe --target-dir target/smp2-s5-neg
+    smp2_run_dev "target/smp2-s5-neg/aarch64-ctos/debug/ctos" 2
+    if smp2_check "$smp2_log" 2>/dev/null; then
+        echo "qemu-smoke: smp2 checker PASSED on asid-reserve-drop-probe (negative test failed, ADR-105)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    if ! tr -d '\r' <"$smp2_log" | grep -a -E -q '^smp: s5 asid reissued while running cpu=1 asid=[0-9]+[[:space:]]*$' ||
+       tr -d '\r' <"$smp2_log" | grep -a -q -E '^smp: ok cpu0\+cpu1 s5'; then
+        echo "qemu-smoke: asid-reserve-drop-probe did not catch the reissue (ADR-105)" >&2
+        rm -f "$smp2_log"; exit 1
+    fi
+    echo "qemu-smoke: smp2 S5 reserve-drop caught (checker fails, asid reissued while running; fail-closed ok)"
     rm -f "$smp2_log"
 }
 if [ "${CTOS_SMP2_ONLY:-0}" = 1 ]; then

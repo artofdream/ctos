@@ -102,24 +102,24 @@ const EL0_FS_PATH: &[u8] = b"/eprobe";
 const EL0_FS_BYTES: &[u8] = b"memfs-el0";
 const EL0_FS_REJECT_PATH: &[u8] = b"/kreject";
 
-static YIELD_COUNT: AtomicU64 = AtomicU64::new(0);
-static EXIT_STATUS: AtomicU64 = AtomicU64::new(u64::MAX);
-static UART_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
-static YIELD_OK: AtomicBool = AtomicBool::new(false);
-static UART_OK: AtomicBool = AtomicBool::new(false);
-static EXIT_OK: AtomicBool = AtomicBool::new(false);
-static FS_CREATE: AtomicU64 = AtomicU64::new(0);
-static FS_OPEN: AtomicU64 = AtomicU64::new(0);
-static FS_READ: AtomicU64 = AtomicU64::new(u64::MAX);
-static FS_WRITE: AtomicU64 = AtomicU64::new(u64::MAX);
-static FS_CLOSE_OK: AtomicBool = AtomicBool::new(false);
-static NET_MAC_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
-static NET_PING_OK: AtomicBool = AtomicBool::new(false);
-static NET_UDP_DNS_OK: AtomicBool = AtomicBool::new(false);
-static FS_MKDIR_LAST: AtomicU64 = AtomicU64::new(u64::MAX);
-static NET_TCP_ECHO_OK: AtomicBool = AtomicBool::new(false);
+static YIELD_COUNT: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EXIT_STATUS: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
+static UART_LAST: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
+static YIELD_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static UART_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXIT_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static FS_CREATE: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static FS_OPEN: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static FS_READ: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
+static FS_WRITE: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
+static FS_CLOSE_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static NET_MAC_LAST: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
+static NET_PING_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static NET_UDP_DNS_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static FS_MKDIR_LAST: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
+static NET_TCP_ECHO_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 /// ADR-094: `x0` returned by the last public syscall other than `SYS_EXIT`.
-static LAST_SVC_RET: AtomicU64 = AtomicU64::new(u64::MAX);
+static LAST_SVC_RET: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
 
 /// What the lower-EL handler should do after a public ABI call.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -251,7 +251,7 @@ fn page_el0_access_ok(page: u64, access: UAccess) -> bool {
 /// mapping / length / identity guards). Probes require an exact delta of 1
 /// so each refusal is attributable to this check. Stays 0 in the
 /// `sysptr-leak-probe` build.
-static SYSPTR_DENIED: AtomicU64 = AtomicU64::new(0);
+static SYSPTR_DENIED: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 
 /// Negative build: pretend EL0 always has permission (confused deputy).
 #[cfg(feature = "sysptr-leak-probe")]

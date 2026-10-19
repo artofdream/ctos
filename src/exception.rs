@@ -150,12 +150,12 @@ static PAN_EL1_QUIET: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicB
 static EL0_RETURNS: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 static EL0_CONT: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 static EL0_KSP: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
-/// ADR-104 (S4, `smp2-probe` only): expected EL1 translation DABORT at
-/// one map-window page (the ASID-generation reissue probe). Per core.
+/// ADR-104/105 (`smp2-probe` only): expected EL1 translation DABORT at one
+/// page (ASID reissue probe, core 1 guard pages). Per core.
 #[cfg(feature = "smp2-probe")]
-static EXPECT_ASIDGEN: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EXPECT_DABORT_VA: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 #[cfg(feature = "smp2-probe")]
-static ASIDGEN_CAUGHT: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static DABORT_VA_CAUGHT: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 
 /// Standing user payload writes this into X1 between SVC #1 and SVC #2.
 pub const STANDING_MAGIC: u64 = 0x51A4;
@@ -593,8 +593,16 @@ sync_current_el:
     // x0 = vector kind. Switch SP before any further stores.
     .global fatal_enter
 fatal_enter:
+    // ADR-105: this core's fatal stack from its PerCpu block (offset 24);
+    // 0 / no block = the linker fatal stack (core 0, default build).
+    mrs x3, tpidr_el1
+    cbz x3, 7f
+    ldr x3, [x3, #24]
+    cbnz x3, 8f
+7:
     adrp x3, __fatal_stack_top
     add x3, x3, :lo12:__fatal_stack_top
+8:
     mov sp, x3
     mov x3, x0
     mrs x0, esr_el1
@@ -706,6 +714,18 @@ pub fn stack_guards() -> [u64; 3] {
         exc_stack_guard(),
         fatal_stack_guard(),
     ]
+}
+
+/// ADR-105 (`smp2-probe`): core 1's three guard pages (identity VAs),
+/// punched at boot with the linker-stack guards.
+#[cfg(feature = "smp2-probe")]
+pub fn extra_stack_guards() -> [u64; 3] {
+    crate::smp::cpu1_stack_guards()
+}
+
+#[cfg(not(feature = "smp2-probe"))]
+pub fn extra_stack_guards() -> [u64; 0] {
+    []
 }
 
 fn far_el1() -> u64 {
@@ -929,16 +949,16 @@ pub fn arm_asid_conflict() {
 
 /// ADR-104: arm one expected translation DABORT at page `va` on this core.
 #[cfg(feature = "smp2-probe")]
-pub fn arm_asidgen(va: u64) {
-    ASIDGEN_CAUGHT.store(0, Ordering::SeqCst);
-    EXPECT_ASIDGEN.store(va & !0xfff, Ordering::SeqCst);
+pub fn arm_dabort_va(va: u64) {
+    DABORT_VA_CAUGHT.store(0, Ordering::SeqCst);
+    EXPECT_DABORT_VA.store(va & !0xfff, Ordering::SeqCst);
 }
 
 /// ADR-104: ESR of the caught fault (0 = none); disarms.
 #[cfg(feature = "smp2-probe")]
-pub fn asidgen_caught() -> u64 {
-    EXPECT_ASIDGEN.store(0, Ordering::SeqCst);
-    ASIDGEN_CAUGHT.load(Ordering::SeqCst)
+pub fn dabort_va_caught() -> u64 {
+    EXPECT_DABORT_VA.store(0, Ordering::SeqCst);
+    DABORT_VA_CAUGHT.load(Ordering::SeqCst)
 }
 
 pub fn asid_conflict_caught() -> bool {
@@ -1449,10 +1469,10 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
     }
     #[cfg(feature = "smp2-probe")]
     if is_trans_dabort(ctx.esr) {
-        let want = EXPECT_ASIDGEN.load(Ordering::SeqCst);
+        let want = EXPECT_DABORT_VA.load(Ordering::SeqCst);
         if want != 0 && (far_el1() & !0xfff) == want {
-            EXPECT_ASIDGEN.store(0, Ordering::SeqCst);
-            ASIDGEN_CAUGHT.store(ctx.esr | 1 << 63, Ordering::SeqCst);
+            EXPECT_DABORT_VA.store(0, Ordering::SeqCst);
+            DABORT_VA_CAUGHT.store(ctx.esr | 1 << 63, Ordering::SeqCst);
             ctx.elr = ctx.elr.wrapping_add(4);
             return;
         }
@@ -1722,6 +1742,18 @@ pub extern "C" fn handle_unhandled_exception(kind: u64) -> ! {
 
 #[no_mangle]
 pub extern "C" fn handle_fatal_exception(esr: u64, elr: u64, kind: u64) -> ! {
+    // ADR-105: on a secondary the S5 probe only needs the stack check;
+    // core 0 prints the clean line. Skip raw UART so it cannot tear core 0's
+    // locked lines. Core 0 (and the default build) still print the FR-07 marker.
+    #[cfg(feature = "smp2-probe")]
+    {
+        if crate::percpu::id() != 0 {
+            let sp: u64;
+            unsafe { core::arch::asm!("mov {s}, sp", s = out(reg) sp, options(nomem, nostack)) };
+            crate::smp::note_cpu1_fatal(crate::smp::on_cpu1_fatal_stack(sp));
+            park();
+        }
+    }
     // Marker first, before any formatting, and without the UART mutex.
     uart::write_str_raw("exception: fatal nested\n");
     let mut u = uart::raw();

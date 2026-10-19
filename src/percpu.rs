@@ -24,6 +24,11 @@ pub struct PerCpu {
     pub id: AtomicU64,
     /// Last ASID generation this core has observed (ADR-104 allocator).
     pub asid_gen_seen: AtomicU64,
+    /// Top of this core's fatal / nested-exception stack (offset 24; read by
+    /// `fatal_enter`). 0 = the linker `__fatal_stack_top` (core 0). ADR-105.
+    pub fatal_top: AtomicU64,
+    /// Task running on this core: run-queue id + 1, 0 = none (ADR-105).
+    pub current: AtomicU64,
 }
 
 /// All-zero (`.bss`). Core 0 installs its block in `kernel_main_high`
@@ -31,9 +36,19 @@ pub struct PerCpu {
 /// `[__data_start, __kernel_end)` and would turn the saved TTBR0 (the kernel
 /// L1 PA, itself in `.bss`) into a high VA.
 static mut BLOCKS: [PerCpu; NCPU] = [
-    PerCpu { kernel_ttbr0: AtomicU64::new(0), id: AtomicU64::new(0), asid_gen_seen: AtomicU64::new(0) },
-    PerCpu { kernel_ttbr0: AtomicU64::new(0), id: AtomicU64::new(0), asid_gen_seen: AtomicU64::new(0) },
+    PerCpu::ZERO,
+    PerCpu::ZERO,
 ];
+
+impl PerCpu {
+    const ZERO: PerCpu = PerCpu {
+        kernel_ttbr0: AtomicU64::new(0),
+        id: AtomicU64::new(0),
+        asid_gen_seen: AtomicU64::new(0),
+        fatal_top: AtomicU64::new(0),
+        current: AtomicU64::new(0),
+    };
+}
 
 fn tpidr() -> u64 {
     let v: u64;
@@ -58,6 +73,13 @@ pub fn id() -> usize {
         Some(b) => (b.id.load(Ordering::Relaxed) as usize).min(NCPU - 1),
         None => 0,
     }
+}
+
+/// Set `cpu`'s fatal-stack top (high VA) before [`install`] (ADR-105).
+#[allow(dead_code)]
+pub fn set_fatal_top(cpu: usize, top: u64) {
+    let b = unsafe { &*core::ptr::addr_of!(BLOCKS[cpu]) };
+    b.fatal_top.store(top, Ordering::SeqCst);
 }
 
 /// Fill `cpu`'s block and point `TPIDR_EL1` at its TTBR1 alias. MMU must be

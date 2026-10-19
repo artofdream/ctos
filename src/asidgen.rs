@@ -19,8 +19,11 @@
 //! local `tlbi vmalle1` (this core only). The cross-core reissue probe in
 //! `smp.rs` must then see core 1 read a page through a stale entry.
 //!
-//! Not wired into the single-core default build. No scheduler: S4 runs one
-//! task per core at a time.
+//! Negative build `asid-reserve-drop-probe` (ADR-105): the rollover does
+//! not keep running ASIDs reserved; the S5 probe must catch a running
+//! core's ASID being reissued.
+//!
+//! Not wired into the single-core default build.
 
 use core::sync::atomic::Ordering;
 
@@ -83,7 +86,9 @@ fn rollover(s: &mut State) {
     s.gen += 1;
     s.rollovers += 1;
     s.bitmap = [0; 4];
-    // Running ASIDs stay reserved into the new generation.
+    // Running ASIDs stay reserved into the new generation. The ADR-105
+    // negative build `asid-reserve-drop-probe` drops this rule.
+    #[cfg(not(feature = "asid-reserve-drop-probe"))]
     for &a in s.active.iter() {
         if a >= FIRST {
             set_bit(&mut s.bitmap, a);
@@ -125,7 +130,11 @@ pub fn switch_to(slot: &mut Slot) -> u64 {
     let mut s = STATE.lock();
     if slot.gen != s.gen {
         // Reserved across the rollover because it was running on this core.
-        if slot.gen != 0 && s.active[cpu] == slot.asid && slot.asid >= FIRST {
+        if slot.gen != 0
+            && s.active[cpu] == slot.asid
+            && slot.asid >= FIRST
+            && cfg!(not(feature = "asid-reserve-drop-probe"))
+        {
             slot.gen = s.gen;
         } else {
             *slot = alloc_locked(&mut s);
@@ -138,6 +147,11 @@ pub fn switch_to(slot: &mut Slot) -> u64 {
         b.asid_gen_seen.store(gen, Ordering::SeqCst);
     }
     slot.asid
+}
+
+/// ASID currently marked running on `cpu` (0 = none). ADR-105 probe.
+pub fn active_on(cpu: usize) -> u64 {
+    STATE.lock().active[cpu]
 }
 
 /// This core no longer runs a task ASID (back on the kernel ASID 0).
