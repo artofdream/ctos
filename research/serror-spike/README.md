@@ -1,4 +1,4 @@
-# Taken-SError QEMU spike (ADR-109)
+# Taken-SError QEMU spike (ADR-108)
 
 Stand-alone aarch64 image (`vse/`, **not** the ctos kernel) plus a fail-closed matrix.
 

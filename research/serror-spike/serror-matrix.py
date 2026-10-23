@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ADR-109 SError spike matrix (fail-closed).
+"""ADR-108 SError spike matrix (fail-closed).
 
 Boots the stand-alone `vse-spike` image (research/serror-spike/vse) on a
 given QEMU and checks, per row, that the expected serial line appears and

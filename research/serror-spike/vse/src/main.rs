@@ -1,4 +1,4 @@
-//! ADR-109 spike: stock-QEMU *virtual* SError (HCR_EL2.VSE) taken at EL1
+//! ADR-108 spike: stock-QEMU *virtual* SError (HCR_EL2.VSE) taken at EL1
 //! from EL0. Stand-alone image, not the ctos kernel. Boots at EL2
 //! (`-M virt,virtualization=on`), sets HCR_EL2, ERETs straight to EL0.
 //! Mode byte at 0x4020_0000 (QEMU `-device loader`):
