@@ -98,7 +98,6 @@ fn le32(b: &[u8], o: usize) -> u32 {
 
 #[derive(Clone, Copy)]
 pub struct Dirent {
-    pub name: [u8; 11],
     pub attr: u8,
     pub cluster: u32,
     pub size: u32,
@@ -283,10 +282,7 @@ impl Fat32 {
                         continue;
                     }
                     if found.is_none() && &e[0..11] == name {
-                        let mut nm = [0u8; 11];
-                        nm.copy_from_slice(&e[0..11]);
                         found = Some(Dirent {
-                            name: nm,
                             attr,
                             cluster: (le16(e, 20) << 16) | le16(e, 26),
                             size: le32(e, 28),
@@ -361,9 +357,11 @@ fn run_probe() -> Result<(), Fat32Err> {
     let v = Fat32::mount(disk_read)?;
     let _ = writeln!(
         w,
-        "fat32: mount clusters={} root={} fsinfo=ok",
+        "fat32: mount clusters={} root={} fsinfo=ok free={} disk-sectors={}",
         v.clusters(),
-        v.root_cluster()
+        v.root_cluster(),
+        v.free_count(),
+        virtio::capacity2()
     );
     let probe = v.read_root_file(PROBE_NAME, 64)?;
     if probe != PROBE_BYTES {
