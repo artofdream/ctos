@@ -9,6 +9,8 @@ extern crate alloc;
 
 mod asid;
 mod el0;
+#[cfg(feature = "el2-vserror")]
+mod el2;
 mod exception;
 mod fat;
 mod fsdemo;

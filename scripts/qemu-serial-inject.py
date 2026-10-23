@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import select
 import socket
 import subprocess
@@ -219,6 +220,15 @@ def main() -> int:
         "-kernel",
         elf,
     ]
+    # ADR-111 (N2): opt-in machine options and extra args (EL2 shim run:
+    # `virt,virtualization=on` + `-device loader,file=<shim>,cpu-num=0`).
+    # Absent (every existing smoke) keeps the exact argv above.
+    machine = os.environ.get("CTOS_QEMU_MACHINE", "")
+    if machine:
+        cmd[2] = machine
+    extra = os.environ.get("CTOS_QEMU_EXTRA", "")
+    if extra:
+        cmd[1:1] = shlex.split(extra)
     # ADR-104 (S4): opt-in core count for the SMP probe runs. Absent (the
     # default smoke) keeps QEMU's single core, exactly as before.
     smp = os.environ.get("CTOS_QEMU_SMP", "")
