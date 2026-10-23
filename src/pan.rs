@@ -36,10 +36,10 @@ static PAN_PROBE_OK: AtomicBool = AtomicBool::new(false);
 static PAN_ENABLED: AtomicBool = AtomicBool::new(false);
 static PAN_EL1_FAULT_OK: AtomicBool = AtomicBool::new(false);
 /// ADR-098: the live check ran inside an EL0 syscall handler and PAN was set.
-static LIVE_SYSCALL_TAKEN: AtomicBool = AtomicBool::new(false);
-static LIVE_SYSCALL_OK: AtomicBool = AtomicBool::new(false);
+static LIVE_SYSCALL_TAKEN: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static LIVE_SYSCALL_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 /// ADR-098: the `(PSTATE.PAN, SCTLR_EL1.SPAN)` pair the live check read.
-static LIVE_SYSCALL_SEEN: AtomicU64 = AtomicU64::new(u64::MAX);
+static LIVE_SYSCALL_SEEN: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(u64::MAX));
 
 fn id_aa64mmfr1_el1() -> u64 {
     let v: u64;

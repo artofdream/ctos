@@ -21,9 +21,13 @@
 //! stacks, own GIC CPU interface + timer) and runs the EL0 isolation probes
 //! while core 0 waits; then both cores run the ASID-generation probes.
 //!
-//! Not SMP. Core 1 runs no scheduler and no drivers, and never runs EL0 at
-//! the same time as core 0. The default build has none of this code and QEMU
-//! runs one core (ADR-091 rev 4 scope is unchanged).
+//! S5 (ADR-105): after S4, both cores pick tasks from a locked run queue and
+//! run EL0 concurrently (private TaskSpace + allocator ASID each); a mid-run
+//! ASID rollover keeps core 1's running ASID reserved.
+//!
+//! Not a general-purpose SMP OS. No preemption, no drivers on core 1. The
+//! default build has none of this code and QEMU runs one core (ADR-091 rev 4
+//! scope is unchanged).
 
 use core::arch::{asm, global_asm};
 use core::fmt::Write;
@@ -83,6 +87,7 @@ struct Block {
     s4_result: AtomicU64,
     s4_probes: AtomicU64,
     s4_failed: AtomicU64,
+    s5_go: AtomicU64,
 }
 
 static mut BLOCK: Block = Block {
@@ -111,6 +116,7 @@ static mut BLOCK: Block = Block {
     s4_result: AtomicU64::new(0),
     s4_probes: AtomicU64::new(0),
     s4_failed: AtomicU64::new(0),
+    s5_go: AtomicU64::new(0),
 };
 
 /// Secondary's own stack (no guard page; ADR-102 limits).
@@ -622,26 +628,64 @@ pub fn observe_probe() -> bool {
 // threads), and runs the EL0 isolation probes there, one at a time, while
 // core 0 waits. Then the ASID-generation probes run on both cores.
 
-/// Core 1's thread stack (SP_EL0) and exception stack (SP_EL1). No guard
-/// pages (ADR-104 limits); sizes match core 0's linker stacks.
+/// Core 1's thread stack (SP_EL0), exception stack (SP_EL1) and fatal
+/// stack (ADR-105), each with a 4 KiB guard page below it. The guard pages
+/// are unmapped at boot with the linker-stack guards (identity), before the
+/// TTBR1 RAM clone, so the high alias has the same holes.
 #[repr(C, align(4096))]
-struct ThreadStack([u8; 64 * 1024]);
-static mut CPU1_THREAD_STACK: ThreadStack = ThreadStack([0; 64 * 1024]);
-#[repr(C, align(4096))]
-struct ExcStack([u8; 16 * 1024]);
-static mut CPU1_EXC_STACK: ExcStack = ExcStack([0; 16 * 1024]);
+struct Guarded<const N: usize> {
+    guard: [u8; 4096],
+    stack: [u8; N],
+}
+const THREAD_SZ: usize = 64 * 1024;
+const EXC_SZ: usize = 16 * 1024;
+const FATAL_SZ: usize = 8 * 1024;
+static mut CPU1_THREAD_STACK: Guarded<THREAD_SZ> = Guarded { guard: [0; 4096], stack: [0; THREAD_SZ] };
+static mut CPU1_EXC_STACK: Guarded<EXC_SZ> = Guarded { guard: [0; 4096], stack: [0; EXC_SZ] };
+static mut CPU1_FATAL_STACK: Guarded<FATAL_SZ> = Guarded { guard: [0; 4096], stack: [0; FATAL_SZ] };
 
 fn high(p: u64) -> u64 {
     crate::paging::to_high_va(crate::paging::identity_pa(p))
 }
 
+fn guard_va<const N: usize>(g: *const Guarded<N>) -> u64 {
+    g as u64
+}
+
+/// Identity VAs of core 1's three guard pages (boot-time unmap).
+pub fn cpu1_stack_guards() -> [u64; 3] {
+    [
+        crate::paging::identity_pa(guard_va(core::ptr::addr_of!(CPU1_THREAD_STACK))),
+        crate::paging::identity_pa(guard_va(core::ptr::addr_of!(CPU1_EXC_STACK))),
+        crate::paging::identity_pa(guard_va(core::ptr::addr_of!(CPU1_FATAL_STACK))),
+    ]
+}
+
 fn cpu1_thread_range() -> (u64, u64) {
-    let lo = high(core::ptr::addr_of!(CPU1_THREAD_STACK) as u64);
-    (lo, lo + 64 * 1024)
+    let lo = high(core::ptr::addr_of!(CPU1_THREAD_STACK) as u64) + 4096;
+    (lo, lo + THREAD_SZ as u64)
 }
 
 fn cpu1_exc_top() -> u64 {
-    high(core::ptr::addr_of!(CPU1_EXC_STACK) as u64) + 16 * 1024
+    high(core::ptr::addr_of!(CPU1_EXC_STACK) as u64) + 4096 + EXC_SZ as u64
+}
+
+fn cpu1_fatal_range() -> (u64, u64) {
+    let lo = high(core::ptr::addr_of!(CPU1_FATAL_STACK) as u64) + 4096;
+    (lo, lo + FATAL_SZ as u64)
+}
+
+/// `sp` lies in core 1's own fatal stack (ADR-105).
+pub fn on_cpu1_fatal_stack(sp: u64) -> bool {
+    let (lo, hi) = cpu1_fatal_range();
+    sp > lo && sp <= hi
+}
+
+static CPU1_FATAL_SEEN: AtomicU64 = AtomicU64::new(0);
+
+/// Core 1's fatal handler ran (1 = on its own stack, 2 = another stack).
+pub fn note_cpu1_fatal(own: bool) {
+    CPU1_FATAL_SEEN.store(if own { 1 } else { 2 }, Ordering::SeqCst);
 }
 
 fn kernel_vbar() -> u64 {
@@ -650,6 +694,8 @@ fn kernel_vbar() -> u64 {
 
 fn cpu1_enter_kernel_mode(block: &'static Block) -> ! {
     let kttbr0 = block.s4_kttbr0.load(Ordering::SeqCst);
+    // ADR-105: core 1's own fatal stack, used by `fatal_enter` via PerCpu.
+    crate::percpu::set_fatal_top(1, cpu1_fatal_range().1);
     let _ = crate::percpu::install(1, kttbr0);
     let span = block.s4_span.load(Ordering::SeqCst) & SCTLR_SPAN;
     let sctlr = (sysreg!("sctlr_el1") & !SCTLR_SPAN) | span;
@@ -718,6 +764,11 @@ extern "C" fn cpu1_kernel_main(block: &'static Block) -> ! {
     block.s4_phase.store(P_PROBES_DONE, Ordering::SeqCst);
     if mode_ok {
         cpu1_asidgen(block);
+        // ADR-105 (S5): wait for core 0, then run concurrent EL0.
+        while block.s5_go.load(Ordering::SeqCst) == 0 {
+            core::hint::spin_loop();
+        }
+        cpu1_s5_entry();
     }
     loop {
         unsafe { asm!("wfe", options(nomem, nostack)) };
@@ -826,12 +877,12 @@ fn cpu1_asidgen(b: &'static Block) {
     let mut t2 = crate::asidgen::Slot { gen: g2, asid };
     let a2 = crate::asidgen::switch_to(&mut t2);
     crate::paging::switch_ttbr0_no_tlbi(kttbr0 | (a2 << 48));
-    crate::exception::arm_asidgen(va);
+    crate::exception::arm_dabort_va(va);
     let mut got = ASIDGEN_SENTINEL;
     unsafe {
         asm!("ldr {v}, [{a}]", v = inout(reg) got, a = in(reg) va, options(nostack));
     }
-    let caught = crate::exception::asidgen_caught();
+    let caught = crate::exception::dabort_va_caught();
     crate::asidgen::release_cpu();
     crate::paging::switch_ttbr0_no_tlbi(kttbr0);
     let seen = crate::percpu::this().map(|p| p.asid_gen_seen.load(Ordering::SeqCst)).unwrap_or(0);
@@ -1014,4 +1065,485 @@ pub fn observe_s4() -> bool {
         ));
     }
     ok
+}
+
+
+// ---- ADR-105 (S5): concurrent EL0 on both cores -----------------------
+//
+// Two tasks, each with its own TaskSpace (allocator ASID + private tables)
+// and its own EL0 text / data / stack. Both cores pick tasks from the
+// shared run queue and drive EL0 concurrently. Mid-run core 0 forces an
+// ASID rollover while core 1 is still running; the reserved-running-ASID
+// rule keeps core 1's ASID. A reach / t2t / xo check runs against both
+// spaces. Negative build `asid-reserve-drop-probe` drops the reserved
+// rule and must report that core 1's ASID was reissued while it ran.
+
+const S5_MAGIC_A: u64 = 0x4153_5f53_3500_0001;
+const S5_MAGIC_B: u64 = 0x4153_5f53_3500_0002;
+const SVC_EXIT_A64: u32 = 0xD4000001 | (16 << 5);
+#[allow(dead_code)] const MOVZ_X0: u32 = 0xD2800000;
+#[allow(dead_code)] const MOVK_X0_16: u32 = 0xF2A00000;
+#[allow(dead_code)] const LDR_X1_PC16: u32 = 0x58000081; // LDR X1, [PC, #16]
+const STR_X1_X0: u32 = 0xF9000001;
+const LDR_X2_X0: u32 = 0xF9400002;
+#[allow(dead_code)] const BRK0: u32 = 0xD4200000;
+const LDR_X0_X1: u32 = 0xF9400020; // LDR X0, [X1]
+#[allow(dead_code)] const MOVZ_X1: u32 = 0xD2800001;
+#[allow(dead_code)] const MOVK_X1_16: u32 = 0xF2A00001;
+
+#[repr(C, align(4096))]
+struct TaskPage([u8; 4096]);
+
+#[allow(dead_code)]
+struct S5Task {
+    id: usize,
+    space: crate::paging::TaskSpace,
+    slot: crate::asidgen::Slot,
+    text: u64,
+    data: u64,
+    stack: u64,
+    magic: u64,
+}
+
+static mut S5_TEXT: [TaskPage; 2] = [TaskPage([0; 4096]), TaskPage([0; 4096])];
+static mut S5_DATA: [TaskPage; 2] = [TaskPage([0; 4096]), TaskPage([0; 4096])];
+static mut S5_STACK: [TaskPage; 2] = [TaskPage([0; 4096]), TaskPage([0; 4096])];
+static mut S5_TASKS: [Option<S5Task>; 2] = [None, None];
+
+static S5_READY: AtomicU64 = AtomicU64::new(0);
+static S5_CPU0_RUNS: AtomicU64 = AtomicU64::new(0);
+static S5_CPU1_RUNS: AtomicU64 = AtomicU64::new(0);
+static S5_CPU1_ASID: AtomicU64 = AtomicU64::new(0);
+static S5_CPU1_GEN: AtomicU64 = AtomicU64::new(0);
+static S5_CPU1_HOLD: AtomicU64 = AtomicU64::new(0);
+static S5_ROLLOVER_DONE: AtomicU64 = AtomicU64::new(0);
+static S5_REISSUED: AtomicU64 = AtomicU64::new(0);
+static S5_RESULT: AtomicU64 = AtomicU64::new(0);
+
+fn write_u32(pa: u64, i: usize, v: u32) {
+    let va = crate::paging::frame_cpu_va(pa) + (i * 4) as u64;
+    unsafe { core::ptr::write_volatile(va as *mut u32, v) };
+}
+
+fn sync_icache_pa(pa: u64) {
+    let va = crate::paging::frame_cpu_va(pa);
+    unsafe {
+        asm!(
+            "dc cvau, {x}", "dsb ish", "ic ivau, {x}", "dsb ish", "isb",
+            x = in(reg) va, options(nostack),
+        );
+    }
+}
+
+/// EL0 program: materialise `magic` in X1 via MOVZ/MOVK (no literal pool —
+/// the text page is execute-only), store it at DATA, reload, then `SVC #16`.
+fn fill_text(pa: u64, magic: u64) {
+    let dva = crate::paging::TASK_DATA_VA;
+    let movz = |rd: u32, imm: u32, hw: u32| 0xD2800000 | (hw << 21) | (imm << 5) | rd;
+    let movk = |rd: u32, imm: u32, hw: u32| 0xF2800000 | (hw << 21) | (imm << 5) | rd;
+    write_u32(pa, 0, movz(0, (dva as u32) & 0xffff, 0));
+    write_u32(pa, 1, movk(0, ((dva >> 16) as u32) & 0xffff, 1));
+    write_u32(pa, 2, movz(1, (magic as u32) & 0xffff, 0));
+    write_u32(pa, 3, movk(1, ((magic >> 16) as u32) & 0xffff, 1));
+    write_u32(pa, 4, movk(1, ((magic >> 32) as u32) & 0xffff, 2));
+    write_u32(pa, 5, movk(1, ((magic >> 48) as u32) & 0xffff, 3));
+    write_u32(pa, 6, STR_X1_X0);
+    write_u32(pa, 7, LDR_X2_X0);
+    write_u32(pa, 8, SVC_EXIT_A64);
+    sync_icache_pa(pa);
+}
+
+fn make_task(i: usize, magic: u64) -> Option<S5Task> {
+    let space = crate::paging::task_space_new()?;
+    let text = crate::paging::identity_pa(unsafe { core::ptr::addr_of!(S5_TEXT[i]) as u64 });
+    let data = crate::paging::identity_pa(unsafe { core::ptr::addr_of!(S5_DATA[i]) as u64 });
+    let stack = crate::paging::identity_pa(unsafe { core::ptr::addr_of!(S5_STACK[i]) as u64 });
+    fill_text(text, magic);
+    unsafe {
+        core::ptr::write_bytes(crate::paging::frame_cpu_va(data) as *mut u8, 0, 4096);
+        core::ptr::write_bytes(crate::paging::frame_cpu_va(stack) as *mut u8, 0, 4096);
+    }
+    let leaf = if cfg!(feature = "xo-leak-probe") {
+        crate::paging::TaskLeaf::Rx
+    } else {
+        crate::paging::TaskLeaf::Xo
+    };
+    if !crate::paging::task_space_map(&space, 0, text, leaf)
+        || !crate::paging::task_space_map(&space, 1, data, crate::paging::TaskLeaf::Rw)
+        || !crate::paging::task_space_map(&space, 2, stack, crate::paging::TaskLeaf::Rw)
+    {
+        crate::paging::task_space_free(&space);
+        return None;
+    }
+    let id = match crate::runq::spawn() {
+        Some(id) => id,
+        None => {
+            crate::paging::task_space_free(&space);
+            return None;
+        }
+    };
+    let slot = crate::asidgen::alloc();
+    Some(S5Task { id, space, slot, text, data, stack, magic })
+}
+
+fn s5_run_once(t: &mut S5Task) -> bool {
+    let asid = crate::asidgen::switch_to(&mut t.slot);
+    let ttbr = crate::paging::task_ttbr0(&t.space, asid);
+    crate::el0::install_task(
+        crate::paging::TASK_TEXT_VA,
+        crate::paging::TASK_STACK_VA + 4096,
+        ttbr,
+    );
+    if !crate::el0::is_active() {
+        crate::asidgen::release_cpu();
+        return false;
+    }
+    unsafe {
+        crate::exception::eret_to_el0_masked_ttbr(
+            crate::paging::TASK_TEXT_VA,
+            0,
+            crate::paging::TASK_STACK_VA + 4096,
+            ttbr,
+        );
+    }
+    let exited = !crate::el0::is_active();
+    let got = unsafe { core::ptr::read_volatile(crate::paging::frame_cpu_va(t.data) as *const u64) };
+    crate::asidgen::release_cpu();
+    crate::paging::switch_ttbr0_no_tlbi(crate::paging::kernel_ttbr0());
+    exited && got == t.magic
+}
+
+fn s5_check_spaces(a: &S5Task, b: &S5Task) -> bool {
+    let mut ra = [crate::paging::TaskReach::default(); 8];
+    let mut rb = [crate::paging::TaskReach::default(); 8];
+    let na = crate::paging::task_space_walk(&a.space, &mut ra);
+    let nb = crate::paging::task_space_walk(&b.space, &mut rb);
+    let want_xo = !cfg!(feature = "xo-leak-probe");
+    let mut ok = true;
+    for (n, r, name) in [(na, &ra[..], "a"), (nb, &rb[..], "b")] {
+        if n != 3 {
+            line(format_args!("smp: s5 reach {name} pages={n} (want 3)"));
+            ok = false;
+            continue;
+        }
+        let text = r.iter().find(|p| p.va == crate::paging::TASK_TEXT_VA);
+        let data = r.iter().find(|p| p.va == crate::paging::TASK_DATA_VA);
+        let stack = r.iter().find(|p| p.va == crate::paging::TASK_STACK_VA);
+        match (text, data, stack) {
+            (Some(t), Some(d), Some(s)) => {
+                let xo_ok = if want_xo { t.x && !t.r && !t.w } else { t.x && t.r };
+                if !(xo_ok && d.r && d.w && !d.x && s.r && s.w && !s.x) {
+                    line(format_args!(
+                        "smp: s5 reach {name} bad text=r{}w{}x{} data=r{}w{}x{}",
+                        t.r as u8, t.w as u8, t.x as u8, d.r as u8, d.w as u8, d.x as u8
+                    ));
+                    ok = false;
+                }
+            }
+            _ => {
+                line(format_args!("smp: s5 reach {name} missing leaf"));
+                ok = false;
+            }
+        }
+    }
+    if rb[..nb.min(8)].iter().any(|p| p.pa == a.data) || ra[..na.min(8)].iter().any(|p| p.pa == b.data)
+    {
+        line(format_args!("smp: s5 t2t shared frame"));
+        ok = false;
+    }
+    ok
+}
+
+/// Core 1's three guard pages are unmapped (identity) and their high
+/// aliases are unmapped too (the TTBR1 RAM clone ran after the punch).
+fn s5_check_guards() -> bool {
+    let mut ok = true;
+    for (i, g) in cpu1_stack_guards().into_iter().enumerate() {
+        let name = ["thread", "exc", "fatal"][i];
+        let id_mapped = crate::paging::is_mapped(g);
+        let hi = crate::paging::to_high_va(g);
+        let hi_mapped = crate::paging::high_mapped(hi);
+        if id_mapped || hi_mapped {
+            line(format_args!("smp: s5 guard {name} still mapped id={id_mapped} high={hi_mapped}"));
+            ok = false;
+        }
+    }
+    if ok {
+        line(format_args!("smp: s5 guards unmapped thread,exc,fatal cpu=1"));
+    }
+    ok
+}
+
+/// Live xo: EL0 load of this task's own text must fault (unless leak).
+fn s5_xo_live(t: &mut S5Task) -> bool {
+    let Some(pa) = crate::frame::alloc() else {
+        return false;
+    };
+    let text_va = crate::paging::TASK_TEXT_VA;
+    write_u32(pa, 0, MOVZ_X1 | ((text_va as u32 & 0xffff) << 5));
+    write_u32(pa, 1, MOVK_X1_16 | (((text_va >> 16) as u32 & 0xffff) << 5));
+    write_u32(pa, 2, LDR_X0_X1);
+    write_u32(pa, 3, SVC_EXIT_A64);
+    sync_icache_pa(pa);
+    if !crate::paging::task_space_map(&t.space, 3, pa, crate::paging::TaskLeaf::Xo) {
+        crate::frame::free(pa);
+        return false;
+    }
+    let tramp = crate::paging::MAP_WINDOW + 3 * 4096;
+    let asid = crate::asidgen::switch_to(&mut t.slot);
+    let ttbr = crate::paging::task_ttbr0(&t.space, asid);
+    crate::exception::arm_el0_capture();
+    crate::el0::install_task(tramp, crate::paging::TASK_STACK_VA + 4096, ttbr);
+    unsafe {
+        crate::exception::eret_to_el0_masked_ttbr(
+            tramp, 0, crate::paging::TASK_STACK_VA + 4096, ttbr,
+        );
+    }
+    let (taken, esr, far, _, _) = crate::exception::el0_capture_result();
+    // Capture returns to EL1 without clearing ACTIVE; do it here.
+    crate::el0::clear_active();
+    crate::asidgen::release_cpu();
+    crate::paging::switch_ttbr0_no_tlbi(crate::paging::kernel_ttbr0());
+    crate::frame::free(pa);
+    let ec = (esr >> 26) & 0x3f;
+    let dfsc = esr & 0x3f;
+    let fault = taken && ec == 0x24 && (0x0c..=0x0f).contains(&dfsc) && (far & !0xfff) == text_va;
+    let leak = !taken;
+    if cfg!(feature = "xo-leak-probe") {
+        if leak {
+            line(format_args!("smp: s5 xo leak el0-read-text va={text_va:#x} cpu={}", crate::percpu::id()));
+        }
+        leak
+    } else if fault {
+        true
+    } else {
+        line(format_args!("smp: s5 xo missed taken={taken} esr={esr:#x} far={far:#x}"));
+        false
+    }
+}
+
+fn s5_force_rollover_while(cpu1_asid: u64) -> bool {
+    // Keep allocating until we pass at least one rollover past the current
+    // generation and, under the drop-reserve negative, until cpu1_asid is
+    // seen again.
+    let start = crate::asidgen::rollovers();
+    let mut reissued = false;
+    let mut n = 0u64;
+    while n < 4 * crate::asidgen::PER_GEN {
+        let s = crate::asidgen::alloc();
+        n += 1;
+        if s.asid == cpu1_asid {
+            reissued = true;
+            break;
+        }
+        if crate::asidgen::rollovers() > start + 1 && !cfg!(feature = "asid-reserve-drop-probe") {
+            // Positive path: one full generation past is enough; the reserved
+            // rule must have kept cpu1_asid out of the allocator.
+            break;
+        }
+    }
+    S5_REISSUED.store(if reissued { 1 } else { 0 }, Ordering::SeqCst);
+    S5_ROLLOVER_DONE.store(1, Ordering::SeqCst);
+    crate::asidgen::rollovers() > start
+}
+
+/// Core 1's S5 work: hold one task's ASID across the rollover, then keep
+/// draining the queue.
+fn cpu1_s5() {
+    let freq = cntfrq().max(1);
+    while S5_READY.load(Ordering::SeqCst) == 0 {
+        core::hint::spin_loop();
+    }
+    // First pick: hold across the rollover.
+    let Some(id) = crate::runq::pick() else {
+        line(format_args!("smp: s5 cpu1 missed (empty queue)"));
+        S5_RESULT.store(0xff, Ordering::SeqCst);
+        return;
+    };
+    let tasks = unsafe { &mut *core::ptr::addr_of_mut!(S5_TASKS) };
+    let Some(t) = tasks.iter_mut().find(|t| t.as_ref().map(|x| x.id) == Some(id)).and_then(|t| t.as_mut()) else {
+        crate::runq::put(id, true);
+        return;
+    };
+    let asid = crate::asidgen::switch_to(&mut t.slot);
+    S5_CPU1_ASID.store(asid, Ordering::SeqCst);
+    S5_CPU1_GEN.store(t.slot.gen, Ordering::SeqCst);
+    S5_CPU1_HOLD.store(1, Ordering::SeqCst);
+    // Wait for core 0's rollover while still holding the ASID.
+    let t0 = crate::timer::cntpct();
+    while crate::timer::cntpct().wrapping_sub(t0) < freq * 4 {
+        if S5_ROLLOVER_DONE.load(Ordering::SeqCst) != 0 {
+            break;
+        }
+        core::hint::spin_loop();
+    }
+    // Still the same ASID under the reserved rule.
+    let still = crate::asidgen::active_on(1) == asid;
+    crate::asidgen::release_cpu();
+    let ok = s5_run_once(t);
+    crate::runq::put(id, true);
+    if ok {
+        S5_CPU1_RUNS.fetch_add(1, Ordering::SeqCst);
+    }
+    line(format_args!(
+        "smp: s5 cpu1 hold asid={asid} still-active={} run={} cpu=1",
+        if still { "yes" } else { "no" },
+        if ok { "ok" } else { "missed" }
+    ));
+    // Drain remaining tasks.
+    while let Some(id) = crate::runq::pick() {
+        if let Some(t) = tasks.iter_mut().find(|t| t.as_ref().map(|x| x.id) == Some(id)).and_then(|t| t.as_mut()) {
+            if s5_run_once(t) {
+                S5_CPU1_RUNS.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+        crate::runq::put(id, true);
+    }
+    let _ = still;
+    // ADR-105: prove the nested BRK lands on this core's own fatal stack.
+    // Noreturn on core 1; core 0 waits on CPU1_FATAL_SEEN.
+    crate::exception::trigger_fatal_nested();
+}
+
+/// ADR-105 (S5) on core 0, after S4. Spawns two tasks, signals core 1,
+/// runs concurrently, forces a rollover mid-hold, then checks reach/t2t/xo.
+pub fn observe_s5() -> bool {
+    let freq = cntfrq().max(1);
+    crate::runq::reset();
+    S5_READY.store(0, Ordering::SeqCst);
+    S5_CPU0_RUNS.store(0, Ordering::SeqCst);
+    S5_CPU1_RUNS.store(0, Ordering::SeqCst);
+    S5_CPU1_ASID.store(0, Ordering::SeqCst);
+    S5_CPU1_GEN.store(0, Ordering::SeqCst);
+    S5_CPU1_HOLD.store(0, Ordering::SeqCst);
+    S5_ROLLOVER_DONE.store(0, Ordering::SeqCst);
+    S5_REISSUED.store(0, Ordering::SeqCst);
+    S5_RESULT.store(0, Ordering::SeqCst);
+    let a = match make_task(0, S5_MAGIC_A) {
+        Some(t) => t,
+        None => {
+            line(format_args!("smp: s5 missed (task a)"));
+            return false;
+        }
+    };
+    let b = match make_task(1, S5_MAGIC_B) {
+        Some(t) => t,
+        None => {
+            crate::paging::task_space_free(&a.space);
+            line(format_args!("smp: s5 missed (task b)"));
+            return false;
+        }
+    };
+    let spaces_ok = s5_check_spaces(&a, &b);
+    let guards_ok = s5_check_guards();
+    unsafe {
+        S5_TASKS[0] = Some(a);
+        S5_TASKS[1] = Some(b);
+    }
+    let b = unsafe { &*core::ptr::addr_of!(BLOCK) };
+    b.s5_go.store(1, Ordering::SeqCst);
+    line(format_args!("smp: s5 go cpu0+cpu1"));
+    S5_READY.store(1, Ordering::SeqCst);
+    unsafe { asm!("dsb ish", "sev", options(nostack)) };
+
+    // Wait until core 1 is holding its ASID.
+    let t0 = crate::timer::cntpct();
+    while crate::timer::cntpct().wrapping_sub(t0) < freq * 4 {
+        if S5_CPU1_HOLD.load(Ordering::SeqCst) != 0 {
+            break;
+        }
+        core::hint::spin_loop();
+    }
+    let cpu1_asid = S5_CPU1_ASID.load(Ordering::SeqCst);
+    if cpu1_asid == 0 {
+        line(format_args!("smp: s5 missed (cpu1 never held)"));
+        return false;
+    }
+    let rolled = s5_force_rollover_while(cpu1_asid);
+    let reissued = S5_REISSUED.load(Ordering::SeqCst) != 0;
+
+    // Drain remaining tasks on core 0.
+    let tasks = unsafe { &mut *core::ptr::addr_of_mut!(S5_TASKS) };
+    while let Some(id) = crate::runq::pick() {
+        if let Some(t) = tasks.iter_mut().find(|t| t.as_ref().map(|x| x.id) == Some(id)).and_then(|t| t.as_mut()) {
+            if s5_run_once(t) {
+                S5_CPU0_RUNS.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+        crate::runq::put(id, true);
+    }
+    // Wait for core 1 to finish.
+    let t1 = crate::timer::cntpct();
+    while crate::timer::cntpct().wrapping_sub(t1) < freq * 4 {
+        if S5_CPU1_RUNS.load(Ordering::SeqCst) + S5_CPU0_RUNS.load(Ordering::SeqCst) >= 2 {
+            break;
+        }
+        core::hint::spin_loop();
+    }
+
+    let r0 = S5_CPU0_RUNS.load(Ordering::SeqCst);
+    let r1 = S5_CPU1_RUNS.load(Ordering::SeqCst);
+    let viol = crate::runq::violations();
+    let mut xo_ok = true;
+    for t in tasks.iter_mut() {
+        if let Some(t) = t.as_mut() {
+            if !s5_xo_live(t) {
+                xo_ok = false;
+            }
+        }
+    }
+    let concurrent = r0 >= 1 && r1 >= 1;
+    let reserve_ok = if cfg!(feature = "asid-reserve-drop-probe") {
+        if reissued {
+            line(format_args!(
+                "smp: s5 asid reissued while running cpu=1 asid={cpu1_asid}"
+            ));
+        }
+        reissued
+    } else {
+        !reissued && rolled
+    };
+    // Core 1's fatal nested probe: it triggers after its hold, before park.
+    let t2 = crate::timer::cntpct();
+    while crate::timer::cntpct().wrapping_sub(t2) < freq {
+        if CPU1_FATAL_SEEN.load(Ordering::SeqCst) != 0 {
+            break;
+        }
+        core::hint::spin_loop();
+    }
+    let fatal_ok = CPU1_FATAL_SEEN.load(Ordering::SeqCst) == 1;
+    if fatal_ok {
+        line(format_args!("smp: s5 cpu1 fatal nested stack=own cpu=1"));
+    } else {
+        line(format_args!("smp: s5 cpu1 fatal missed seen={}", CPU1_FATAL_SEEN.load(Ordering::SeqCst)));
+    }
+    let ok = spaces_ok && guards_ok && concurrent && reserve_ok && xo_ok && viol == 0 && fatal_ok && r0 + r1 >= 2;
+    line(format_args!(
+        "smp: s5 runs cpu0={r0} cpu1={r1} rollover={} reissued={} reach={} xo={} viol={viol}",
+        if rolled { "yes" } else { "no" },
+        if reissued { "yes" } else { "no" },
+        if spaces_ok { "ok" } else { "missed" },
+        if xo_ok { "ok" } else { "missed" },
+    ));
+    if ok && !cfg!(feature = "asid-reserve-drop-probe") {
+        line(format_args!(
+            "smp: ok cpu0+cpu1 s5 runq=locked asid=reserved concurrent=el0 reach,t2t,xo"
+        ));
+    } else if cfg!(feature = "asid-reserve-drop-probe") && reissued {
+        // Negative path: the miss line above is the catch; do not print ok.
+    } else {
+        line(format_args!("smp: s5 missed"));
+    }
+    // Free task frames.
+    for t in tasks.iter_mut() {
+        if let Some(t) = t.take() {
+            crate::paging::task_space_free(&t.space);
+        }
+    }
+    ok && !cfg!(feature = "asid-reserve-drop-probe")
+}
+
+/// Core 1 entry into S5 (called from `cpu1_kernel_main` after S4 probes).
+fn cpu1_s5_entry() {
+    cpu1_s5();
 }

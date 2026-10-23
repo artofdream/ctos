@@ -1336,6 +1336,12 @@ unsafe fn install_stack_guards(g: &mut TablesGuard) -> bool {
             ok = false;
         }
     }
+    // ADR-105: core 1's guard pages (smp2-probe only; empty otherwise).
+    for va in crate::exception::extra_stack_guards() {
+        if !unmap_identity_page(g, va) {
+            ok = false;
+        }
+    }
     ok
 }
 
@@ -3684,6 +3690,190 @@ pub fn unmap_page(va: u64) -> bool {
     dsb_ish();
     tlbi_va(va);
     true
+}
+
+// ---- ADR-105 (S5, `smp2-probe`): per-task address spaces ---------------
+//
+// Each S5 task gets its own TTBR0 root built from three fresh frames
+// (L1 → L2 → L3) that maps **only** its own pages in the window region:
+// text (EL0 execute-only), private data (EL0 RW) and stack (EL0 RW), all
+// nG. No kernel mapping is needed in TTBR0: vectors, exception stacks and
+// `TPIDR_EL1` → PerCpu are all TTBR1 high VAs. Writes take `TABLES` so the
+// ADR-103 lock discipline still holds.
+
+/// One S5 task's root (all PAs).
+#[cfg(feature = "smp2-probe")]
+#[derive(Clone, Copy, Debug)]
+pub struct TaskSpace {
+    pub l1: u64,
+    pub l2: u64,
+    pub l3: u64,
+}
+
+#[cfg(feature = "smp2-probe")]
+pub const TASK_TEXT_VA: u64 = MAP_WINDOW;
+#[cfg(feature = "smp2-probe")]
+pub const TASK_DATA_VA: u64 = MAP_WINDOW + PAGE;
+#[cfg(feature = "smp2-probe")]
+pub const TASK_STACK_VA: u64 = MAP_WINDOW + 2 * PAGE;
+
+/// Leaf kinds an S5 task space may hold.
+#[cfg(feature = "smp2-probe")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[allow(dead_code)]
+pub enum TaskLeaf {
+    /// EL0 execute-only (ADR-097 form).
+    Xo,
+    /// EL0 read/write, never executable.
+    Rw,
+    /// EL0 read-only, never executable.
+    Ro,
+    /// EL0 read + execute (the pre-ADR-097 text form; leak builds only).
+    Rx,
+}
+
+#[cfg(feature = "smp2-probe")]
+fn zero_frame(pa: u64) {
+    let va = frame_cpu_va(pa);
+    for i in 0..512u64 {
+        unsafe { core::ptr::write_volatile((va + i * 8) as *mut u64, 0) };
+    }
+    dsb_ish();
+}
+
+/// Fresh, empty task root (window L1/L2 links only).
+#[cfg(feature = "smp2-probe")]
+pub fn task_space_new() -> Option<TaskSpace> {
+    let l1 = frame::alloc()?;
+    let Some(l2) = frame::alloc() else {
+        frame::free(l1);
+        return None;
+    };
+    let Some(l3) = frame::alloc() else {
+        frame::free(l1);
+        frame::free(l2);
+        return None;
+    };
+    for f in [l1, l2, l3] {
+        zero_frame(f);
+    }
+    let l1i = ((MAP_WINDOW >> 30) & 0x1ff) as usize;
+    let l2i = ((MAP_WINDOW >> 21) & 0x1ff) as usize;
+    {
+        let _g = &mut lock_tables();
+        unsafe {
+            core::ptr::write_volatile((frame_cpu_va(l1) + l1i as u64 * 8) as *mut u64, table_desc(l2));
+            core::ptr::write_volatile((frame_cpu_va(l2) + l2i as u64 * 8) as *mut u64, table_desc(l3));
+        }
+        dsb_ish();
+    }
+    Some(TaskSpace { l1, l2, l3 })
+}
+
+/// Map window `slot` of a task space to `pa` (nG). Refuses a used slot.
+#[cfg(feature = "smp2-probe")]
+pub fn task_space_map(s: &TaskSpace, slot: usize, pa: u64, leaf: TaskLeaf) -> bool {
+    if slot >= 512 || pa & (PAGE - 1) != 0 {
+        return false;
+    }
+    let desc = match leaf {
+        TaskLeaf::Xo => l3_page_el0_xo(pa),
+        TaskLeaf::Rw => l3_page_el0_rw(pa),
+        TaskLeaf::Ro => l3_page_el0_ro(pa),
+        TaskLeaf::Rx => l3_page_el0_text(pa),
+    } | DESC_NG;
+    let _g = &mut lock_tables();
+    let p = (frame_cpu_va(s.l3) + slot as u64 * 8) as *mut u64;
+    unsafe {
+        if core::ptr::read_volatile(p) & DESC_VALID != 0 {
+            return false;
+        }
+        core::ptr::write_volatile(p, desc);
+    }
+    dsb_ish();
+    true
+}
+
+/// Free a task space's table frames (caller has retired its ASID).
+#[cfg(feature = "smp2-probe")]
+pub fn task_space_free(s: &TaskSpace) {
+    frame::free(s.l3);
+    frame::free(s.l2);
+    frame::free(s.l1);
+}
+
+/// TTBR0 value for a task space under `asid`.
+#[cfg(feature = "smp2-probe")]
+pub fn task_ttbr0(s: &TaskSpace, asid: u64) -> u64 {
+    s.l1 | (asid << 48)
+}
+
+/// One EL0-reachable leaf found by [`task_space_walk`].
+#[cfg(feature = "smp2-probe")]
+#[derive(Clone, Copy, Default, Debug)]
+pub struct TaskReach {
+    pub va: u64,
+    pub pa: u64,
+    pub r: bool,
+    pub w: bool,
+    pub x: bool,
+}
+
+/// Walk a whole task root (every L1/L2/L3 entry, blocks included) and
+/// collect every leaf EL0 can read, write or execute. Returns the count
+/// (may exceed `out.len()`; extra leaves are counted, not stored).
+#[cfg(feature = "smp2-probe")]
+pub fn task_space_walk(s: &TaskSpace, out: &mut [TaskReach]) -> usize {
+    let mut n = 0usize;
+    let mut note = |va: u64, d: u64, out: &mut [TaskReach]| {
+        let el0 = d & DESC_AP_EL0 != 0;
+        let x = d & DESC_UXN == 0;
+        if !el0 && !x {
+            return;
+        }
+        if n < out.len() {
+            out[n] = TaskReach {
+                va,
+                pa: d & 0x0000_ffff_ffff_f000,
+                r: el0,
+                w: el0 && d & DESC_AP_RO == 0,
+                x,
+            };
+        }
+        n += 1;
+    };
+    let rd = |pa: u64, i: u64| unsafe { core::ptr::read_volatile((frame_cpu_va(pa) + i * 8) as *const u64) };
+    for i1 in 0..512u64 {
+        let d1 = rd(s.l1, i1);
+        if d1 & DESC_VALID == 0 {
+            continue;
+        }
+        let va1 = i1 << 30;
+        if d1 & DESC_TABLE == 0 {
+            note(va1, d1, out);
+            continue;
+        }
+        let l2 = d1 & 0x0000_ffff_ffff_f000;
+        for i2 in 0..512u64 {
+            let d2 = rd(l2, i2);
+            if d2 & DESC_VALID == 0 {
+                continue;
+            }
+            let va2 = va1 | (i2 << 21);
+            if d2 & DESC_TABLE == 0 {
+                note(va2, d2, out);
+                continue;
+            }
+            let l3 = d2 & 0x0000_ffff_ffff_f000;
+            for i3 in 0..512u64 {
+                let d3 = rd(l3, i3);
+                if d3 & DESC_VALID != 0 {
+                    note(va2 | (i3 << 12), d3, out);
+                }
+            }
+        }
+    }
+    n
 }
 
 /// ADR-104 (S4 probe only): clear a map-window descriptor **without** any

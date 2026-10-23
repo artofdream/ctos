@@ -35,6 +35,8 @@ mod slot;
 #[cfg(feature = "smp2-probe")]
 mod asidgen;
 #[cfg(feature = "smp2-probe")]
+mod runq;
+#[cfg(feature = "smp2-probe")]
 mod smp;
 mod reach;
 mod syscall;
@@ -195,7 +197,9 @@ extern "C" fn kernel_main_high() -> ! {
             fat::init();
             sched::init();
             gic::init();
-            let _ = smp::observe_s4();
+            if smp::observe_s4() {
+                let _ = smp::observe_s5();
+            }
         }
         uart::UART.lock().write_string("smp: done\n");
         loop {

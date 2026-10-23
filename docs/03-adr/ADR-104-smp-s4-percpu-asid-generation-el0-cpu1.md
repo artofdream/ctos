@@ -83,6 +83,8 @@ One task per core: core 0 runs no EL0 in this build. The standing loader task (`
 
 ## Proposed S5 (for sponsor go; not started)
 
+**Done as [ADR-105](ADR-105-smp-s5-concurrent-el0-runq.md)** (sponsor go 2026-10-19 21:26 CEST).
+
 Scheduler and concurrency: a run-queue lock and per-core current-task pointers (R6); EL0 tasks on **both** cores at the same time, each with an allocator ASID and its own user tables (no shared EL0 probe page); bank or retire the remaining global probe flags; a per-core fatal stack and guard pages for core 1; a probe that runs t2t / reach / xo on both cores at once with a rollover in between, plus a negative that drops the reserved-running-ASID rule. Then, **docs only and only with a written sponsor accept**, a proposal for the multi-core sentence (scope, the TCG limits above, and what KVM evidence it would need).
 
 ## Consequences

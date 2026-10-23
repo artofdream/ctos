@@ -15,10 +15,10 @@ use crate::frame;
 use crate::paging::{self, El0Reach, ReachPlant};
 use crate::uart;
 
-static LIVE_ARMED: AtomicBool = AtomicBool::new(false);
-static LIVE_TAKEN: AtomicBool = AtomicBool::new(false);
+static LIVE_ARMED: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static LIVE_TAKEN: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 static LIVE_PAGES: [AtomicU32; 4] = [AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0)];
-static LIVE_LEAKS: AtomicU32 = AtomicU32::new(u32::MAX);
+static LIVE_LEAKS: crate::percpu::Banked<AtomicU32> = crate::banked!(AtomicU32::new(u32::MAX));
 
 /// Kernel `.data` page used as the kernel-PA plant target (never EL0-run).
 static REACH_KERNEL_PAGE_BAIT: AtomicU32 = AtomicU32::new(0x5eac_4ba1);

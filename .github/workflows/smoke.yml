@@ -70,10 +70,12 @@ jobs:
           CTOS_REQUIRE_TAKEN_SERROR: "1"
         run: ./scripts/qemu-smoke.sh
   qemu-smp2:
-    # ADR-100 S1: opt-in secondary-CPU bring-up smoke (QEMU -smp 2, PSCI
-    # CPU_ON, MPIDR marker, park) plus its -smp 1 negative. NOT a required
-    # check: ADR-091 rev 4 stays one core. Does not run EL0 on the secondary.
-    name: QEMU -smp 2 bring-up (opt-in, ADR-100; not required)
+    # ADR-100..105: opt-in SMP probe smoke (QEMU -smp 2). S1 bring-up, S2
+    # MMU/PAN/VBAR, S3 broadcast TLBI, S4 PerCpu + EL0 probes on core 1, S5
+    # concurrent EL0 on both cores with ASID generations. Plus the -smp 1
+    # negative and the S2–S5 leak / reserve-drop negatives. NOT a required
+    # check: ADR-091 rev 4 stays one core until a written sponsor accept.
+    name: QEMU -smp 2 bring-up (opt-in, ADR-100..105; not required)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
