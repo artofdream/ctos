@@ -35,7 +35,7 @@ jobs:
       - name: Install qemu-system-aarch64
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-arm
+          sudo apt-get install -y qemu-system-arm dosfstools mtools  # ADR-107 FAT32 image
           qemu-system-aarch64 --version
 
       - name: Build, serial hello, cargo test
@@ -59,7 +59,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build meson pkg-config python3-venv flex bison \
-            libglib2.0-dev libpixman-1-dev libfdt-dev libslirp-dev
+            libglib2.0-dev libpixman-1-dev libfdt-dev libslirp-dev \
+            dosfstools mtools
 
       - name: Build pinned QEMU (TYPE_NMI patch)
         run: ./scripts/build-qemu-nmi.sh
@@ -97,7 +98,7 @@ jobs:
       - name: Install qemu-system-aarch64
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-arm
+          sudo apt-get install -y qemu-system-arm dosfstools mtools  # ADR-107 FAT32 image
           qemu-system-aarch64 --version
 
       - name: smp2-probe positive (-smp 2) + negative (-smp 1)
@@ -123,7 +124,7 @@ jobs:
       - name: Install qemu-system-aarch64
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-arm
+          sudo apt-get install -y qemu-system-arm dosfstools mtools  # ADR-107 FAT32 image
           qemu-system-aarch64 --version
 
       - name: Virtual SError via EL2 shim + negatives
