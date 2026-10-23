@@ -124,7 +124,7 @@ jobs:
       - name: Install qemu-system-aarch64
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-arm
+          sudo apt-get install -y qemu-system-arm dosfstools mtools  # ADR-107 FAT32 image
           qemu-system-aarch64 --version
 
       - name: Virtual SError via EL2 shim + negatives
