@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ADR-108: gdbstub route. gdb `monitor nmi` is forwarded (qRcmd) to the same
+# ADR-109: gdbstub route. gdb `monitor nmi` is forwarded (qRcmd) to the same
 # HMP `nmi` as QMP inject-nmi; gdb itself has no way to raise an SError.
 # Usage: CTOS_QEMU=<qemu> gdb-nmi.sh <vse-spike elf>   (mode 4: EL0 spin)
 set -u

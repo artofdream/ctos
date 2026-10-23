@@ -1,10 +1,10 @@
-# ADR-108 — Taken-SError QEMU spike: what triggers it on TCG (stock and pinned)
+# ADR-109 — Taken-SError QEMU spike: what triggers it on TCG (stock and pinned)
 
 - Status: Accepted (spike / research). Sponsor go relayed by DSO on 2026-10-23 at 19:25 CEST (stop-all lifted for ctos only). One finding, one PR. No change to the kernel, `_start`, the default smoke or the ADR-091 claim.
 - Date: 2026-10-23
 - Base: main `c420fba` (includes #160, #161, #162).
 - Machine: amd64 workstation (bare-metal Ubuntu, TCG only; no KVM for an aarch64 guest). No cloud, no CloudAgent. Builds ran in an `ubuntu:24.04` container on that host because the host lacks QEMU build deps and root.
-- Number: ADR-107 is taken by open PR #163, so this is ADR-108.
+- Number: ADR-107 and ADR-108 are taken by open PRs #163 and #164, so this is ADR-109 (renumbered from 108 in a follow-up commit).
 
 ## Question
 
