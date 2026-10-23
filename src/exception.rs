@@ -1743,6 +1743,14 @@ pub extern "C" fn handle_serror_lower_el(_ctx: &mut ExceptionContext) {
             #[cfg(not(feature = "el2-vserror"))]
             {
                 EL0_SERROR_CAUGHT.store(true, Ordering::SeqCst);
+                // ADR-110 (N1): a taken SError on core 1 gets its own locked line,
+                // so the single-core `el0: serror` cue can't be faked by cpu1.
+                #[cfg(feature = "smp2-serror-probe")]
+                if crate::percpu::id() == 1 {
+                    crate::smp::line(format_args!("smp: cpu1 el0 serror taken cpu=1"));
+                    stay_at_el0(_ctx);
+                    return;
+                }
                 uart::write_str_raw("el0: serror\n");
             }
         }

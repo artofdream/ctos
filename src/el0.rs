@@ -438,6 +438,57 @@ fn serror_while_standing() -> bool {
     })
 }
 
+/// ADR-110 (N1): cpu1 standing-EL0 SError probe. Same standing code page and
+/// EXPECT flags (banked per core) as the single-core probe, but its own arm
+/// cue `smp: cpu1 serror-arm` so the host injects with HMP `nmi` and
+/// `cpu-index` of its choice. Fail-closed: `taken=yes` only if core 1's
+/// lower-EL SError handler ran and the standing trip restored.
+/// `smp2-serror-masked` ERETs with PSTATE.A set (negative).
+#[cfg(feature = "smp2-serror-probe")]
+pub fn cpu1_serror_probe() -> bool {
+    let masked = cfg!(feature = "smp2-serror-masked");
+    let line = crate::smp::line;
+    if crate::percpu::id() != 1 || is_active() || !paging::user_map_ready() {
+        line(format_args!("smp: cpu1 serror missed (not cpu1 / no user map)"));
+        return false;
+    }
+    let taken = with_el0_page(|ptr, va| {
+        write_serror_standing(ptr);
+        let user_sp = va + 4096;
+        line(format_args!(
+            "smp: cpu1 serror-arm masked={} cpu=1",
+            if masked { "yes" } else { "no" }
+        ));
+        exception::arm_el0_standing();
+        exception::arm_el0_serror();
+        install_standing(va, user_sp, paging::user_ttbr0());
+        if !is_active() {
+            clear_active();
+            return false;
+        }
+        unsafe {
+            if masked {
+                exception::eret_to_el0_masked(black_box(va), 0, user_sp);
+            } else {
+                exception::eret_to_el0_serror(black_box(va), 0, user_sp);
+            }
+        }
+        if is_active() {
+            clear_active();
+            return false;
+        }
+        exception::el0_serror_caught()
+            && exception::el0_standing_caught()
+            && exception::el0_restored_caught()
+    });
+    line(format_args!(
+        "smp: cpu1 serror {} masked={} cpu=1",
+        if taken { "taken=yes" } else { "park taken=no" },
+        if masked { "yes" } else { "no" }
+    ));
+    taken
+}
+
 /// ADR-085 B2-P: standalone standing-EL0 SError probe (KVM host inject).
 /// Prints `el0: serror-arm`; the lower-EL SError handler prints bare
 /// `el0: serror` only if the SError is actually taken. Otherwise prints

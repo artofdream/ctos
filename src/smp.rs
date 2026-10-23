@@ -297,7 +297,7 @@ fn cpu1_vbar() -> u64 {
 }
 
 /// One console line under the `UART` lock (ADR-102 console lock).
-fn line(args: core::fmt::Arguments) {
+pub(crate) fn line(args: core::fmt::Arguments) {
     let mut g = crate::uart::UART.lock();
     let _ = g.write_fmt(args);
     let _ = g.write_str("\n");
@@ -758,6 +758,9 @@ extern "C" fn cpu1_kernel_main(block: &'static Block) -> ! {
         crate::gic::init_this_cpu();
         crate::timer::init();
         failed = cpu1_run_probes(block);
+        // ADR-110 (N1): cpu1 standing-EL0 SError arm point (opt-in build).
+        #[cfg(feature = "smp2-serror-probe")]
+        let _ = crate::el0::cpu1_serror_probe();
         crate::timer::stop();
     }
     block.s4_failed.store(if mode_ok { failed } else { u64::MAX }, Ordering::SeqCst);
