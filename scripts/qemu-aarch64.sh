@@ -61,6 +61,14 @@ if ! python3 "$ROOT/scripts/mkfat16.py" --app "$APP" --app2 "$APP2" --app3 "$APP
     echo "qemu-aarch64: failed to write FAT16 image $IMG" >&2
     exit 1
 fi
+# ADR-107: FAT32 test image (mkfs.fat -F 32) on a second, read-only
+# virtio-blk. Listed BEFORE hd0 so QEMU puts it on the higher virtio-mmio
+# slot and the guest's first-found blk stays the FAT16 disk.
+F32="${CTOS_FAT32_IMAGE:-$ROOT/target/fat32.img}"
+if [ -z "${CTOS_FAT32_IMAGE:-}" ] && ! "$ROOT/scripts/mkfat32.sh" "$F32"; then
+    echo "qemu-aarch64: failed to write FAT32 image $F32 (ADR-107)" >&2
+    exit 1
+fi
 # ADR-079: default probe CPU is cortex-a76 (FEAT_PAN; pan: present).
 # Historical cortex-a57 stays pan: absent (ADR-026/054). Do not silent -cpu.
 QEMU_BIN="${CTOS_QEMU:-qemu-system-aarch64}"
@@ -71,6 +79,8 @@ exec "$QEMU_BIN" \
     -display none \
     -serial stdio \
     -semihosting \
+    -drive if=none,file="$F32",format=raw,readonly=on,id=hd32 \
+    -device virtio-blk-device,drive=hd32 \
     -drive if=none,file="$IMG",format=raw,cache=writethrough,id=hd0 \
     -device virtio-blk-device,drive=hd0 \
     -netdev user,id=net0,guestfwd=tcp:10.0.2.4:7-cmd:"$ROOT/scripts/tcp-echo-stdio.sh" \

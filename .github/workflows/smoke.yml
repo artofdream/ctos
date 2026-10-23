@@ -35,7 +35,7 @@ jobs:
       - name: Install qemu-system-aarch64
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-arm
+          sudo apt-get install -y qemu-system-arm dosfstools mtools  # ADR-107 FAT32 image
           qemu-system-aarch64 --version
 
       - name: Build, serial hello, cargo test
@@ -59,7 +59,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build meson pkg-config python3-venv flex bison \
-            libglib2.0-dev libpixman-1-dev libfdt-dev libslirp-dev
+            libglib2.0-dev libpixman-1-dev libfdt-dev libslirp-dev \
+            dosfstools mtools
 
       - name: Build pinned QEMU (TYPE_NMI patch)
         run: ./scripts/build-qemu-nmi.sh
@@ -69,6 +70,14 @@ jobs:
           CTOS_QEMU: ${{ github.workspace }}/tools/qemu-nmi/bin/qemu-system-aarch64
           CTOS_REQUIRE_TAKEN_SERROR: "1"
         run: ./scripts/qemu-smoke.sh
+
+      # ADR-110 (N1): -smp 2, HMP `nmi` with cpu-index=1 while ctos core 1
+      # stands at EL0 (taken), plus negatives: nmi to cpu0 and core 1 A-masked
+      # (not taken). Fail-closed. The single-core step above is unchanged.
+      - name: Core 1 taken SError (-smp 2, cpu-index=1) + negatives
+        env:
+          CTOS_QEMU: ${{ github.workspace }}/tools/qemu-nmi/bin/qemu-system-aarch64
+        run: ./scripts/smp2-serror-pin.sh
   qemu-smp2:
     # ADR-100..105: opt-in SMP probe smoke (QEMU -smp 2). S1 bring-up, S2
     # MMU/PAN/VBAR, S3 broadcast TLBI, S4 PerCpu + EL0 probes on core 1, S5
@@ -89,10 +98,34 @@ jobs:
       - name: Install qemu-system-aarch64
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-system-arm
+          sudo apt-get install -y qemu-system-arm dosfstools mtools  # ADR-107 FAT32 image
           qemu-system-aarch64 --version
 
       - name: smp2-probe positive (-smp 2) + negative (-smp 1)
         env:
           CTOS_SMP2_ONLY: "1"
         run: ./scripts/qemu-smoke.sh
+  qemu-el2-vserror:
+    # ADR-111 (N2): opt-in. Stock QEMU `-M virt,virtualization=on` + the EL2
+    # shim (tools/el2-shim, loaded with -device loader at PA 0, _start
+    # untouched) gives a taken *virtual* SError (HCR_EL2.VSE) at EL0 with the
+    # full image, plus three negatives. NOT a required check; no claim change.
+    name: QEMU EL2 shim virtual SError (opt-in, ADR-111; not required)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly + rust-src
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src, llvm-tools-preview
+
+      - name: Install qemu-system-aarch64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-arm dosfstools mtools  # ADR-107 FAT32 image
+          qemu-system-aarch64 --version
+
+      - name: Virtual SError via EL2 shim + negatives
+        run: ./scripts/el2-vserror-smoke.sh

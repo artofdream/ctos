@@ -20,6 +20,17 @@ b2-serror = []
 # isolation probes on core 1 (needs the inject script's devices). Default
 # build and smoke unchanged.
 smp2-probe = []
+# ADR-110 (N1): cpu1 standing-EL0 SError arm point (pinned QEMU, HMP `nmi`
+# with cpu-index=1). Opt-in; implies smp2-probe. `-masked` is the negative
+# build: cpu1 ERETs with PSTATE.A set, so the SError must not be taken.
+smp2-serror-probe = ["smp2-probe"]
+smp2-serror-masked = ["smp2-serror-probe"]
+# ADR-111 (N2): ask the EL2 shim (tools/el2-shim) for a *virtual* SError
+# (HCR_EL2.VSE) in the standing-EL0 window. Opt-in; needs stock QEMU
+# `-M virt,virtualization=on -device loader,file=<shim>,cpu-num=0`.
+# `-masked` is the negative build: ERET with PSTATE.A set.
+el2-vserror = []
+el2-vserror-masked = ["el2-vserror"]
 # ADR-102 S2 negative builds (each implies smp2-probe). The checker must
 # fail on each and the named miss line must appear.
 # neg-pan: cpu1 skips `msr pan, #1` -> `smp: cpu1 pan lost (pstate pan=0)`.

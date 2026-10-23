@@ -9,8 +9,11 @@ extern crate alloc;
 
 mod asid;
 mod el0;
+#[cfg(feature = "el2-vserror")]
+mod el2;
 mod exception;
 mod fat;
+mod fat32;
 mod fsdemo;
 mod fatdemo;
 mod yldemo;
@@ -226,6 +229,8 @@ extern "C" fn kernel_main_high() -> ! {
     #[allow(unreachable_code)]
     vfs::init();
     virtio::init();
+    // ADR-107: optional second virtio-blk (read-only FAT32 volume).
+    virtio::init2();
     virtio::init_net();
     fat::init();
     sched::init();
@@ -339,6 +344,12 @@ extern "C" fn kernel_main_high() -> ! {
         // root readdir. Same VFS. Not POSIX getdents.
         if !fat::observe_probe() {
             uart::write_str_raw("fat: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (ADR-107): FAT32 BPB + FSInfo, chains
+        // through the FAT32 table, root directory as a cluster chain, on a
+        // second virtio-blk disk (`mkfs.fat -F 32`). Read-only. Not a mount.
+        if !fat32::observe_probe() {
+            uart::write_str_raw("fat32: probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A9 / ADR-030): FAT
         // `/hello` app slot + A3 PT_LOAD. No embed fallback. ADR-046

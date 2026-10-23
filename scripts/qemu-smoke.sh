@@ -1013,6 +1013,68 @@ echo "qemu-smoke: FAT16 delete (ADR-057) strings present"
 echo "qemu-smoke: FAT16 multi-cluster grow (ADR-064) strings present"
 echo "qemu-smoke: FAT16 mkdir (ADR-073) strings present"
 echo "qemu-smoke: FAT16 nested+rmdir (ADR-077) strings present"
+# ADR-107: FAT32 on a second read-only virtio-blk (mkfs.fat -F 32 image).
+# Fail closed: every marker, a fragmented BIG.BIN chain (jumps>=1), a root
+# directory of >= 2 clusters, and no fat32: fail / probe missed.
+if grep -q "fat32: fail\|fat32: probe missed" "$log"; then
+    echo "qemu-smoke: FAT32 probe failed: $(grep -m1 'fat32: fail\|fat32: probe missed' "$log") (ADR-107)" >&2
+    exit 1
+fi
+if ! grep -Eq "^fat32: mount clusters=[0-9]+ root=[0-9]+ fsinfo=ok" "$log"; then
+    echo "qemu-smoke: missing 'fat32: mount' on serial (ADR-107 FAT32 BPB/FSInfo, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+f32_clusters=$(sed -n 's/^fat32: mount clusters=\([0-9]*\) .*/\1/p' "$log" | head -1)
+if [ "${f32_clusters:-0}" -lt 65525 ]; then
+    echo "qemu-smoke: FAT32 cluster count ${f32_clusters:-?} is below 65525 (not FAT32, ADR-107)" >&2
+    exit 1
+fi
+if ! grep -q "^fat32: read /probe32.txt bytes=9" "$log"; then
+    echo "qemu-smoke: missing 'fat32: read /probe32.txt bytes=9' (ADR-107, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -Eq "^fat32: chain /big.bin clusters=6 jumps=[1-9][0-9]* bytes=3000" "$log"; then
+    echo "qemu-smoke: missing fragmented 'fat32: chain /big.bin' (ADR-107 FAT32 table walk, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -Eq "^fat32: root-chain clusters=([2-9]|[1-9][0-9]+) last=found" "$log"; then
+    echo "qemu-smoke: missing 'fat32: root-chain' with >=2 clusters (ADR-107, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+if ! grep -q "^fat32: ok" "$log"; then
+    echo "qemu-smoke: missing 'fat32: ok' on serial (ADR-107, qemu exit $qemu_ec)" >&2
+    exit 1
+fi
+echo "qemu-smoke: FAT32 (ADR-107) strings present (clusters=$f32_clusters)"
+# ADR-107 negative: same kernel, FAT32 image with the root chain broken
+# (FAT[root] = free). The guest must say bad-chain and never fat32: ok.
+f32_bad=$(mktemp)
+"$ROOT/scripts/mkfat32.sh" "$f32_bad.good"
+"$ROOT/scripts/mkfat32.sh" --corrupt "$f32_bad.good" "$f32_bad"
+neg_log=$(mktemp)
+# Own FAT16 copy: the main boot's FAT16 image is host-checked later (ADR-050).
+neg_blk=$(mktemp)
+set +e
+CTOS_BLK_IMAGE="$neg_blk" CTOS_FAT32_IMAGE="$f32_bad" CTOS_QEMU_STOP_AT="fat32: probe missed" \
+    CTOS_QEMU_TIMEOUT="$TIMEOUT_SECS" python3 "$ROOT/scripts/qemu-serial-inject.py" \
+    "$elf" >"$neg_log" 2>&1
+set -e
+rm -f "$f32_bad" "$f32_bad.good" "$neg_blk"
+if grep -q "^fat32: ok" "$neg_log"; then
+    echo "qemu-smoke: FAT32 negative printed fat32: ok on a broken root chain (ADR-107)" >&2
+    rm -f "$neg_log"; exit 1
+fi
+if ! grep -q "^fat32: fail reason=bad-chain" "$neg_log"; then
+    echo "qemu-smoke: FAT32 negative missing 'fat32: fail reason=bad-chain' (ADR-107)" >&2
+    grep "fat32:" "$neg_log" >&2 || true
+    rm -f "$neg_log"; exit 1
+fi
+if ! grep -q "^fat: ok" "$neg_log"; then
+    echo "qemu-smoke: FAT32 negative boot lost FAT16 'fat: ok' (ADR-107: FAT16 must still work)" >&2
+    rm -f "$neg_log"; exit 1
+fi
+rm -f "$neg_log"
+echo "qemu-smoke: FAT32 negative (broken root chain) fails closed; FAT16 still ok (ADR-107)"
 # ADR-065: FAT-vs-memfs read CNTPCT pair (raw ticks; not a bench / percent).
 if grep -q "perf: fat-read missed" "$log"; then
     echo "qemu-smoke: fat-read probe missed (CNTPCT around FAT VFS read did not advance)" >&2
