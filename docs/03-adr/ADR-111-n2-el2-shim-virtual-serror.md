@@ -1,13 +1,13 @@
 # ADR-111 — N2: EL2 shim → taken **virtual SError** at EL0 on stock QEMU (opt-in)
 
-- Status: Accepted (implementation + evidence, opt-in). Sponsor go relayed by DSO on 2026-10-23 at 20:17 CEST (N2 from [ADR-109](ADR-109-taken-serror-qemu-spike.md)).
+- Status: Accepted (implementation + evidence, opt-in). Sponsor go relayed by DSO on 2026-10-23 at 20:17 CEST (N2 from [ADR-108](ADR-108-taken-serror-qemu-spike.md)).
 - Date: 2026-10-23
-- Base: main `c420fba`. ADR-107..110 are held by open PRs #163, #164, #165 and the N1 PR, so this is ADR-111.
+- Base: main `c420fba`. ADR-107 (#163), ADR-108 (#165, the spike), ADR-109 (#164) and ADR-110 (#166, N1) are taken, so this is ADR-111.
 - Machine: amd64 workstation (TCG; builds in an `ubuntu:24.04` container).
 
 ## Context
 
-[ADR-109](ADR-109-taken-serror-qemu-spike.md) found that stock QEMU has **no physical SError source**, but it does model the architectural **virtual SError** (`HCR_EL2.VSE`) for a guest that owns EL2. ctos runs at EL1 and `_start` (0x4008_0000) must not change. So a tiny EL2 shim must sit in front of it.
+[ADR-108](ADR-108-taken-serror-qemu-spike.md) found that stock QEMU has **no physical SError source**, but it does model the architectural **virtual SError** (`HCR_EL2.VSE`) for a guest that owns EL2. ctos runs at EL1 and `_start` (0x4008_0000) must not change. So a tiny EL2 shim must sit in front of it.
 
 ## Decision
 
