@@ -1,0 +1,92 @@
+## host stock (amd64 workstation, distro qemu)
+serror-matrix: qemu='QEMU emulator version 10.2.1 (Debian 1:10.2.1+ds-1ubuntu3.2)' pin=0
+serror-matrix: ok   vse cpu0 taken           mode=0x00 smp=1  | vse: cpu=0x0 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu0 no-VSE          mode=0x01 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu0 A-masked        mode=0x02 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu0 no-AMO          mode=0x03 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 taken           mode=0x10 smp=2  | vse: cpu=0x1 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu1 no-VSE          mode=0x11 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 A-masked        mode=0x12 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu1 no-AMO          mode=0x13 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   bad PA = sync abort      mode=0x06 smp=1  | vse: cpu=0x0 sync abort (not serror) vec=0x400 ec=0x24 dfsc=0x10
+serror-matrix: ok   nmi cpu0 el0             mode=0x04 smp=1 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi cpu0 el0 A-masked    mode=0x05 smp=1 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi cpu1 el0             mode=0x14 smp=2 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi to cpu0, cpu1 el0    mode=0x14 smp=2 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok rows=13 bad=0
+
+## container (ubuntu:24.04): pin
+serror-matrix: qemu='QEMU emulator version 10.0.0 (v10.0.0-dirty)' pin=1
+serror-matrix: ok   vse cpu0 taken           mode=0x00 smp=1  | vse: cpu=0x0 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu0 no-VSE          mode=0x01 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu0 A-masked        mode=0x02 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu0 no-AMO          mode=0x03 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 taken           mode=0x10 smp=2  | vse: cpu=0x1 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu1 no-VSE          mode=0x11 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 A-masked        mode=0x12 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu1 no-AMO          mode=0x13 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   bad PA = sync abort      mode=0x06 smp=1  | vse: cpu=0x0 sync abort (not serror) vec=0x400 ec=0x24 dfsc=0x10
+serror-matrix: ok   nmi cpu0 el0             mode=0x04 smp=1 nmi=>ok | vse: cpu=0x0 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   nmi cpu0 el0 A-masked    mode=0x05 smp=1 nmi=>ok | (no vector line)
+serror-matrix: ok   nmi cpu1 el0             mode=0x14 smp=2 nmi=>ok | vse: cpu=0x1 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   nmi to cpu0, cpu1 el0    mode=0x14 smp=2 nmi=>ok | (no vector line)
+serror-matrix: ok rows=13 bad=0
+## container (ubuntu:24.04): ubuntu24.04 stock
+serror-matrix: qemu='QEMU emulator version 8.2.2 (Debian 1:8.2.2+ds-0ubuntu1.18)' pin=0
+serror-matrix: ok   vse cpu0 taken           mode=0x00 smp=1  | vse: cpu=0x0 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu0 no-VSE          mode=0x01 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu0 A-masked        mode=0x02 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu0 no-AMO          mode=0x03 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 taken           mode=0x10 smp=2  | vse: cpu=0x1 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu1 no-VSE          mode=0x11 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 A-masked        mode=0x12 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu1 no-AMO          mode=0x13 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   bad PA = sync abort      mode=0x06 smp=1  | vse: cpu=0x0 sync abort (not serror) vec=0x400 ec=0x24 dfsc=0x10
+serror-matrix: ok   nmi cpu0 el0             mode=0x04 smp=1 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi cpu0 el0 A-masked    mode=0x05 smp=1 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi cpu1 el0             mode=0x14 smp=2 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi to cpu0, cpu1 el0    mode=0x14 smp=2 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok rows=13 bad=0
+## container (ubuntu:24.04): master
+serror-matrix: qemu='QEMU emulator version 11.1.50' pin=0
+serror-matrix: ok   vse cpu0 taken           mode=0x00 smp=1  | vse: cpu=0x0 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu0 no-VSE          mode=0x01 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu0 A-masked        mode=0x02 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu0 no-AMO          mode=0x03 smp=1  | vse: cpu=0x0 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 taken           mode=0x10 smp=2  | vse: cpu=0x1 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serror-matrix: ok   vse cpu1 no-VSE          mode=0x11 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   vse cpu1 A-masked        mode=0x12 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000100
+serror-matrix: ok   vse cpu1 no-AMO          mode=0x13 smp=2  | vse: cpu=0x1 none (el0 reached svc) spsr=0x60000000
+serror-matrix: ok   bad PA = sync abort      mode=0x06 smp=1  | vse: cpu=0x0 sync abort (not serror) vec=0x400 ec=0x24 dfsc=0x10
+serror-matrix: ok   nmi cpu0 el0             mode=0x04 smp=1 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi cpu0 el0 A-masked    mode=0x05 smp=1 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi cpu1 el0             mode=0x14 smp=2 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok   nmi to cpu0, cpu1 el0    mode=0x14 smp=2 nmi=>Error: machine does not provide NMIs | (no vector line)
+serror-matrix: ok rows=13 bad=0
+
+## gdbstub monitor nmi
+== stock
+gdb: determining executable automatically.  Try using the "file" command.
+gdb: Error: machine does not provide NMIs
+gdb: Cannot execute this command while the target is running.
+gdb: Use the "interrupt" command to stop the target
+gdb: and then try again.
+gdb: Cannot execute this command while the target is running.
+gdb: Use the "interrupt" command to stop the target
+gdb: and then try again.
+qemu-system-aarch64: terminating on signal 15 from pid 7 (bash)
+serial: vse: el2 mode=0x4 cpu=0x0
+serial: vse: el0 spin (inject now)
+== pin
+gdb: determining executable automatically.  Try using the "file" command.
+gdb: Cannot execute this command while the target is running.
+gdb: Use the "interrupt" command to stop the target
+gdb: and then try again.
+gdb: Cannot execute this command while the target is running.
+gdb: Use the "interrupt" command to stop the target
+gdb: and then try again.
+qemu-system-aarch64: terminating on signal 15 from pid 31 (bash)
+serial: vse: el2 mode=0x4 cpu=0x0
+serial: vse: el0 spin (inject now)
+serial: vse: cpu=0x0 serror taken vec=0x580 from=el0 ec=0x2f esr=0xbe000000 spsr=0x0
+serial: vse: end
