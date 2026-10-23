@@ -1,5 +1,5 @@
 //! Inbound TCP: one passive open (listen/accept) over QEMU user-net
-//! `hostfwd` (Track N / ADR-108). Builds on the thin active-open TCP of
+//! `hostfwd` (Track N / ADR-109). Builds on the thin active-open TCP of
 //! ADR-074 and the same virtio-net path; the kernel still owns the NIC.
 //!
 //! One listening port, one connection, then done. The host connects through
@@ -219,7 +219,7 @@ fn tx(out: &[u8], n: usize) -> bool {
     n != 0 && virtio::net_raw_tx(&out[..n])
 }
 
-/// Serial proof (ADR-108). Prints `net: tcp-in-listen port=8080` as the cue
+/// Serial proof (ADR-109). Prints `net: tcp-in-listen port=8080` as the cue
 /// the host waits for, then needs both the RST (closed port) and the full
 /// accept → data → close exchange before `net: tcp-in-ok`.
 #[allow(dead_code)]

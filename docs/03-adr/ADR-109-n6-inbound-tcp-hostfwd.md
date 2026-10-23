@@ -1,4 +1,4 @@
-# ADR-108 — Track N / N6 — inbound TCP (one passive open over QEMU hostfwd)
+# ADR-109 — Track N / N6 — inbound TCP (one passive open over QEMU hostfwd)
 
 - Status: Accepted (runtime **Verified** only when this tip's `qemu-smoke` prints `net: tcp-in-ok` and the host client prints `hostfwd-client: neg=reset pos=ok rx=19 eof=yes`; otherwise Documented)
 - Date: 2026-10-23

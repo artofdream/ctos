@@ -327,7 +327,7 @@ extern "C" fn kernel_main_high() -> ! {
         if !virtio::observe_net_probe() {
             uart::write_str_raw("net: probe missed\n");
         }
-        // Serial proof for qemu-smoke (Track N / ADR-108): inbound TCP. The
+        // Serial proof for qemu-smoke (Track N / ADR-109): inbound TCP. The
         // host connects through QEMU `hostfwd` after `net: tcp-in-listen`;
         // one accept → line → reply → close, plus RST on a closed port.
         // Not a sockets API.

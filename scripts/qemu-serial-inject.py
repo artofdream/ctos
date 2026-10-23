@@ -47,7 +47,7 @@ def free_port() -> int:
 
 
 def tcpin_client(open_port: int, closed_port: int, out: list[str]) -> None:
-    """ADR-108 host side: negative (closed guest port must reset, no bytes),
+    """ADR-109 host side: negative (closed guest port must reset, no bytes),
     then positive (connect, send one line, read the reply to EOF, close)."""
     neg = "fail"
     try:
@@ -276,7 +276,7 @@ def main() -> int:
         "virtio-blk-device,drive=hd0",
         "-netdev",
         f"user,id=net0,guestfwd=tcp:10.0.2.4:7-cmd:{Path(__file__).resolve().parent / 'tcp-echo-stdio.sh'}"
-        # ADR-108: inbound TCP. Host loopback only; 8080 listens, 8081 does not.
+        # ADR-109: inbound TCP. Host loopback only; 8080 listens, 8081 does not.
         f",hostfwd=tcp:127.0.0.1:{tcpin_open}-:8080,hostfwd=tcp:127.0.0.1:{tcpin_closed}-:8081",
         "-device",
         "virtio-net-device,netdev=net0",

@@ -1688,7 +1688,7 @@ pub fn observe_net_probe() -> bool {
     true
 }
 
-/// ADR-108: transmit one raw Ethernet frame (kernel owns the NIC).
+/// ADR-109: transmit one raw Ethernet frame (kernel owns the NIC).
 pub fn net_raw_tx(frame: &[u8]) -> bool {
     if !net_ready() || frame.is_empty() || frame.len() > NET_FRAME {
         return false;
@@ -1702,7 +1702,7 @@ pub fn net_raw_tx(frame: &[u8]) -> bool {
     net_tx_frame(&net, frame.len())
 }
 
-/// ADR-108: receive one raw Ethernet frame within `ms` milliseconds.
+/// ADR-109: receive one raw Ethernet frame within `ms` milliseconds.
 /// Reuses a still-posted RX buffer (avail != used) instead of posting twice.
 pub fn net_raw_rx(out: &mut [u8; NET_FRAME], ms: u64) -> Option<usize> {
     if !net_ready() {
