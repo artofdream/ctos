@@ -137,6 +137,7 @@
 - [ADR-106 Proposed multi-core claim sentence (docs only; not accepted)](03-adr/ADR-106-smp-claim-sentence-proposal.md)
 - [ADR-108 Taken-SError QEMU spike (stock virtual SError, pinned nmi on cpu1)](03-adr/ADR-108-taken-serror-qemu-spike.md)
 - [ADR-110 N1: taken SError on core 1 (pinned QEMU, cpu-index=1)](03-adr/ADR-110-n1-cpu1-taken-serror-pin.md)
+- [ADR-111 N2: EL2 shim, virtual SError on stock QEMU (opt-in)](03-adr/ADR-111-n2-el2-shim-virtual-serror.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap

@@ -1722,16 +1722,37 @@ pub extern "C" fn handle_fiq_lower_el(_ctx: &mut ExceptionContext) {
 pub extern "C" fn handle_serror_lower_el(_ctx: &mut ExceptionContext) {
     if crate::el0::is_active() {
         if EXPECT_EL0_SERROR.swap(false, Ordering::SeqCst) {
-            EL0_SERROR_CAUGHT.store(true, Ordering::SeqCst);
-            // ADR-110 (N1): a taken SError on core 1 gets its own locked line,
-            // so the single-core `el0: serror` cue can't be faked by cpu1.
-            #[cfg(feature = "smp2-serror-probe")]
-            if crate::percpu::id() == 1 {
-                crate::smp::line(format_args!("smp: cpu1 el0 serror taken cpu=1"));
+            // ADR-111 (N2): in the shim build, only an SError with ESR EC 0x2f
+            // counts, and it is reported as *virtual* (EL2 HCR_EL2.VSE).
+            #[cfg(feature = "el2-vserror")]
+            {
+                let ec = _ctx.esr >> 26;
+                if ec == 0x2f {
+                    EL0_SERROR_CAUGHT.store(true, Ordering::SeqCst);
+                    let _ = writeln!(
+                        uart::raw(),
+                        "el0: virtual serror taken (el2 vse) ec={:#x} esr={:#x}",
+                        ec, _ctx.esr
+                    );
+                } else {
+                    let _ = writeln!(uart::raw(), "el0: virtual serror wrong ec={:#x}", ec);
+                }
                 stay_at_el0(_ctx);
                 return;
             }
-            uart::write_str_raw("el0: serror\n");
+            #[cfg(not(feature = "el2-vserror"))]
+            {
+                EL0_SERROR_CAUGHT.store(true, Ordering::SeqCst);
+                // ADR-110 (N1): a taken SError on core 1 gets its own locked line,
+                // so the single-core `el0: serror` cue can't be faked by cpu1.
+                #[cfg(feature = "smp2-serror-probe")]
+                if crate::percpu::id() == 1 {
+                    crate::smp::line(format_args!("smp: cpu1 el0 serror taken cpu=1"));
+                    stay_at_el0(_ctx);
+                    return;
+                }
+                uart::write_str_raw("el0: serror\n");
+            }
         }
         stay_at_el0(_ctx);
         return;

@@ -404,8 +404,29 @@ fn serror_while_standing() -> bool {
             clear_active();
             return false;
         }
+        // ADR-111 (N2): ask the EL2 shim for a virtual SError (HCR_EL2.VSE)
+        // just before the A-clear ERET. Opt-in build only.
+        #[cfg(feature = "el2-vserror")]
+        {
+            let shim = crate::el2::shim_present();
+            let set = shim && crate::el2::set_vse();
+            let _ = writeln!(
+                uart::raw(),
+                "el0: virtual serror ask el2-shim={} vse={} masked={}",
+                if shim { "yes" } else { "no" },
+                if set { "set" } else { "no" },
+                if cfg!(feature = "el2-vserror-masked") { "yes" } else { "no" }
+            );
+        }
         unsafe {
+            #[cfg(feature = "el2-vserror-masked")]
+            exception::eret_to_el0_masked(black_box(va), 0, user_sp);
+            #[cfg(not(feature = "el2-vserror-masked"))]
             exception::eret_to_el0_serror(black_box(va), 0, user_sp);
+        }
+        #[cfg(feature = "el2-vserror")]
+        if crate::el2::shim_present() {
+            crate::el2::clear_vse();
         }
         if is_active() {
             clear_active();
