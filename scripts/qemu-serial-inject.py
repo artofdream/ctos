@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import select
 import socket
 import subprocess
@@ -26,6 +27,7 @@ from pathlib import Path
 
 HELLO = os.environ.get("CTOS_HELLO_STRING", "Hello World!").encode()
 SERROR_ARM = b"el0: serror-arm"
+CPU1_SERROR_ARM = b"smp: cpu1 serror-arm"  # ADR-110 (N1)
 INJECT = bytes([int(os.environ.get("CTOS_INPUT_BYTE", "0x41"), 0)])
 TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "20"))
 # Give the guest a moment after the cue to ERET into the A-clear spin.
@@ -154,6 +156,28 @@ class QmpClient:
         except (OSError, json.JSONDecodeError, TimeoutError, ConnectionError) as e:
             return f"cont-error:{e}"
 
+    def hmp_nmi(self, cpu: int, deadline: float) -> str:
+        """ADR-110: HMP `nmi` on one vCPU (QMP inject-nmi has no cpu arg)."""
+        if self.sock is None:
+            return "no-socket"
+        cmd = {"execute": "human-monitor-command",
+               "arguments": {"command-line": "nmi", "cpu-index": cpu}}
+        try:
+            self.sock.sendall((json.dumps(cmd) + "\n").encode())
+        except OSError as e:
+            return f"send-error:{e}"
+        while True:
+            reply = self._read_json(deadline)
+            if reply is None:
+                return "timeout"
+            if "event" in reply and "return" not in reply and "error" not in reply:
+                continue
+            break
+        if "error" in reply:
+            return "error:" + (reply["error"].get("desc") or "?")
+        text = (reply.get("return") or "").strip()
+        return f"error:{text}" if text else "ok"
+
     def inject_nmi(self, deadline: float) -> str:
         if self.sock is None:
             return "no-socket"
@@ -228,6 +252,15 @@ def main() -> int:
         "-kernel",
         elf,
     ]
+    # ADR-111 (N2): opt-in machine options and extra args (EL2 shim run:
+    # `virt,virtualization=on` + `-device loader,file=<shim>,cpu-num=0`).
+    # Absent (every existing smoke) keeps the exact argv above.
+    machine = os.environ.get("CTOS_QEMU_MACHINE", "")
+    if machine:
+        cmd[2] = machine
+    extra = os.environ.get("CTOS_QEMU_EXTRA", "")
+    if extra:
+        cmd[1:1] = shlex.split(extra)
     # ADR-104 (S4): opt-in core count for the SMP probe runs. Absent (the
     # default smoke) keeps QEMU's single core, exactly as before.
     smp = os.environ.get("CTOS_QEMU_SMP", "")
@@ -255,6 +288,9 @@ def main() -> int:
     serror_armed = False
     serror_standing_seen = False
     serror_injected = False
+    cpu1_env = os.environ.get("CTOS_QEMU_NMI_CPU1", "")
+    cpu1_nmi = int(cpu1_env) if cpu1_env.strip() else None
+    cpu1_injected = False
     standing_count_at_arm = 0
     qmp_ready = False
     qmp_result = "not-attempted"
@@ -306,6 +342,18 @@ def main() -> int:
                         )
                         sys.stdout.buffer.write(msg.encode())
                         sys.stdout.buffer.flush()
+                # ADR-110 (N1): cpu1 arm cue -> HMP `nmi` on CTOS_QEMU_NMI_CPU1.
+                if (cpu1_nmi is not None and not cpu1_injected
+                        and CPU1_SERROR_ARM in buf and qmp_ready):
+                    time.sleep(SERROR_INJECT_DELAY)
+                    stop_r = qmp.stop(deadline)
+                    nmi_r = qmp.hmp_nmi(cpu1_nmi, deadline)
+                    cont_r = qmp.cont(deadline)
+                    cpu1_injected = True
+                    sys.stdout.buffer.write(
+                        f"qemu-serial-inject: cpu1-arm qmp stop=>{stop_r} "
+                        f"nmi(cpu-index={cpu1_nmi})=>{nmi_r} cont=>{cont_r}\n".encode())
+                    sys.stdout.buffer.flush()
                 if (
                     serror_armed
                     and buf.count(b"el0: standing") > standing_count_at_arm
