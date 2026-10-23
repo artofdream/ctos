@@ -186,6 +186,11 @@ def main() -> int:
     elf = sys.argv[1]
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     img = prepare_fat16(root)
+    # ADR-107: FAT32 image on a second read-only virtio-blk (listed first so
+    # the FAT16 disk stays the guest's first-found blk).
+    f32 = os.environ.get("CTOS_FAT32_IMAGE") or os.path.join(root, "target", "fat32.img")
+    if not os.environ.get("CTOS_FAT32_IMAGE"):
+        subprocess.check_call([os.path.join(root, "scripts", "mkfat32.sh"), f32])
 
     qmp_dir = tempfile.mkdtemp(prefix="ctos-qmp-")
     qmp_sock = os.path.join(qmp_dir, "qmp.sock")
@@ -208,6 +213,10 @@ def main() -> int:
         "-semihosting",
         "-qmp",
         f"unix:{qmp_sock},server,nowait",
+        "-drive",
+        f"if=none,file={f32},format=raw,readonly=on,id=hd32",
+        "-device",
+        "virtio-blk-device,drive=hd32",
         "-drive",
         f"if=none,file={img},format=raw,cache=writethrough,id=hd0",
         "-device",

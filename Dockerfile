@@ -26,6 +26,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         qemu-efi-aarch64 \
         ipxe-qemu \
         python3 \
+        dosfstools \
+        mtools \
     && rm -rf /var/lib/apt/lists/* \
     && test -e /usr/lib/ipxe/qemu/efi-virtio.rom
 

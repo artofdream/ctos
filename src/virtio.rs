@@ -171,6 +171,12 @@ impl BlkDev {
 static DEV: Mutex<BlkDev> = Mutex::new(BlkDev::empty());
 // Single-core: only touched while DEV is held.
 static mut DMA: Dma = Dma::ZERO;
+// ADR-107: optional second virtio-blk (read-only FAT32 volume). Own queue
+// memory; only touched while DEV2 is held. Primary DEV/DMA are unchanged.
+static DEV2: Mutex<BlkDev> = Mutex::new(BlkDev::empty());
+static mut DMA2: Dma = Dma::ZERO;
+static READY2: AtomicBool = AtomicBool::new(false);
+static CAP2: AtomicU64 = AtomicU64::new(0);
 
 static READY: AtomicBool = AtomicBool::new(false);
 static CAP: AtomicU64 = AtomicU64::new(0);
@@ -207,6 +213,12 @@ fn dma_pa(va: *const u8) -> u64 {
 }
 
 fn find_blk() -> Option<(usize, u32)> {
+    find_blk_nth(0)
+}
+
+/// `nth` virtio-blk transport in scan order (0 = the primary FAT16 disk).
+fn find_blk_nth(nth: usize) -> Option<(usize, u32)> {
+    let mut seen = 0usize;
     for i in 0..MMIO_COUNT {
         let base = MMIO_BASE + i * MMIO_STRIDE;
         unsafe {
@@ -218,16 +230,18 @@ fn find_blk() -> Option<(usize, u32)> {
                 continue;
             }
             if mmio_read(base, REG_DEVICE_ID) == DEV_BLK {
-                return Some((base, ver));
+                if seen == nth {
+                    return Some((base, ver));
+                }
+                seen += 1;
             }
         }
     }
     None
 }
 
-fn setup_queue(base: usize, ver: u32) -> bool {
+fn setup_queue(base: usize, ver: u32, dma: *mut Dma) -> bool {
     unsafe {
-        let dma = addr_of_mut!(DMA);
         (*dma) = Dma::ZERO;
         let desc_pa = dma_pa(addr_of!((*dma).desc) as *const u8);
         mmio_write(base, REG_QUEUE_SEL, 0);
@@ -261,7 +275,7 @@ fn setup_queue(base: usize, ver: u32) -> bool {
     }
 }
 
-fn setup(base: usize, ver: u32) -> Option<u64> {
+fn setup(base: usize, ver: u32, dma: *mut Dma) -> Option<u64> {
     unsafe {
         mmio_write(base, REG_STATUS, 0);
         dsb();
@@ -295,7 +309,7 @@ fn setup(base: usize, ver: u32) -> Option<u64> {
             mmio_write(base, REG_DRV_FEAT, 0);
         }
 
-        if !setup_queue(base, ver) {
+        if !setup_queue(base, ver, dma) {
             mmio_write(base, REG_STATUS, STATUS_FAILED);
             return None;
         }
@@ -317,12 +331,11 @@ fn setup(base: usize, ver: u32) -> Option<u64> {
     }
 }
 
-fn xfer(dev: &BlkDev, write: bool, sector: u64, buf: &mut [u8; SECTOR]) -> bool {
+fn xfer(dev: &BlkDev, dma: *mut Dma, write: bool, sector: u64, buf: &mut [u8; SECTOR]) -> bool {
     if !dev.ready || sector >= dev.capacity {
         return false;
     }
     unsafe {
-        let dma = addr_of_mut!(DMA);
         let last = (*dma).used.idx;
         (*dma).req.type_ = if write { BLK_T_OUT } else { BLK_T_IN };
         (*dma).req.reserved = 0;
@@ -408,7 +421,7 @@ pub fn init() {
     let Some((base, ver)) = find_blk() else {
         return;
     };
-    let Some(cap) = setup(base, ver) else {
+    let Some(cap) = setup(base, ver, addr_of_mut!(DMA)) else {
         return;
     };
     dev.base = base;
@@ -416,6 +429,43 @@ pub fn init() {
     dev.ready = true;
     READY.store(true, Ordering::SeqCst);
     CAP.store(cap, Ordering::SeqCst);
+}
+
+/// ADR-107: discover + program the **second** virtio-blk transport (scan
+/// order), if QEMU attached one. Absent device = not ready (fail closed).
+pub fn init2() {
+    READY2.store(false, Ordering::SeqCst);
+    CAP2.store(0, Ordering::SeqCst);
+    let mut dev = DEV2.lock();
+    *dev = BlkDev::empty();
+    let Some((base, ver)) = find_blk_nth(1) else {
+        return;
+    };
+    if base == DEV.lock().base {
+        return;
+    }
+    let Some(cap) = setup(base, ver, addr_of_mut!(DMA2)) else {
+        return;
+    };
+    dev.base = base;
+    dev.capacity = cap;
+    dev.ready = true;
+    READY2.store(true, Ordering::SeqCst);
+    CAP2.store(cap, Ordering::SeqCst);
+}
+
+pub fn ready2() -> bool {
+    READY2.load(Ordering::SeqCst)
+}
+
+pub fn capacity2() -> u64 {
+    CAP2.load(Ordering::SeqCst)
+}
+
+/// Read one sector from the second disk. No write path (ADR-107 read-only).
+pub fn read_sector2(sector: u64, buf: &mut [u8; SECTOR]) -> bool {
+    let dev = DEV2.lock();
+    xfer(&dev, addr_of_mut!(DMA2), false, sector, buf)
 }
 
 pub fn ready() -> bool {
@@ -428,14 +478,14 @@ pub fn capacity() -> u64 {
 
 pub fn read_sector(sector: u64, buf: &mut [u8; SECTOR]) -> bool {
     let dev = DEV.lock();
-    xfer(&dev, false, sector, buf)
+    xfer(&dev, addr_of_mut!(DMA), false, sector, buf)
 }
 
 pub fn write_sector(sector: u64, buf: &[u8; SECTOR]) -> bool {
     let dev = DEV.lock();
     let mut tmp = [0u8; SECTOR];
     tmp.copy_from_slice(buf);
-    xfer(&dev, true, sector, &mut tmp)
+    xfer(&dev, addr_of_mut!(DMA), true, sector, &mut tmp)
 }
 
 fn sector_rw() -> bool {
