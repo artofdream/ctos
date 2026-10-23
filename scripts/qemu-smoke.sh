@@ -929,6 +929,28 @@ if ! grep -q "net: tcp-ok" "$log"; then
     exit 1
 fi
 echo "qemu-smoke: virtio-net (N1+N2+N3+N5) strings present"
+# ADR-109: inbound TCP over QEMU hostfwd (guest listen/accept on 8080).
+# Fail closed on both sides: guest markers in order of the exchange, the host
+# client's own verdict (exact reply bytes, then EOF), and the negative (a
+# connect to guest port 8081, where nothing listens, must be reset with no
+# bytes; the guest must log the RST).
+if grep -q "net: tcp-in-fail\|net: tcp-in probe missed" "$log"; then
+    echo "qemu-smoke: inbound TCP failed: $(grep -m1 'net: tcp-in-fail\|net: tcp-in probe missed' "$log") (ADR-109)" >&2
+    exit 1
+fi
+for m in "net: tcp-in-listen port=8080 closed=8081" "net: tcp-in-rst port=8081" \
+         "net: tcp-in-syn sport=" "net: tcp-in-est" "net: tcp-in-rx bytes=11" \
+         "net: tcp-in-tx bytes=19" "net: tcp-in-fin closed" "net: tcp-in-ok"; do
+    if ! grep -q "^$m" "$log"; then
+        echo "qemu-smoke: missing '$m' on serial (ADR-109 inbound TCP, qemu exit $qemu_ec)" >&2
+        exit 1
+    fi
+done
+if ! grep -q "^hostfwd-client: neg=reset pos=ok rx=19 eof=yes" "$log"; then
+    echo "qemu-smoke: host client verdict not ok: $(grep -m1 '^hostfwd-client:' "$log" || echo none) (ADR-109)" >&2
+    exit 1
+fi
+echo "qemu-smoke: inbound TCP (ADR-109) guest + host strings present; closed-port negative reset"
 if grep -q "fat: probe missed" "$log"; then
     echo "qemu-smoke: fat probe missed (FAT16 VFS /probe read did not run)" >&2
     exit 1

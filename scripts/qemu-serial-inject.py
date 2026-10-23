@@ -22,6 +22,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -32,6 +33,61 @@ INJECT = bytes([int(os.environ.get("CTOS_INPUT_BYTE", "0x41"), 0)])
 TIMEOUT = float(os.environ.get("CTOS_QEMU_TIMEOUT", "20"))
 # Give the guest a moment after the cue to ERET into the A-clear spin.
 SERROR_INJECT_DELAY = float(os.environ.get("CTOS_SERROR_INJECT_DELAY", "0.0"))
+
+
+TCPIN_CUE = b"net: tcp-in-listen"
+TCPIN_SEND = b"ctos-hello\n"
+TCPIN_EXPECT = b"ctos-in:ctos-hello\n"
+
+
+def free_port() -> int:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def tcpin_client(open_port: int, closed_port: int, out: list[str]) -> None:
+    """ADR-109 host side: negative (closed guest port must reset, no bytes),
+    then positive (connect, send one line, read the reply to EOF, close)."""
+    neg = "fail"
+    try:
+        c = socket.create_connection(("127.0.0.1", closed_port), timeout=5)
+        c.settimeout(5)
+        try:
+            data = c.recv(64)
+            neg = "reset" if data == b"" else f"fail-data:{len(data)}"
+        except ConnectionResetError:
+            neg = "reset"
+        except socket.timeout:
+            neg = "fail-no-reset"
+        finally:
+            c.close()
+    except ConnectionRefusedError:
+        neg = "reset"
+    except OSError as e:
+        neg = f"fail-{type(e).__name__}"
+    pos = "fail"
+    rx = b""
+    try:
+        c = socket.create_connection(("127.0.0.1", open_port), timeout=8)
+        c.settimeout(8)
+        c.sendall(TCPIN_SEND)
+        while True:
+            chunk = c.recv(256)
+            if not chunk:
+                break
+            rx += chunk
+            if len(rx) > 256:
+                break
+        c.close()
+        pos = "ok" if rx == TCPIN_EXPECT else "fail-bytes"
+    except socket.timeout:
+        pos = "fail-timeout"
+    except OSError as e:
+        pos = f"fail-{type(e).__name__}"
+    out.append(f"hostfwd-client: neg={neg} pos={pos} rx={len(rx)} eof={'yes' if pos == 'ok' else 'no'}")
 
 
 def prepare_fat16(root: str) -> str:
@@ -221,6 +277,12 @@ def main() -> int:
     qmp = QmpClient(qmp_sock)
 
     qemu = os.environ.get("CTOS_QEMU", "qemu-system-aarch64")
+    tcpin_open = free_port()
+    tcpin_closed = free_port()
+    while tcpin_closed == tcpin_open:
+        tcpin_closed = free_port()
+    tcpin_out: list[str] = []
+    tcpin_thread: threading.Thread | None = None
     cmd = [
         qemu,
         "-machine",
@@ -246,7 +308,9 @@ def main() -> int:
         "-device",
         "virtio-blk-device,drive=hd0",
         "-netdev",
-        f"user,id=net0,guestfwd=tcp:10.0.2.4:7-cmd:{Path(__file__).resolve().parent / 'tcp-echo-stdio.sh'}",
+        f"user,id=net0,guestfwd=tcp:10.0.2.4:7-cmd:{Path(__file__).resolve().parent / 'tcp-echo-stdio.sh'}"
+        # ADR-109: inbound TCP. Host loopback only; 8080 listens, 8081 does not.
+        f",hostfwd=tcp:127.0.0.1:{tcpin_open}-:8080,hostfwd=tcp:127.0.0.1:{tcpin_closed}-:8081",
         "-device",
         "virtio-net-device,netdev=net0",
         "-kernel",
@@ -318,6 +382,13 @@ def main() -> int:
                 buf += chunk
                 if stop_at and stop_at in buf:
                     break
+                if tcpin_thread is None and TCPIN_CUE in buf:
+                    tcpin_thread = threading.Thread(
+                        target=tcpin_client,
+                        args=(tcpin_open, tcpin_closed, tcpin_out),
+                        daemon=True,
+                    )
+                    tcpin_thread.start()
                 if not injected and HELLO in buf:
                     proc.stdin.write(INJECT)
                     proc.stdin.flush()
@@ -367,6 +438,14 @@ def main() -> int:
                 sys.stdout.buffer.write(rest)
                 sys.stdout.buffer.flush()
             break
+
+    if tcpin_thread is not None:
+        tcpin_thread.join(timeout=2)
+        for line in tcpin_out:
+            sys.stdout.buffer.write((line + "\n").encode())
+        if not tcpin_out:
+            sys.stdout.buffer.write(b"hostfwd-client: not finished\n")
+        sys.stdout.buffer.flush()
 
     if serror_armed and not serror_injected:
         note = (

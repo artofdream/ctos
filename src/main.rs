@@ -21,6 +21,7 @@ mod netdemo;
 mod udpdemo;
 mod mkdemo;
 mod tcpdemo;
+mod tcpin;
 mod frame;
 mod gic;
 mod guard;
@@ -330,6 +331,13 @@ extern "C" fn kernel_main_high() -> ! {
         // DHCP/DNS product.
         if !virtio::observe_net_probe() {
             uart::write_str_raw("net: probe missed\n");
+        }
+        // Serial proof for qemu-smoke (Track N / ADR-109): inbound TCP. The
+        // host connects through QEMU `hostfwd` after `net: tcp-in-listen`;
+        // one accept → line → reply → close, plus RST on a closed port.
+        // Not a sockets API.
+        if !tcpin::observe_probe() {
+            uart::write_str_raw("net: tcp-in probe missed\n");
         }
         // Serial proof for qemu-smoke (Track A / A7 / ADR-028 + ADR-050 +
         // ADR-056): FAT16 `/probe` read + write/restore + create `/fwr` +

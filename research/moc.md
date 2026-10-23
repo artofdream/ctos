@@ -71,6 +71,7 @@ Optional index for a local Obsidian vault. Git remains the source of truth. This
 - ADR-106 proposed multi-core claim sentence (docs only; not accepted): [daily-briefs/2026-10-19-adr-106-smp-claim-sentence.md](daily-briefs/2026-10-19-adr-106-smp-claim-sentence.md)
 - ADR-107 FAT32 read path beyond FAT16 (second read-only virtio-blk, mkfs.fat -F 32 smoke + broken-chain negative): [ADR-107](../docs/03-adr/ADR-107-fat32-read-second-virtio-blk.md)
 - ADR-108 taken-SError QEMU spike: [daily-briefs/2026-10-23-adr-108-taken-serror-qemu-spike.md](daily-briefs/2026-10-23-adr-108-taken-serror-qemu-spike.md), [serror-spike/](serror-spike/README.md)
+- ADR-109 inbound TCP over QEMU hostfwd (N6: one passive open on 8080, line, reply, close; RST on closed port 8081): [ADR-109](../docs/03-adr/ADR-109-n6-inbound-tcp-hostfwd.md)
 - ADR-110 N1 taken SError on core 1 (pinned QEMU): [daily-briefs/2026-10-23-adr-110-n1-cpu1-serror.md](daily-briefs/2026-10-23-adr-110-n1-cpu1-serror.md)
 - ADR-111 N2 EL2 shim virtual SError: [daily-briefs/2026-10-23-adr-111-n2-el2-virtual-serror.md](daily-briefs/2026-10-23-adr-111-n2-el2-virtual-serror.md)
 - Handoffs: [daily-briefs/](daily-briefs/)

@@ -901,7 +901,7 @@ fn is_arp_reply_from_gateway(frame: &[u8], len: usize) -> bool {
 }
 
 /// Ones-complement checksum over `data` (pad odd length with zero).
-fn inet_checksum(data: &[u8]) -> u16 {
+pub(crate) fn inet_checksum(data: &[u8]) -> u16 {
     let mut sum: u32 = 0;
     let mut i = 0;
     while i + 1 < data.len() {
@@ -1737,6 +1737,56 @@ pub fn observe_net_probe() -> bool {
     let _ = writeln!(w, "net: tcp-ok");
     true
 }
+
+/// ADR-109: transmit one raw Ethernet frame (kernel owns the NIC).
+pub fn net_raw_tx(frame: &[u8]) -> bool {
+    if !net_ready() || frame.is_empty() || frame.len() > NET_FRAME {
+        return false;
+    }
+    let net = NET.lock();
+    unsafe {
+        let f = &mut (*addr_of_mut!(NET_TX)).frame;
+        f.fill(0);
+        f[..frame.len()].copy_from_slice(frame);
+    }
+    net_tx_frame(&net, frame.len())
+}
+
+/// ADR-109: receive one raw Ethernet frame within `ms` milliseconds.
+/// Reuses a still-posted RX buffer (avail != used) instead of posting twice.
+pub fn net_raw_rx(out: &mut [u8; NET_FRAME], ms: u64) -> Option<usize> {
+    if !net_ready() {
+        return None;
+    }
+    let net = NET.lock();
+    unsafe {
+        let dma = addr_of_mut!(NET_RX);
+        let used_off = core::mem::offset_of!(NetDma, used);
+        let used_span = core::mem::size_of::<NetDma>() - used_off;
+        cache_sync(addr_of!((*dma).used) as u64, used_span);
+        let last = if (*dma).avail.idx != (*dma).used.idx {
+            (*dma).used.idx
+        } else {
+            net_post_rx(&net)?
+        };
+        if !net_wait_used(dma, last, ms.max(1), 1000) {
+            return None;
+        }
+        cache_sync(addr_of!((*dma).used) as u64, used_span);
+        cache_sync(addr_of!((*dma).hdr) as u64, NET_HDR + NET_FRAME);
+        let uidx = (*dma).used.idx.wrapping_sub(1) as usize % QSZ;
+        let total = (*dma).used.ring[uidx].len as usize;
+        if total <= NET_HDR {
+            return Some(0);
+        }
+        let n = (total - NET_HDR).min(NET_FRAME);
+        let src = &(*dma).frame;
+        out[..n].copy_from_slice(&src[..n]);
+        Some(n)
+    }
+}
+
+pub const NET_FRAME_MAX: usize = NET_FRAME;
 
 /// Guest MAC when virtio-net is ready (ADR-068 EL0 `net_mac`).
 pub fn guest_mac() -> Option<[u8; 6]> {
