@@ -134,6 +134,7 @@
 - [ADR-103 SMP S3: type-enforced TABLES, broadcast TLBI, cross-core unmap probe](03-adr/ADR-103-smp-s3-tables-lock-broadcast-tlbi.md)
 - [ADR-104 SMP S4: PerCpu via TPIDR_EL1, ASID generations, first EL0 on core 1](03-adr/ADR-104-smp-s4-percpu-asid-generation-el0-cpu1.md)
 - [ADR-105 SMP S5: concurrent EL0, run-queue lock, reserved ASID](03-adr/ADR-105-smp-s5-concurrent-el0-runq.md)
+- [ADR-106 Proposed multi-core claim sentence (docs only; not accepted)](03-adr/ADR-106-smp-claim-sentence-proposal.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
