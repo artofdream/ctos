@@ -61,6 +61,18 @@ pub fn init() {
     dsb_ish();
 }
 
+/// ADR-104 (S4, `smp2-probe`): enable *this* core's banked CPU interface
+/// only (core 0 already ran [`init`], which also enables the distributor).
+#[cfg(feature = "smp2-probe")]
+pub fn init_this_cpu() {
+    unsafe {
+        write32(GICC_BASE, GICC_CTLR, 0);
+        write32(GICC_BASE, GICC_PMR, GICC_PMR_ALLOW_ALL);
+        write32(GICC_BASE, GICC_CTLR, GICC_CTLR_ENABLE);
+    }
+    dsb_ish();
+}
+
 /// `GICC_CTLR.FIQEn` — when set, Group 0 interrupts signal as FIQ (GICv2).
 const GICC_CTLR_FIQEN: u32 = 1 << 3;
 

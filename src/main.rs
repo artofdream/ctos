@@ -25,12 +25,15 @@ mod heap;
 mod libctos;
 mod loader;
 mod paging;
+mod percpu;
 mod pan;
 mod perf;
 mod qemu;
 mod ro;
 mod sched;
 mod slot;
+#[cfg(feature = "smp2-probe")]
+mod asidgen;
 #[cfg(feature = "smp2-probe")]
 mod smp;
 mod reach;
@@ -171,13 +174,29 @@ extern "C" fn kernel_main_high() -> ! {
     if !paging::tear_identity_mmio() {
         uart::write_str_raw("ident: mmio missed\n");
     }
+    // ADR-104: core 0's PerCpu block (TPIDR_EL1; saved kernel TTBR0 at
+    // offset 0 for the lower-EL trampolines). After every identity tear and
+    // the ADR-037 pointer rewrite, before the first EL0 entry.
+    let _ = percpu::install(0, paging::kernel_ttbr0());
     // ADR-100 S1 (opt-in `smp2-probe`, QEMU `-smp 2` only): PSCI CPU_ON
-    // one secondary at `_secondary_entry` (MMU off, prints MPIDR, parks).
-    // No GIC/timer/virtio/FAT/EL0 after this. Default build never takes it.
+    // one secondary at `_secondary_entry` (S2/S3 probes on core 1; ADR-104
+    // S4 then runs the EL0 isolation probes on core 1). Default build never
+    // takes it.
     #[cfg(feature = "smp2-probe")]
     {
         uart::write_str_raw("smp: boot (ADR-100 opt-in)\n");
-        let _ = smp::observe_probe();
+        if smp::observe_probe() {
+            // ADR-104 (S4): drivers / FAT / scheduler / GIC distributor on
+            // core 0 (no timer on core 0), then core 1 runs the EL0
+            // isolation probes with its own GIC CPU interface and timer.
+            vfs::init();
+            virtio::init();
+            virtio::init_net();
+            fat::init();
+            sched::init();
+            gic::init();
+            let _ = smp::observe_s4();
+        }
         uart::UART.lock().write_string("smp: done\n");
         loop {
             unsafe {

@@ -16,9 +16,14 @@
 //! it back, then takes one deliberate `brk` that its own vectors handle. All
 //! post-MMU output goes through the `UART` spin lock, one line per lock hold.
 //!
-//! Not SMP. The secondary never runs EL0, the scheduler, the heap, page-table
-//! builders, drivers or interrupts. The default build has none of this code
-//! and QEMU runs one core (ADR-091 rev 4 scope is unchanged).
+//! S3 (ADR-103): cross-core unmap probe. S4 (ADR-104): core 1 then enters
+//! the kernel's normal mode (PerCpu in `TPIDR_EL1`, kernel vectors, own
+//! stacks, own GIC CPU interface + timer) and runs the EL0 isolation probes
+//! while core 0 waits; then both cores run the ASID-generation probes.
+//!
+//! Not SMP. Core 1 runs no scheduler and no drivers, and never runs EL0 at
+//! the same time as core 0. The default build has none of this code and QEMU
+//! runs one core (ADR-091 rev 4 scope is unchanged).
 
 use core::arch::{asm, global_asm};
 use core::fmt::Write;
@@ -67,6 +72,17 @@ struct Block {
     xtlb_va: AtomicU64,
     xtlb_phase: AtomicU64,
     xtlb_result: AtomicU64,
+    // ADR-104 (S4). Written with the MMU on only.
+    s4_go: AtomicU64,
+    s4_phase: AtomicU64,
+    s4_kttbr0: AtomicU64,
+    s4_span: AtomicU64,
+    s4_va: AtomicU64,
+    s4_asid: AtomicU64,
+    s4_gen: AtomicU64,
+    s4_result: AtomicU64,
+    s4_probes: AtomicU64,
+    s4_failed: AtomicU64,
 }
 
 static mut BLOCK: Block = Block {
@@ -85,6 +101,16 @@ static mut BLOCK: Block = Block {
     xtlb_va: AtomicU64::new(0),
     xtlb_phase: AtomicU64::new(0),
     xtlb_result: AtomicU64::new(0),
+    s4_go: AtomicU64::new(0),
+    s4_phase: AtomicU64::new(0),
+    s4_kttbr0: AtomicU64::new(0),
+    s4_span: AtomicU64::new(0),
+    s4_va: AtomicU64::new(0),
+    s4_asid: AtomicU64::new(0),
+    s4_gen: AtomicU64::new(0),
+    s4_result: AtomicU64::new(0),
+    s4_probes: AtomicU64::new(0),
+    s4_failed: AtomicU64::new(0),
 };
 
 /// Secondary's own stack (no guard page; ADR-102 limits).
@@ -290,6 +316,11 @@ extern "C" fn cpu1_main(block: &'static Block) -> ! {
     unsafe { asm!("dsb ish", "sev", options(nostack)) };
     if verdict == V_OK {
         cpu1_xtlb(block);
+        // ADR-104 (S4): wait for core 0, then enter the kernel's normal mode.
+        while block.s4_go.load(Ordering::SeqCst) == 0 {
+            core::hint::spin_loop();
+        }
+        cpu1_enter_kernel_mode(block);
     }
     loop {
         unsafe { asm!("wfe", options(nomem, nostack)) };
@@ -581,4 +612,406 @@ pub fn observe_probe() -> bool {
         line(format_args!("smp: cpu1 s2 missed verdict={v} bad={bad:#x} ticks={ticks}"));
         false
     }
+}
+
+// ---- ADR-104 (S4): core 1 in the kernel's normal mode -------------------
+//
+// After S3, core 1 installs PerCpu[1] in TPIDR_EL1, takes core 0's
+// SCTLR.SPAN, the **kernel** vector table, its own SP_EL1 exception stack
+// and its own SP_EL0 thread stack (SPSel = 0, EL1t like core 0's kernel
+// threads), and runs the EL0 isolation probes there, one at a time, while
+// core 0 waits. Then the ASID-generation probes run on both cores.
+
+/// Core 1's thread stack (SP_EL0) and exception stack (SP_EL1). No guard
+/// pages (ADR-104 limits); sizes match core 0's linker stacks.
+#[repr(C, align(4096))]
+struct ThreadStack([u8; 64 * 1024]);
+static mut CPU1_THREAD_STACK: ThreadStack = ThreadStack([0; 64 * 1024]);
+#[repr(C, align(4096))]
+struct ExcStack([u8; 16 * 1024]);
+static mut CPU1_EXC_STACK: ExcStack = ExcStack([0; 16 * 1024]);
+
+fn high(p: u64) -> u64 {
+    crate::paging::to_high_va(crate::paging::identity_pa(p))
+}
+
+fn cpu1_thread_range() -> (u64, u64) {
+    let lo = high(core::ptr::addr_of!(CPU1_THREAD_STACK) as u64);
+    (lo, lo + 64 * 1024)
+}
+
+fn cpu1_exc_top() -> u64 {
+    high(core::ptr::addr_of!(CPU1_EXC_STACK) as u64) + 16 * 1024
+}
+
+fn kernel_vbar() -> u64 {
+    crate::paging::to_high_va(crate::exception::vector_table_addr())
+}
+
+fn cpu1_enter_kernel_mode(block: &'static Block) -> ! {
+    let kttbr0 = block.s4_kttbr0.load(Ordering::SeqCst);
+    let _ = crate::percpu::install(1, kttbr0);
+    let span = block.s4_span.load(Ordering::SeqCst) & SCTLR_SPAN;
+    let sctlr = (sysreg!("sctlr_el1") & !SCTLR_SPAN) | span;
+    let (_, thr_top) = cpu1_thread_range();
+    let exc_top = cpu1_exc_top();
+    let vbar = kernel_vbar();
+    let entry = cpu1_kernel_main as *const () as usize as u64;
+    let arg = block as *const Block as u64;
+    unsafe {
+        asm!(
+            "msr sctlr_el1, {sctlr}",
+            "isb",
+            "msr vbar_el1, {v}",
+            "isb",
+            // SPSel is 1 here: `sp` is SP_EL1. Own exception stack, then the
+            // thread stack in SP_EL0, then run on SP_EL0 (EL1t).
+            "msr sp_el0, {t}",
+            "mov sp, {e}",
+            "msr spsel, #0",
+            "isb",
+            "br {f}",
+            sctlr = in(reg) sctlr,
+            v = in(reg) vbar,
+            t = in(reg) thr_top,
+            e = in(reg) exc_top,
+            f = in(reg) entry,
+            in("x0") arg,
+            options(noreturn),
+        );
+    }
+}
+
+const S4_PROBES: u64 = 13;
+
+/// Core 1 kernel-mode main (EL1t, own stacks, kernel vectors).
+extern "C" fn cpu1_kernel_main(block: &'static Block) -> ! {
+    let tp = crate::percpu::this().map(|b| b as *const _ as u64).unwrap_or(0);
+    let id = crate::percpu::id();
+    let vbar_ok = sysreg!("vbar_el1") == kernel_vbar();
+    let spsel = sysreg!("spsel") & 1;
+    let sp: u64;
+    unsafe { asm!("mov {s}, sp", s = out(reg) sp, options(nomem, nostack)) };
+    let (lo, hi) = cpu1_thread_range();
+    let own_sp = sp > lo && sp <= hi;
+    let span = (sysreg!("sctlr_el1") & SCTLR_SPAN) >> 23;
+    let pan = pstate_pan();
+    let mode_ok = tp != 0 && id == 1 && vbar_ok && spsel == 0 && own_sp && pan == 1;
+    line(format_args!(
+        "smp: cpu1 kernel-mode tpidr={} vbar={} spsel={spsel} sp={} pan={pan} span={span} cpu={id}",
+        if tp != 0 && id == 1 { "percpu1" } else { "missing" },
+        if vbar_ok { "kernel" } else { "other" },
+        if own_sp { "own-thread" } else { "other" },
+    ));
+    let mut failed = 0u64;
+    if mode_ok {
+        // Core 1's own (banked) GIC CPU interface, timer PPI and CNTP, as
+        // the single-core boot has before its probes. DAIF stays masked at
+        // EL1; the EL0 probes that enter with IRQ/FIQ clear take core 1's
+        // timer through the lower-EL trampolines.
+        crate::gic::init_this_cpu();
+        crate::timer::init();
+        failed = cpu1_run_probes(block);
+        crate::timer::stop();
+    }
+    block.s4_failed.store(if mode_ok { failed } else { u64::MAX }, Ordering::SeqCst);
+    block.s4_phase.store(P_PROBES_DONE, Ordering::SeqCst);
+    if mode_ok {
+        cpu1_asidgen(block);
+    }
+    loop {
+        unsafe { asm!("wfe", options(nomem, nostack)) };
+    }
+}
+
+fn tag(block: &Block, name: &str, ok: bool) -> u64 {
+    block.s4_probes.fetch_add(1, Ordering::SeqCst);
+    line(format_args!(
+        "smp: cpu1 probe {name} {} cpu={}",
+        if ok { "ok" } else { "missed" },
+        crate::percpu::id()
+    ));
+    if ok { 0 } else { 1 }
+}
+
+/// The single-core boot's EL0 isolation probes, in the same order, on core 1.
+/// Returns the number that missed. The standing task (needs the GIC timer)
+/// and the non-isolation samples are not part of S4.
+fn cpu1_run_probes(b: &Block) -> u64 {
+    let mut f = 0;
+    f += tag(b, "el0", crate::el0::observe_probe());
+    f += tag(b, "svc", crate::syscall::observe_probe());
+    f += tag(b, "sys-ptr", crate::syscall::observe_sys_ptr_probe());
+    f += tag(b, "libctos", crate::libctos::observe_probe());
+    f += tag(b, "loader", crate::loader::observe_probe());
+    let pan_after = crate::pan::observe_after_el0();
+    f += tag(b, "pan-held", crate::pan::observe_held(pan_after));
+    f += tag(b, "asid", crate::asid::observe_probe());
+    f += tag(b, "t2t", crate::t2t::observe_probe());
+    f += tag(b, "xo", crate::xo::observe_probe());
+    f += tag(b, "ttbr1", crate::ttbr1::observe_probe());
+    f += tag(b, "ident", crate::teardown::observe_probe());
+    f += tag(b, "el0-reach", crate::reach::observe_probe());
+    f += tag(b, "pan", crate::pan::pan_probe_ready());
+    f
+}
+
+// ASID-generation probes. Phases: core 1 writes even, core 0 writes odd.
+const P_PROBES_DONE: u64 = 2;
+const P_ALLOC_GO: u64 = 3;
+const P_ALLOC_DONE: u64 = 4;
+const P_MAPPED: u64 = 5;
+const P_READ1: u64 = 6;
+const P_REISSUED: u64 = 7;
+const P_DONE: u64 = 8;
+
+/// Each core allocates this many; 2 × 150 > 253 forces at least one rollover.
+const ALLOC_N: usize = 150;
+static CPU1_ALLOCS: [AtomicU64; ALLOC_N] = [const { AtomicU64::new(0) }; ALLOC_N];
+
+const ASIDGEN_MAGIC: u64 = 0x4153_4944_4745_4e04; // "ASIDGEN" + 4
+const ASIDGEN_SENTINEL: u64 = 0xdead_0000_0000_0004;
+const AR_FAULT: u64 = 1;
+const AR_LEAK: u64 = 2;
+const AR_FIRST_READ_BAD: u64 = 3;
+const AR_OTHER: u64 = 4;
+
+fn wait_s4(b: &Block, want: u64, ticks: u64) -> bool {
+    let t0 = crate::timer::cntpct();
+    while crate::timer::cntpct().wrapping_sub(t0) < ticks {
+        if b.s4_phase.load(Ordering::SeqCst) == want {
+            return true;
+        }
+        core::hint::spin_loop();
+    }
+    false
+}
+
+fn enc(s: crate::asidgen::Slot) -> u64 {
+    (s.gen << 8) | s.asid
+}
+
+fn cpu1_asidgen(b: &'static Block) {
+    let freq = cntfrq().max(1);
+    // (1) Concurrent allocation from both cores.
+    if !wait_s4(b, P_ALLOC_GO, freq * 4) {
+        return;
+    }
+    for slot in CPU1_ALLOCS.iter() {
+        slot.store(enc(crate::asidgen::alloc()), Ordering::SeqCst);
+    }
+    b.s4_phase.store(P_ALLOC_DONE, Ordering::SeqCst);
+    // (2) Reissue after rollover. Task T1 on core 1 reads the nG page.
+    if !wait_s4(b, P_MAPPED, freq * 4) {
+        return;
+    }
+    let va = b.s4_va.load(Ordering::SeqCst);
+    let kttbr0 = crate::paging::kernel_ttbr0();
+    let mut t1 = crate::asidgen::Slot::NONE;
+    let asid = crate::asidgen::switch_to(&mut t1);
+    crate::paging::switch_ttbr0_no_tlbi(kttbr0 | (asid << 48));
+    let first = unsafe { core::ptr::read_volatile(va as *const u64) };
+    // T1 exits. Core 1 stays on that TTBR0 value (lazy; TCG flushes its
+    // TLB on any ASID change, which would hide the stale entry).
+    crate::asidgen::release_cpu();
+    b.s4_asid.store(asid, Ordering::SeqCst);
+    b.s4_gen.store(t1.gen, Ordering::SeqCst);
+    b.s4_phase.store(P_READ1, Ordering::SeqCst);
+    if !wait_s4(b, P_REISSUED, freq * 4) {
+        crate::paging::switch_ttbr0_no_tlbi(kttbr0);
+        return;
+    }
+    // Task T2 got the same ASID in a later generation (allocated by core 0).
+    let g2 = b.s4_gen.load(Ordering::SeqCst);
+    let mut t2 = crate::asidgen::Slot { gen: g2, asid };
+    let a2 = crate::asidgen::switch_to(&mut t2);
+    crate::paging::switch_ttbr0_no_tlbi(kttbr0 | (a2 << 48));
+    crate::exception::arm_asidgen(va);
+    let mut got = ASIDGEN_SENTINEL;
+    unsafe {
+        asm!("ldr {v}, [{a}]", v = inout(reg) got, a = in(reg) va, options(nostack));
+    }
+    let caught = crate::exception::asidgen_caught();
+    crate::asidgen::release_cpu();
+    crate::paging::switch_ttbr0_no_tlbi(kttbr0);
+    let seen = crate::percpu::this().map(|p| p.asid_gen_seen.load(Ordering::SeqCst)).unwrap_or(0);
+    let ec = (caught >> 26) & 0x3f;
+    let dfsc = caught & 0x3f;
+    let res = if first != ASIDGEN_MAGIC {
+        line(format_args!("smp: asidgen cpu1 first read bad"));
+        AR_FIRST_READ_BAD
+    } else if a2 != asid || t2.gen != g2 {
+        line(format_args!("smp: asidgen cpu1 slot changed"));
+        AR_OTHER
+    } else if caught != 0 && ec == 0x25 && (0x04..=0x07).contains(&dfsc) && got == ASIDGEN_SENTINEL {
+        line(format_args!(
+            "smp: asidgen cpu1 fault ec=0x25 dfsc=trans-l{} gen-seen={seen} cpu=1",
+            dfsc - 4
+        ));
+        AR_FAULT
+    } else if caught == 0 && got == ASIDGEN_MAGIC {
+        line(format_args!("smp: asidgen cpu1 read the retired page under the reissued asid cpu=1"));
+        AR_LEAK
+    } else {
+        line(format_args!("smp: asidgen cpu1 other caught={caught:#x}"));
+        AR_OTHER
+    };
+    b.s4_result.store(res, Ordering::SeqCst);
+    b.s4_phase.store(P_DONE, Ordering::SeqCst);
+}
+
+fn cpu0_alloc_test(b: &Block) -> bool {
+    let freq = cntfrq().max(1);
+    let r0 = crate::asidgen::rollovers();
+    let mut mine = [0u64; ALLOC_N];
+    b.s4_phase.store(P_ALLOC_GO, Ordering::SeqCst);
+    for m in mine.iter_mut() {
+        *m = enc(crate::asidgen::alloc());
+    }
+    if !wait_s4(b, P_ALLOC_DONE, freq * 4) {
+        line(format_args!("smp: asidgen alloc missed (cpu1 timeout)"));
+        return false;
+    }
+    let mut all = [0u64; 2 * ALLOC_N];
+    all[..ALLOC_N].copy_from_slice(&mine);
+    for (i, s) in CPU1_ALLOCS.iter().enumerate() {
+        all[ALLOC_N + i] = s.load(Ordering::SeqCst);
+    }
+    let range_ok = all
+        .iter()
+        .all(|&e| (crate::asidgen::FIRST..=crate::asidgen::LAST).contains(&(e & 0xff)) && e >> 8 != 0);
+    all.sort_unstable();
+    let unique = all.windows(2).all(|w| w[0] != w[1]);
+    let gens = 1 + all.windows(2).filter(|w| w[0] >> 8 != w[1] >> 8).count();
+    let rolled = crate::asidgen::rollovers() - r0;
+    let ok = range_ok && unique && rolled >= 1 && gens >= 2;
+    line(format_args!(
+        "smp: asidgen alloc cpu0+cpu1 n={} {} range={} gens={gens} rollovers={rolled}",
+        2 * ALLOC_N,
+        if unique { "unique" } else { "duplicate" },
+        if range_ok { "3..=255" } else { "bad" },
+    ));
+    ok
+}
+
+fn cpu0_reissue(b: &Block) -> bool {
+    let freq = cntfrq().max(1);
+    let Some(pa) = crate::frame::alloc() else {
+        line(format_args!("smp: asidgen missed (no frame)"));
+        return false;
+    };
+    let cpu = crate::paging::frame_cpu_va(pa);
+    unsafe { core::ptr::write_volatile(cpu as *mut u64, ASIDGEN_MAGIC) };
+    unsafe { asm!("dc civac, {x}", "dsb ish", x = in(reg) cpu, options(nostack)) };
+    let mut va = 0;
+    for i in (0..512u64).rev() {
+        let cand = crate::paging::MAP_WINDOW + i * 4096;
+        if crate::paging::map_page_ng(cand, pa) {
+            va = cand;
+            break;
+        }
+    }
+    if va == 0 {
+        crate::frame::free(pa);
+        line(format_args!("smp: asidgen missed (no free window slot)"));
+        return false;
+    }
+    b.s4_va.store(va, Ordering::SeqCst);
+    b.s4_phase.store(P_MAPPED, Ordering::SeqCst);
+    if !wait_s4(b, P_READ1, freq * 4) {
+        line(format_args!("smp: asidgen missed (cpu1 did not read)"));
+        return false;
+    }
+    let asid = b.s4_asid.load(Ordering::SeqCst);
+    let g1 = b.s4_gen.load(Ordering::SeqCst);
+    // T1 is retired: tear its mapping down with no TLBI (the generation rule
+    // defers that to the rollover flush), then allocate until the same ASID
+    // is issued again in a later generation.
+    let cleared = crate::paging::clear_window_no_tlbi(va);
+    let mut t2 = crate::asidgen::Slot::NONE;
+    let mut tries = 0u64;
+    while tries < 4 * crate::asidgen::PER_GEN {
+        let s = crate::asidgen::alloc();
+        tries += 1;
+        if s.gen > g1 && s.asid == asid {
+            t2 = s;
+            break;
+        }
+    }
+    if !cleared || t2.gen == 0 {
+        line(format_args!("smp: asidgen missed (cleared={cleared} reissued={})", t2.gen != 0));
+        return false;
+    }
+    line(format_args!(
+        "smp: asidgen rollover gen {g1}->{} asid {asid} reissued (flush={})",
+        t2.gen,
+        if cfg!(feature = "asid-rollover-local-probe") { "local" } else { "vmalle1is" }
+    ));
+    b.s4_gen.store(t2.gen, Ordering::SeqCst);
+    b.s4_phase.store(P_REISSUED, Ordering::SeqCst);
+    let done = wait_s4(b, P_DONE, freq * 4);
+    crate::paging::invalidate_va(va);
+    crate::frame::free(pa);
+    if !done {
+        line(format_args!("smp: asidgen missed (cpu1 timeout)"));
+        return false;
+    }
+    match b.s4_result.load(Ordering::SeqCst) {
+        AR_FAULT => {
+            line(format_args!("smp: asidgen reissue cpu0 rollover → cpu1 fault"));
+            true
+        }
+        AR_LEAK => {
+            line(format_args!("smp: asidgen leak"));
+            false
+        }
+        r => {
+            line(format_args!("smp: asidgen missed result={r}"));
+            false
+        }
+    }
+}
+
+/// ADR-104 (S4) on core 0, after S1–S3 passed and core 0 ran the driver /
+/// FAT / scheduler / GIC distributor init (no timer on core 0). Prints `smp: ok cpu1 s4 …` only
+/// when core 1 entered kernel mode, every probe passed on core 1, the
+/// concurrent allocation was unique and the reissue probe faulted on core 1.
+pub fn observe_s4() -> bool {
+    let b = unsafe { &*core::ptr::addr_of!(BLOCK) };
+    let freq = cntfrq().max(1);
+    b.s4_kttbr0.store(crate::paging::kernel_ttbr0(), Ordering::SeqCst);
+    b.s4_span.store(sysreg!("sctlr_el1") & SCTLR_SPAN, Ordering::SeqCst);
+    b.s4_phase.store(0, Ordering::SeqCst);
+    line(format_args!("smp: s4 go cpu1"));
+    b.s4_go.store(1, Ordering::SeqCst);
+    unsafe { asm!("dsb ish", "sev", options(nostack)) };
+    // Core 1 runs the probes; core 0 only waits (no output, no EL0).
+    if !wait_s4(b, P_PROBES_DONE, freq * 60) {
+        line(format_args!("smp: s4 missed (cpu1 probes timeout)"));
+        return false;
+    }
+    let failed = b.s4_failed.load(Ordering::SeqCst);
+    let n = b.s4_probes.load(Ordering::SeqCst);
+    let probes_ok = failed == 0 && n == S4_PROBES;
+    if probes_ok {
+        line(format_args!("smp: cpu1 probes ok n={n} cpu=1"));
+    } else {
+        line(format_args!("smp: cpu1 probes missed failed={failed} n={n}"));
+        if failed == u64::MAX {
+            return false;
+        }
+    }
+    let alloc_ok = cpu0_alloc_test(b);
+    let reissue_ok = cpu0_reissue(b);
+    let ok = probes_ok && alloc_ok && reissue_ok;
+    if ok {
+        line(format_args!(
+            "smp: ok cpu1 s4 percpu=tpidr el0=cpu1 probes={n} asidgen=unique,rollover-is"
+        ));
+    } else {
+        line(format_args!(
+            "smp: s4 missed probes={probes_ok} alloc={alloc_ok} reissue={reissue_ok}"
+        ));
+    }
+    ok
 }

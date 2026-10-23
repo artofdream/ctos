@@ -70,18 +70,18 @@ const RET_A64: u32 = 0xD65F03C0;
 #[used]
 pub(crate) static mut KERNEL_DATA_BAIT: [u32; 2] = [RET_A64, RET_A64];
 
-static ENTERED: AtomicBool = AtomicBool::new(false);
-static NX_OK: AtomicBool = AtomicBool::new(false);
-static READ_OK: AtomicBool = AtomicBool::new(false);
-static ACTIVE: AtomicBool = AtomicBool::new(false);
-static USER_PC: AtomicU64 = AtomicU64::new(0);
-static USER_SP: AtomicU64 = AtomicU64::new(0);
-static USER_TTBR: AtomicU64 = AtomicU64::new(0);
+static ENTERED: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static NX_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static READ_OK: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static ACTIVE: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static USER_PC: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static USER_SP: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static USER_TTBR: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 /// 0 = none, 1 = ADR-013 probe, 2 = A4 standing task (ADR-024).
-static KIND: AtomicU8 = AtomicU8::new(0);
-static TASK_ACTIVE_SEEN: AtomicBool = AtomicBool::new(false);
-static TASK_EXIT_SEEN: AtomicBool = AtomicBool::new(false);
-static RESTORE_FAIL_SEEN: AtomicBool = AtomicBool::new(false);
+static KIND: crate::percpu::Banked<AtomicU8> = crate::banked!(AtomicU8::new(0));
+static TASK_ACTIVE_SEEN: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static TASK_EXIT_SEEN: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static RESTORE_FAIL_SEEN: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 
 const KIND_NONE: u8 = 0;
 const KIND_PROBE: u8 = 1;

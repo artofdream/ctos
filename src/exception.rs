@@ -81,75 +81,81 @@ const SPSR_EL0_SERROR_ENABLED: u64 = 0x2c0;
 /// SPSR: EL0t with DAIF all masked (short non-standing trampoline probes).
 const SPSR_EL0_MASKED: u64 = 0x3c0;
 
-static BRK_COUNT: AtomicU64 = AtomicU64::new(0);
-static NEST_FATAL: AtomicBool = AtomicBool::new(false);
-static EXPECT_NX: AtomicBool = AtomicBool::new(false);
-static NX_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_GUARD: AtomicBool = AtomicBool::new(false);
-static EXPECT_EL0_SVC: AtomicBool = AtomicBool::new(false);
-static EL0_SVC_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_EL0_IABORT: AtomicBool = AtomicBool::new(false);
-static EL0_IABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_RO_NX: AtomicBool = AtomicBool::new(false);
-static RO_NX_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_RO_WRITE: AtomicBool = AtomicBool::new(false);
-static RO_WRITE_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_EL0_DABORT: AtomicBool = AtomicBool::new(false);
+static BRK_COUNT: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static NEST_FATAL: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_NX: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static NX_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_GUARD: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_EL0_SVC: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_SVC_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_EL0_IABORT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_IABORT_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_RO_NX: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static RO_NX_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_RO_WRITE: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static RO_WRITE_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_EL0_DABORT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 /// ADR-092 (G2): EL0 store probe armed. The handler records what EL0 hit.
-static EXPECT_EL0_WRITE: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_WRITE: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 /// 0 = nothing taken, 1 = lower-EL data abort, 2 = BRK after the store
 /// (the store completed: fail), 3 = any other lower-EL sync exception.
-static EL0_WRITE_KIND: AtomicU64 = AtomicU64::new(0);
-static EL0_WRITE_ESR: AtomicU64 = AtomicU64::new(0);
-static EL0_WRITE_FAR: AtomicU64 = AtomicU64::new(0);
-static EL0_WRITE_ELR: AtomicU64 = AtomicU64::new(0);
+static EL0_WRITE_KIND: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_WRITE_ESR: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_WRITE_FAR: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_WRITE_ELR: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 /// ADR-096: generic one-shot capture of the next lower-EL sync exception
 /// (task-to-task probe). Records ESR / FAR / ELR / x1 and returns to EL1.
-static EXPECT_EL0_CAPTURE: AtomicBool = AtomicBool::new(false);
-static EL0_CAP_TAKEN: AtomicBool = AtomicBool::new(false);
-static EL0_CAP_ESR: AtomicU64 = AtomicU64::new(0);
-static EL0_CAP_FAR: AtomicU64 = AtomicU64::new(0);
-static EL0_CAP_ELR: AtomicU64 = AtomicU64::new(0);
-static EL0_CAP_X1: AtomicU64 = AtomicU64::new(0);
-static EL0_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_ASID_CONFLICT: AtomicBool = AtomicBool::new(false);
-static ASID_CONFLICT_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_EL0_STANDING: AtomicBool = AtomicBool::new(false);
-static EL0_STANDING_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EL0_RESTORED_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_EL0_IRQ: AtomicBool = AtomicBool::new(false);
-static EL0_IRQ_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_EL0_FIQ: AtomicBool = AtomicBool::new(false);
-static EL0_FIQ_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_EL0_SERROR: AtomicBool = AtomicBool::new(false);
-static EL0_SERROR_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_TTBR1_DABORT: AtomicBool = AtomicBool::new(false);
-static TTBR1_DABORT_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_IDENT_TEAR: AtomicBool = AtomicBool::new(false);
-static IDENT_TEAR_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_IDENT_RODATA: AtomicBool = AtomicBool::new(false);
-static IDENT_RODATA_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_IDENT_DATA: AtomicBool = AtomicBool::new(false);
-static IDENT_DATA_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_IDENT_HEAP: AtomicBool = AtomicBool::new(false);
-static IDENT_HEAP_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_IDENT_RAM: AtomicBool = AtomicBool::new(false);
-static IDENT_RAM_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_IDENT_LEFT: AtomicBool = AtomicBool::new(false);
-static IDENT_LEFT_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_IDENT_EL0: AtomicBool = AtomicBool::new(false);
-static IDENT_EL0_CAUGHT: AtomicBool = AtomicBool::new(false);
-static EXPECT_PAN_EL1: AtomicBool = AtomicBool::new(false);
-static PAN_EL1_CAUGHT: AtomicBool = AtomicBool::new(false);
-static PAN_EL1_SPSR_PAN: AtomicBool = AtomicBool::new(false);
+static EXPECT_EL0_CAPTURE: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_CAP_TAKEN: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_CAP_ESR: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_CAP_FAR: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_CAP_ELR: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_CAP_X1: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_DABORT_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_ASID_CONFLICT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static ASID_CONFLICT_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_EL0_STANDING: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_STANDING_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_RESTORED_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_EL0_IRQ: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_IRQ_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_EL0_FIQ: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_FIQ_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_EL0_SERROR: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EL0_SERROR_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_TTBR1_DABORT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static TTBR1_DABORT_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_IDENT_TEAR: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static IDENT_TEAR_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_IDENT_RODATA: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static IDENT_RODATA_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_IDENT_DATA: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static IDENT_DATA_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_IDENT_HEAP: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static IDENT_HEAP_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_IDENT_RAM: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static IDENT_RAM_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_IDENT_LEFT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static IDENT_LEFT_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_IDENT_EL0: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static IDENT_EL0_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static EXPECT_PAN_EL1: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static PAN_EL1_CAUGHT: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
+static PAN_EL1_SPSR_PAN: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 /// ADR-098: reuse the ADR-080 EL1 permission-fault catcher without printing
 /// `pan: el1-fault` (so that marker stays the ADR-080 boot probe's alone).
-static PAN_EL1_QUIET: AtomicBool = AtomicBool::new(false);
+static PAN_EL1_QUIET: crate::percpu::Banked<AtomicBool> = crate::banked!(AtomicBool::new(false));
 /// ADR-098: number of returns from an EL0 trip back to the kernel
 /// continuation (`return_from_el0`).
-static EL0_RETURNS: AtomicU64 = AtomicU64::new(0);
-static EL0_CONT: AtomicU64 = AtomicU64::new(0);
-static EL0_KSP: AtomicU64 = AtomicU64::new(0);
+static EL0_RETURNS: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_CONT: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+static EL0_KSP: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+/// ADR-104 (S4, `smp2-probe` only): expected EL1 translation DABORT at
+/// one map-window page (the ASID-generation reissue probe). Per core.
+#[cfg(feature = "smp2-probe")]
+static EXPECT_ASIDGEN: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
+#[cfg(feature = "smp2-probe")]
+static ASIDGEN_CAUGHT: crate::percpu::Banked<AtomicU64> = crate::banked!(AtomicU64::new(0));
 
 /// Standing user payload writes this into X1 between SVC #1 and SVC #2.
 pub const STANDING_MAGIC: u64 = 0x51A4;
@@ -351,7 +357,11 @@ sync_current_el:
     stp x2, x3, [sp, #16]
     // ADR-039: after identity .data/heap tear, no TLBI VMALLE1 on
     // the standing/EL0 trampoline path (MSR TTBR0 + ISB only).
+    // ADR-104: TPIDR_EL1 -> this core's PerCpu block (TTBR1 alias);
+    // offset 0 is the saved kernel TTBR0.
     mrs x2, tpidr_el1
+    cbz x2, 1f
+    ldr x2, [x2]
     cbz x2, 1f
     msr ttbr0_el1, x2
     isb
@@ -407,7 +417,11 @@ sync_current_el:
     stp x0, x1, [sp, #0]
     stp x2, x3, [sp, #16]
     // ADR-039/040: MSR TTBR0 + ISB only (no TLBI VMALLE1).
+    // ADR-104: TPIDR_EL1 -> this core's PerCpu block (TTBR1 alias);
+    // offset 0 is the saved kernel TTBR0.
     mrs x2, tpidr_el1
+    cbz x2, 1f
+    ldr x2, [x2]
     cbz x2, 1f
     msr ttbr0_el1, x2
     isb
@@ -462,7 +476,11 @@ sync_current_el:
     sub sp, sp, #272
     stp x0, x1, [sp, #0]
     stp x2, x3, [sp, #16]
+    // ADR-104: TPIDR_EL1 -> this core's PerCpu block (TTBR1 alias);
+    // offset 0 is the saved kernel TTBR0.
     mrs x2, tpidr_el1
+    cbz x2, 1f
+    ldr x2, [x2]
     cbz x2, 1f
     msr ttbr0_el1, x2
     isb
@@ -518,7 +536,11 @@ sync_current_el:
     sub sp, sp, #272
     stp x0, x1, [sp, #0]
     stp x2, x3, [sp, #16]
+    // ADR-104: TPIDR_EL1 -> this core's PerCpu block (TTBR1 alias);
+    // offset 0 is the saved kernel TTBR0.
     mrs x2, tpidr_el1
+    cbz x2, 1f
+    ldr x2, [x2]
     cbz x2, 1f
     msr ttbr0_el1, x2
     isb
@@ -903,6 +925,20 @@ pub fn el0_dabort_caught() -> bool {
 pub fn arm_asid_conflict() {
     ASID_CONFLICT_CAUGHT.store(false, Ordering::SeqCst);
     EXPECT_ASID_CONFLICT.store(true, Ordering::SeqCst);
+}
+
+/// ADR-104: arm one expected translation DABORT at page `va` on this core.
+#[cfg(feature = "smp2-probe")]
+pub fn arm_asidgen(va: u64) {
+    ASIDGEN_CAUGHT.store(0, Ordering::SeqCst);
+    EXPECT_ASIDGEN.store(va & !0xfff, Ordering::SeqCst);
+}
+
+/// ADR-104: ESR of the caught fault (0 = none); disarms.
+#[cfg(feature = "smp2-probe")]
+pub fn asidgen_caught() -> u64 {
+    EXPECT_ASIDGEN.store(0, Ordering::SeqCst);
+    ASIDGEN_CAUGHT.load(Ordering::SeqCst)
 }
 
 pub fn asid_conflict_caught() -> bool {
@@ -1410,6 +1446,16 @@ pub extern "C" fn handle_sync_exception(ctx: &mut ExceptionContext) {
         // caller — jumping there would abandon the callee stack frame.
         ctx.elr = ctx.elr.wrapping_add(4);
         return;
+    }
+    #[cfg(feature = "smp2-probe")]
+    if is_trans_dabort(ctx.esr) {
+        let want = EXPECT_ASIDGEN.load(Ordering::SeqCst);
+        if want != 0 && (far_el1() & !0xfff) == want {
+            EXPECT_ASIDGEN.store(0, Ordering::SeqCst);
+            ASIDGEN_CAUGHT.store(ctx.esr | 1 << 63, Ordering::SeqCst);
+            ctx.elr = ctx.elr.wrapping_add(4);
+            return;
+        }
     }
     if is_trans_dabort(ctx.esr)
         && EXPECT_ASID_CONFLICT.swap(false, Ordering::SeqCst)

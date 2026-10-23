@@ -132,6 +132,7 @@
 - [ADR-101 Host / user name scrub + guard classes](03-adr/ADR-101-host-user-name-scrub-guard.md)
 - [ADR-102 SMP S2: secondary MMU on, own stack/VBAR, PAN/SPAN, console lock](03-adr/ADR-102-smp-s2-secondary-mmu-pan-vbar.md)
 - [ADR-103 SMP S3: type-enforced TABLES, broadcast TLBI, cross-core unmap probe](03-adr/ADR-103-smp-s3-tables-lock-broadcast-tlbi.md)
+- [ADR-104 SMP S4: PerCpu via TPIDR_EL1, ASID generations, first EL0 on core 1](03-adr/ADR-104-smp-s4-percpu-asid-generation-el0-cpu1.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
