@@ -1,8 +1,8 @@
 # ADR-110 — N1: taken SError on core 1 at EL0 (pinned QEMU, `-smp 2`, cpu-index=1)
 
-- Status: Accepted (implementation + evidence, opt-in). Sponsor go relayed by DSO on 2026-10-23 at 20:17 CEST (N1 from [ADR-109](ADR-109-taken-serror-qemu-spike.md)).
+- Status: Accepted (implementation + evidence, opt-in). Sponsor go relayed by DSO on 2026-10-23 at 20:17 CEST (N1 from [ADR-108](ADR-108-taken-serror-qemu-spike.md)).
 - Date: 2026-10-23
-- Base: main `c420fba`. ADR-107/108/109 are held by open PRs #163/#164/#165, so this is ADR-110.
+- Base: main `c420fba`. ADR-107 (#163, FAT32), ADR-108 (#165, the spike) and ADR-109 (#164, inbound TCP) are taken, so this is ADR-110.
 - Machine: amd64 workstation (TCG; builds in an `ubuntu:24.04` container). CI: the `QEMU NMI pin smoke (taken SError)` job.
 
 ## Context
