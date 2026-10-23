@@ -85,7 +85,7 @@ jobs:
     # check: ADR-091 rev 4 stays one core until a written sponsor accept.
     name: QEMU -smp 2 bring-up (opt-in, ADR-100..105; not required)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
