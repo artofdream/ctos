@@ -23,6 +23,7 @@ Config: scripts/archify-honesty.config.json
 from __future__ import annotations
 
 import argparse
+import html as html_lib
 import json
 import os
 import posixpath
@@ -129,12 +130,22 @@ def is_archify_ir(obj) -> bool:
     )
 
 
-def generator_of(html: str):
-    for tag in re.findall(r"<meta\b[^>]*>", html, flags=re.IGNORECASE):
-        if re.search(r"\bname\s*=\s*[\"']generator[\"']", tag, flags=re.IGNORECASE):
+def _decode_entities(s: str) -> str:
+    return html_lib.unescape(s)
+
+
+def generators_of(html: str) -> list[str]:
+    """Every `<meta name="generator">` content in the page, including pages embedded entity-escaped (iframe srcdoc)."""
+    found: list[str] = []
+    for text in (html, _decode_entities(html)):
+        for tag in re.findall(r"<meta\b[^>]*>", text, flags=re.IGNORECASE):
+            if not re.search(r"\bname\s*=\s*[\"']generator[\"']", tag, flags=re.IGNORECASE):
+                continue
             m = re.search(r"\bcontent\s*=\s*\"([^\"]*)\"|\bcontent\s*=\s*'([^']*)'", tag, flags=re.IGNORECASE)
-            return (m.group(1) if m.group(1) is not None else m.group(2)) if m else ""
-    return None
+            found.append((m.group(1) if m.group(1) is not None else m.group(2)) if m else "")
+        if found:
+            break  # literal tags win; fall back to the decoded text only if there are none
+    return found
 
 
 _UNSET = object()
@@ -172,13 +183,15 @@ def check_ir(ir: dict, cfg: dict, file: str = "<ir>", html=_UNSET) -> dict:
                 'generator string (set "html" in the config if it is rendered elsewhere).'
             )
         else:
-            gen = generator_of(html)
+            gens = generators_of(html)
             expected = cfg["expectedGenerator"]
-            if gen is None:
+            bad = list(dict.fromkeys(g for g in gens if g != expected))
+            if not gens:
                 warnings.append(f'{file}: committed HTML has no <meta name="generator"> (expected "{expected}").')
-            elif gen != expected:
+            elif bad:
+                found = '", "'.join(bad)
                 warnings.append(
-                    f'{file}: committed HTML generator is "{gen}", expected "{expected}". '
+                    f'{file}: committed HTML generator is "{found}", expected "{expected}". '
                     "Regenerate with the pinned Archify."
                 )
     return {"errors": errors, "warnings": warnings}
