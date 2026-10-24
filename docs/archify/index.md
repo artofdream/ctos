@@ -13,7 +13,7 @@ Same-origin views on this site (Documented aid â€” **not** Live product sta
 - Stock distro QEMU still parks (`el0: serror-park`).
 - Not FEAT_NMI / FIQ / BRK as SError. The pin alone is not the umbrella; since M6, “EL0 isolated” is only the accepted [ADR-091](../03-adr/ADR-091-el0-isolated-accept-draft.md) sentence.
 
-Source folder: `docs/archify/` (copied into the published `book/archify/` on Pages).
+Source folder: `docs/archify/` (copied into the published `book/archify/` on Pages). Generated with Archify v3.2.0; the former guided chapters are now cards under each drawing, and the viewer's Route and Lens controls replace guided views. Regenerate steps (pinned to `v3.2.0`, `ARCHIFY_UPDATE_CHECK_DISABLED=1`) are in the folder README.
 
 ## Related
 

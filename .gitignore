@@ -18,3 +18,11 @@
 
 # ADR-085 B2-P QEMU build output (rebuild via scripts/build-qemu-b2.sh)
 /tools/qemu-b2/
+
+# Archify deliver/finalize receipts (absolute local paths; never publish)
+docs/archify/*.delivery.json
+docs/archify/*.delivery-pending.json
+docs/archify/*.delivery-lock.json
+docs/archify/.archify-delivery-lock.json
+docs/archify/*.finalize*.json
+docs/archify/*.browser-check.json
