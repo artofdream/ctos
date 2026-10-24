@@ -1,0 +1,5 @@
+{
+  "labels": ["Probed", "Simulated", "Not hosted", "Not Live", "Proposed", "Unknown", "Documented", "Gap", "Verified"],
+  "phrases": ["Not FEAT_NMI", "Not EL0 isolated"],
+  "expectedGenerator": "archify 3.2.0"
+}

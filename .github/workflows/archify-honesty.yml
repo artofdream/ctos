@@ -1,0 +1,25 @@
+# Guard: honesty/status wording must not live only in an Archify diagram's retired
+# `meta.views` / chapter notes (Archify 3.x drops them), and committed HTML should
+# carry the pinned generator string (warning only). Pure python3 stdlib, no installs,
+# no secrets, read-only. Config: scripts/archify-honesty.config.json.
+name: archify-honesty
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  archify-honesty:
+    name: Archify honesty guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Self-test (passing and failing synthetic IR)
+        run: python3 scripts/test_check_archify_honesty.py
+      - name: Guard committed Archify diagrams
+        run: python3 scripts/check-archify-honesty.py
