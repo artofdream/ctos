@@ -4,43 +4,7 @@
   "meta": {
     "title": "ctos \u2014 QEMU NMI pin \u2192 taken SError",
     "output": "qemu-nmi-taken-serror.architecture.html",
-    "quality_profile": "showcase",
-    "views": [
-      {
-        "id": "opt-in-taken",
-        "label": "Opt-in taken path",
-        "focus": [
-          "smoke",
-          "pin",
-          "qmp",
-          "guest",
-          "taken"
-        ],
-        "note": "CTOS_QEMU + CTOS_REQUIRE_TAKEN_SERROR=1 until serial shows el0: serror."
-      },
-      {
-        "id": "stock-park",
-        "label": "Stock park path",
-        "focus": [
-          "smoke",
-          "stock",
-          "guest",
-          "park"
-        ],
-        "note": "Distro QEMU still lacks TYPE_NMI; el0: serror-park stays Verified."
-      },
-      {
-        "id": "honesty",
-        "label": "Honesty boundary",
-        "focus": [
-          "patch",
-          "pin",
-          "taken",
-          "park"
-        ],
-        "note": "Patch raises async SError via TYPE_NMI. Not FEAT_NMI. Not EL0 isolated."
-      }
-    ]
+    "quality_profile": "showcase"
   },
   "components": [
     {
@@ -242,7 +206,8 @@
       "items": [
         "Pin QEMU v10.0.0 (7c949c53) + TYPE_NMI\u2192SError patch",
         "CTOS_REQUIRE_TAKEN_SERROR=1 requires bare el0: serror",
-        "Tip ~6ec1f4e \u2014 documentation aid, not Live status"
+        "Tip ~6ec1f4e \u2014 documentation aid, not Live status",
+        "Opt-in taken path (qemu-smoke, Pinned QEMU, QMP inject, Standing EL0, el0: serror): CTOS_QEMU + CTOS_REQUIRE_TAKEN_SERROR=1 until serial shows el0: serror."
       ]
     },
     {
@@ -251,7 +216,8 @@
       "items": [
         "Distro QEMU: inject-nmi \u2192 machine does not provide NMIs",
         "el0: serror-park stays Verified on default CI/Docker",
-        "Do not force multi-minute QEMU compile on every PR"
+        "Do not force multi-minute QEMU compile on every PR",
+        "Stock park path (qemu-smoke, Stock QEMU, Standing EL0, el0: serror-park): Distro QEMU still lacks TYPE_NMI; el0: serror-park stays Verified."
       ]
     },
     {
@@ -260,7 +226,8 @@
       "items": [
         "FEAT_NMI / FIQ / BRK are not async SError",
         "Umbrella EL0 isolated remains non-claim (ADR-055)",
-        "CloudAgent HELD \u2014 agent-box proof; amd64 workstation intent only"
+        "CloudAgent HELD \u2014 agent-box proof; amd64 workstation intent only",
+        "Honesty boundary (TYPE_NMI patch, Pinned QEMU, el0: serror, el0: serror-park): Patch raises async SError via TYPE_NMI. Not FEAT_NMI. Not EL0 isolated."
       ]
     }
   ]

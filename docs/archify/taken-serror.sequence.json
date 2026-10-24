@@ -4,45 +4,9 @@
   "meta": {
     "title": "ctos \u2014 taken SError opt-in sequence",
     "output": "taken-serror.sequence.html",
-    "viewBox": [
-      980,
-      680
-    ],
     "column_fit": "spread",
     "animation": "trace",
-    "quality_profile": "showcase",
-    "views": [
-      {
-        "id": "arm-window",
-        "label": "Arm A-clear window",
-        "focus": [
-          "smoke",
-          "guest",
-          "serial"
-        ],
-        "note": "Guest arms standing EL0 with PSTATE.A clear and prints el0: serror-arm."
-      },
-      {
-        "id": "qmp-inject",
-        "label": "QMP stop / inject / cont",
-        "focus": [
-          "host",
-          "qemu",
-          "guest"
-        ],
-        "note": "Host pauses TCG, inject-nmi raises ARM_CPU_SERROR on the pin, then continues."
-      },
-      {
-        "id": "expect-gate",
-        "label": "EXPECT gate",
-        "focus": [
-          "guest",
-          "serial",
-          "smoke"
-        ],
-        "note": "Opt-in smoke requires bare el0: serror; stock path would park instead."
-      }
-    ]
+    "quality_profile": "showcase"
   },
   "participants": [
     {
@@ -206,7 +170,9 @@
       "items": [
         "Pinned virt implements TYPE_NMI \u2192 ARM_CPU_SERROR",
         "stop/inject/cont avoids racing past the A-clear window",
-        "Serial bare el0: serror satisfies CTOS_REQUIRE_TAKEN_SERROR=1"
+        "Serial bare el0: serror satisfies CTOS_REQUIRE_TAKEN_SERROR=1",
+        "Arm A-clear window (qemu-smoke, ctos guest, Serial): Guest arms standing EL0 with PSTATE.A clear and prints el0: serror-arm.",
+        "QMP stop / inject / cont (serial-inject, Pinned QEMU, ctos guest): Host pauses TCG, inject-nmi raises ARM_CPU_SERROR on the pin, then continues."
       ]
     },
     {
@@ -215,7 +181,8 @@
       "items": [
         "Without the pin, inject-nmi errors: machine does not provide NMIs",
         "Default smoke still requires el0: serror-park",
-        "Diagram is a doc aid \u2014 not production Live status"
+        "Diagram is a doc aid \u2014 not production Live status",
+        "EXPECT gate (ctos guest, Serial, qemu-smoke): Opt-in smoke requires bare el0: serror; stock path would park instead."
       ]
     },
     {
