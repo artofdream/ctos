@@ -74,7 +74,11 @@ class ArchifyHonestyGuard(unittest.TestCase):
         r = guard.check_ir(copy.deepcopy(GOOD), CFG, file="g.json", html=html("archify 3.1.0"))
         self.assertEqual(r["errors"], [])
         self.assertEqual(len(r["warnings"]), 1)
-        self.assertEqual(guard.generator_of(html("archify 3.2.0")), "archify 3.2.0")
+        self.assertEqual(guard.generators_of(html("archify 3.2.0")), ["archify 3.2.0"])
+        # a wrapper page that embeds the real page entity-escaped (iframe srcdoc)
+        wrapped = '<iframe srcdoc="&lt;meta name=&quot;generator&quot; content=&quot;archify 3.2.0&quot;&gt;"></iframe>'
+        self.assertEqual(guard.generators_of(wrapped), ["archify 3.2.0"])
+        self.assertEqual(guard.check_ir(copy.deepcopy(GOOD), CFG, file="w.json", html=wrapped)["warnings"], [])
         t = copy.deepcopy(GOOD)
         t["diagram_type"] = "timeline"
         self.assertEqual(guard.check_ir(t, CFG, file="t.json", html="<html></html>")["warnings"], [])
