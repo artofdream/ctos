@@ -25,6 +25,8 @@ After Pages deploy from `main`:
 
 Archify 3.x no longer renders guided chapters (`meta.views`). The three chapter notes of each diagram now live in the cards under the drawing; the honesty wording above is unchanged. The viewer has built-in Route and Lens controls for reading paths; they are not authored in the JSON.
 
+CI guard: `scripts/check-archify-honesty.py` (workflow `archify-honesty`) fails if an Archify IR still has `meta.views`, or if an honesty label or non-claim phrase (list in `scripts/archify-honesty.config.json`, e.g. `Not FEAT_NMI`, `Not EL0 isolated`) appears in a retired chapter note but not in the components or cards. It also warns when a committed HTML generator string is not `archify 3.2.0`. Self-test: `python3 scripts/test_check_archify_honesty.py`.
+
 ### Regenerate
 
 Pin Archify to `v3.2.0`, disable its update check, and render in a scratch directory. `deliver` writes a `*.delivery.json` receipt next to the HTML, and that receipt holds absolute local paths. Copy back only the `.json` and `.html` files; never commit or publish receipts (`.gitignore` lists them).
