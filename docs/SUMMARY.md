@@ -140,6 +140,7 @@
 - [ADR-109 Inbound TCP over QEMU hostfwd (N6)](03-adr/ADR-109-n6-inbound-tcp-hostfwd.md)
 - [ADR-110 N1: taken SError on core 1 (pinned QEMU, cpu-index=1)](03-adr/ADR-110-n1-cpu1-taken-serror-pin.md)
 - [ADR-111 N2: EL2 shim, virtual SError on stock QEMU (opt-in)](03-adr/ADR-111-n2-el2-shim-virtual-serror.md)
+- [ADR-112 Real-hardware SError plan: Graviton KVM virtual SError with host-chosen ESR (Proposed)](03-adr/ADR-112-graviton-hardware-virtual-serror-esr.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
