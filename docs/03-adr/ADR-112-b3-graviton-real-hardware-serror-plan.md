@@ -144,6 +144,18 @@ The run re-reads the price at launch: the EC2 max price stays `0.40`, so a price
 - New: this ADR, a ledger row (**Planned**), SUMMARY and moc lines, and a brief.
 - No code, script, workflow, Dockerfile or AWS change in this PR.
 
+## Implementation (W1–W5; not run)
+
+Added 2026-11-12 (CET) by the implementation PR after this ADR merged (#172). Status stays **Proposed**, and the ledger row stays **Planned**: nothing was launched and no AWS call or workflow dispatch was made.
+
+- **W1** `research/qemu-nmi/0003-hw-arm-virt-KVM-serror-host-chosen-esr.patch`, applied by `scripts/build-qemu-b2.sh` after 0002. With `CTOS_B2_SERROR_ESR` set to a hex ISS (bits 0–24 only), the KVM branch of `virt_nmi` sets `serror.has_esr = 1` and `serror.esr`. If KVM lacks `KVM_CAP_ARM_INJECT_SERROR_ESR`, or the value is malformed, it injects nothing, prints an error and fails the `inject-nmi` QMP command. Unset: unchanged from 0002. TCG: unchanged.
+- **W2** `b2-serror` only: the lower-EL SError handler keeps `ESR_EL1`, and the probe prints `b2: esr=0x%08x` after `b2: taken`. In the default build, `.text`, `.data` and `.bss` are byte-identical to main. `.rodata` differs only in 16 bytes, which are panic-location line numbers shifted by the added source lines. `_start` is unchanged.
+- **W3** `scripts/b2-kvm-smoke.py`: `CTOS_B2_EXPECT_ESR` (exactly one `b2: esr=` line, an exact match, else `FAIL esr-mismatch`), `CTOS_B2_NO_INJECT=1` (row N), and a refused inject is `FAIL inject-error`. Unit tests: `scripts/test_b2_kvm_smoke.py`.
+- **W4** `scripts/kvm-recheck-userdata.sh`: the read-only inventory (`ras host-ext`, the boot-log RAS line, `ras kvm-cap-serror-esr`, `ras kvm-cap-ext-dabt`, `ras acpi EINJ/HEST/AEST/BERT/SDEI` names, `ras kconfig APEI_EINJ`), then rows N, D and E (up to two boots each), with `rows=N:ok,D:ok,E:ok` in the result line.
+- **W5** `.github/workflows/kvm-recheck.yml`: PASS needs the result line with `rows=N:ok,D:ok,E:ok`, each row's PASS line, row E's ESR derived from the nonce inside the workflow, and no `esr-mismatch` on any attempt. `kvm-cap-serror-esr` other than `1` is **INCONCLUSIVE**. The acknowledgement is `supervised-b3-run`. `component=b2-spike` is used in the launch tags and in both teardown filters. The cost knobs, instance type and cleanup layers are unchanged.
+
+The local probes (TCG, unit tests, lint) are listed in the PR. Only a supervised KVM run on Graviton can show rows D and E: under TCG, QEMU emulates a physical SError with `ESR_EL1 = 0xbe000000`, and patch 0003 does nothing there.
+
 ## Sources
 
 - [S1] Linux, `Documentation/virt/kvm/api.rst`, `KVM_GET/SET_VCPU_EVENTS` (arm64): `serror_has_esr`, ISS in `serror_esr`, `-EINVAL` above the ISS, `ext_dabt_pending`. https://docs.kernel.org/virt/kvm/api.html
