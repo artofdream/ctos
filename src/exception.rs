@@ -1010,8 +1010,21 @@ pub unsafe fn eret_to_el0_fiq(user_pc: u64, user_arg: u64, user_sp: u64) {
     eret_to_el0_spsr(user_pc, user_arg, user_sp, SPSR_EL0_FIQ_ENABLED);
 }
 
+/// ADR-112 (B3, `b2-serror` only): `ESR_EL1` of the taken lower-EL SError,
+/// so the probe can print the host-chosen syndrome. 0 = none taken yet.
+#[cfg(feature = "b2-serror")]
+static B2_SERROR_ESR: AtomicU64 = AtomicU64::new(0);
+
+/// ADR-112 (B3): `ESR_EL1` saved by the lower-EL SError handler (0 if none).
+#[cfg(feature = "b2-serror")]
+pub fn b2_serror_esr() -> u64 {
+    B2_SERROR_ESR.load(Ordering::SeqCst)
+}
+
 /// Arm taken lower-EL SError while standing (ADR-045). Host must inject.
 pub fn arm_el0_serror() {
+    #[cfg(feature = "b2-serror")]
+    B2_SERROR_ESR.store(0, Ordering::SeqCst);
     EL0_SERROR_CAUGHT.store(false, Ordering::SeqCst);
     EXPECT_EL0_SERROR.store(true, Ordering::SeqCst);
 }
@@ -1742,6 +1755,9 @@ pub extern "C" fn handle_serror_lower_el(_ctx: &mut ExceptionContext) {
             }
             #[cfg(not(feature = "el2-vserror"))]
             {
+                // ADR-112 (B3): keep ESR_EL1 before reporting the take.
+                #[cfg(feature = "b2-serror")]
+                B2_SERROR_ESR.store(_ctx.esr, Ordering::SeqCst);
                 EL0_SERROR_CAUGHT.store(true, Ordering::SeqCst);
                 // ADR-110 (N1): a taken SError on core 1 gets its own locked line,
                 // so the single-core `el0: serror` cue can't be faked by cpu1.

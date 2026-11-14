@@ -1,0 +1,120 @@
+From: ctos research <noreply@ctos.local>
+Subject: [PATCH] hw/arm/virt: under KVM, optional host-chosen SError syndrome (ctos B3)
+
+ctos ADR-112 / B3 (W1). Apply ON TOP of 0001 and 0002, QEMU v10.0.0
+(7c949c53e936aa3a658d84ab53bae5cadaa5d59c).
+
+In the KVM branch of virt_nmi (added by 0002): if the environment variable
+CTOS_B2_SERROR_ESR is set to a hex ISS with no bits above bit 24, set
+env->serror.has_esr = 1 and env->serror.esr to it, so kvm_put_vcpu_events()
+issues KVM_SET_VCPU_EVENTS { serror_pending = 1, serror_has_esr = 1,
+serror_esr = ISS }. KVM writes the ISS into VSESR_EL2 and sets HCR_EL2.VSE;
+the CPU delivers a virtual SError whose ESR_EL1 carries that ISS.
+
+QEMU passes has_esr/esr to KVM only when KVM reports
+KVM_CAP_ARM_INJECT_SERROR_ESR and otherwise drops them SILENTLY. So when the
+variable is set and the cap is absent (or the value is malformed), this
+injects nothing, prints an error and fails the inject-nmi QMP command.
+Unset or empty: unchanged from 0002 (has_esr = 0). TCG is unchanged.
+Adds kvm_arm_inject_serror_esr_supported() (stub returns false without KVM).
+Still a virtual SError, never a physical one.
+
+diff --git a/hw/arm/virt.c b/hw/arm/virt.c
+index df9c1c8..03a5c35 100644
+--- a/hw/arm/virt.c
++++ b/hw/arm/virt.c
+@@ -3148,11 +3148,45 @@ static void virt_nmi(NMIState *n, int cpu_index, Error **errp)
+          * PSTATE.A is clear. Not TCG emulation, not FEAT_NMI/FIQ/BRK.
+          */
+         ARMCPU *cpu = ARM_CPU(cs);
++        /* ctos B3 (ADR-112): optional host-chosen syndrome. If
++         * CTOS_B2_SERROR_ESR is set, it must be a hex ISS with no bits above
++         * bit 24 (KVM rejects more), and KVM must report
++         * KVM_CAP_ARM_INJECT_SERROR_ESR. Without the cap, kvm_put_vcpu_events()
++         * would drop has_esr/esr silently, so refuse loudly instead.
++         * Unset or empty: today's B2 path (has_esr = 0).
++         */
++        const char *esr_env = g_getenv("CTOS_B2_SERROR_ESR");
++        uint64_t esr = 0;
++        bool has_esr = false;
++
++        if (esr_env && *esr_env) {
++            if (qemu_strtou64(esr_env, NULL, 16, &esr) < 0 ||
++                (esr & ~(uint64_t)0x1ffffff)) {
++                error_report("ctos B3: CTOS_B2_SERROR_ESR is not a hex ISS "
++                             "(bits 0..24 only); no SError injected");
++                error_setg(errp, "ctos B3: bad CTOS_B2_SERROR_ESR; "
++                           "no SError injected");
++                return;
++            }
++            if (!kvm_arm_inject_serror_esr_supported()) {
++                error_report("ctos B3: KVM lacks KVM_CAP_ARM_INJECT_SERROR_ESR; "
++                             "refusing to inject (the syndrome would be "
++                             "dropped silently)");
++                error_setg(errp, "ctos B3: KVM lacks "
++                           "KVM_CAP_ARM_INJECT_SERROR_ESR; no SError injected");
++                return;
++            }
++            has_esr = true;
++        }
+ 
+         cpu_synchronize_state(cs);
+         cpu->env.serror.pending = 1;
+-        cpu->env.serror.has_esr = 0;
+-        cpu->env.serror.esr = 0;
++        cpu->env.serror.has_esr = has_esr;
++        cpu->env.serror.esr = has_esr ? esr : 0;
++        if (has_esr) {
++            info_report("ctos B3: virtual SError with host-chosen ISS 0x%07" PRIx64
++                        " (KVM_SET_VCPU_EVENTS serror_has_esr=1)", esr);
++        }
+         return;
+     }
+     cpu_interrupt(cs, CPU_INTERRUPT_SERROR);
+diff --git a/target/arm/kvm.c b/target/arm/kvm.c
+index da30bdb..ca4567d 100644
+--- a/target/arm/kvm.c
++++ b/target/arm/kvm.c
+@@ -1807,6 +1807,11 @@ bool kvm_arm_mte_supported(void)
+     return kvm_check_extension(kvm_state, KVM_CAP_ARM_MTE);
+ }
+ 
++bool kvm_arm_inject_serror_esr_supported(void)
++{
++    return cap_has_inject_serror_esr;
++}
++
+ QEMU_BUILD_BUG_ON(KVM_ARM64_SVE_VQ_MIN != 1);
+ 
+ uint32_t kvm_arm_sve_get_vls(ARMCPU *cpu)
+diff --git a/target/arm/kvm_arm.h b/target/arm/kvm_arm.h
+index 05c3de8..beb6943 100644
+--- a/target/arm/kvm_arm.h
++++ b/target/arm/kvm_arm.h
+@@ -193,6 +193,14 @@ bool kvm_arm_sve_supported(void);
+  */
+ bool kvm_arm_mte_supported(void);
+ 
++/**
++ * kvm_arm_inject_serror_esr_supported:
++ *
++ * Returns: true if KVM reports KVM_CAP_ARM_INJECT_SERROR_ESR, so that
++ * KVM_SET_VCPU_EVENTS honours serror_has_esr / serror_esr (ctos B3).
++ */
++bool kvm_arm_inject_serror_esr_supported(void);
++
+ /**
+  * kvm_arm_get_max_vm_ipa_size:
+  * @ms: Machine state handle
+@@ -232,6 +240,11 @@ static inline bool kvm_arm_aarch32_supported(void)
+     return false;
+ }
+ 
++static inline bool kvm_arm_inject_serror_esr_supported(void)
++{
++    return false;
++}
++
+ static inline bool kvm_arm_pmu_supported(void)
+ {
+     return false;

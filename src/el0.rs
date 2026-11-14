@@ -493,6 +493,8 @@ pub fn cpu1_serror_probe() -> bool {
 /// Prints `el0: serror-arm`; the lower-EL SError handler prints bare
 /// `el0: serror` only if the SError is actually taken. Otherwise prints
 /// `el0: serror-park`. No GIC/timer dependency.
+/// ADR-112 (B3): after `b2: taken` it prints `b2: esr=0x%08x`, the
+/// `ESR_EL1` the handler saw, so the host can check its chosen syndrome.
 #[cfg(feature = "b2-serror")]
 pub fn observe_b2_serror() -> bool {
     if !paging::mmu_enabled() || !paging::user_map_ready() {
@@ -502,6 +504,7 @@ pub fn observe_b2_serror() -> bool {
     let taken = serror_while_standing();
     if taken {
         uart::write_str_raw("b2: taken\n");
+        let _ = writeln!(uart::raw(), "b2: esr={:#010x}", exception::b2_serror_esr());
     } else {
         uart::write_str_raw("el0: serror-park\n");
         uart::write_str_raw("b2: not taken\n");

@@ -11,6 +11,19 @@ FAIL-CLOSED: exit 0 ONLY if a bare `el0: serror` line (the lower-EL
 SError handler's taken marker) appears AND `b2: taken`. Absence of the
 marker, `el0: serror-park`, `b2: not taken`, a missing KVM accelerator, or a
 timeout all exit non-zero. Never passes on absence.
+
+ADR-112 (B3) rows, set by the caller (scripts/kvm-recheck-userdata.sh):
+  * CTOS_B2_NO_INJECT=1 (row N): never sends inject-nmi. Exit 0 ONLY if the
+    guest parks (`el0: serror-park` + `b2: not taken`) and NO taken marker
+    and no `b2: esr=` line appear.
+  * CTOS_B2_EXPECT_ESR=0x... (rows D and E): on top of the taken markers,
+    exactly one `b2: esr=0x%08x` line must appear and equal this value,
+    else FAIL `esr-mismatch`. Never a prefix or partial match.
+  * CTOS_B2_SERROR_ESR (row E) is read by QEMU patch 0003, not here; it is
+    inherited by the QEMU child and logged.
+A failed inject-nmi QMP command (for example 0003 refusing because KVM lacks
+KVM_CAP_ARM_INJECT_SERROR_ESR) is FAIL `inject-error`.
+Still a virtual SError: never a physical SError.
 """
 from __future__ import annotations
 
@@ -27,6 +40,12 @@ ACCEL = os.environ.get("CTOS_B2_ACCEL", "kvm")
 ARM = b"el0: serror-arm"
 # Bare taken marker: a line that is exactly `el0: serror` (not -arm/-park).
 TAKEN_RE = re.compile(rb"(?m)^el0: serror\r?$")
+# ADR-112 (B3): the b2-serror profile prints ESR_EL1 after `b2: taken`.
+ESR_RE = re.compile(rb"(?m)^b2: esr=(0x[0-9a-f]{8})\r?$")
+ESR_ANY_RE = re.compile(rb"(?m)^b2: esr=")
+NO_INJECT = os.environ.get("CTOS_B2_NO_INJECT", "") == "1"
+EXPECT_ESR = os.environ.get("CTOS_B2_EXPECT_ESR", "")
+EXPECT_RE = re.compile(r"^0x[0-9a-f]{8}$")
 
 
 def log(msg: str) -> None:
@@ -127,11 +146,50 @@ def dump_stall(q: "Qmp", elf: str, why: str) -> None:
         time.sleep(1)
 
 
+def evaluate(text: bytes, injected: bool, inject_ok: bool, no_inject: bool,
+             expect_esr: str, accel: str) -> tuple[int, str]:
+    """Fail-closed verdict from the guest text. Pure (unit-tested)."""
+    taken_marker = bool(TAKEN_RE.search(text))
+    taken = taken_marker and b"b2: taken" in text
+    park = b"el0: serror-park" in text and b"b2: not taken" in text
+    any_park = b"el0: serror-park" in text or b"b2: not taken" in text
+    esr_lines = [m.decode() for m in ESR_RE.findall(text)]
+    any_esr = bool(ESR_ANY_RE.search(text))
+    if no_inject:
+        if injected:
+            return 1, "FAIL no-inject row but inject-nmi was sent (fail-closed)"
+        if park and not taken_marker and b"b2: taken" not in text and not any_esr \
+                and b"b2: done" in text:
+            return 0, (f"PASS no-inject row parked under accel={accel} "
+                       "('el0: serror-park' + 'b2: not taken'; no SError taken)")
+        return 1, "FAIL no-inject row did not park cleanly (fail-closed)"
+    if injected and not inject_ok:
+        return 1, "FAIL inject-error (inject-nmi refused; no SError injected)"
+    if not (taken and not any_park):
+        return 1, "FAIL taken 'el0: serror' NOT observed (fail-closed; never pass on absence)"
+    if expect_esr:
+        if len(esr_lines) != 1 or esr_lines[0] != expect_esr:
+            got = ",".join(esr_lines) if esr_lines else "none"
+            return 1, f"FAIL esr-mismatch observed={got} expected={expect_esr}"
+        return 0, (f"PASS taken lower-EL SError observed under accel={accel} "
+                   f"('el0: serror' + 'b2: taken') esr={esr_lines[0]} match=exact")
+    return 0, (f"PASS taken lower-EL SError observed under accel={accel} "
+               "('el0: serror' + 'b2: taken')")
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         log("FAIL missing b2-serror kernel ELF")
         return 2
     elf = sys.argv[1]
+    if EXPECT_ESR and not EXPECT_RE.match(EXPECT_ESR):
+        log("FAIL CTOS_B2_EXPECT_ESR must be 0x + 8 lower-case hex digits")
+        return 2
+    if NO_INJECT and EXPECT_ESR:
+        log("FAIL CTOS_B2_NO_INJECT=1 and CTOS_B2_EXPECT_ESR are exclusive")
+        return 2
+    log(f"row no_inject={NO_INJECT} expect_esr={EXPECT_ESR or 'none'} "
+        f"qemu_serror_esr={os.environ.get('CTOS_B2_SERROR_ESR') or 'unset'}")
     if ACCEL == "kvm" and not os.path.exists("/dev/kvm"):
         log("FAIL /dev/kvm absent (need a KVM-capable arm64 host, e.g. Graviton .metal)")
         return 3
@@ -153,6 +211,7 @@ def main() -> int:
     log(f"qmp ready={qmp_ok}")
     buf = bytearray()
     injected = False
+    inject_ok = False
     last_out = time.monotonic()
     dumped = False
     while time.monotonic() < deadline:
@@ -168,11 +227,14 @@ def main() -> int:
                 sys.stdout.buffer.write(c)
                 sys.stdout.buffer.flush()
                 buf += c
-                if not injected and ARM in buf and qmp_ok:
+                if not injected and not NO_INJECT and ARM in buf and qmp_ok:
                     s1 = q.cmd("stop", deadline)
                     s2 = q.cmd("inject-nmi", deadline)
                     s3 = q.cmd("cont", deadline)
                     injected = True
+                    inject_ok = s2 == "ok"
+                    if not buf.endswith(b"\n"):
+                        sys.stdout.write("\n")
                     log(f"qmp stop=>{s1} inject-nmi=>{s2} cont=>{s3} "
                         f"(ADR-085: KVM_SET_VCPU_EVENTS serror_pending)")
                 if b"b2: done" in buf:
@@ -187,18 +249,20 @@ def main() -> int:
             p.wait(timeout=2)
         except subprocess.TimeoutExpired:
             p.terminate()
+    if buf and not buf.endswith(b"\n"):
+        # We stop reading at `b2: done`, possibly before its newline arrives;
+        # keep our own lines (which the workflow matches whole) on fresh lines.
+        sys.stdout.write("\n")
     text = bytes(buf).replace(b"\r", b"")
-    taken = bool(TAKEN_RE.search(text)) and b"b2: taken" in text
     park = b"el0: serror-park" in text or b"b2: not taken" in text
     kvm_err = b"failed to initialize kvm" in text or b"invalid accelerator" in text
-    log(f"summary armed={ARM in text} injected={injected} "
+    log(f"summary armed={ARM in text} injected={injected} inject_ok={inject_ok} "
         f"taken_marker={bool(TAKEN_RE.search(text))} b2_taken={b'b2: taken' in text} "
-        f"park={park} kvm_err={kvm_err}")
-    if taken and not park:
-        log(f"PASS taken lower-EL SError observed under accel={ACCEL} ('el0: serror' + 'b2: taken')")
-        return 0
-    log("FAIL taken 'el0: serror' NOT observed (fail-closed; never pass on absence)")
-    return 1
+        f"park={park} kvm_err={kvm_err} "
+        f"esr={','.join(m.decode() for m in ESR_RE.findall(text)) or 'none'}")
+    rc, msg = evaluate(text, injected, inject_ok, NO_INJECT, EXPECT_ESR, ACCEL)
+    log(msg)
+    return rc
 
 
 if __name__ == "__main__":

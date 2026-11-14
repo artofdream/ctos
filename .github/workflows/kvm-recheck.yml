@@ -3,8 +3,14 @@
 # PILOT SPEC (2026-10-13): this file is the spec for ONE supervised pilot run.
 # It is NOT recurring: manual dispatch only, no schedule (do not add one), not a
 # required check. Each run needs a reviewer to approve the `kvm-pilot`
-# environment deployment and the operator to type the pilot acknowledgement.
+# environment deployment and the operator to type the run acknowledgement.
 # Region: eu-north-1. Actions are pinned by full commit SHA.
+#
+# B3 (ADR-112, option A): the run now has a read-only RAS inventory and three
+# rows (N no inject, D default ESR, E host-chosen ESR from the run nonce). The
+# acknowledgement is per milestone (`supervised-b3-run`); the ADR-099 pilot
+# acknowledgement no longer works. Instances are tagged component=b2-spike
+# (B2-P terms); the role allows kvm-ci-pilot and b2-spike, c7g.metal only.
 #
 # KVM re-check of the reduced `b2-serror` profile on a Graviton3 metal Spot
 # instance, via GitHub OIDC (no stored AWS keys). Reuses what ADR-085 / ADR-095
@@ -24,10 +30,13 @@
 #   * Third-party actions below are pinned by full commit SHA (version in the
 #     trailing comment). Re-check the SHAs against the release tags before use.
 #
-# What a green run means (ADR-099 "Honesty"): only that, at the printed commit, on
-# a KVM-capable Graviton host, the reduced `b2-serror` profile printed
-# `el0: serror` + `b2: taken`. Not the default image, not the identity inventory,
-# not the EL0 walk, not real-hardware boot of the default image.
+# What a green run means (ADR-112 "Honesty"): only that, at the printed commit, on
+# a KVM-capable Graviton host that reports KVM_CAP_ARM_INJECT_SERROR_ESR, the
+# reduced `b2-serror` profile parked without an inject (row N), took a virtual
+# SError with KVM's default syndrome (row D) and took a virtual SError whose
+# ESR_EL1 was exactly the host-chosen, nonce-derived value (row E). Not a
+# physical SError, not hardware RAS, not EINJ, not the default image, not bare
+# metal. A host without the ESR cap is INCONCLUSIVE, never PASS.
 #
 # Result words (only these; each comes from a probe in this file):
 #   PASS | FAIL | INCONCLUSIVE | SKIPPED-no-capacity | REFUSED-active-instance
@@ -54,7 +63,7 @@ on:
         required: false
         default: main
       pilot_ack:
-        description: "Type exactly: supervised-one-off-pilot"
+        description: "Type exactly: supervised-b3-run (ADR-112, one supervised run)"
         required: true
         default: ""
 
@@ -86,6 +95,10 @@ jobs:
       KVM_SUBNET_IDS: ${{ vars.KVM_SUBNET_IDS }}
       INPUT_REF: ${{ inputs.ref }}
       INSTANCE_TYPE: c7g.metal
+      # ADR-112: B2-P terms tag value. Launch tags and both teardown filters use
+      # this one value, so the sweep finds exactly what the launch created.
+      COMPONENT_TAG: b2-spike
+      RUN_ACK: supervised-b3-run
       # Hard cost cap per run (ADR-099): MAX_PRICE_USD_HR is the Spot max price
       # sent to EC2; LIFETIME_MIN is the in-instance shutdown timer. The guard
       # refuses to run unless MAX_PRICE * (LIFETIME + 5 min boot slack) / 60
@@ -114,7 +127,8 @@ jobs:
           [ "$GITHUB_REPOSITORY" = "artofdream/ctos" ] || refuse "wrong repository"
           [ "$GITHUB_REF" = "refs/heads/main" ] || refuse "must run from main"
           [ -n "${KVM_ROLE_ARN:-}" ] || refuse "KVM_ROLE_ARN is unset (workflow is inert until the sponsor path sets it)"
-          [ "${PILOT_ACK:-}" = "supervised-one-off-pilot" ] || refuse "pilot acknowledgement missing (this is a one-off supervised pilot)"
+          [ "${PILOT_ACK:-}" = "$RUN_ACK" ] || refuse "run acknowledgement missing (type $RUN_ACK; this is one supervised B3 run)"
+          [ "$COMPONENT_TAG" = "b2-spike" ] || refuse "component tag must be b2-spike (ADR-112)"
           for v in KVM_AMI_ID KVM_SG_ID KVM_SUBNET_IDS; do
             [ -n "${!v:-}" ] || refuse "$v is unset"
           done
@@ -181,7 +195,7 @@ jobs:
               -e "s/__NONCE__/$nonce/" \
               -e "s/__LIFETIME_MIN__/$LIFETIME_MIN/" \
               scripts/kvm-recheck-userdata.sh > userdata.sh
-          tags="{Key=project,Value=ctos},{Key=component,Value=kvm-ci-pilot},{Key=run,Value=$GITHUB_RUN_ID}"
+          tags="{Key=project,Value=ctos},{Key=component,Value=$COMPONENT_TAG},{Key=run,Value=$GITHUB_RUN_ID}"
           capacity_re='InsufficientInstanceCapacity|InsufficientCapacity|SpotMaxPriceTooLow|capacity-not-available|Unsupported|InsufficientFreeAddressesInSubnet'
           quota_re='MaxSpotInstanceCountExceeded|VcpuLimitExceeded|InstanceLimitExceeded'
           read -ra subnets <<< "$(printf '%s' "$KVM_SUBNET_IDS" | tr ',' ' ')"
@@ -271,22 +285,41 @@ jobs:
             fi
             sleep 30
           done
-          # Parse fail-closed. Every condition must hold for PASS.
-          pass=1
-          grep -Fxq "CTOSB2: result smoke-rc=0 sha=$SHA nonce=$NONCE" console.filtered || pass=0
-          grep -Eq "^CTOSB2: b2-kvm-smoke: PASS taken lower-EL SError observed under accel=kvm" console.filtered || pass=0
-          grep -Eq "^CTOSB2: uname Linux [^ ]+ aarch64$" console.filtered || pass=0
-          grep -Fxq "CTOSB2: /dev/kvm=present" console.filtered || pass=0
-          grep -Eq "^CTOSB2: kvm-api 12$" console.filtered || pass=0
-          if [ "$pass" = 1 ]; then
+          # Parse fail-closed (ADR-112). Every condition must hold for PASS.
+          # Row E's ESR is derived here from the nonce, independently of the
+          # instance: N16 = low 16 bits of the nonce (0x00c7 if zero).
+          printf '%s' "$NONCE" | grep -Eq '^[0-9a-f]{16}$' || { echo "::error::bad nonce"; exit 1; }
+          n16=$(( 16#${NONCE: -4} ))
+          [ "$n16" -eq 0 ] && n16=$(( 0xc7 ))
+          esr_d=0xbf000000
+          esr_e=$(printf '0x%08x' $(( 0xbf000000 | n16 )))
+          pfx="CTOSB2: b2-kvm-smoke: PASS"
+          pass=1; why=""
+          need() { grep -Fxq "$1" console.filtered || { pass=0; why="${why:+$why,}$2"; }; }
+          need "CTOSB2: result smoke-rc=0 sha=$SHA nonce=$NONCE rows=N:ok,D:ok,E:ok" result-line
+          grep -Eq "^CTOSB2: uname Linux [^ ]+ aarch64$" console.filtered || { pass=0; why="${why:+$why,}uname"; }
+          need "CTOSB2: /dev/kvm=present" dev-kvm
+          need "CTOSB2: kvm-api 12" kvm-api
+          need "$pfx no-inject row parked under accel=kvm ('el0: serror-park' + 'b2: not taken'; no SError taken)" row-n
+          need "$pfx taken lower-EL SError observed under accel=kvm ('el0: serror' + 'b2: taken') esr=$esr_d match=exact" row-d
+          need "$pfx taken lower-EL SError observed under accel=kvm ('el0: serror' + 'b2: taken') esr=$esr_e match=exact" row-e
+          # A wrong syndrome on any attempt is a real signal, not a flake.
+          if grep -Eq '^CTOSB2: b2-kvm-smoke: FAIL esr-mismatch' console.filtered; then pass=0; why="${why:+$why,}esr-mismatch"; fi
+          # The ESR-inject cap gates the verdict: without it QEMU would drop the
+          # syndrome silently, so the run proves nothing about row E.
+          cap=$(sed -n 's/^CTOSB2: ras kvm-cap-serror-esr=//p' console.filtered | head -1)
+          if [ "$cap" != "1" ]; then
+            echo "result=INCONCLUSIVE" > "$RESULT_FILE"; echo "reason=kvm-cap-serror-esr=${cap:-missing}" >> "$RESULT_FILE"
+            echo "::error::INCONCLUSIVE: KVM_CAP_ARM_INJECT_SERROR_ESR=${cap:-missing} on this host. This is not a pass."
+          elif [ "$pass" = 1 ]; then
             echo "result=PASS" > "$RESULT_FILE"
           else
-            echo "result=FAIL" > "$RESULT_FILE"; echo "reason=smoke-not-pass-or-markers-missing" >> "$RESULT_FILE"
+            echo "result=FAIL" > "$RESULT_FILE"; echo "reason=checks-failed:$why" >> "$RESULT_FILE"
           fi
           # Safe, public excerpt: the marker lines only.
           {
             echo '```text'
-            grep -E '^CTOSB2: (uname|cpu|/dev/kvm|kvm-api|head|qemu-version|smoke attempt|b2-kvm-smoke: (PASS|FAIL)|result)' console.filtered || true
+            grep -E '^CTOSB2: (uname|cpu|/dev/kvm|kvm-api|ras |head|qemu-version|rows |row [NDE] attempt|b2-kvm-smoke: (row|PASS|FAIL)|result)' console.filtered || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -311,7 +344,7 @@ jobs:
           # Terminate everything this run created, found by tag, so a launch that
           # died after RunInstances (no output) is still cleaned up.
           ids=$(aws ec2 describe-instances \
-            --filters "Name=tag:project,Values=ctos" "Name=tag:component,Values=kvm-ci-pilot" \
+            --filters "Name=tag:project,Values=ctos" "Name=tag:component,Values=$COMPONENT_TAG" \
                       "Name=tag:run,Values=$GITHUB_RUN_ID" \
                       "Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down" \
             --query 'Reservations[].Instances[].InstanceId' --output text)
@@ -322,7 +355,7 @@ jobs:
           fi
           # Wait (poll) up to TERM_WAIT_MIN for this run's instances to leave every
           # non-terminated state. Metal can take more than 10 minutes.
-          run_filter=(--filters "Name=tag:project,Values=ctos" "Name=tag:component,Values=kvm-ci-pilot" "Name=tag:run,Values=$GITHUB_RUN_ID")
+          run_filter=(--filters "Name=tag:project,Values=ctos" "Name=tag:component,Values=$COMPONENT_TAG" "Name=tag:run,Values=$GITHUB_RUN_ID")
           count_run() {
             aws ec2 describe-instances "${run_filter[@]}" \
               "Name=instance-state-name,Values=$1" \
@@ -400,7 +433,7 @@ jobs:
             echo "### KVM re-check: $result"
             echo "- commit: \`${{ steps.sha.outputs.sha }}\`"
             [ -n "$reason" ] && echo "- reason: $reason"
-            echo "- scope: reduced \`b2-serror\` profile under KVM on a Graviton metal host, one run. Not the default image. Not ADR-091's other evidence."
+            echo "- scope (ADR-112 B3): reduced \`b2-serror\` profile under KVM on a Graviton metal host, one supervised run; rows N/D/E; a **virtual SError** only (host-chosen syndrome). Not a physical SError, not hardware RAS, not the default image. Not ADR-091's other evidence."
             echo "- only PASS is green; SKIPPED, INCONCLUSIVE, REFUSED, LEAK, TEARDOWN-SLOW, ABORTED-after-aws-call and NOT-RUN are not passes."
           } >> "$GITHUB_STEP_SUMMARY"
           echo "kvm-recheck result: $result"

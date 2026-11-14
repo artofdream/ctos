@@ -1,0 +1,6 @@
+# 2026-11-12 — ADR-112 B3: implementation PR (W1–W5), not run
+
+- What: QEMU patch 0003 (host-chosen SError syndrome via `serror_has_esr`; refuses loudly without `KVM_CAP_ARM_INJECT_SERROR_ESR`), `b2: esr=` in the `b2-serror` profile, smoke rows N/D/E with an exact ESR match, a read-only RAS inventory in the user data, and a stricter `kvm-recheck.yml` (PASS also needs `kvm-cap-serror-esr=1`, otherwise INCONCLUSIVE; ack `supervised-b3-run`; `component=b2-spike`).
+- Local probes (amd64, throwaway clones): `cargo build --features b2-serror`; the default build's `.text`/`.data`/`.bss` identical to main; 19 smoke unit tests; TCG row N parks (patched and stock QEMU 10.0.0); TCG inject prints `b2: esr=0xbe000000` and the exact-match and mismatch paths behave as specified; synthetic consoles through the workflow parse (PASS, INCONCLUSIVE on cap 0 or missing, FAIL on a wrong row-E ESR, a missing row or a mismatch); shellcheck; actionlint; arm64 compile of the 0003 KVM path in Docker.
+- KVM only: whether KVM on `c7g.metal` reports the ESR cap, whether rows D/E deliver `0xbf000000` / `0xbf00_0000 | N16`, and row N's timing at native speed.
+- Still a **virtual SError**. No AWS call, no dispatch. Ledger row stays Planned. See [ADR-112](../../docs/03-adr/ADR-112-b3-graviton-real-hardware-serror-plan.md).
