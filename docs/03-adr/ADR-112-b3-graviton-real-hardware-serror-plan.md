@@ -2,6 +2,7 @@
 
 - Status: **Proposed (research + plan only).** Nothing here is implemented. **No AWS call was made and no AWS resource was created or changed** to write it. The sponsor and DSO decide; do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 - Date: 2026-11-12 (CET)
+- Rev 2026-11-18 (CET): instance-type fallback `c7g.metal` → `m7g.metal` → `m6g.metal` after two capacity skips. See [Revision 2026-11-18](#revision-2026-11-18-instance-type-fallback-option-b). Status unchanged.
 - Base: main `9ebef21` (after #170). ADR-111 is the last ADR on main and no PR is open, so this is ADR-112.
 - Machine: amd64 workstation (docs only; throwaway clone). No cloud, no CloudAgent.
 - Asked by: the user, 2026-11-12 22:15 CET: "proceed with next milestone including real-hardware SError".
@@ -155,6 +156,30 @@ Added 2026-11-12 (CET) by the implementation PR after this ADR merged (#172). St
 - **W5** `.github/workflows/kvm-recheck.yml`: PASS needs the result line with `rows=N:ok,D:ok,E:ok`, each row's PASS line, row E's ESR derived from the nonce inside the workflow, and no `esr-mismatch` on any attempt. `kvm-cap-serror-esr` other than `1` is **INCONCLUSIVE**. The acknowledgement is `supervised-b3-run`. `component=b2-spike` is used in the launch tags and in both teardown filters. The cost knobs, instance type and cleanup layers are unchanged.
 
 The local probes (TCG, unit tests, lint) are listed in the PR. Only a supervised KVM run on Graviton can show rows D and E: under TCG, QEMU emulates a physical SError with `ESR_EL1 = 0xbe000000`, and patch 0003 does nothing there.
+
+## Revision 2026-11-18: instance-type fallback (option B)
+
+- Asked by: the user, 2026-11-18 04:16 CET: "proceed with B if available" (allow other Graviton metal Spot types as a fallback). Status stays **Proposed**; the ledger row stays **Planned**. No AWS call was made to write this revision, and no IAM change is made by this PR.
+- **Why:** two supervised dispatches on `main` (`5209c1c`) ended **SKIPPED-no-capacity**: `InsufficientInstanceCapacity` for `c7g.metal` Spot in all three eu-north-1 AZs, no instance started, $0 spent, sweep clean.
+  - [run 43598194390](https://github.com/artofdream/ctos/actions/runs/43598194390) (2026-11-14 17:29 CET)
+  - [run 44227097081](https://github.com/artofdream/ctos/actions/runs/44227097081) (2026-11-18 03:59 CET)
+- **Change:** `kvm-recheck.yml` tries an ordered list of Graviton bare-metal Spot types, each across every AZ, before the next type:
+
+| Order | Type | CPU | Spot $/h, eu-north-1 (public feed, 2026-11-18) |
+| --- | --- | --- | --- |
+| 1 | `c7g.metal` | Graviton3 (Neoverse V1) | 0.2476 |
+| 2 | `m7g.metal` | Graviton3 (Neoverse V1) | 0.2774–0.2874 |
+| 3 | `m6g.metal` | Graviton2 (Neoverse N1) | 0.2624 (interruption rate < 5%) |
+
+- **Launch rules:** a capacity error (`InsufficientInstanceCapacity`, `Unsupported` in that AZ, a price above the max, and so on) moves to the next AZ, then the next type. A quota error is still **SKIPPED-no-capacity** at once. Any other error (including `UnauthorizedOperation`) is still **FAIL** at once, with no further attempts. No capacity anywhere (up to 9 attempts) is **SKIPPED-no-capacity**.
+- **Guard:** it refuses (NOT-RUN, no AWS call) if any listed type is not `*.metal` or not in the hard-coded allowlist {`c7g.metal`, `m7g.metal`, `m6g.metal`}, if a type is listed twice, or if the list is empty.
+- **Excluded:** `c6g.metal`, which is cheapest (0.2336) but has an interruption rate above 20%. A Spot interruption ends the run INCONCLUSIVE and wastes a dispatch. `r6g`/`r7g.metal` (0.34–0.36 $/h) add nothing. **On-Demand is not added** (about 2.48 $/h for `c7g.metal` here).
+- **Cost: unchanged.** The EC2 max price stays `0.40` $/h for every type, `LIFETIME_MIN 45`, and the guard's cap stays `0.40 × (45 + 5)/60 = $0.33` ≤ `RUN_COST_CAP_USD 0.50`. All three types are under the max price. Worst case including a slow 20-min teardown: about $0.43, as before. Expected cost for a normal run: about $0.08–0.10 on any of the three.
+- **Every other safety layer is unchanged:** `shutdown -h +45`, one-time Spot with `InstanceInterruptionBehavior=terminate`, the always-run tag-based teardown (`project=ctos`, `component=b2-spike`, `run=<run id>`), the pre-flight refusal, the `supervised-b3-run` acknowledgement, main only, and the `kvm-pilot` environment with required reviewers.
+- **Verdict:** the result file and the step summary record `instance_type=` (the type that actually ran, or `none` with the types tried). PASS still requires `kvm-cap-serror-esr=1`; otherwise the run is **INCONCLUSIVE**. Graviton2 (Armv8.2) implements the RAS extension, so `m6g.metal` is expected to report the cap. That is unproven until a run prints it, and the fail-closed parse decides, not this expectation.
+- **Honesty sentence:** if a run passes, the "If B3 passes, say" sentence names the recorded type and CPU in place of "Graviton3 `c7g.metal`" (for example "Graviton2 `m6g.metal`"). The claim is still a **virtual SError** only; every "Do not say" item stands. ADR-085/095's evidence was `c7g.metal`, so a pass on `m7g` or `m6g` is a pass on that type, not a repeat on the same host type.
+- **IAM (sponsor-applied, not done by this PR):** the role's `ec2:RunInstances` instance-type condition must allow `c7g.metal`, `m7g.metal` and `m6g.metal` (today only `c7g.metal`). Nothing else changes: same actions, same tag conditions (`project=ctos`, `component` in {`kvm-ci-pilot`, `b2-spike`}), no new permission, no `iam:PassRole`. Until it is applied, a fallback launch is refused by AWS with `UnauthorizedOperation` and the run is **FAIL**, never a pass. DSO should re-read the policy before the next dispatch.
+- Probe: `scripts/test_kvm_recheck_workflow.py` runs the workflow's real Guard and Launch scripts against a fake `aws` (no AWS call): it covers the allowlist refusals, the c7g → m7g → m6g order across AZs, SKIPPED after 9 capacity errors, an immediate FAIL on a non-capacity error, an immediate SKIPPED on a quota error, and the unchanged safety layers.
 
 ## Sources
 
