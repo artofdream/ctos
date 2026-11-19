@@ -1,8 +1,9 @@
 # ADR-112 — B3: what "real-hardware SError" can honestly mean on Graviton metal (plan; no launch)
 
-- Status: **Proposed (research + plan only).** Nothing here is implemented. **No AWS call was made and no AWS resource was created or changed** to write it. The sponsor and DSO decide; do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
+- Status: **Result recorded.** Supervised `kvm-recheck` run #5 on `main` `fec74d01` was **PASS** (`instance_type=c7g.metal`). The claim is a **virtual SError** under KVM only (host-chosen syndrome). Not a physical SError, not hardware RAS, not the default image, and not a claim change to ADR-091 rev 4 or ADR-106. The exact Spot charge is not yet confirmed (Cost Explorer pending billing). The sponsor and DSO decide; do not self-merge ([ADR-002](ADR-002-pr-identity-split.md)).
 - Date: 2026-11-12 (CET)
-- Rev 2026-11-18 (CET): instance-type fallback `c7g.metal` → `m7g.metal` → `m6g.metal` after two capacity skips. See [Revision 2026-11-18](#revision-2026-11-18-instance-type-fallback-option-b). Status unchanged.
+- Rev 2026-11-18 (CET): instance-type fallback `c7g.metal` → `m7g.metal` → `m6g.metal` after two capacity skips. See [Revision 2026-11-18](#revision-2026-11-18-instance-type-fallback-option-b).
+- Rev 2026-11-19 (CET): record run #5 PASS. See [Result 2026-11-18](#result-2026-11-18-kvm-recheck-run-5-pass).
 - Base: main `9ebef21` (after #170). ADR-111 is the last ADR on main and no PR is open, so this is ADR-112.
 - Machine: amd64 workstation (docs only; throwaway clone). No cloud, no CloudAgent.
 - Asked by: the user, 2026-11-12 22:15 CET: "proceed with next milestone including real-hardware SError".
@@ -180,6 +181,24 @@ The local probes (TCG, unit tests, lint) are listed in the PR. Only a supervised
 - **Honesty sentence:** if a run passes, the "If B3 passes, say" sentence names the recorded type and CPU in place of "Graviton3 `c7g.metal`" (for example "Graviton2 `m6g.metal`"). The claim is still a **virtual SError** only; every "Do not say" item stands. ADR-085/095's evidence was `c7g.metal`, so a pass on `m7g` or `m6g` is a pass on that type, not a repeat on the same host type.
 - **IAM (sponsor-applied, not done by this PR):** the role's `ec2:RunInstances` instance-type condition must allow `c7g.metal`, `m7g.metal` and `m6g.metal` (today only `c7g.metal`). Nothing else changes: same actions, same tag conditions (`project=ctos`, `component` in {`kvm-ci-pilot`, `b2-spike`}), no new permission, no `iam:PassRole`. Until it is applied, a fallback launch is refused by AWS with `UnauthorizedOperation` and the run is **FAIL**, never a pass. DSO should re-read the policy before the next dispatch.
 - Probe: `scripts/test_kvm_recheck_workflow.py` runs the workflow's real Guard and Launch scripts against a fake `aws` (no AWS call): it covers the allowlist refusals, the c7g → m7g → m6g order across AZs, SKIPPED after 9 capacity errors, an immediate FAIL on a non-capacity error, an immediate SKIPPED on a quota error, and the unchanged safety layers.
+
+
+## Result 2026-11-18: kvm-recheck run #5 PASS
+
+- Recorded 2026-11-19 (CET) after the user approved a review-only PR. No new AWS call was made to write this section.
+- **Run:** [kvm-recheck #5](https://github.com/artofdream/ctos/actions/runs/44392535730), job [KVM re-check (b2-serror, Graviton metal)](https://github.com/artofdream/ctos/actions/runs/44392535730/job/135113718350), on `main` `fec74d01dcde5ca7784913c4f17258c6799fab70` (the #174 merge).
+- **Times (CET, Europe/Berlin, from the GitHub Actions API and the job log):** dispatched 2026-11-18 21:34:56 CET; the job started after the `kvm-pilot` environment approval at 2026-11-18 22:35:53 CET; completed 2026-11-18 22:52:10 CET.
+- **Quoted job-log lines** (plain stdout of the Guard, Launch, Teardown and Verdict steps, fetched with `gh` on 2026-11-19):
+  - `Instance types, in order: c7g.metal m7g.metal m6g.metal`
+  - `Guard passed. Per-run compute cap: 0.33 USD (estimate: MaxPrice x lifetime).`
+  - `Launched c7g.metal in attempt 1 of 9.`
+  - `Sweep clean: 0 non-terminated instances from this run.`
+  - `kvm-recheck result: PASS (instance_type=c7g.metal)`
+- **Fallback:** `m7g.metal` and `m6g.metal` were not launched; `c7g.metal` started on the first attempt.
+- **Cost knobs (unchanged):** eu-north-1 Spot, MaxPrice 0.40 USD/h, `LIFETIME_MIN` 45, guard per-run compute cap 0.33 USD (`MaxPrice × (lifetime + 5 min slack) / 60`). The exact Spot charge is not yet confirmed; Cost Explorer confirmation is pending billing. The run is under the 0.33 USD compute cap.
+- **What PASS required.** In `.github/workflows/kvm-recheck.yml`, the Verdict step is the only place a status word is decided, and it is green only if the wait step wrote `result=PASS` and teardown was clean. The wait-step parse (fail-closed) requires all of the following in the filtered console: the result line `rows=N:ok,D:ok,E:ok`; `uname` aarch64; `/dev/kvm=present`; `kvm-api 12`; row N parked under `accel=kvm` with no SError taken (`el0: serror-park` + `b2: not taken`); row D a **virtual SError** taken with `esr=0xbf000000 match=exact`; row E a **virtual SError** taken with `esr=0xbf000000|N16 match=exact` (N16 is the low 16 bits of the run nonce, or `0x00c7` if those bits are zero); no `esr-mismatch` on any attempt; and `kvm-cap-serror-esr=1` (otherwise the run is **INCONCLUSIVE**, not a pass). Those filtered console lines were written only to `$GITHUB_STEP_SUMMARY`. They were not in the downloaded job log (the wait step emitted no stdout after its script listing). The Checks API `output.summary` and `output.text` were empty, and the run had no artifacts or annotations, so those lines are described as the gate, not quoted. Because the Verdict line was `PASS` and the job conclusion was success, the wait-step parse accepted every required check, including `kvm-cap-serror-esr=1`.
+- **Prior runs** of the same workflow, all **SKIPPED-no-capacity** (not a pass): [run 43598194390](https://github.com/artofdream/ctos/actions/runs/43598194390) (#2), [run 44227097081](https://github.com/artofdream/ctos/actions/runs/44227097081) (#3), [run 44339400638](https://github.com/artofdream/ctos/actions/runs/44339400638) (#4).
+- **Honesty sentence that now applies** (the type that ran was Graviton3 `c7g.metal`): "B3 (ADR-112): on an AWS Graviton3 `c7g.metal` (eu-north-1, Spot, one supervised run), the KVM host set a per-run SError syndrome with `KVM_SET_VCPU_EVENTS` (`serror_has_esr`). The CPU delivered it as a **virtual SError** (`HCR_EL2.VSE` + `VSESR_EL2`), and the reduced ctos `b2-serror` profile, standing at EL0, took it and read back exactly that syndrome in `ESR_EL1`. Without the inject it parks." The Honesty paragraph's host-inventory yes/no fields (RAS extension, ACPI EINJ) are omitted here: they appeared only in the step summary, which was not retrieved. The ESR-inject cap was 1 because PASS requires it. Every **Do not say** item under [Honesty](#honesty) still stands. This is not a physical SError, not hardware RAS, not the default image, and not a change to the ADR-091 rev 4 or ADR-106 sentence.
 
 ## Sources
 
