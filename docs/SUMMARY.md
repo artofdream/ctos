@@ -141,6 +141,7 @@
 - [ADR-110 N1: taken SError on core 1 (pinned QEMU, cpu-index=1)](03-adr/ADR-110-n1-cpu1-taken-serror-pin.md)
 - [ADR-111 N2: EL2 shim, virtual SError on stock QEMU (opt-in)](03-adr/ADR-111-n2-el2-shim-virtual-serror.md)
 - [ADR-112 B3: real-hardware SError on Graviton metal, plan (host-chosen-syndrome virtual SError; proposed, no launch)](03-adr/ADR-112-b3-graviton-real-hardware-serror-plan.md)
+- [ADR-113 Own an arm64 KVM validation box (Proposed; no purchase)](03-adr/ADR-113-own-arm64-kvm-validation-box.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
