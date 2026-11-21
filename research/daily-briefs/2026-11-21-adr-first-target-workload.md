@@ -1,0 +1,8 @@
+# 2026-11-21 — ADR-114: first target workload (Proposed, no claim change)
+
+- Why: ctos had never named a real operational workload. Docs still say research / teaching kernel, not production, not a "secure OS"; freestanding app hosting is Verified only under ADR-048/052 and "EL0 isolated" only as the ADR-091 sentence. Existing apps cannot run (no libc/POSIX/dynamic linker; Linux compat never, ADR-036; containers non-goal, ADR-029). The user asked what a real workload needs and asked for this ADR.
+- What: [ADR-114](../../docs/03-adr/ADR-114-first-target-workload-record-processing.md) (Proposed). First target: one `no_std` EL0 app via `libctos` that reads records from a FAT16 file, validates/transforms them, and writes results plus a reject count to a second file. Telemetry collector is a possible later ADR (needs network hardening).
+- "Runs reliably" = R1 defined input/output/size/performance (measure first; thresholds TBD-by-sponsor), R2 port via `libctos` with gaps closed one PR each, R3 fail-closed negatives (malformed input, memory exhaustion, app fault, interrupted write), R4 soak, per-app limits, diagnostics and a tested restart path. Each becomes a smoke marker before any claim.
+- Gaps read from `main` `f4ca2cee`: 1 KiB `FILE_MAX`, 64-byte per-call I/O, no EL0 `unlink`/`rename`/`fsync`, no EL0 heap, unexpected EL0 fault parks the kernel, interrupted-write behaviour Unknown, no supervisor or quotas.
+- Antifragility = every found failure becomes a permanent regression test (ratchet), not "the OS restarts". An owned arm64 box (ADR-113) helps validation but delivers none of R1–R4 by itself. A **virtual SError** during a run keeps the existing fail-closed path.
+- Docs only. Ledger row Planned. No cloud, no dispatch. The sponsor decides.
