@@ -143,6 +143,7 @@
 - [ADR-112 B3: real-hardware SError on Graviton metal, plan (host-chosen-syndrome virtual SError; proposed, no launch)](03-adr/ADR-112-b3-graviton-real-hardware-serror-plan.md)
 - [ADR-113 Own an arm64 KVM validation box (Proposed; no purchase)](03-adr/ADR-113-own-arm64-kvm-validation-box.md)
 - [ADR-114 First target workload: one EL0 record-processing app (Proposed; no claim change)](03-adr/ADR-114-first-target-workload-record-processing.md)
+  - [ADR-114 R1 spec: record format, golden files, reject rules (no measurement)](03-adr/ADR-114-r1-record-spec.md)
 - [CI: QEMU NMI pin (unconditional, ADR-090)](dev/qemu-nmi-pin-ci.md)
 
 # Roadmap
